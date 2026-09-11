@@ -9,15 +9,14 @@ Checklist:
 - .gitignore
 - git init + first commit
 - Turborepo + pnpm workspace
-- packages/config (eslint, tsconfig, tailwind preset)
-- packages/schemas (zod)
-- packages/db (Prisma init)
-- packages/ui (shadcn init)
-- packages/api-client
-- apps/api (NestJS + Fastify adapter, /health)
-- apps/worker (entrypoint)
-- apps/web (Next.js App Router)
-- apps/admin (Next.js App Router)
+- shared/config (eslint, tsconfig, tailwind preset)
+- shared/schemas (zod)
+- backend/db (Prisma init)
+- backend/api (NestJS + Fastify adapter, /health, worker.ts entrypoint)
+- frontend/ui (shadcn init)
+- frontend/api-client
+- frontend/web (Next.js App Router)
+- frontend/admin (Next.js App Router)
 - docker-compose: postgres + redis
 - GitHub repo + CI (lint, typecheck, test)
 
@@ -58,9 +57,9 @@ Checklist:
 - Verify: KB ingestion limits and refresh
 - Verify: TTS preview endpoint
 - Decide Redis-down policy (fail-open vs fail-closed)
-- Write ADR 0002 Retell findings
+- Write ADR 0003 Retell findings
 
-Exit check: Every §21 item answered in ADR 0002; fixtures committed; manual brief → number → call works",Week 1 — Foundation + Backend,to do,saksham@metacognixion.com,2026-09-15,2026-09-15,8h,Urgent,"phase:p0, area:backend, spec:§13.1, spec:§21",D1
+Exit check: Every §21 item answered in ADR 0003; fixtures committed; manual brief → number → call works",Week 1 — Foundation + Backend,to do,saksham@metacognixion.com,2026-09-15,2026-09-15,8h,Urgent,"phase:p0, area:backend, spec:§13.1, spec:§21",D1
 "D3 — Wallet, Stripe, config cache, metering tests","Money in and money out: prepaid credits, Stripe purchase, and the pricing config the whole system reads.
 
 Checklist:
