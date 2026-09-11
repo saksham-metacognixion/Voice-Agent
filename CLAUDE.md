@@ -42,22 +42,22 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 
 ## Tech stack
 
-| Layer          | Choice                                                                                                                                                                                 |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                            |
-| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, fr-CA), PostHog, `retell-client-js-sdk` |
-| SSE client     | `@microsoft/fetch-event-source` — `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                        |
-| API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                      |
-| Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                            |
-| Database       | Postgres on Neon (7-day PITR, §17) + Prisma. RLS on `workspace_id`; two DB roles; append-only ledger                                                                                   |
-| Cache / queue  | Redis 7 as a Docker service on the backend EC2 instance (TCP, compose-internal). BullMQ, runtime cache, config cache, SSE pub/sub. **Not Upstash** — HTTP Redis cannot run BullMQ      |
-| Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                             |
-| Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                  |
-| Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                        |
-| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**                                                                                   |
-| Hosting        | Vercel ×2 (portal, admin) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + Neon Postgres. Webhooks and SSE hit `api.<domain>` directly. ADR 0004                |
-| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack alerts                                                                                                                                    |
-| Storage        | Cloudflare R2 for exports. Recordings stay on Retell URLs, proxied with signed 1-hour URLs                                                                                             |
+| Layer          | Choice                                                                                                                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                                          |
+| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, fr-CA), PostHog, `retell-client-js-sdk`                                               |
+| SSE client     | `@microsoft/fetch-event-source` — `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                                                                      |
+| API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                                                                    |
+| Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                                                                          |
+| Database       | Postgres on Neon (7-day PITR, §17) + Prisma. RLS on `workspace_id`; two DB roles; append-only ledger                                                                                                                                 |
+| Cache / queue  | Redis 7 as a Docker service on the backend EC2 instance (TCP, compose-internal). BullMQ, runtime cache, config cache, SSE pub/sub. **Not Upstash** — HTTP Redis cannot run BullMQ                                                    |
+| Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                                                                           |
+| Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                                                                |
+| Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                                                                      |
+| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**                                                                                                                                 |
+| Hosting        | **AWS Amplify Hosting** ×2 (portal, admin; CloudFront + managed Next.js SSR, ADR 0005) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + Neon Postgres. Webhooks and SSE hit `api.<domain>` directly. ADR 0004 |
+| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack alerts                                                                                                                                                                                  |
+| Storage        | Cloudflare R2 for exports. Recordings stay on Retell URLs, proxied with signed 1-hour URLs                                                                                                                                           |
 
 Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
@@ -65,11 +65,11 @@ zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
 ## Repo layout
 
-Split by deploy target. `frontend/` ships to Vercel, `backend/` ships to AWS EC2, `shared/` is imported
+Split by deploy target. `frontend/` ships to AWS Amplify Hosting (CloudFront), `backend/` ships to AWS EC2, `shared/` is imported
 by both and never deployed on its own.
 
 ```
-frontend/                         → Vercel
+frontend/                         → AWS Amplify Hosting (CloudFront)
   web/            @portal/web         Next.js customer portal      app.<domain>
   admin/          @portal/admin       Next.js staff console        admin.<domain>
   ui/             @portal/ui          shadcn components + shared domain widgets

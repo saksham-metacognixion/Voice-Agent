@@ -12,7 +12,7 @@
 | Service  | Command               | Notes                                                                                |
 | -------- | --------------------- | ------------------------------------------------------------------------------------ |
 | `caddy`  | —                     | Automatic TLS, reverse proxy for `api.<domain>` → `api:4000`. Only port 443 is open. |
-| `api`    | `node dist/main.js`   | Webhooks and SSE terminate here, never on Vercel.                                    |
+| `api`    | `node dist/main.js`   | Webhooks and SSE terminate here, never on the frontend CDN.                          |
 | `worker` | `node dist/worker.js` | No exposed port. BullMQ processors + Job Schedulers.                                 |
 | `redis`  | redis:7-alpine        | `appendonly yes`, `maxmemory-policy noeviction`. Compose-internal network only.      |
 
@@ -24,7 +24,11 @@ with the previous image tag.
 Postgres is on Neon, not AWS, for 7-day point-in-time recovery at low cost (ADR 0001, ADR 0004). Use the
 pooled connection string as `DATABASE_URL` and the unpooled one as `DIRECT_DATABASE_URL`.
 
-## Vercel projects
+## Frontend on AWS Amplify Hosting (ADR 0005)
 
-Two projects from the same repo: root directory `frontend/web` and `frontend/admin`. Framework preset
-Next.js, install command `pnpm install --frozen-lockfile`, build command `pnpm turbo run build --filter=@portal/<app>...`.
+Two Amplify apps connected to the GitHub repo, `frontend/web` → `app.<domain>` and `frontend/admin` →
+`admin.<domain>`. Branch `main` deploys production, `staging` deploys staging, other branches get preview
+URLs. Build settings live in `infra/amplify/amplify.web.yml` and `infra/amplify/amplify.admin.yml` (land on
+D8): `pnpm install --frozen-lockfile && pnpm turbo run build --filter=@portal/<app>...`, artifact directory
+`frontend/<app>/.next`. Server-side secrets come from SSM Parameter Store; `NEXT_PUBLIC_*` values are
+Amplify environment variables.

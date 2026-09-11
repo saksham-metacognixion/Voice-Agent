@@ -26,7 +26,7 @@ Exit check: pnpm turbo build lint test green; docker compose up healthy; /health
 Checklist:
 - Accounts: Retell, Stripe (test), Anthropic
 - Auth0 x2 (customer tenant, staff tenant) + M2M apps
-- AWS account: IAM user for CI, EC2 staging instance (t3.small) + Elastic IP, SSM Parameter Store, KMS key; Neon (dev branch); Vercel x2
+- AWS account: IAM user for CI, EC2 staging instance (t3.small) + Elastic IP, SSM Parameter Store, KMS key; Neon (dev branch); Amplify Hosting apps x2 (web, admin) connected to the GitHub repo
 - cloudflared tunnel for webhooks
 - .env.example committed
 - Prisma schema: all Portal §15 tables
@@ -156,7 +156,7 @@ Checklist:
 - W1 template picker
 - W2 brief: 13 fields, autosave 1.5 s, BriefCard, Generate with SSE/polling
 - W3 voice and languages: VoicePicker, filters, tier badges, preview
-- Deploy web to Vercel staging
+- Deploy web to Amplify Hosting staging branch
 
 Exit check: Sign-up through W3 works on staging, including a real Generate",Week 2 — Backend + Portal,to do,saksham@metacognixion.com,2026-09-23,2026-09-23,8h,High,"phase:p1, area:frontend, spec:§6, spec:§7",D7
 D9 — Wizard W4–W7 + live,"Test, buy a number, pay, go live — the rest of the 15-minute promise.

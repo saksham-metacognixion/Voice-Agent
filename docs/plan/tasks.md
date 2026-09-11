@@ -1,6 +1,6 @@
 # Task board — 21 tasks, one per working day
 
-Rendered from `tasks.csv`. Auth0 (ADR 0002), AWS EC2 backend hosting (ADR 0004); Retell findings are ADR 0003. Tasks marked **(updated)** changed after the ClickUp import.
+Rendered from `tasks.csv`. Auth0 (ADR 0002), AWS EC2 backend (ADR 0004), AWS Amplify Hosting frontend (ADR 0005); Retell findings are ADR 0003. Tasks marked **(updated)** changed after the ClickUp import.
 
 ## Day 0
 
@@ -40,7 +40,7 @@ Provision every external account and land the full database + auth foundation in
 
 - Accounts: Retell, Stripe (test), Anthropic
 - Auth0 x2 (customer tenant, staff tenant) + M2M apps
-- AWS account: IAM user for CI, EC2 staging instance (t3.small) + Elastic IP, SSM Parameter Store, KMS key; Neon (dev branch); Vercel x2
+- AWS account: IAM user for CI, EC2 staging instance (t3.small) + Elastic IP, SSM Parameter Store, KMS key; Neon (dev branch); Amplify Hosting apps x2 (web, admin) connected to the GitHub repo
 - cloudflared tunnel for webhooks
 - .env.example committed
 - Prisma schema: all Portal §15 tables
@@ -200,7 +200,7 @@ The customer's first three minutes: sign up, then describe the business and hear
 - W1 template picker
 - W2 brief: 13 fields, autosave 1.5 s, BriefCard, Generate with SSE/polling
 - W3 voice and languages: VoicePicker, filters, tier badges, preview
-- Deploy web to Vercel staging
+- Deploy web to Amplify Hosting staging branch
 
 **Exit:** Sign-up through W3 works on staging, including a real Generate
 

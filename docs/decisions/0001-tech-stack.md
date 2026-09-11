@@ -23,20 +23,20 @@ Three constraints shaped every choice:
 
 ## Decision
 
-| Layer          | Decision                                                                                                                                                                         |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                      |
-| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand, React Hook Form + zod, next-intl, PostHog, `retell-client-js-sdk`, `@microsoft/fetch-event-source` |
-| API            | NestJS on the Fastify adapter, `nestjs-zod` for validation                                                                                                                       |
-| Worker         | Same codebase, separate entrypoint. BullMQ processors + Job Schedulers                                                                                                           |
-| Database       | Postgres on Neon + Prisma. RLS on `workspace_id`, two DB roles, append-only ledger                                                                                               |
-| Cache / queue  | Redis on Railway, TCP                                                                                                                                                            |
-| Auth           | ~~Clerk, two separate applications~~ → **Auth0, two tenants**. Superseded by [ADR 0002](0002-auth-provider-auth0.md) on 2026-09-11                                               |
-| Payments       | Stripe Checkout + Customer Portal                                                                                                                                                |
-| Voice          | Retell Node SDK behind `RetellGateway`                                                                                                                                           |
-| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output                                                                                                                              |
-| Hosting        | ~~Vercel ×2 + Railway + Neon~~ → **Vercel ×2 + AWS EC2 + Neon**. Superseded by [ADR 0004](0004-backend-hosting-aws-ec2.md) on 2026-09-11                                         |
-| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack                                                                                                                                     |
+| Layer          | Decision                                                                                                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                |
+| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand, React Hook Form + zod, next-intl, PostHog, `retell-client-js-sdk`, `@microsoft/fetch-event-source`                           |
+| API            | NestJS on the Fastify adapter, `nestjs-zod` for validation                                                                                                                                                 |
+| Worker         | Same codebase, separate entrypoint. BullMQ processors + Job Schedulers                                                                                                                                     |
+| Database       | Postgres on Neon + Prisma. RLS on `workspace_id`, two DB roles, append-only ledger                                                                                                                         |
+| Cache / queue  | Redis on Railway, TCP                                                                                                                                                                                      |
+| Auth           | ~~Clerk, two separate applications~~ → **Auth0, two tenants**. Superseded by [ADR 0002](0002-auth-provider-auth0.md) on 2026-09-11                                                                         |
+| Payments       | Stripe Checkout + Customer Portal                                                                                                                                                                          |
+| Voice          | Retell Node SDK behind `RetellGateway`                                                                                                                                                                     |
+| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output                                                                                                                                                        |
+| Hosting        | ~~Vercel ×2 + Railway + Neon~~ → **AWS Amplify Hosting ×2 + AWS EC2 + Neon**. Superseded by [ADR 0004](0004-backend-hosting-aws-ec2.md) and [ADR 0005](0005-frontend-hosting-aws-amplify.md) on 2026-09-11 |
+| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack                                                                                                                                                               |
 
 ## Alternatives considered
 
@@ -78,5 +78,5 @@ provides on its paid tier. Render is a reasonable single-vendor fallback if the 
   RLS-guarded table so `current_setting()` policies stay cheap.
 - Ledger immutability needs SQL that Prisma does not model. Those migrations are hand-written and must
   not be regenerated away.
-- SSE and webhooks bypass Vercel entirely and address `api.<domain>`. The portal must never proxy them.
+- SSE and webhooks bypass the frontend host entirely and address `api.<domain>`. The portal must never proxy them.
 - Two hosting vendors plus Neon means three bills and three status pages to watch.
