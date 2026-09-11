@@ -26,7 +26,7 @@ Exit check: pnpm turbo build lint test green; docker compose up healthy; /health
 
 Checklist:
 - Accounts: Retell, Stripe (test), Anthropic
-- Clerk x2 (customer app, staff app)
+- Auth0 x2 (customer tenant, staff tenant) + M2M apps
 - Railway (api, worker, redis), Neon (dev branch), Vercel x2
 - cloudflared tunnel for webhooks
 - .env.example committed
@@ -148,7 +148,7 @@ Exit check: Schedulers register exactly once across restarts; CI green; staging 
 "D8 — Portal shell, auth screens, wizard W1–W3","The customer's first three minutes: sign up, then describe the business and hear a voice.
 
 Checklist:
-- Clerk components for A1 signup, A2 login, A3 verify email, A4 setup workspace
+- Auth0 Universal Login via @auth0/nextjs-auth0 for A1 signup, A2 login, A3 verify email; own page for A4 setup workspace
 - A5 MFA, A6 forgot/reset, A7 workspace switcher, A8 accept invite
 - Route guards per §6.4 onboarding gating
 - Global shell §7.2: left nav, workspace switcher, status chips, balance pill
@@ -209,7 +209,7 @@ Checklist:
 - Pricing draft, preview with margin check, publish, rollback
 - Stripe Price sync on pricing publish
 - View-as impersonation (read-only, audited)
-- Staff Clerk instance + mfa claim enforcement + issuer assertion on boot
+- Staff Auth0 tenant + https://portal/mfa claim enforcement + issuer assertion on boot
 - Admin shell: cmd-K global search, health strip, impersonation banner
 
 Exit check: Staff without MFA rejected; a pricing publish is visible in the portal within 60 s",Week 3 — Admin + Launch,to do,saksham@metacognixion.com,2026-09-29,2026-09-29,8h,High,"phase:p1, area:admin, area:backend",D7
@@ -250,7 +250,7 @@ D15 — Production cutover — MVP live,"Go live and put the first design partne
 Checklist:
 - Retell live API key + live agents (no dev- prefix)
 - Stripe live keys + live webhook endpoint
-- Clerk production instances (customer + staff)
+- Auth0 production tenants (customer + staff) + custom auth domains
 - Webhook URLs repointed to api.<domain>
 - Domains: app.<domain>, admin.<domain>, api.<domain>
 - Status page live

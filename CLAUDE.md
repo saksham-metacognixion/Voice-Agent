@@ -51,7 +51,7 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 | Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                            |
 | Database       | Postgres on Neon (7-day PITR, §17) + Prisma. RLS on `workspace_id`; two DB roles; append-only ledger                                                                                   |
 | Cache / queue  | Redis on Railway (TCP). BullMQ, runtime cache, config cache, SSE pub/sub. **Not Upstash** — HTTP Redis cannot run BullMQ                                                               |
-| Auth           | Clerk, **two separate applications**: customers, and staff (Google Workspace domain + mandatory TOTP)                                                                                  |
+| Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                             |
 | Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                  |
 | Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                        |
 | LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**                                                                                   |
@@ -159,7 +159,7 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
   against the JWKS for that route namespace, loads the membership, and attaches
   `ctx = {userId, workspaceId, role}`. Postgres RLS is the second guard, not the first.
 - `/admin/*` accepts staff JWTs only. On boot, assert the staff issuer differs from the customer issuer.
-  A staff JWT without `mfa: true` is rejected.
+  A staff JWT without the `https://portal/mfa` claim is rejected.
 - Every customer-affecting staff write requires a reason code (admin Appendix B) and an audit row.
   Role limits are enforced server-side, never only in the UI.
 
@@ -214,7 +214,7 @@ Events in: `call_started`, `call_ended`, `call_analyzed`, `transfer_*`, plus the
 `checkout.session.async_payment_succeeded`, `checkout.session.expired`, off-session PaymentIntent for
 auto top-up, `charge.dispute.created`.
 
-**Clerk**: two applications. `user.created` webhook → `POST /webhooks/auth` → upsert `users`.
+**Auth0**: two tenants. Post-User-Registration Action → `POST /webhooks/auth` (shared-secret header) → upsert `users`. Post-Login Action adds namespaced claims `https://portal/email_verified` and `https://portal/mfa`. Frontend uses `@auth0/nextjs-auth0`; Actions source lives in `infra/auth0/actions/`.
 
 Open questions to answer against Retell in P0 are §21; the answers land in
 `docs/decisions/0002-retell-findings.md`.
@@ -244,7 +244,7 @@ Staff roles (admin §2.2): super admin, ops, finance, support, read-only, with p
 4. Launch countries for numbers: US + CA only, or include India.
 5. Trial size (20 credits proposed) and whether a card is required at sign-up.
 6. Credit expiry of 12 months against prepaid-credit consumer rules in target provinces and states.
-7. ~~Auth provider and backend framework~~ — resolved: Clerk, NestJS. See ADR 0001.
+7. ~~Auth provider and backend framework~~ — resolved: Auth0 (ADR 0002), NestJS (ADR 0001).
 8. Whether Starter allows exactly one agent and one number.
 9. Whether the viewer role may download recordings (recommendation: no).
 10. Support tooling (Intercom vs Crisp) and status page vendor.

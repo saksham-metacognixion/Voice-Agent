@@ -13,7 +13,7 @@ export class ApiError extends Error {
 
 export interface ApiClientOptions {
   baseUrl: string;
-  /** Returns the current Clerk session JWT, or null when signed out. */
+  /** Returns the current Auth0 access token, or null when signed out. */
   getToken: () => Promise<string | null>;
   /** Returns the active workspace id for X-Workspace-Id, or null on account-level routes. */
   getWorkspaceId: () => string | null;
