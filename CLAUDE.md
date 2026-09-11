@@ -50,12 +50,12 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 | API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                      |
 | Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                            |
 | Database       | Postgres on Neon (7-day PITR, §17) + Prisma. RLS on `workspace_id`; two DB roles; append-only ledger                                                                                   |
-| Cache / queue  | Redis on Railway (TCP). BullMQ, runtime cache, config cache, SSE pub/sub. **Not Upstash** — HTTP Redis cannot run BullMQ                                                               |
+| Cache / queue  | Redis 7 as a Docker service on the backend EC2 instance (TCP, compose-internal). BullMQ, runtime cache, config cache, SSE pub/sub. **Not Upstash** — HTTP Redis cannot run BullMQ      |
 | Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                             |
 | Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                  |
 | Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                        |
 | LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**                                                                                   |
-| Hosting        | Vercel ×2 (portal, admin) + Railway (api, worker, redis) + Neon. Webhooks and SSE hit `api.<domain>` directly                                                                          |
+| Hosting        | Vercel ×2 (portal, admin) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + Neon Postgres. Webhooks and SSE hit `api.<domain>` directly. ADR 0004                |
 | Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack alerts                                                                                                                                    |
 | Storage        | Cloudflare R2 for exports. Recordings stay on Retell URLs, proxied with signed 1-hour URLs                                                                                             |
 
@@ -65,7 +65,7 @@ zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
 ## Repo layout
 
-Split by deploy target. `frontend/` ships to Vercel, `backend/` ships to Railway, `shared/` is imported
+Split by deploy target. `frontend/` ships to Vercel, `backend/` ships to AWS EC2, `shared/` is imported
 by both and never deployed on its own.
 
 ```
@@ -74,15 +74,15 @@ frontend/                         → Vercel
   admin/          @portal/admin       Next.js staff console        admin.<domain>
   ui/             @portal/ui          shadcn components + shared domain widgets
   api-client/     @portal/api-client  typed fetch wrapper + TanStack Query hooks
-backend/                          → Railway
+backend/                          → AWS EC2 (Docker Compose)
   api/            @portal/api         NestJS + Fastify. Two entrypoints: src/main.ts (HTTP, api.<domain>)
-                                      and src/worker.ts (BullMQ processors + schedulers). One image, two services.
+                                      and src/worker.ts (BullMQ processors + schedulers). One image, two compose services.
   db/             @portal/db          Prisma schema, client, migrations incl. hand-written RLS/grants/triggers
 shared/
   schemas/        @portal/schemas     zod request/response/SSE schemas, enums, error codes. Depends on zod only.
   config/         @portal/config      tsconfig bases, eslint, tailwind preset
 templates/                        *.json agent templates (receptionist, appointment, afterhours, lead_qual, ...)
-infra/                            Dockerfile (turbo prune), docker-compose.yml, railway.json
+infra/                            Dockerfile (turbo prune), docker-compose.yml (local), docker-compose.prod.yml (EC2), auth0/
 docs/                             specs, decisions, spec-extract, plan, tools
 ```
 
@@ -165,8 +165,8 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 
 **Secrets**
 
-- Secrets manager only, nothing in the repo. SIP credentials are envelope-encrypted (AES-256-GCM with an
-  env DEK in P1, KMS-wrapped in P2; the wrap/unwrap interface does not change).
+- AWS SSM Parameter Store only, nothing in the repo. SIP credentials are envelope-encrypted with an AWS KMS
+  data key (AES-256-GCM).
 
 ## Redis keys
 

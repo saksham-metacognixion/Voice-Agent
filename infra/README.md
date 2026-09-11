@@ -1,20 +1,27 @@
 # infra
 
-| File                 | Purpose                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| `docker-compose.yml` | Local Postgres 16 + Redis 7. `pnpm infra:up` / `pnpm infra:down`.                                |
-| `Dockerfile`         | Backend image. Railway builds it once and runs it as two services with different start commands. |
-| `railway.json`       | Railway service config: Dockerfile builder, `/health` check, restart policy.                     |
+| File                      | Purpose                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `docker-compose.yml`      | Local Postgres 16 + Redis 7. `pnpm infra:up` / `pnpm infra:down`.                                      |
+| `docker-compose.prod.yml` | EC2 services: api, worker, redis, caddy. Lands on D7.                                                  |
+| `Dockerfile`              | Backend image, built once by CI and pushed to GHCR. Run as `api` and `worker` with different commands. |
+| `auth0/`                  | Auth0 tenant configuration and Actions source (ADR 0002).                                              |
 
-## Railway services
+## Backend on AWS EC2 (ADR 0004)
 
-| Service  | Start command         | Notes                                                                              |
-| -------- | --------------------- | ---------------------------------------------------------------------------------- |
-| `api`    | `node dist/main.js`   | Public, bound to `api.<domain>`. Webhooks and SSE terminate here, never on Vercel. |
-| `worker` | `node dist/worker.js` | No public port. BullMQ processors + Job Schedulers.                                |
-| `redis`  | Railway Redis plugin  | Private network only. TCP, which BullMQ needs.                                     |
+| Service  | Command               | Notes                                                                                |
+| -------- | --------------------- | ------------------------------------------------------------------------------------ |
+| `caddy`  | —                     | Automatic TLS, reverse proxy for `api.<domain>` → `api:4000`. Only port 443 is open. |
+| `api`    | `node dist/main.js`   | Webhooks and SSE terminate here, never on Vercel.                                    |
+| `worker` | `node dist/worker.js` | No exposed port. BullMQ processors + Job Schedulers.                                 |
+| `redis`  | redis:7-alpine        | `appendonly yes`, `maxmemory-policy noeviction`. Compose-internal network only.      |
 
-Postgres is on Neon, not Railway, for 7-day point-in-time recovery (spec §17, ADR 0001). Use the
+One `t3.small` for staging and one `t3.medium` for prod, each with an Elastic IP. Secrets come from SSM
+Parameter Store at deploy time. Deploy = CI builds and pushes the image, then runs
+`docker compose pull && docker compose up -d` on the instance over SSM or SSH. Rollback = the same command
+with the previous image tag.
+
+Postgres is on Neon, not AWS, for 7-day point-in-time recovery at low cost (ADR 0001, ADR 0004). Use the
 pooled connection string as `DATABASE_URL` and the unpooled one as `DIRECT_DATABASE_URL`.
 
 ## Vercel projects

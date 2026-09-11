@@ -1,4 +1,4 @@
-# Backend image for Railway. One image, two services:
+# Backend image for the EC2 compose stack. One image, two services:
 #   api:    CMD ["node", "backend/api/dist/main.js"]
 #   worker: CMD ["node", "backend/api/dist/worker.js"]
 # Build context is the repo root:  docker build -f infra/Dockerfile .

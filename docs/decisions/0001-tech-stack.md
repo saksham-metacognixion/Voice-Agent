@@ -35,7 +35,7 @@ Three constraints shaped every choice:
 | Payments       | Stripe Checkout + Customer Portal                                                                                                                                                |
 | Voice          | Retell Node SDK behind `RetellGateway`                                                                                                                                           |
 | LLM            | Anthropic SDK, `claude-sonnet-5`, structured output                                                                                                                              |
-| Hosting        | Vercel ×2 + Railway + Neon                                                                                                                                                       |
+| Hosting        | ~~Vercel ×2 + Railway + Neon~~ → **Vercel ×2 + AWS EC2 + Neon**. Superseded by [ADR 0004](0004-backend-hosting-aws-ec2.md) on 2026-09-11                                         |
 | Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack                                                                                                                                     |
 
 ## Alternatives considered
