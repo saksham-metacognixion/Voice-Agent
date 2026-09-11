@@ -1,0 +1,38 @@
+{
+  "name": "voice-agent-portal",
+  "private": true,
+  "version": "0.0.1",
+  "description": "Voice Agent Self-Service Portal \u2014 customer portal, admin console, API and worker",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,md,json,yml,yaml,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json,yml,yaml,css}\"",
+    "db:generate": "pnpm --filter @portal/db generate",
+    "db:migrate": "pnpm --filter @portal/db migrate:dev",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "prisma",
+      "@swc/core",
+      "esbuild",
+      "unrs-resolver"
+    ]
+  }
+}

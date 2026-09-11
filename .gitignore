@@ -1,0 +1,44 @@
+# dependencies
+node_modules/
+.pnp
+.pnp.js
+.pnpm-store/
+
+# build output
+dist/
+build/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# env and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# test and coverage
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# rendered spec pages (large, regenerate with docs/tools/pdfdump.swift)
+docs/spec-extract/*.png
+docs/spec-extract/render/
+*.png.tmp
+
+# local tooling
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# prisma
+packages/db/prisma/*.db
+packages/db/prisma/*.db-journal

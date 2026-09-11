@@ -1,0 +1,241 @@
+# Super Admin Console - Specification v0.1 (10 Sep 2026)
+# Extracted with docs/tools/pdfdump.swift (PDFKit) from the PDF in docs/.
+#
+# LIMITATION: the PDF body copy is rendered as vector outlines, so PDFKit recovers
+# only the monospaced/code spans. What survives here is exactly the greppable part:
+# API routes, table names, column names, event names, Redis keys, enum values.
+# For prose, diagrams and tables, read the PDF, or re-render pages to PNG:
+#   swiftc -O -o /tmp/pdfdump docs/tools/pdfdump.swift
+#   /tmp/pdfdump "docs/<file>.pdf" /tmp/out 2.0
+#
+# PAGE INDEX (page -> section)
+#   1  Cover, metadata, table of contents; 01 Purpose and principles
+#   2  01 principles (no direct DB edits, one source of truth, least privilege, explainable, fast)
+#   3  02 Staff authentication and roles 2.1 Mechanics
+#   4  2.2 Roles and permission matrix
+#   5  03 Navigation and shell; sitemap SA1-SA14
+#   6  04 Screens SA1 Overview; SA2 Customers
+#   7  SA2 customer 360 tabs
+#   8  SA2 notes and flags
+#   9  SA2 plan tier, overrides, flags
+#  10  SA2 calls, cost
+#  11  SA2 wallet and purchases
+#  12  SA3 Users; SA4 Support
+#  13  SA5 Pricing and plans; config tables
+#  14  SA5 publish, cache invalidation, enforcement sync
+#  15  SA9 Billing; disputes; SA10 Comms
+#  16  SA11 Trust
+#  17  SA2 credit adjustments, impersonation
+#  18  08 Data model additions (staff_users .. customer_notes)
+#  19  08 continued (customer_flags .. staff_audit_log); column additions
+#  20  09 Admin API endpoint table; customer-side additions
+#  21  SA12 System; SA13 Staff and settings; SA14 Audit log; 05 Pricing config model 5.1
+#  22  5.2 Publish sequence; 5.3 What reads what; 5.4 Guardrails; Appendix A KPI definitions; Appendix B Reason codes
+#  23  10 Security and audit; 11 Phasing P1/P2/P3
+
+===== PAGE 1 (595x842) =====
+voice-agent-portal-spec.md
+admin.<domain>
+/admin/*
+
+===== PAGE 2 (595x842) =====
+/admin/*
+ctx.staff = {id, role}
+
+===== PAGE 3 (595x842) =====
+(no text)
+
+===== PAGE 4 (595x842) =====
+⚲
+Page content
+
+===== PAGE 5 (595x842) =====
+/admin
+/admin/customers
+/admin/customers/[id]/(overview|members|wallet|purchases|agents|number
+s|calls|tickets|notes|audit|danger)
+/admin/users
+/admin/support /admin/support/[ticket]
+/admin/pricing
+/admin/agent-stack
+/admin/telephony
+/admin/calls
+/admin/billing
+/admin/comms
+/admin/trust
+/admin/system
+/admin/staff
+/admin/audit
+
+===== PAGE 6 (595x842) =====
+combined_cost
+GET
+/admin/kpis?range=
+/ADMIN/CUSTOMERS
+/ADMIN/CUSTOMERS/[ID]
+
+===== PAGE 7 (595x842) =====
+(no text)
+
+===== PAGE 8 (595x842) =====
+Internal note — Priya:
+
+===== PAGE 9 (595x842) =====
+tenants.plan_tier
+GET /flags
+
+===== PAGE 10 (595x842) =====
+transfer_bridged
+call_cost
+
+===== PAGE 11 (595x842) =====
+call_cost
+
+===== PAGE 12 (595x842) =====
+call_cost
+
+===== PAGE 13 (595x842) =====
+GET /flags
+pricing_configs
+current effective_at ≤
+now pricing_drafts
+promo_codes custom_deals feature_flags templates agent_stack_configs guardrail_versions
+
+===== PAGE 14 (595x842) =====
+pricing_configs effective_at audit_log
+pricing:current flags:* caps:{ws} GET
+/pricing GET /flags
+caps:{ws}
+call_ended
+calls rate config_version
+GET /pricing
+GET /flags
+caps:{ws}
+calls.rate call_started
+agent_versions
+
+===== PAGE 15 (595x842) =====
+onboarding_step
+charge.dispute.created
+
+===== PAGE 16 (595x842) =====
+(no text)
+
+===== PAGE 17 (595x842) =====
+adjustment goodwill
+impersonate=view
+impersonated_by
+
+===== PAGE 18 (595x842) =====
+staff_users
+staff_role_l
+imits
+pricing_draf
+ts
+pricing_conf
+igs
+stripe_price
+_map
+promo_codes
+custom_deals
+tenant_overr
+ides
+agent_stack_
+configs
+templates
+retell_cost_
+inputs
+credit_adjus
+tments
+refunds
+support_tick
+ets
+ticket_messa
+ges
+canned_respo
+nses
+customer_not
+es
+
+===== PAGE 19 (595x842) =====
+customer_fla
+gs
+impersonatio
+n_sessions
+announcement
+s
+email_templa
+tes
+feature_flag
+s
+kill_switche
+s
+blocklists
+fraud_review
+s
+data_request
+s
+staff_audit_
+log
+calls.rate calls.config_version credit_lots.policy_version
+agent_versions.stack_version tenants.paused_reason tenants.custom_deal_id
+/admin
+
+===== PAGE 20 (595x842) =====
+GET /admin/kpis?range= · GET /admin/kpis/funnel
+GET /admin/customers · GET /admin/customers/:id · PATCH /admin/customers/:id (profile,
+flags) · PUT /admin/customers/:id/overrides · POST /admin/customers/:id/pause · POST
+…/resume · POST …/credits/adjust · POST …/lots/:lotId/extend · POST …/anonymise · POST
+…/impersonate {mode, reason, ticket_id} · DELETE /admin/impersonations/:id
+GET /admin/users · POST /admin/users/:id/(verify-email|reset-mfa|lock|unlock|force-
+logout) · PATCH /admin/customers/:id/members/:mid
+GET /admin/purchases · POST /admin/purchases/:id/refund · GET /admin/topups/failed · POST
+/admin/topups/:id/retry · GET /admin/reports/(revenue|cogs|deferred|breakage) · PUT
+/admin/billing/settings
+GET /admin/pricing/draft · PUT /admin/pricing/draft · GET /admin/pricing/preview (diff +
+margins) · POST /admin/pricing/publish {effective_at, grandfather_mode} · GET
+/admin/pricing/versions · POST /admin/pricing/rollback/:version · CRUD /admin/promo-codes
+· CRUD /admin/custom-deals · PUT /admin/retell-costs
+GET/PUT /admin/agent-stack/draft · POST /admin/agent-stack/publish · POST /admin/agent-
+stack/migrate-all · CRUD /admin/templates · POST /admin/generation/playground · PUT
+/admin/voices/:id
+GET /admin/numbers · POST /admin/numbers/:id/(pause|resume|release|resync|reprovision) ·
+GET /admin/concurrency · PUT /admin/concurrency/allowance · GET /admin/kbs · GET
+/admin/provisioning · POST /admin/provisioning/:jobId/retry
+GET /admin/calls · GET /admin/calls/:id · POST /admin/calls/:id/(refund|flag) · GET
+/admin/calls/:id/recording {reason}
+GET /admin/tickets · POST /admin/tickets · GET /admin/tickets/:id · POST
+/admin/tickets/:id/messages · PATCH /admin/tickets/:id (status, assignee, priority, tags)
+· POST /admin/tickets/:id/macros/:macro · CRUD /admin/canned-responses · customer side:
+POST /support/tickets, GET /support/tickets, POST /support/tickets/:id/messages
+CRUD /admin/announcements · POST /admin/broadcasts · PUT /admin/maintenance · CRUD
+/admin/email-templates
+GET /admin/fraud · POST /admin/fraud/:id/(approve|block|request-info) · CRUD
+/admin/blocklists · GET /admin/flagged-calls · CRUD /admin/data-requests
+GET /admin/jobs · POST /admin/jobs/:id/(retry|discard) · GET /admin/webhook-events · POST
+/admin/webhook-events/:id/replay · GET /admin/reconciliations · POST
+/admin/reconciliations/run · CRUD /admin/flags · PUT /admin/kill-switches/:key
+GET/POST/PATCH /admin/staff · PUT /admin/staff/limits · PUT /admin/settings
+GET /admin/audit · GET /admin/audit/export
+GET /pricing GET /flags GET
+/announcements/active POST /wallet/checkout {promo_code?} GET /support/tickets
+
+===== PAGE 21 (595x842) =====
+(no text)
+
+===== PAGE 22 (595x842) =====
+call_cost.combined_cost
+credit_lots.credits_remaining
+onboarding_completed_at
+goodwill · service_issue (bad call / outage) · billing_error · promo · partner_deal
+· fraud_suspected · abuse_policy · customer_request · chargeback · expiry_extension ·
+testing_internal · support_investigation (recording access) · legal_request · other
+(note mandatory)
+
+===== PAGE 23 (595x842) =====
+GET /pricing
+agent_versions.stack_version
+calls.rate calls.config_version call_started caps:
+{ws}
+GET /pricing GET /announcements/active POST /support/tickets GET
+/support/tickets

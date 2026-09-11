@@ -1,0 +1,37 @@
+// Prisma schema — full §15 + admin §8 model lands on D1 (Mon 14 Sep).
+// D0 ships the datasource, generator and one table so `prisma generate` and the first
+// migration run end to end in CI.
+//
+// Two connection strings (spec §13.1, ADR 0001):
+//   DATABASE_URL         pooled, used by api + worker at runtime
+//   DIRECT_DATABASE_URL  unpooled, used by `prisma migrate` only
+//
+// RLS policies, REVOKE grants and the append-only ledger trigger are hand-written SQL inside
+// migrations. Never regenerate them away.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+/// Raw webhook envelope. Unique (provider, external_id, event_type) is the exactly-once guard
+/// for every inbound webhook (spec §13.10, §14.2). Duplicate insert → 204.
+model WebhookEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  provider    String   // 'retell' | 'stripe' | 'clerk'
+  externalId  String   @map("external_id")
+  eventType   String   @map("event_type")
+  payload     Json
+  receivedAt  DateTime @default(now()) @map("received_at")
+  processedAt DateTime? @map("processed_at")
+  error       String?
+
+  @@unique([provider, externalId, eventType])
+  @@index([provider, receivedAt])
+  @@map("webhook_events")
+}

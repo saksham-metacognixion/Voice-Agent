@@ -1,0 +1,42 @@
+{
+  "name": "@portal/db",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Prisma schema, generated client and SQL migrations (incl. RLS, grants, triggers)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests",
+    "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
+    "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "studio": "dotenv -e ../../.env -- prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.10.0"
+  },
+  "devDependencies": {
+    "@portal/config": "workspace:*",
+    "@types/node": "^22.15.0",
+    "dotenv-cli": "^8.0.0",
+    "eslint": "^9.30.0",
+    "prisma": "^6.10.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

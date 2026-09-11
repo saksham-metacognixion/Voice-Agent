@@ -1,0 +1,36 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "globalEnv": ["NODE_ENV", "CI"],
+  "globalPassThroughEnv": ["DATABASE_URL", "DIRECT_DATABASE_URL", "REDIS_URL"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^build"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", "test/**"]
+    },
+    "generate": {
+      "cache": false
+    },
+    "@portal/web#typecheck": {
+      "dependsOn": ["build"]
+    },
+    "@portal/admin#typecheck": {
+      "dependsOn": ["build"]
+    }
+  }
+}

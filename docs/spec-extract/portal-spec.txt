@@ -1,0 +1,680 @@
+# Voice Agent Self-Service Portal - Product & Technical Specification v0.2 (10 Sep 2026)
+# Extracted with docs/tools/pdfdump.swift (PDFKit) from the PDF in docs/.
+#
+# LIMITATION: the PDF body copy is rendered as vector outlines, so PDFKit recovers
+# only the monospaced/code spans. What survives here is exactly the greppable part:
+# API routes, table names, column names, event names, Redis keys, enum values.
+# For prose, diagrams and tables, read the PDF, or re-render pages to PNG:
+#   swiftc -O -o /tmp/pdfdump docs/tools/pdfdump.swift
+#   /tmp/pdfdump "docs/<file>.pdf" /tmp/out 2.0
+#
+# PAGE INDEX (page -> section)
+#   1  Cover, metadata, table of contents
+#   2  How to read the screen specs; 01 Summary; four product bets
+#   3  02 Goals and non-goals; 03 Target customer and use cases
+#   4  Launch templates overview
+#   5  04 Retell AI cost basis 4.1 per-minute components
+#   6  4.2 Monthly / fixed items
+#   7  4.3 Our curated stacks (COGS); 05 Business model 5.1 Unit
+#   8  5.2 Packs; 5.3 Recurring deductions; 5.4 Wallet rules
+#   9  5.5 Decisions needed on pricing; 06 Auth 6.1 Model + role matrix; 6.2 Provider
+#  10  6.2 Provider and mechanics (sessions, tenant context, CSRF, audit); 6.3 Auth screens A1
+#  11  A1 Sign up (fields table)
+#  12  A2 Login / A3 Verify email / A4 Setup workspace
+#  13  A5 MFA / A6 Reset / A7 Workspace switcher / A8 Accept invite; 6.4 Onboarding gating
+#  14  07 Information architecture 7.1 Sitemap; 7.2 Global shell
+#  15  7.3 Design system; 08 Onboarding wizard; W1 Choose what your agent does
+#  16  W1 actions and backend
+#  17  W2 Tell us about your business (form + brief card)
+#  18  W2 field table
+#  19  W2 actions and backend
+#  20  W3 Choose a voice and languages
+#  21  W3 fields
+#  22  W3 actions and backend
+#  23  W4 Knowledge; W5 Test & improve
+#  24  W5 element table
+#  25  W5 actions and backend
+#  26  W6 Phone number options
+#  27  W6 fields and backend
+#  28  W7 Buy credits and go live; activation
+#  29  09 Prompt system 9.1 Principles; 9.2 Template catalogue (receptionist, appointment, afterhours)
+#  30  9.2 continued (lead_qual, faq_support, restaurant, custom)
+#  31  9.3 Generation pipeline; 9.4 Platform guardrails; 9.5 Prompt lint; 9.6 Feedback loop
+#  32  9.7 Dynamic variables; 9.8 Post-call analysis schema; 9.9 Versioning and publishing; 10 Dashboard D1 Home
+#  33  D1 Home layout and widget table
+#  34  D2 Calls list
+#  35  D2 detail; D3 Agents
+#  36  D3 tabs; D4 Numbers
+#  37  D4 sections; D5 Wallet and billing
+#  38  D5 elements; D6 Settings
+#  39  D6 sub-pages; D7 Help; D8 Internal admin; 11 Phone number config 11.1 Option A
+#  40  11.2 Option B forward; 11.3 Option C SIP; 11.4 Option D port; 11.5 Web widget; 12 Frontend architecture 12.1 Stack
+#  41  12.1 continued; 12.2 Wizard state machine; 12.3 Test-call client flow; 12.4 Component inventory
+#  42  12.5 Responsiveness; 13 Backend architecture 13.1 Stack; 13.2 Sign-up flow; 13.3 Generate agent; 13.4 Browser test call
+#  43  13.4 continued; 13.5 Feedback patch; 13.6 Publish; 13.7 Checkout; 13.8 Activation job
+#  44  13.9 Inbound call authorisation; 13.10 Call lifecycle webhooks
+#  45  13.11 Scheduled jobs; 13.12 Environments and config
+#  46  14 Credit metering 14.1 Events consumed; 14.2 Rules
+#  47  14.3 Concurrency; 15 Data model (users .. voices)
+#  48  15 Data model continued (knowledge_sources .. alerts); 16 API surface
+#  49  16 API surface endpoint table
+#  50  16 examples; 17 Security, compliance and abuse controls
+#  51  18 Non-functional requirements; 19 Phased delivery P0/P1/P2
+#  52  19 P3; 20 Decisions needed; 21 Items to verify against Retell during P0
+#  53  21 continued
+#  54  Appendix A Retell endpoints used
+#  55  Appendix B Prompt template skeleton
+#  56  Appendix C Worked cost examples; Appendix D Copy deck
+#  57  Appendix E Sources
+
+===== PAGE 1 (595x842) =====
+(no text)
+
+===== PAGE 2 (595x842) =====
+(no text)
+
+===== PAGE 3 (595x842) =====
+(no text)
+
+===== PAGE 4 (595x842) =====
+(no text)
+
+===== PAGE 5 (595x842) =====
+(no text)
+
+===== PAGE 6 (595x842) =====
+(no text)
+
+===== PAGE 7 (595x842) =====
+Validate model quality and latency on bench.retellai.com before locking
+Standard = GPT-5 mini. If it fails the receptionist template, step up to GPT-4.1
+mini (+$0.004) — margin barely moves.
+transfer_bridged transfer_ended
+
+===== PAGE 8 (595x842) =====
+(no text)
+
+===== PAGE 9 (595x842) =====
+(no text)
+
+===== PAGE 10 (595x842) =====
+sub
+X-Workspace-Id
+ctx = {userId,
+workspaceId, role} workspace_id
+/signup
+
+===== PAGE 11 (595x842) =====
+users.name
+users.tos_accepted_at
+
+===== PAGE 12 (595x842) =====
+user.created
+users /verify-email
+/setup/workspace
+user.created users
+/verify-email
+/login
+/verify-email
+/setup/workspace /app
+/setup/workspace
+POST /workspaces tenants
+credit_ledger trial
+/onboarding/template
+/login
+/app
+
+===== PAGE 13 (595x842) =====
+/select-workspace
+X-Workspace-Id ws
+/invite/[token]
+/invites/:token/accept /app
+/login?next=…
+/verify-email
+/setup/workspace
+/onboarding/*
+tenants.onboarding_step
+/app
+POST
+
+===== PAGE 14 (595x842) =====
+/signup /login /verify-email /forgot-password /reset-password /invite/[token]
+/select-workspace /setup/workspace
+/template
+/brief
+/voice
+/knowledge
+/test
+/phone
+/activate
+/app
+/app/calls
+/app/agents
+/app/numbers
+/app/wallet
+/app/settings
+/app/help
+/admin/*
+/app
+Page content
+
+===== PAGE 15 (595x842) =====
+agents agent_versions
+tenants.onboarding_step
+/onboarding/template
+
+===== PAGE 16 (595x842) =====
+POST /agents {template_id, industry} agents draft
+agent_versions brief_json
+agent_id onboarding_step=2
+/app
+/onboarding/brief
+
+===== PAGE 17 (595x842) =====
+Sophie will:
+Sophie wonʼt:
+Hands off when:
+AGENT
+VERSIONS.BRIEF
+_
+_
+JSON
+
+===== PAGE 18 (595x842) =====
+(no text)
+
+===== PAGE 19 (595x842) =====
+PATCH /agents/:id/draft {brief_json}
+POST /agents/:id/generate
+{version_no, brief_card, greeting,
+scenarios[], analysis_fields[]}
+onboarding_step=3
+mode: regenerate
+GET /agents/:id/versions/:v
+/onboarding/voice
+
+===== PAGE 20 (595x842) =====
+ℹ
+☐
+
+===== PAGE 21 (595x842) =====
+GET /list-voices
+preview_audio_url
+agents.primary_language
+language
+multi
+agents.languages[]
+language: multi
+agents.voice_id
+agents.tier
+voice_speed
+voice_temperature
+POST /voices/:id/preview
+{text}
+
+===== PAGE 22 (595x842) =====
+PATCH /agents/:id/draft {primary_language}
+PATCH …{languages}
+PATCH …{voice_id, tier}
+PATCH /agents/:id/draft
+PATCH /update-
+agent onboarding_step=4
+/onboarding/knowledge
+
+===== PAGE 23 (595x842) =====
+POST /agents/:id/knowledge {type, url|file|text}
+POST /create-knowledge-base {tenant}-{agent}
+knowledge_sources.status
+DELETE /agents/:id/knowledge/:sourceId
+onboarding_step=5
+/onboarding/test
+☺
+☐
+call_analyzed
+
+===== PAGE 24 (595x842) =====
+call_ended
+update
+call_analyzed
+
+===== PAGE 25 (595x842) =====
+∈
+POST /agents/:id/test/web {version_no}
+{access_token, call_id}
+retellClient.startCall({accessToken})
+call_started update
+call_ended error
+POST /v2/create-
+web-call {agent_id, agent_version,
+metadata:{tenant_id, agent_id,
+test:true, version_no}} calls
+retellClient.stopCall() call_ended
+POST /agents/:id/feedback {text,
+base_version}
+agent_versions
+PATCH /update-retell-llm
+{version_no, changes[]}
+onboarding_step=6
+/onboarding/phone
+☐
+
+===== PAGE 26 (595x842) =====
+xxx.pstn.twilio.com
+
+===== PAGE 27 (595x842) =====
+phone_numbers.hours_mode
+business_open
+phone_numbers.transfer_targets_json[0]
+allowed_inbound_country_list
+PUT /agents/:id/phone-plan {option, …fields}
+phone_plans onboarding_step=7
+/onboarding/activate
+ℹ
+
+===== PAGE 28 (595x842) =====
+packs
+POST /wallet/checkout {pack_id, auto_topup,
+agent_id} purchases
+mode=payment
+setup_future_usage=off_session
+checkout.session.completed
+purchases.status=paid
+/onboarding/activate?
+session_id=…
+activate-agent
+/onboarding/live
+*72
+*90 *92
+/app tenants.onboarding_completed_at
+
+===== PAGE 29 (595x842) =====
+general_prompt begin_message
+receptionist
+appointment
+afterhours
+
+===== PAGE 30 (595x842) =====
+lead_qual
+faq_support
+restaurant
+custom
+templates/*.json
+
+===== PAGE 31 (595x842) =====
+POST /agents/:id/generate
+system:
+user: brief_json
+{prompt, greeting, closing, brief_card:{does[], doesnt[], handoff[]},
+analysis_fields:[{name,type,description,enum?}], scenarios:[{title, say_this}], warnings[]}
+agent_versions generated prompt_text greeting analysis_schema_json
+brief_card_json scenarios_json
+POST /create-retell-llm PATCH /update-retell-llm {general_prompt,
+begin_message, model, general_tools:[transfer_call…]} PATCH /update-agent
+{response_engine, voice_id, language, post_call_analysis_data, webhook_url} Draft only — not
+published.
+{updated_brief_json (only changed
+fields), updated_prompt, changes:[human-readable bullets]}
+source=feedback feedback_text
+
+===== PAGE 32 (595x842) =====
+changes: []
+post_call_analysis_data call_analyzed
+calls.analysis_json
+agent_versions.version_no source ∈ {generated, feedback,
+manual, regenerate}
+POST /agents/:id/publish {version_no}
+agents.published_version latest_published
+agent_version create-web-call
+/app
+
+===== PAGE 33 (595x842) =====
+☺
+POST /agents/:id/publish
+☐ ☐
+☺
+☹
+GET /alerts/active
+GET /wallet
+message_taken callback_number GET /stats?
+range=today
+GET /agents
+GET
+/workspace/checklist
+GET /calls?limit=5
+GET /stats?range=30d
+
+===== PAGE 34 (595x842) =====
+/app/calls
+calls.started_at
+calls.from_number
+duration_s
+analysis_json.user_sentiment ☺ ☻ ☹
+credits_charged
+/APP/CALLS/[ID]
+
+===== PAGE 35 (595x842) =====
+/events
+/app/agents /app/agents/[id]/*
+
+===== PAGE 36 (595x842) =====
+/app/numbers
+
+===== PAGE 37 (595x842) =====
+PATCH /numbers/:id PATCH /update-phone-
+number {inbound_agents}
+transfer_targets_json
+allowed_inbound_country_list
+PATCH /update-phone-number
+DELETE /delete-phone-number
+/app/wallet
+
+===== PAGE 38 (595x842) =====
+POST /wallet/checkout
+PUT /wallet/auto-topup
+GET /wallet/lots
+GET /wallet/ledger
+GET /wallet/invoices
+POST /wallet/portal-session
+/app/settings/*
+
+===== PAGE 39 (595x842) =====
+POST /invites
+/admin
+call_cost
+POST /create-phone-number number_provider area_code
+inbound_agents: [{agent_id, agent_version: "latest_published"}] inbound_webhook_url
+allowed_inbound_country_list
+
+===== PAGE 40 (595x842) =====
+POST /import-phone-number
+inbound_agents inbound_webhook_url
+(auth) (onboarding)
+(app) (admin)
+@portal/schemas
+
+===== PAGE 41 (595x842) =====
+retell-client-js-sdk
+update GET /events
+en fr-CA
+onboarding_step_viewed/completed
+generate_clicked test_call_started/ended pack_selected checkout_completed
+{field, message}
+flags
+— generate ok
+— paid & provisioned
+PATCH/POST tenants.onboarding_step
+agent:{id}
+activation:{id} GET /jobs/:id
+POST /agents/:id/test/web {access_token, call_id}
+client.startCall({accessToken, sampleRate: 24000})
+call_started update
+agent_start_talking/stop_talking call_ended
+call:{id}:analyzed error
+stopCall()
+BriefForm · BriefCard · HoursEditor · VoicePicker · LanguagePicker · KnowledgeSources ·
+TestCallPanel · TranscriptView · ImprovePanel · PhoneOptionCards · PackSelector ·
+ProvisioningProgress · BalancePill · CallsTable · CallDetail · LedgerTable · VersionList ·
+TransferTargetsEditor · CarrierForwardingGuide
+
+===== PAGE 42 (595x842) =====
+auth workspaces agents prompting voices knowledge numbers
+calls wallet billing webhooks notifications events jobs admin
+RetellGateway
+webhook_events
+user.created users
+POST /workspaces tenants trial memberships credit_ledger
+trial notification_settings audit_log
+POST /agents/:id/generate generate-agent
+{job_id}
+agent_versions RetellGateway.upsertLlm(agent, version)
+RetellGateway.upsertAgent(agent, version) agent:{id}{event:
+generated, version_no, brief_card, scenarios}
+retell_llm_id retell_agent_id
+PATCH
+POST /agents/:id/test/web {version_no} balance > 0 test:
+{ws}
+
+===== PAGE 43 (595x842) =====
+business_open POST /v2/create-web-call {agent_id,
+agent_version, retell_llm_dynamic_variables, metadata:{tenant_id, agent_id,
+version_no, test:true}}
+calls web is_test=true registered {access_token, call_id}
+call_started/ended/analyzed call:{id}
+POST /agents/:id/feedback {text, base_version} patch-agent
+source=feedback PATCH {event: patched, version_no, changes[]}
+POST /agents/:id/draft/select {version_no: previous}
+POST /agents/:id/publish {version_no}
+RetellGateway.publish(agent, version)
+agents.published_version audit_log latest_published
+POST /wallet/checkout {pack_id, auto_topup?, agent_id?} purchases
+client_reference_id = purchase_id metadata {workspace_id}
+setup_future_usage
+checkout.session.completed event.id
+credit_lots credit_ledger expires_at
+agent_id activate-
+agent wallet
+checkout.session.expired abandoned
+activation_jobs.steps_json
+phone_plans POST /create-phone-number
+inbound_agents inbound_webhook_url POST /import-phone-number
+phone_numbers active next_rental_at
+inbound_agents allowed_inbound_country_list
+agents.status=live tenants.onboarding_completed_at
+failed
+
+===== PAGE 44 (595x842) =====
+POST /webhooks/retell/inbound/:number_token phone_numbers.id X-
+Retell-Signature
+num:{e164}
+{call_inbound: {
+agent_id, agent_version: "latest_published",
+metadata: {tenant_id, number_id, tier},
+dynamic_variables: {business_name,
+agent_name,
+business_open, next_open_time,
+current_time,
+transfer_number_1…},
+agent_override: {agent:
+{max_call_duration_ms:
+min(planMax, remainingCredits/rate*60000)}}
+}}
+calls declined
+balance | cap | blocked | hours | paused
+POST /webhooks/retell
+webhook_events (retell, call_id, event)
+call_started calls in_progress INCR active:{ws}
+call_ended
+DECR active:{ws}
+call_analyzed analysis_json retell_cost_cents
+
+===== PAGE 45 (595x842) =====
+number-rental next_rental_at <= now
+rental_overdue
+credit-expiry expires_at expiry
+low-balance-
+alerts
+auto-topup
+reconcile-
+calls
+POST /v2/list-calls calls
+combined_cost
+voice-cache GET /list-voices voices
+concurrency-
+monitor
+number-release
+daily-digest
+kb-sync
+dev dev- staging prod
+
+===== PAGE 46 (595x842) =====
+inbound webhook
+call_started
+call_ended call_analyzed
+in_progress
+call_cost
+Never bill from
+this event.
+max_call_duration_ms
+call_ended
+inbound webhook
+max_call_duration_ms
+calls in_progress
+call_started
+call_ended
+duration_s = (end_timestamp − start_timestamp)/1000 disconnection_reason
+credits =
+duration_s/60 × rate(tier) call_id
+call_analyzed call_analysis call_cost
+transfer_*
+(call_id, event)
+X-Retell-Signature
+agent_id to_number
+metadata.tenant_id
+combined_cost
+POST /v2/list-calls calls
+POST /v2/create-
+phone-call max_call_duration_ms
+
+===== PAGE 47 (595x842) =====
+users
+tenants
+memberships
+invites
+audit_log
+notification_settings
+templates
+agents
+agent_versions
+voices
+
+===== PAGE 48 (595x842) =====
+knowledge_sources
+phone_plans
+phone_numbers
+calls
+credit_lots
+credit_ledger
+purchases
+packs
+webhook_events
+jobs
+alerts
+credit_ledger.delta bal:{ws}
+expires_at
+Authorization: Bearer <jwt> X-Workspace-Id ?cursor=&limit=
+{code, message, fields?[]}
+
+===== PAGE 49 (595x842) =====
+POST /workspaces · GET /workspace · PATCH /workspace · GET /workspace/checklist · GET
+/flags
+GET /members · POST /invites · POST /invites/:token/accept · PATCH /members/:id {role}
+· DELETE /members/:id · POST /workspace/transfer-ownership
+POST /agents {template_id, industry} · GET /agents · GET /agents/:id · PATCH
+/agents/:id/draft (brief/voice/language/settings) · POST /agents/:id/generate · POST
+/agents/:id/feedback · POST /agents/:id/draft/select {version_no} · GET
+/agents/:id/versions · GET /agents/:id/versions/:v · PUT
+/agents/:id/versions/:v/prompt (advanced) · POST /agents/:id/publish · POST
+/agents/:id/pause · DELETE /agents/:id
+GET /voices?lang=&gender=&tier=&multilingual= · POST /voices/:id/preview {text}
+POST /agents/:id/knowledge · GET /agents/:id/knowledge · DELETE
+/agents/:id/knowledge/:sourceId
+POST /agents/:id/test/web {version_no} · POST /agents/:id/test/phone {to} (P2)
+PUT /agents/:id/phone-plan · GET /numbers · POST /numbers/buy · POST /numbers/import ·
+GET /numbers/:id · PATCH /numbers/:id · DELETE /numbers/:id · GET /numbers/forwarding-
+guide?carrier=
+GET /calls (filters) · GET /calls/:id · PATCH /calls/:id {handled, note} · GET
+/calls/:id/recording (signed URL) · POST /calls/export
+GET /stats?range=today|7d|30d|custom
+GET /wallet · GET /wallet/lots · GET /wallet/ledger · POST /wallet/checkout · PUT
+/wallet/auto-topup · GET /wallet/invoices · POST /wallet/portal-session
+GET/PUT /notifications/settings · GET /alerts/active · POST /alerts/:id/dismiss
+GET /sessions · DELETE /sessions/:id · GET /audit-log
+GET /events (SSE; topics: wallet, agent:{id}, call:{id}, activation:{id}) · GET
+/jobs/:id
+POST /webhooks/retell · POST /webhooks/retell/inbound/:number_token · POST
+/webhooks/stripe · POST /webhooks/auth
+
+===== PAGE 50 (595x842) =====
+POST /AGENTS/:ID/TEST/WEB
+// request
+{ "version_no": 3 }
+// response 201
+{ "call_id": "Jabr9…", "access_token": "eyJ…", "rate": 1.0, "balance": 18.3 }
+// errors: 402 NO_CREDITS, 403 EMAIL_UNVERIFIED, 429 TEST_RATE_LIMIT
+POST /WALLET/CHECKOUT
+{ "pack_id": "growth", "auto_topup": { "enabled": true, "threshold": 50 }, "agent_id": "ag_123"
+}
+// → { "checkout_url": "https://checkout.stripe.com/…", "purchase_id": "pur_…" }
+workspace_id
+DELETE /delete-call
+
+===== PAGE 51 (595x842) =====
+webhook_events
+call_cost
+max_call_duration_ms
+
+===== PAGE 52 (595x842) =====
+agent_override.agent.max_call_duration_ms
+call_cost call_analyzed GET /v2/get-call
+
+===== PAGE 53 (595x842) =====
+language: multi
+latest_published
+post_call_analysis_data
+
+===== PAGE 54 (595x842) =====
+GET /list-voices
+POST /create-agent, PATCH /update-agent, GET /get-agent, publish/version
+APIs
+POST /create-retell-llm, PATCH /update-retell-llm
+POST /create-knowledge-base, add/delete sources, get status
+POST /create-phone-number, POST /import-phone-number, PATCH /update-
+phone-number, DELETE /delete-phone-number, GET /list-phone-numbers
+POST /v2/create-web-call, POST /v2/create-phone-call, GET /v2/get-call,
+POST /v2/list-calls, DELETE /delete-call
+call_started call_ended call_analyzed transfer_*
+inbound_webhook_url
+
+===== PAGE 55 (595x842) =====
+## Identity
+{persona}.
+You are {agent_name}, the {role} for {business_name}, {business_description}. Personality:
+## Goal
+{primary_goal}. Success = {success_definition}.
+## Business facts
+FAQ: {faq_pairs}
+Hours: {hours} · Address: {address} · Services: {services} · Pricing basics: {pricing}
+## Conversation guide
+1. Greet in {primary_language}; switch languages if the caller does ({languages}).
+2. Identify the caller's need in one question.
+3. {template_specific_steps}
+4. Confirm captured details back to the caller before ending.
+## Rules
+- Never: {never_rules}
+- If unsure, say you'll have someone call back; never invent facts.
+- Keep answers under 2 sentences unless asked for detail.
+## Hand-off
+{handoff_rules} → use transfer to {transfer_targets}; otherwise take a message.
+## Ending
+{closing_line}
+## Platform rules (fixed)
+{platform_guardrails — §9.4}
+{template_fields}
+caller_intent follow_up_required
+
+===== PAGE 56 (595x842) =====
+wizard.w1.title
+wizard.w2.title
+wizard.w2.hint
+wizard.w2.generate
+wizard.w3.title
+wizard.w5.title
+wizard.w5.improve.placeholder
+wizard.w6.title
+wizard.w7.cta
+wallet.paused.banner
+calls.empty
+publish.confirm
+
+===== PAGE 57 (595x842) =====
+(no text)

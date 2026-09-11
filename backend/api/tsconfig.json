@@ -1,0 +1,11 @@
+{
+  "extends": "@portal/config/tsconfig/node.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "strictPropertyInitialization": false
+  },
+  "include": ["src", "test"]
+}

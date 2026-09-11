@@ -1,0 +1,314 @@
+Task Name,Description,List,Status,Assignee,Start Date,Due Date,Time Estimate,Priority,Tags,Dependencies
+D0 — Bootstrap repo + monorepo scaffold,"Stand up the repo and the empty monorepo so every later day has somewhere to write code.
+
+Checklist:
+- CLAUDE.md
+- ADR 0001 tech stack
+- Spec text extract + page index
+- tasks.csv + plan README
+- .gitignore
+- git init + first commit
+- Turborepo + pnpm workspace
+- packages/config (eslint, tsconfig, tailwind preset)
+- packages/schemas (zod)
+- packages/db (Prisma init)
+- packages/ui (shadcn init)
+- packages/api-client
+- apps/api (NestJS + Fastify adapter, /health)
+- apps/worker (entrypoint)
+- apps/web (Next.js App Router)
+- apps/admin (Next.js App Router)
+- docker-compose: postgres + redis
+- GitHub repo + CI (lint, typecheck, test)
+
+Exit check: pnpm turbo build lint test green; docker compose up healthy; /health returns 200",Day 0,to do,saksham@metacognixion.com,2026-09-11,2026-09-11,6h,Urgent,"phase:p0, area:infra, spec:§12.1, spec:§13.1",
+"D1 — Accounts, data layer, auth guards","Provision every external account and land the full database + auth foundation in one pass.
+
+Checklist:
+- Accounts: Retell, Stripe (test), Anthropic
+- Clerk x2 (customer app, staff app)
+- Railway (api, worker, redis), Neon (dev branch), Vercel x2
+- cloudflared tunnel for webhooks
+- .env.example committed
+- Prisma schema: all Portal §15 tables
+- Prisma schema: Admin §8 P1 tables
+- Migration: RLS policies on workspace_id
+- Migration: two DB roles (app RLS-enforced, admin BYPASSRLS)
+- Migration: credit_ledger REVOKE UPDATE/DELETE + RAISE EXCEPTION trigger
+- Migration: audit_log append-only
+- JWKS verification guard, issuer chosen by route namespace
+- X-Workspace-Id + membership + role guards
+- Error envelope {code, message, fields}
+- Cursor pagination helper
+
+Exit check: Migration applies on Neon; cross-tenant read blocked in test; customer JWT rejected on /admin/*",Week 1 — Foundation + Backend,to do,saksham@metacognixion.com,2026-09-14,2026-09-14,8h,Urgent,"phase:p0, area:backend, area:infra, spec:§6, spec:§13.12, spec:§15, spec:§17",D0
+D2 — Retell round-trip + §21 verification (P0 exit),"Prove the Retell contract end to end and answer every open question before code depends on it.
+
+Checklist:
+- RetellGateway: create-retell-llm, create-agent, list-voices
+- RetellGateway: create-web-call, create-phone-number, create-knowledge-base
+- Bare page doing a browser test call (retell-client-js-sdk)
+- Buy inbound number; set agent webhook_url + number inbound_webhook_url via tunnel
+- Capture real payloads as fixtures (call_inbound, call_started, call_ended, call_analyzed)
+- Verify: decline mechanism for inbound webhook
+- Verify: agent_override.agent.max_call_duration_ms honoured
+- Verify: call_cost object shape and units
+- Verify: language multi behaviour + true multilingual voices
+- Verify: agent version tags (latest_published) + publish API
+- Verify: KB ingestion limits and refresh
+- Verify: TTS preview endpoint
+- Decide Redis-down policy (fail-open vs fail-closed)
+- Write ADR 0002 Retell findings
+
+Exit check: Every §21 item answered in ADR 0002; fixtures committed; manual brief → number → call works",Week 1 — Foundation + Backend,to do,saksham@metacognixion.com,2026-09-15,2026-09-15,8h,Urgent,"phase:p0, area:backend, spec:§13.1, spec:§21",D1
+"D3 — Wallet, Stripe, config cache, metering tests","Money in and money out: prepaid credits, Stripe purchase, and the pricing config the whole system reads.
+
+Checklist:
+- wallet module: append-only ledger writes
+- wallet: FIFO lot consumption by expires_at
+- wallet: bal:{ws} Redis cache + rebuild on mismatch
+- Stripe Checkout Session (client_reference_id, metadata, setup_future_usage)
+- POST /webhooks/stripe with raw-body signature verification
+- Exactly-once via webhook_events unique (provider, external_id, event_type)
+- Handle checkout.session.completed / async_payment_succeeded / expired
+- Credit lots + ledger rows + plan tier update on paid
+- config-cache: pricing_configs, feature_flags, kill_switches to Redis
+- GET /pricing and GET /flags with cache invalidation
+- Metering unit tests from D2 fixtures (idempotency, 0-charge, rounding)
+
+Exit check: Test purchase credits the wallet; ledger debit for a real call within ±5% of the pricing page",Week 1 — Foundation + Backend,to do,saksham@metacognixion.com,2026-09-16,2026-09-16,8h,Urgent,"phase:p0, area:backend, spec:§5, spec:§13.7, spec:§14",D2
+"D4 — Call path: SSE, queues, inbound authorisation, metering","The latency-critical path: authorise inbound calls in under 300 ms and bill them exactly once.
+
+Checklist:
+- events module: SSE endpoint + Redis pub/sub fan-out
+- BullMQ queues + Job Schedulers skeleton in worker
+- runtime-cache module with refresh(workspaceId)
+- webhooks lifecycle handler: store raw → duplicate 204 → enqueue
+- POST /webhooks/retell/inbound/:number_token
+- Six ordered checks: workspace paused, number paused, blocklist, balance > -10, active < cap, hours
+- max_call_duration_ms = min(planMax, remainingCredits/rate*60000)
+- Allow/decline response; calls row written by enqueued job with decline_reason
+- k6 load test for p95 < 300 ms
+- calls: call_started reserve + INCR active:{ws} + capture rate/config_version
+- calls: call_ended bills (only billing event), DECR, alerts
+- calls: call_analyzed stores analysis_json + retell_cost_cents (never bills)
+- SSE call:{id}
+- GET /calls, GET /calls/:id, recording signed proxy, GET /stats
+
+Exit check: k6 p95 < 300 ms; replayed webhook is a no-op; declined call shows as Missed with a reason",Week 1 — Foundation + Backend,to do,saksham@metacognixion.com,2026-09-17,2026-09-17,8h,Urgent,"phase:p1, area:backend, spec:§13.9, spec:§13.10, spec:§14",D3
+"D5 — Workspaces, agents, prompting","Tenancy plus the brief → prompt engine that makes the product feel like magic.
+
+Checklist:
+- workspaces: POST /workspaces transaction (tenant, owner membership, trial credits, settings, audit)
+- Invites + members + roles + transfer ownership
+- POST /webhooks/auth for user.created
+- voices: daily cache job + POST /voices/:id/preview
+- agents: create from templates/*.json, PATCH draft, versions list/select
+- agents: publish via RetellGateway, pause, delete
+- Prompt lint rules (§9.5)
+- prompting: generate job (202 + job_id) on claude-sonnet-5 structured output
+- prompting: feedback patch job (source=feedback)
+- Platform guardrails appended and non-editable (§9.4)
+- SSE agent:{id} events
+
+Exit check: Generate returns zod-valid JSON with p95 ≤ 10 s; publish updates the Retell agent version",Week 1 — Foundation + Backend,to do,saksham@metacognixion.com,2026-09-18,2026-09-18,8h,High,"phase:p1, area:backend, spec:§9, spec:§13.2, spec:§13.3",D4
+"D6 — Knowledge, numbers, activation, billing","Everything between paying and having a live phone number.
+
+Checklist:
+- knowledge: POST/GET/DELETE sources (url, file, text) + kb-sync job
+- numbers Option A: buy new number (country, area code, toll-free)
+- numbers Option B: forwarding guide per carrier
+- numbers Option C: SIP import with envelope-encrypted credentials
+- PUT /agents/:id/phone-plan
+- PATCH /numbers/:id and DELETE /numbers/:id
+- activate-agent job: publish → provision → bind → mark live → notify
+- activation_jobs.steps_json + SSE activation:{id}
+- Retry 3x with backoff, then failed + ops alert
+- billing: auto top-up off-session PaymentIntent
+- billing: invoices list + Stripe portal session
+
+Exit check: Activation job provisions a real number end to end on staging and marks the agent live",Week 2 — Backend + Portal,to do,saksham@metacognixion.com,2026-09-21,2026-09-21,8h,High,"phase:p1, area:backend, spec:§11, spec:§13.8",D5
+"D7 — Schedulers, notifications, tests, staging deploy (backend P1 complete)","Close out the backend: recurring money movement, alerts, and a deployed staging API.
+
+Checklist:
+- Scheduler: number-rental (hourly, 15 credits/number)
+- Scheduler: credit-expiry (daily, 12-month lots)
+- Scheduler: low-balance-alerts (20% / 5% / 0)
+- Scheduler: auto-topup on ledger change
+- Scheduler: reconcile-calls (nightly vs list-calls, alert > 5% drift)
+- Scheduler: concurrency-monitor (5 min, alert at 80%)
+- Scheduler: number-release (30 days at zero balance)
+- Scheduler: daily-digest per workspace timezone
+- notifications module + Resend transactional email
+- Integration tests: webhook ordering, replay, decline reasons, RLS cross-tenant
+- OpenAPI generation → @portal/api-client typed hooks
+- Deploy api + worker to Railway staging
+
+Exit check: Schedulers register exactly once across restarts; CI green; staging API reachable",Week 2 — Backend + Portal,to do,saksham@metacognixion.com,2026-09-22,2026-09-22,8h,High,"phase:p1, area:backend, area:infra, spec:§13.11, spec:§5.3, spec:§5.4",D6
+"D8 — Portal shell, auth screens, wizard W1–W3","The customer's first three minutes: sign up, then describe the business and hear a voice.
+
+Checklist:
+- Clerk components for A1 signup, A2 login, A3 verify email, A4 setup workspace
+- A5 MFA, A6 forgot/reset, A7 workspace switcher, A8 accept invite
+- Route guards per §6.4 onboarding gating
+- Global shell §7.2: left nav, workspace switcher, status chips, balance pill
+- @portal/api-client + TanStack Query hooks
+- next-intl scaffold (en keys) + PostHog events
+- W1 template picker
+- W2 brief: 13 fields, autosave 1.5 s, BriefCard, Generate with SSE/polling
+- W3 voice and languages: VoicePicker, filters, tier badges, preview
+- Deploy web to Vercel staging
+
+Exit check: Sign-up through W3 works on staging, including a real Generate",Week 2 — Backend + Portal,to do,saksham@metacognixion.com,2026-09-23,2026-09-23,8h,High,"phase:p1, area:frontend, spec:§6, spec:§7",D7
+D9 — Wizard W4–W7 + live,"Test, buy a number, pay, go live — the rest of the 15-minute promise.
+
+Checklist:
+- W4 knowledge sources with processing status polling
+- W5 TestCallPanel via retell-client-js-sdk (mic, live transcript, timer, credits)
+- W5 ImprovePanel: plain-language feedback → new draft version
+- W5 after-call card filled from call_analyzed
+- W6 PhoneOptionCards (A/B/C) + CarrierForwardingGuide + TransferTargetsEditor
+- W7 PackSelector + Stripe Checkout redirect + return handling
+- W7 ProvisioningProgress on SSE activation:{id}
+- /onboarding/live success screen
+
+Exit check: Browser test call, test-mode checkout, and activation all visible in the UI",Week 2 — Backend + Portal,to do,saksham@metacognixion.com,2026-09-24,2026-09-24,8h,High,"phase:p1, area:frontend, spec:§8, spec:§12.3",D8
+D10 — Dashboard D1–D3,"The three screens an owner opens every day.
+
+Checklist:
+- D1 Home: alert banner, credits card, today card, agent card
+- D1: setup checklist, recent calls, 30-day minutes chart
+- D2 Calls: list with URL-synced filters, sort, pagination
+- D2: CSV export, bulk mark handled, new-call toast via SSE
+- D2 detail drawer: summary, captured fields, transcript, recording, details
+- D3 Agents list + tabs: overview, brief (with Advanced prompt editor + lint), voice
+- D3 tabs: knowledge, test, versions (diff, publish, restore), settings
+
+Exit check: A real inbound call appears in D1 and D2 live via SSE",Week 2 — Backend + Portal,to do,saksham@metacognixion.com,2026-09-25,2026-09-25,8h,High,"phase:p1, area:frontend",D9
+D11 — Dashboard D4–D7 + mobile,"Finish the dashboard and make every screen work on a phone.
+
+Checklist:
+- D4 Numbers: list, routing, hand-off, callers, forwarding guide, SIP, danger zone
+- D5 Wallet: balance, auto top-up, usage chart, ledger, invoices, payment methods
+- D5: BalancePill live on SSE wallet topic
+- D6 Settings: workspace, team, notifications, security, data & privacy, audit log
+- D7 Help: docs links, support chat, status embed
+- Mobile: left nav to bottom tab bar, tables to cards under 640 px
+
+Exit check: All dashboard screens usable at 390 px width",Week 3 — Admin + Launch,to do,saksham@metacognixion.com,2026-09-28,2026-09-28,8h,High,"phase:p1, area:frontend, spec:§12.5",D10
+D12 — Admin API + admin shell,"Everything staff need to run the business without touching the database.
+
+Checklist:
+- GET /admin/kpis and /admin/kpis/funnel
+- Customers list + 360 (overview, members, wallet, purchases, agents, numbers, calls, notes, audit)
+- POST credits/adjust with mandatory reason code + audit row
+- Pause / resume tenant, number, agent
+- Users basics: verify email, reset MFA, lock, force logout
+- Jobs list + retry/discard; webhook_events + replay
+- Feature flags CRUD + kill switches
+- Pricing draft, preview with margin check, publish, rollback
+- Stripe Price sync on pricing publish
+- View-as impersonation (read-only, audited)
+- Staff Clerk instance + mfa claim enforcement + issuer assertion on boot
+- Admin shell: cmd-K global search, health strip, impersonation banner
+
+Exit check: Staff without MFA rejected; a pricing publish is visible in the portal within 60 s",Week 3 — Admin + Launch,to do,saksham@metacognixion.com,2026-09-29,2026-09-29,8h,High,"phase:p1, area:admin, area:backend",D7
+D13 — Admin screens P1 subset + P1 exit review,"Ship the admin screens needed to run 10 design partners, then time the full journey.
+
+Checklist:
+- SA1 Overview KPIs + funnel + needs-attention
+- SA2 Customers list + 360 tabs
+- SA3 Users
+- SA4 Support tickets (minimal: list, reply, close)
+- SA5 Pricing: draft → preview → publish
+- SA7 Telephony: numbers inventory, concurrency, provisioning queue
+- SA8 Global calls
+- SA9 Billing: purchases, refunds, failed top-ups
+- SA12 System: jobs, webhook events, flags, kill switches
+- SA13 Staff & settings
+- SA14 Global audit log
+- P1 exit: timed sign-up → live run on staging
+
+Exit check: Sign-up to live phone number under 15 minutes, timed, on staging",Week 3 — Admin + Launch,to do,saksham@metacognixion.com,2026-09-30,2026-09-30,8h,High,"phase:p1, area:admin, spec:admin§4","D12, D11"
+D14 — Integration + security gate,"The one buffer day: prove it is correct, safe and observable before real money flows.
+
+Checklist:
+- End-to-end staging run: sign-up → wizard → checkout → activation → real inbound call → ledger → D1/D2
+- Decline paths: balance, cap, hours, blocklist, paused all show as Missed
+- Overdraft grace (-10) behaviour
+- Clock-advanced run of number-rental and credit-expiry
+- Pen test: RLS, X-Workspace-Id spoofing, customer JWT on /admin/*
+- Rate limits, CSRF/origin checks, disposable email blocking
+- Redis-down chaos test against the documented policy
+- Neon PITR restore drill
+- OpenTelemetry traces + Sentry + Slack alerting
+- WCAG 2.1 AA: keyboard nav, live regions, contrast
+
+Exit check: Zero cross-tenant findings; alerts fire in Slack; restore drill succeeds",Week 3 — Admin + Launch,to do,saksham@metacognixion.com,2026-10-01,2026-10-01,8h,Urgent,"phase:p1, area:infra, spec:§17, spec:§18",D13
+D15 — Production cutover — MVP live,"Go live and put the first design partners on real phone numbers.
+
+Checklist:
+- Retell live API key + live agents (no dev- prefix)
+- Stripe live keys + live webhook endpoint
+- Clerk production instances (customer + staff)
+- Webhook URLs repointed to api.<domain>
+- Domains: app.<domain>, admin.<domain>, api.<domain>
+- Status page live
+- docs/runbook.md written
+- Onboard first design partners
+- Watch PostHog funnel for 24 h
+
+Exit check: First design partner takes a real call on a real number; funnel visible",Week 3 — Admin + Launch,to do,saksham@metacognixion.com,2026-10-02,2026-10-02,8h,Urgent,"phase:p1, area:infra, spec:§13.12, spec:§19",D14
+"D16 — P2: transfer billing, per-number hours, KB stats, SIP re-verify, fr-CA","First P2 batch: billing accuracy, per-number control, and French.
+
+Checklist:
+- Transfer billing split using transfer_bridged / transfer_ended (0.25 cr/min leg)
+- Per-number business hours with override editor
+- Knowledge base usage stats (KB hits per call)
+- SIP re-verify flow
+- fr-CA full message catalogue
+
+Exit check: A transferred call is billed as two legs; fr-CA renders across the portal",Week 4 — P2,to do,saksham@metacognixion.com,2026-10-05,2026-10-05,8h,Normal,"phase:p2, area:backend, area:frontend, spec:§5.1, spec:§14.1",D15
+"D17 — P2: call-my-phone, forwarding test, web widget","Give customers two more ways to hear the agent, plus a website channel.
+
+Checklist:
+- POST /agents/:id/test/phone with balance and cap checks
+- Forwarding test: call the original number and verify it lands
+- Embeddable web widget button using the Retell web SDK
+- Web channel separated in analytics and call list
+
+Exit check: Widget call is recorded with channel=web and appears in D2",Week 4 — P2,to do,saksham@metacognixion.com,2026-10-06,2026-10-06,8h,Normal,"phase:p2, area:backend, area:frontend, spec:§11.5",D16
+D18 — P2: outbound click-to-call + compliance gating,"Outbound, but only behind the compliance gates TCPA/CRTC require.
+
+Checklist:
+- Click-to-call from D2 call detail
+- KYC business verification flag
+- Verified caller ID requirement
+- DNC list check
+- Calling windows enforcement
+- Per-day outbound caps
+- Voicemail detection setting
+
+Exit check: Outbound is blocked for a tenant without KYC and verified caller ID",Week 4 — P2,to do,saksham@metacognixion.com,2026-10-07,2026-10-07,8h,Normal,"phase:p2, area:backend, spec:§17",D17
+"D19 — P2: calendar/CRM tool calls, multi-agent per number","Let the agent actually do things during the call.
+
+Checklist:
+- Google Calendar tool via Retell general_tools
+- HubSpot tool via Retell general_tools
+- Multi-agent per number routed by business hours
+- D3 knowledge usage tab
+
+Exit check: A test call creates a real calendar appointment",Week 4 — P2,to do,saksham@metacognixion.com,2026-10-08,2026-10-08,8h,Normal,"phase:p2, area:backend, area:frontend",D18
+D20 — P2: admin P2 — full scope complete,"Finish the admin console so finance and support can work unassisted.
+
+Checklist:
+- Promo codes CRUD
+- Custom deals (negotiated pricing per tenant)
+- SA6 Agent stack: templates editor, generation playground, migrate-all
+- SA10 Comms: announcements, banners, broadcasts, maintenance mode
+- SA11 Trust: fraud queue, blocklists, flagged calls, deletion requests
+- Act-as impersonation (write, time-boxed, audited)
+- Approval workflow for over-limit staff actions
+- Reports: revenue, COGS, deferred liability, breakage
+
+Exit check: Every Admin §11 P2 item demoable; full scope complete",Week 4 — P2,to do,saksham@metacognixion.com,2026-10-09,2026-10-09,8h,Normal,"phase:p2, area:admin, spec:admin§11",D19

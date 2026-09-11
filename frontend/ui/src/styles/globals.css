@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+@import '@portal/config/tailwind/preset.css';
+
+@layer base {
+  body {
+    @apply bg-neutral-50 text-neutral-900 antialiased;
+  }
+}

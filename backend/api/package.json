@@ -1,0 +1,41 @@
+{
+  "name": "@portal/api",
+  "version": "0.0.1",
+  "private": true,
+  "description": "NestJS on Fastify. Two entrypoints: main.ts (HTTP API) and worker.ts (BullMQ).",
+  "type": "commonjs",
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "dev:worker": "nest start --watch --entryFile worker",
+    "start": "node dist/main.js",
+    "start:worker": "node dist/worker.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-fastify": "^11.1.0",
+    "@portal/db": "workspace:*",
+    "@portal/schemas": "workspace:*",
+    "fastify": "^5.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/testing": "^11.1.0",
+    "@portal/config": "workspace:*",
+    "@types/node": "^22.15.0",
+    "eslint": "^9.30.0",
+    "typescript": "^5.8.0",
+    "unplugin-swc": "^1.5.0",
+    "@swc/core": "^1.11.0",
+    "vitest": "^3.2.0"
+  }
+}

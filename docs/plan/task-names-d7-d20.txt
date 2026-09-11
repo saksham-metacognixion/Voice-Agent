@@ -1,0 +1,14 @@
+D7 — Schedulers, notifications, tests, staging deploy (backend P1 complete)
+D8 — Portal shell, auth screens, wizard W1–W3
+D9 — Wizard W4–W7 + live
+D10 — Dashboard D1–D3
+D11 — Dashboard D4–D7 + mobile
+D12 — Admin API + admin shell
+D13 — Admin screens P1 subset + P1 exit review
+D14 — Integration + security gate
+D15 — Production cutover — MVP live
+D16 — P2: transfer billing, per-number hours, KB stats, SIP re-verify, fr-CA
+D17 — P2: call-my-phone, forwarding test, web widget
+D18 — P2: outbound click-to-call + compliance gating
+D19 — P2: calendar/CRM tool calls, multi-agent per number
+D20 — P2: admin P2 — full scope complete

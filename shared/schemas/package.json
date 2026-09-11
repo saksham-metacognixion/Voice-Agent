@@ -1,0 +1,35 @@
+{
+  "name": "@portal/schemas",
+  "version": "0.0.1",
+  "private": true,
+  "description": "zod schemas shared by portal, admin and API. Depends on zod only.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@portal/config": "workspace:*",
+    "eslint": "^9.30.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

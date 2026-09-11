@@ -1,0 +1,32 @@
+{
+  "name": "@portal/api-client",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Typed fetch wrapper over @portal/schemas + TanStack Query hooks",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@portal/schemas": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.80.0",
+    "react": "^19.0.0"
+  },
+  "devDependencies": {
+    "@portal/config": "workspace:*",
+    "@tanstack/react-query": "^5.80.0",
+    "@types/react": "^19.1.0",
+    "eslint": "^9.30.0",
+    "react": "^19.1.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}

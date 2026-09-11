@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: portal, POSTGRES_PASSWORD: portal, POSTGRES_DB: portal }
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U portal -d portal" --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://portal:portal@localhost:5432/portal?schema=public
+      DIRECT_DATABASE_URL: postgresql://portal:portal@localhost:5432/portal?schema=public
+      REDIS_URL: redis://localhost:6379
+      APP_ENV: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @portal/db generate
+      - run: pnpm turbo run lint typecheck
+      - run: pnpm turbo run build
+      - run: pnpm turbo run test
+      - run: pnpm --filter @portal/db exec prisma migrate deploy
