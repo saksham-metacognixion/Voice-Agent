@@ -1,6 +1,6 @@
 # Task board — 21 tasks, one per working day
 
-Rendered from `tasks.csv`. Auth0 (ADR 0002), AWS EC2 backend (ADR 0004), AWS Amplify Hosting frontend (ADR 0005); Retell findings are ADR 0003. Tasks marked **(updated)** changed after the ClickUp import.
+Rendered from `tasks.csv`. Auth0 (ADR 0002), AWS EC2 backend (ADR 0004), S3 + CloudFront frontend (ADR 0008, supersedes 0005); Retell findings are ADR 0003. Tasks marked **(updated)** changed after the ClickUp import.
 
 ## Day 0
 
@@ -38,9 +38,9 @@ Due Mon 14 Sep · 8h · Urgent · `phase:p0` `area:backend` `area:infra` `spec:�
 
 Provision every external account and land the full database + auth foundation in one pass.
 
-- Accounts: Retell, Stripe (test), Anthropic
+- Accounts: Retell, Stripe (test), OpenAI
 - Auth0 x2 (customer tenant, staff tenant) + M2M apps
-- AWS account: IAM user for CI, EC2 staging instance (t3.small) + Elastic IP, SSM Parameter Store, KMS key; Neon (dev branch); Amplify Hosting apps x2 (web, admin) connected to the GitHub repo
+- AWS account: IAM user for CI, EC2 staging instance (t3.small) + Elastic IP, SSM Parameter Store, KMS key; Neon (dev branch); S3 buckets x2 + CloudFront distributions x2 + ACM cert in us-east-1 (ADR 0008)
 - cloudflared tunnel for webhooks
 - .env.example committed
 - Prisma schema: all Portal §15 tables
@@ -135,7 +135,7 @@ Tenancy plus the brief → prompt engine that makes the product feel like magic.
 - agents: create from templates/*.json, PATCH draft, versions list/select
 - agents: publish via RetellGateway, pause, delete
 - Prompt lint rules (§9.5)
-- prompting: generate job (202 + job_id) on claude-sonnet-5 structured output
+- prompting: generate job (202 + job_id) on gpt-5 structured output
 - prompting: feedback patch job (source=feedback)
 - Platform guardrails appended and non-editable (§9.4)
 - SSE agent:{id} events
@@ -182,6 +182,8 @@ Close out the backend: recurring money movement, alerts, and a deployed staging 
 - Integration tests: webhook ordering, replay, decline reasons, RLS cross-tenant
 - OpenAPI generation → @portal/api-client typed hooks
 - docker-compose.prod.yml (api, worker, redis, caddy) + CI image push to GHCR + deploy to EC2 staging
+- In that compose file, cap the worker at cpus: '1.0' (of 2 on t3.medium) and leave api uncapped.
+  api owns the 300 ms p95 inbound-auth path (§13.9); ingestion/export jobs must never starve it.
 
 **Exit:** Schedulers register exactly once across restarts; CI green; staging API reachable over TLS on the EC2 Elastic IP
 
@@ -191,7 +193,7 @@ Due Wed 23 Sep · 8h · High · `phase:p1` `area:frontend` `spec:§6` `spec:§7`
 
 The customer's first three minutes: sign up, then describe the business and hear a voice.
 
-- Auth0 Universal Login via @auth0/nextjs-auth0 for A1 signup, A2 login, A3 verify email; own page for A4 setup workspace
+- Auth0 Universal Login via @auth0/auth0-spa-js (PKCE, ADR 0008) for A1 signup, A2 login, A3 verify email; own page for A4 setup workspace
 - A5 MFA, A6 forgot/reset, A7 workspace switcher, A8 accept invite
 - Route guards per §6.4 onboarding gating
 - Global shell §7.2: left nav, workspace switcher, status chips, balance pill
@@ -200,7 +202,7 @@ The customer's first three minutes: sign up, then describe the business and hear
 - W1 template picker
 - W2 brief: 13 fields, autosave 1.5 s, BriefCard, Generate with SSE/polling
 - W3 voice and languages: VoicePicker, filters, tier badges, preview
-- Deploy web to Amplify Hosting staging branch
+- Deploy web to S3 + CloudFront staging
 
 **Exit:** Sign-up through W3 works on staging, including a real Generate
 

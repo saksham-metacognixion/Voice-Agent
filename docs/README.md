@@ -4,6 +4,8 @@
 | ---------------------------------- | ----------------------------------------------------------------------- |
 | `Voice Agent Project.pdf`          | Portal spec v0.2, 10 Sep 2026, 57 pages. The primary source of truth.   |
 | `Admin dashboard Voice agent .pdf` | Admin console spec v0.1, 10 Sep 2026, 23 pages. Companion to the above. |
+| `architecture.md`                  | How the system fits together, with diagrams and the reasoning per part. |
+| `architecture.docx`                | Word/Google Docs export of the above with the diagrams rendered as images. Regenerate after editing the `.md`. |
 | `decisions/`                       | Architecture decision records.                                          |
 | `spec-extract/`                    | Grep-able text pulled from the PDFs, with a page-to-section index.      |
 | `plan/`                            | Delivery schedule, ClickUp task board, status message.                  |

@@ -1,6 +1,6 @@
 # ADR 0005 — Frontend hosting: AWS Amplify Hosting (CloudFront)
 
-- Status: accepted
+- Status: superseded by [ADR 0008](0008-frontend-hosting-s3-cloudfront.md)
 - Date: 2026-09-11
 - Deciders: Saksham, Prateek
 - Supersedes: the frontend half of the Hosting row in [ADR 0001](0001-tech-stack.md) (Vercel). Backend hosting is [ADR 0004](0004-backend-hosting-aws-ec2.md).

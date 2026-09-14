@@ -26,7 +26,10 @@ jobs:
         options: >-
           --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
     env:
-      DATABASE_URL: postgresql://portal:portal@localhost:5432/portal?schema=public
+      # Three URLs, two roles — ADR 0006. The e2e suites assert that DATABASE_URL is
+      # genuinely RLS-enforced, so pointing it at the owner here would fail the build.
+      DATABASE_URL: postgresql://portal_app:portal_app@localhost:5432/portal?schema=public
+      ADMIN_DATABASE_URL: postgresql://portal_admin:portal_admin@localhost:5432/portal?schema=public
       DIRECT_DATABASE_URL: postgresql://portal:portal@localhost:5432/portal?schema=public
       REDIS_URL: redis://localhost:6379
       APP_ENV: ci
@@ -42,4 +45,15 @@ jobs:
       - run: pnpm turbo run lint typecheck
       - run: pnpm turbo run build
       - run: pnpm turbo run test
-      - run: pnpm --filter @portal/db exec prisma migrate deploy
+
+      # The migration creates the two group roles; this gives them a local password.
+      - name: Apply migrations and seed
+        run: |
+          pnpm --filter @portal/db exec prisma migrate deploy
+          pnpm --filter @portal/db exec node prisma/dev-roles.mjs
+          pnpm --filter @portal/db exec tsx prisma/seed.ts
+
+      # RLS isolation, append-only history and the auth boundaries. These need a real
+      # Postgres and are the D1 exit checks, so they gate every pull request.
+      - name: Security and tenancy tests
+        run: pnpm turbo run test:e2e

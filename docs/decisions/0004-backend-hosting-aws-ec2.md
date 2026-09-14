@@ -9,7 +9,7 @@
 ## Context
 
 ADR 0001 chose Railway for the long-running backend processes because it was the fastest managed option
-for one developer. The team decided on 2026-09-11 to run the backend on AWS EC2 instead. The database (Neon) is unchanged by this decision. Frontend hosting moved to AWS Amplify Hosting the same day (ADR 0005).
+for one developer. The team decided on 2026-09-11 to run the backend on AWS EC2 instead. The database (Neon) is unchanged by this decision. Frontend hosting moved to AWS Amplify Hosting the same day (ADR 0005), and from there to S3 + CloudFront on 2026-09-14 (ADR 0008).
 
 The constraints that matter are the same as before: BullMQ needs a persistent Node process with a TCP
 Redis connection; `GET /events` holds long-lived SSE connections; the inbound authorisation webhook must

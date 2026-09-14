@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
-/** Error envelope per spec §16: {code, message, fields?[]} */
+/** Error envelope per spec §16: {code, message, fields?[]} — every non-2xx response. */
 export const fieldError = z.object({ field: z.string(), message: z.string() });
+export type FieldError = z.infer<typeof fieldError>;
 
 export const errorResponse = z.object({
   code: z.string(),
@@ -10,15 +11,67 @@ export const errorResponse = z.object({
 });
 export type ErrorResponse = z.infer<typeof errorResponse>;
 
-/** Stable error codes referenced in the spec. Extend here, never inline strings in handlers. */
+/**
+ * Stable error codes. The portal branches on `code`, never on the message or the status,
+ * so a code is part of the API contract: add freely, rename never.
+ *
+ * Codes named in the spec: 402 NO_CREDITS, 403 EMAIL_UNVERIFIED, 429 TEST_RATE_LIMIT (§16).
+ */
 export const ErrorCode = {
-  NO_CREDITS: 'NO_CREDITS', // 402
-  EMAIL_UNVERIFIED: 'EMAIL_UNVERIFIED', // 403
-  TEST_RATE_LIMIT: 'TEST_RATE_LIMIT', // 429
-  WORKSPACE_REQUIRED: 'WORKSPACE_REQUIRED', // 400
-  FORBIDDEN_ROLE: 'FORBIDDEN_ROLE', // 403
-  NOT_FOUND: 'NOT_FOUND', // 404
-  VALIDATION_FAILED: 'VALIDATION_FAILED', // 422
-  INTERNAL: 'INTERNAL', // 500
+  // 400
+  BAD_REQUEST: 'BAD_REQUEST',
+  WORKSPACE_REQUIRED: 'WORKSPACE_REQUIRED',
+  INVALID_CURSOR: 'INVALID_CURSOR',
+  REASON_CODE_REQUIRED: 'REASON_CODE_REQUIRED',
+  // 401
+  UNAUTHENTICATED: 'UNAUTHENTICATED',
+  INVALID_TOKEN: 'INVALID_TOKEN',
+  // 402
+  NO_CREDITS: 'NO_CREDITS',
+  // 403
+  EMAIL_UNVERIFIED: 'EMAIL_UNVERIFIED',
+  FORBIDDEN_ROLE: 'FORBIDDEN_ROLE',
+  NOT_A_MEMBER: 'NOT_A_MEMBER',
+  MFA_REQUIRED: 'MFA_REQUIRED',
+  STAFF_ONLY: 'STAFF_ONLY',
+  STAFF_LIMIT_EXCEEDED: 'STAFF_LIMIT_EXCEEDED',
+  WORKSPACE_PAUSED: 'WORKSPACE_PAUSED',
+  // 404
+  NOT_FOUND: 'NOT_FOUND',
+  // 409
+  CONFLICT: 'CONFLICT',
+  // 422
+  VALIDATION_FAILED: 'VALIDATION_FAILED',
+  // 429
+  TEST_RATE_LIMIT: 'TEST_RATE_LIMIT',
+  RATE_LIMITED: 'RATE_LIMITED',
+  // 5xx
+  INTERNAL: 'INTERNAL',
+  UPSTREAM_UNAVAILABLE: 'UPSTREAM_UNAVAILABLE',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+
+/** The HTTP status each code is served with. One place, so handlers never pick a number. */
+export const ERROR_STATUS: Record<ErrorCode, number> = {
+  BAD_REQUEST: 400,
+  WORKSPACE_REQUIRED: 400,
+  INVALID_CURSOR: 400,
+  REASON_CODE_REQUIRED: 400,
+  UNAUTHENTICATED: 401,
+  INVALID_TOKEN: 401,
+  NO_CREDITS: 402,
+  EMAIL_UNVERIFIED: 403,
+  FORBIDDEN_ROLE: 403,
+  NOT_A_MEMBER: 403,
+  MFA_REQUIRED: 403,
+  STAFF_ONLY: 403,
+  STAFF_LIMIT_EXCEEDED: 403,
+  WORKSPACE_PAUSED: 403,
+  NOT_FOUND: 404,
+  CONFLICT: 409,
+  VALIDATION_FAILED: 422,
+  TEST_RATE_LIMIT: 429,
+  RATE_LIMITED: 429,
+  INTERNAL: 500,
+  UPSTREAM_UNAVAILABLE: 503,
+};

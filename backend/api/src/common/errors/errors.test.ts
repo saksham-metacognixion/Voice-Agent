@@ -1,0 +1,95 @@
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
+import type { ArgumentsHost } from '@nestjs/common';
+import { AllExceptionsFilter } from './all-exceptions.filter';
+import { AppError } from './app-error';
+
+function capture(exception: unknown): { status: number; body: Record<string, unknown> } {
+  const captured = { status: 0, body: {} as Record<string, unknown> };
+  const reply = {
+    status(code: number) {
+      captured.status = code;
+      return this;
+    },
+    send(body: Record<string, unknown>) {
+      captured.body = body;
+      return this;
+    },
+  };
+  const host = {
+    switchToHttp: () => ({ getResponse: () => reply }),
+  } as unknown as ArgumentsHost;
+
+  new AllExceptionsFilter().catch(exception, host);
+  return captured;
+}
+
+describe('AppError', () => {
+  it('derives the status from the code, so no handler picks a number', () => {
+    expect(new AppError('NO_CREDITS', 'x').getStatus()).toBe(402);
+    expect(new AppError('EMAIL_UNVERIFIED', 'x').getStatus()).toBe(403);
+    expect(new AppError('TEST_RATE_LIMIT', 'x').getStatus()).toBe(429);
+  });
+
+  it('omits `fields` when there are none', () => {
+    expect(new AppError('NOT_FOUND', 'x').getResponse()).toEqual({
+      code: 'NOT_FOUND',
+      message: 'x',
+    });
+  });
+
+  it('carries field errors when given them', () => {
+    const error = new AppError('VALIDATION_FAILED', 'x', [{ field: 'name', message: 'Required' }]);
+    expect(error.getResponse()).toMatchObject({ fields: [{ field: 'name', message: 'Required' }] });
+  });
+});
+
+describe('AllExceptionsFilter', () => {
+  it('passes an AppError through as the §16 envelope', () => {
+    const { status, body } = capture(new AppError('NO_CREDITS', 'Your balance is too low.'));
+    expect(status).toBe(402);
+    expect(body).toEqual({ code: 'NO_CREDITS', message: 'Your balance is too low.' });
+  });
+
+  it('turns a ZodError into 422 with one entry per bad field', () => {
+    const schema = z.object({ name: z.string(), hours: z.number() });
+    const parsed = schema.safeParse({ hours: 'lots' });
+    const { status, body } = capture(parsed.success ? new Error('unreachable') : parsed.error);
+
+    expect(status).toBe(422);
+    expect(body.code).toBe('VALIDATION_FAILED');
+    expect(body.fields).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'name' }),
+        expect.objectContaining({ field: 'hours' }),
+      ]),
+    );
+  });
+
+  it.each([
+    [new NotFoundException('nope'), 404, 'NOT_FOUND'],
+    [new ForbiddenException('nope'), 403, 'FORBIDDEN_ROLE'],
+    [new BadRequestException('nope'), 400, 'BAD_REQUEST'],
+  ])('gives Nest’s own %#  exception a code', (exception, status, code) => {
+    const captured = capture(exception);
+    expect(captured.status).toBe(status);
+    expect(captured.body.code).toBe(code);
+  });
+
+  it('answers an unexpected error with 500 and says nothing about it', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { status, body } = capture(new TypeError('cannot read property retell_api_key of null'));
+
+    expect(status).toBe(500);
+    expect(body).toEqual({ code: 'INTERNAL', message: 'Something went wrong on our side.' });
+    expect(JSON.stringify(body)).not.toMatch(/retell_api_key/);
+    spy.mockRestore();
+  });
+
+  it('answers a non-Error throw without falling over', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(capture('something odd').status).toBe(500);
+    spy.mockRestore();
+  });
+});

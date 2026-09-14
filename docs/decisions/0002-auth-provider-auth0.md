@@ -1,6 +1,6 @@
 # ADR 0002 — Auth provider: Auth0
 
-- Status: accepted
+- Status: accepted; the **Frontend SDK** row is superseded by [ADR 0008](0008-frontend-hosting-s3-cloudfront.md) (`@auth0/nextjs-auth0` → `@auth0/auth0-spa-js`)
 - Date: 2026-09-11
 - Deciders: Saksham, Prateek
 - Supersedes: the Auth row of [ADR 0001](0001-tech-stack.md) (Clerk)

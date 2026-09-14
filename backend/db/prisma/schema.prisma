@@ -1,13 +1,19 @@
-// Prisma schema — full §15 + admin §8 model lands on D1 (Mon 14 Sep).
-// D0 ships the datasource, generator and one table so `prisma generate` and the first
-// migration run end to end in CI.
+// Voice Agent Portal — data model.
+// Portal tables: spec §15 (pp. 47–48). Admin tables: admin spec §8 (pp. 18–19).
+// Portal-side columns added by the admin spec are marked "admin §8".
+//
+// NAMING — the spec uses two words for one thing. The product word is "workspace"
+// (X-Workspace-Id, ctx.workspaceId); the table is `tenants` and every foreign key is
+// `tenant_id`, exactly as §15 spells it. Workspace == tenant. The translation happens once,
+// in the auth guard; below this line it is always `tenant_id`.
 //
 // Two connection strings (spec §13.1, ADR 0001):
 //   DATABASE_URL         pooled, used by api + worker at runtime
 //   DIRECT_DATABASE_URL  unpooled, used by `prisma migrate` only
 //
-// RLS policies, REVOKE grants and the append-only ledger trigger are hand-written SQL inside
-// migrations. Never regenerate them away.
+// RLS policies, role grants and the append-only triggers are hand-written SQL living in
+// prisma/migrations/*/migration.sql. `prisma migrate dev` will not regenerate them —
+// never squash a migration without carrying that SQL forward. See ADR 0006.
 
 generator client {
   provider = "prisma-client-js"
@@ -19,19 +25,1245 @@ datasource db {
   directUrl = env("DIRECT_DATABASE_URL")
 }
 
-/// Raw webhook envelope. Unique (provider, external_id, event_type) is the exactly-once guard
-/// for every inbound webhook (spec §13.10, §14.2). Duplicate insert → 204.
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+/// Spec §6.1. Exactly one owner per workspace.
+enum MemberRole {
+  owner
+  admin
+  editor
+  viewer
+
+  @@map("member_role")
+}
+
+/// Spec §5.2. Set by the largest pack bought in the last 12 months.
+enum PlanTier {
+  trial
+  starter
+  growth
+  scale
+  pro
+  volume
+
+  @@map("plan_tier")
+}
+
+/// Spec §4.3. Drives the model/voice stack and the credit rate.
+enum AgentTier {
+  standard
+  premium
+
+  @@map("agent_tier")
+}
+
+enum AgentStatus {
+  draft
+  live
+  paused
+
+  @@map("agent_status")
+}
+
+/// Spec §9.9.
+enum VersionSource {
+  generated
+  feedback
+  manual
+  regenerate
+
+  @@map("version_source")
+}
+
+enum KnowledgeType {
+  url
+  file
+  text
+
+  @@map("knowledge_type")
+}
+
+enum KnowledgeStatus {
+  processing
+  ready
+  failed
+
+  @@map("knowledge_status")
+}
+
+/// Spec §11. A = buy new, B = forward an existing number, C = BYO SIP, D = port.
+enum PhonePlanOption {
+  new
+  forward
+  sip
+  port
+
+  @@map("phone_plan_option")
+}
+
+enum PhonePlanStatus {
+  pending
+  executed
+
+  @@map("phone_plan_status")
+}
+
+enum PhoneNumberType {
+  retell_twilio
+  retell_telnyx
+  custom_sip
+
+  @@map("phone_number_type")
+}
+
+enum PhoneNumberStatus {
+  provisioning
+  active
+  paused
+  releasing
+  released
+
+  @@map("phone_number_status")
+}
+
+/// Spec §13.9 / §11. `always` = 24/7, `business` = follow business hours.
+enum HoursMode {
+  always
+  business
+  custom
+
+  @@map("hours_mode")
+}
+
+enum CallChannel {
+  phone
+  web
+
+  @@map("call_channel")
+}
+
+enum CallDirection {
+  inbound
+  outbound
+
+  @@map("call_direction")
+}
+
+enum CallStatus {
+  registered
+  in_progress
+  ended
+  analyzed
+  declined
+
+  @@map("call_status")
+}
+
+/// Spec §13.9. Why the inbound authorisation webhook said no. Shown as "Missed".
+enum DeclineReason {
+  balance
+  cap
+  blocked
+  hours
+  paused
+
+  @@map("decline_reason")
+}
+
+/// Spec §15 credit_ledger.reason.
+enum LedgerReason {
+  trial
+  purchase
+  call
+  rental
+  kb
+  adjustment
+  expiry
+  refund
+  topup
+
+  @@map("ledger_reason")
+}
+
+enum PurchaseStatus {
+  pending
+  paid
+  abandoned
+  refunded
+
+  @@map("purchase_status")
+}
+
+enum JobStatus {
+  queued
+  running
+  succeeded
+  failed
+
+  @@map("job_status")
+}
+
+/// Admin spec §2.2.
+enum StaffRole {
+  super_admin
+  ops
+  finance
+  support
+  read_only
+
+  @@map("staff_role")
+}
+
+/// Admin Appendix B. Required on every customer-affecting staff write.
+enum ReasonCode {
+  goodwill
+  service_issue
+  billing_error
+  promo
+  partner_deal
+  fraud_suspected
+  abuse_policy
+  customer_request
+  chargeback
+  expiry_extension
+  testing_internal
+  support_investigation
+  legal_request
+  other
+
+  @@map("reason_code")
+}
+
+enum TicketAuthorType {
+  customer
+  staff
+  system
+
+  @@map("ticket_author_type")
+}
+
+enum TicketStatus {
+  open
+  pending
+  resolved
+  closed
+
+  @@map("ticket_status")
+}
+
+enum ImpersonationMode {
+  view
+  act
+
+  @@map("impersonation_mode")
+}
+
+enum BlocklistType {
+  email
+  domain
+  phone
+  country
+
+  @@map("blocklist_type")
+}
+
+enum DataRequestType {
+  delete
+  export
+
+  @@map("data_request_type")
+}
+
+// ---------------------------------------------------------------------------
+// Portal §15 — identity and workspaces
+// ---------------------------------------------------------------------------
+
+/// A person. Identity lives in Auth0 (ADR 0002); `auth_provider_id` is the `sub` claim.
+/// Rows are upserted by the Post-User-Registration Action via POST /webhooks/auth.
+model User {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authProviderId String    @unique @map("auth_provider_id")
+  email          String    @unique
+  name           String?
+  avatarUrl      String?   @map("avatar_url")
+  mfaEnabled     Boolean   @default(false) @map("mfa_enabled")
+  tosAcceptedAt  DateTime? @map("tos_accepted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  memberships          Membership[]
+  invitesSent          Invite[]              @relation("InviteInvitedBy")
+  auditEntries         AuditLog[]
+  notificationSettings NotificationSetting[]
+  agentVersions        AgentVersion[]
+  supportTickets       SupportTicket[]
+
+  @@map("users")
+}
+
+/// A workspace = a business = a tenant. Everything billable hangs off this row.
+model Tenant {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  country               String    @db.Char(2)
+  timezone              String    @default("America/Toronto")
+  addressJson           Json?     @map("address_json")
+  website               String?
+  planTier              PlanTier  @default(trial) @map("plan_tier")
+  concurrencyCap        Int       @default(2) @map("concurrency_cap")
+  kbAllowance           Int       @default(0) @map("kb_allowance")
+  businessHoursJson     Json?     @map("business_hours_json")
+  stripeCustomerId      String?   @unique @map("stripe_customer_id")
+  /// {enabled, pack_id, threshold, payment_method_id} — spec §5.4.
+  autoTopupJson         Json?     @map("auto_topup_json")
+  onboardingStep        Int       @default(1) @map("onboarding_step")
+  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  pausedAt              DateTime? @map("paused_at")
+  /// admin §8 — set when staff pause the workspace, surfaced in the D1 banner.
+  pausedReason          String?   @map("paused_reason")
+  recordingDefault      Boolean   @default(true) @map("recording_default")
+  retentionDays         Int       @default(90) @map("retention_days")
+  /// admin §8 — negotiated pricing overrides the pack catalogue.
+  customDealId          String?   @map("custom_deal_id") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  memberships          Membership[]
+  invites              Invite[]
+  auditLog             AuditLog[]
+  notificationSettings NotificationSetting[]
+  agents               Agent[]
+  phonePlans           PhonePlan[]
+  phoneNumbers         PhoneNumber[]
+  calls                Call[]
+  creditLots           CreditLot[]
+  creditLedger         CreditLedger[]
+  purchases            Purchase[]
+  jobs                 Job[]
+  alerts               Alert[]
+  customDeal           CustomDeal?            @relation("TenantCustomDeal", fields: [customDealId], references: [id], onDelete: SetNull)
+  customDeals          CustomDeal[]           @relation("CustomDealTenant")
+  overrides            TenantOverride?
+  notes                CustomerNote[]
+  flags                CustomerFlag[]
+  creditAdjustments    CreditAdjustment[]
+  impersonations       ImpersonationSession[]
+  fraudReviews         FraudReview[]
+  dataRequests         DataRequest[]
+  supportTickets       SupportTicket[]
+  staffAuditLog        StaffAuditLog[]
+
+  @@index([planTier])
+  @@index([createdAt])
+  @@map("tenants")
+}
+
+/// Joins a user to a workspace with a role. The RLS anchor for cross-user visibility.
+model Membership {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String     @map("tenant_id") @db.Uuid
+  userId    String     @map("user_id") @db.Uuid
+  role      MemberRole
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+/// Spec A8. Only the hash of the invite token is stored.
+model Invite {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  email      String
+  role       MemberRole
+  tokenHash  String     @unique @map("token_hash")
+  invitedBy  String     @map("invited_by") @db.Uuid
+  expiresAt  DateTime   @map("expires_at")
+  acceptedAt DateTime?  @map("accepted_at")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  tenant  Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inviter User   @relation("InviteInvitedBy", fields: [invitedBy], references: [id])
+
+  @@index([tenantId, email])
+  @@map("invites")
+}
+
+/// Append-only (spec §6.2, §17). REVOKE UPDATE/DELETE + a BEFORE trigger. Never rewritten.
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String
+  targetType  String?  @map("target_type")
+  targetId    String?  @map("target_id")
+  ip          String?  @db.Inet
+  metaJson    Json?    @map("meta_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  actor  User?  @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("audit_log")
+}
+
+/// user_id NULL = the workspace-level default row.
+model NotificationSetting {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String  @map("tenant_id") @db.Uuid
+  userId          String? @map("user_id") @db.Uuid
+  /// instant | daily | off
+  newMessage      String  @default("instant") @map("new_message")
+  lowBalanceEmail Boolean @default(true) @map("low_balance_email")
+  lowBalanceSms   Boolean @default(false) @map("low_balance_sms")
+  weeklySummary   Boolean @default(true) @map("weekly_summary")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@map("notification_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Portal §15 — agents and prompting
+// ---------------------------------------------------------------------------
+
+/// Config table (spec §9.2, admin SA6). Global, not tenant-scoped. Seeded from templates/*.json.
+model Template {
+  id                 String    @id
+  name               String
+  industryTags       String[]  @map("industry_tags")
+  briefPrefillJson   Json      @map("brief_prefill_json")
+  stepsJson          Json      @map("steps_json")
+  analysisFieldsJson Json      @map("analysis_fields_json")
+  rulesJson          Json      @map("rules_json")
+  defaultTier        AgentTier @default(standard) @map("default_tier")
+  sampleAudioUrl     String?   @map("sample_audio_url")
+  version            Int       @default(1)
+  /// admin §8
+  active             Boolean   @default(true)
+  /// admin §8
+  updatedBy          String?   @map("updated_by") @db.Uuid
+  updatedAt          DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  agents Agent[]
+
+  @@map("templates")
+}
+
+model Agent {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String      @map("tenant_id") @db.Uuid
+  name             String
+  templateId       String?     @map("template_id")
+  industry         String?
+  tier             AgentTier   @default(standard)
+  primaryLanguage  String      @default("en-US") @map("primary_language")
+  languages        String[]    @default([])
+  voiceId          String?     @map("voice_id")
+  voiceSpeed       Decimal?    @map("voice_speed") @db.Decimal(4, 2)
+  voiceTemperature Decimal?    @map("voice_temperature") @db.Decimal(4, 2)
+  retellAgentId    String?     @map("retell_agent_id")
+  retellLlmId      String?     @map("retell_llm_id")
+  retellKbId       String?     @map("retell_kb_id")
+  draftVersion     Int?        @map("draft_version")
+  publishedVersion Int?        @map("published_version")
+  status           AgentStatus @default(draft)
+  maxCallDurationS Int         @default(600) @map("max_call_duration_s")
+  recordingEnabled Boolean     @default(true) @map("recording_enabled")
+  addonsJson       Json?       @map("addons_json")
+  createdAt        DateTime    @default(now()) @map("created_at")
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  template         Template?         @relation(fields: [templateId], references: [id])
+  voice            Voice?            @relation(fields: [voiceId], references: [retellVoiceId])
+  versions         AgentVersion[]
+  knowledgeSources KnowledgeSource[]
+  phonePlans       PhonePlan[]
+  phoneNumbers     PhoneNumber[]
+  calls            Call[]
+
+  @@index([tenantId, status])
+  @@map("agents")
+}
+
+/// Immutable. Every generation, feedback patch or manual edit appends a row (spec §9.9).
+model AgentVersion {
+  id                 String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId            String        @map("agent_id") @db.Uuid
+  versionNo          Int           @map("version_no")
+  source             VersionSource
+  briefJson          Json          @map("brief_json")
+  promptText         String?       @map("prompt_text")
+  greeting           String?
+  closing            String?
+  analysisSchemaJson Json?         @map("analysis_schema_json")
+  briefCardJson      Json?         @map("brief_card_json")
+  scenariosJson      Json?         @map("scenarios_json")
+  changesJson        Json?         @map("changes_json")
+  feedbackText       String?       @map("feedback_text")
+  lintJson           Json?         @map("lint_json")
+  retellAgentVersion Int?          @map("retell_agent_version")
+  /// admin §8 — which agent_stack_configs.version generated this row.
+  stackVersion       Int?          @map("stack_version")
+  createdBy          String?       @map("created_by") @db.Uuid
+  publishedAt        DateTime?     @map("published_at")
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  agent   Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  creator User? @relation(fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@unique([agentId, versionNo])
+  @@map("agent_versions")
+}
+
+/// Global read-only cache, refreshed by the `voice-cache` job from Retell list-voices (§13.11).
+model Voice {
+  retellVoiceId  String    @id @map("retell_voice_id")
+  provider       String
+  name           String
+  gender         String?
+  accent         String?
+  languages      String[]  @default([])
+  previewUrl     String?   @map("preview_url")
+  tier           AgentTier @default(standard)
+  isMultilingual Boolean   @default(false) @map("is_multilingual")
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  agents Agent[]
+
+  @@map("voices")
+}
+
+model KnowledgeSource {
+  id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  agentId        String          @map("agent_id") @db.Uuid
+  type           KnowledgeType
+  name           String
+  retellSourceId String?         @map("retell_source_id")
+  status         KnowledgeStatus @default(processing)
+  sizeBytes      Int?            @map("size_bytes")
+  error          String?
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([agentId])
+  @@map("knowledge_sources")
+}
+
+// ---------------------------------------------------------------------------
+// Portal §15 — numbers and calls
+// ---------------------------------------------------------------------------
+
+/// The customer's chosen number option (W6), captured before the activation job runs it.
+model PhonePlan {
+  id                  String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String          @map("tenant_id") @db.Uuid
+  agentId             String          @map("agent_id") @db.Uuid
+  option              PhonePlanOption
+  country             String?         @db.Char(2)
+  areaCode            String?         @map("area_code")
+  tollFree            Boolean         @default(false) @map("toll_free")
+  existingNumber      String?         @map("existing_number")
+  /// Envelope-encrypted with an AWS KMS data key, AES-256-GCM (§17). Never logged.
+  sipJson             Json?           @map("sip_json")
+  hoursMode           HoursMode       @default(always) @map("hours_mode")
+  transferTargetsJson Json?           @map("transfer_targets_json")
+  allowedCountries    String[]        @default([]) @map("allowed_countries")
+  status              PhonePlanStatus @default(pending)
+  createdAt           DateTime        @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("phone_plans")
+}
+
+/// Numbers always run the agent's `latest_published` version (spec §9.9).
+model PhoneNumber {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String            @map("tenant_id") @db.Uuid
+  agentId             String?           @map("agent_id") @db.Uuid
+  e164                String            @unique
+  nickname            String?
+  type                PhoneNumberType
+  country             String?           @db.Char(2)
+  areaCode            String?           @map("area_code")
+  tollFree            Boolean           @default(false) @map("toll_free")
+  hoursMode           HoursMode         @default(always) @map("hours_mode")
+  hoursOverrideJson   Json?             @map("hours_override_json")
+  transferTargetsJson Json?             @map("transfer_targets_json")
+  allowedCountries    String[]          @default([]) @map("allowed_countries")
+  blocklist           String[]          @default([])
+  /// Path segment of POST /webhooks/retell/inbound/:number_token (§13.9). Unguessable.
+  inboundToken        String            @unique @map("inbound_token")
+  rentalCredits       Int               @default(15) @map("rental_credits")
+  nextRentalAt        DateTime?         @map("next_rental_at")
+  status              PhoneNumberStatus @default(provisioning)
+  pausedAt            DateTime?         @map("paused_at")
+  retellMetaJson      Json?             @map("retell_meta_json")
+  createdAt           DateTime          @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  calls  Call[]
+
+  @@index([tenantId, status])
+  @@index([nextRentalAt])
+  @@map("phone_numbers")
+}
+
+/// `id` is the Retell call_id — that is what makes the ledger debit idempotent (§14.2).
+/// Declined rows (§13.9) never reach Retell, so they carry a synthetic `dec_<uuid>` id.
+model Call {
+  id                  String         @id
+  tenantId            String         @map("tenant_id") @db.Uuid
+  agentId             String?        @map("agent_id") @db.Uuid
+  agentVersion        Int?           @map("agent_version")
+  numberId            String?        @map("number_id") @db.Uuid
+  channel             CallChannel
+  direction           CallDirection  @default(inbound)
+  isTest              Boolean        @default(false) @map("is_test")
+  fromNumber          String?        @map("from_number")
+  toNumber            String?        @map("to_number")
+  startedAt           DateTime?      @map("started_at")
+  endedAt             DateTime?      @map("ended_at")
+  durationS           Int?           @map("duration_s")
+  disconnectionReason String?        @map("disconnection_reason")
+  tier                AgentTier      @default(standard)
+  /// Credits per minute, captured at call_started so a mid-call price change never double-bills.
+  rate                Decimal        @default(1.0) @db.Decimal(6, 3)
+  /// admin §8 — the pricing_configs.version `rate` came from.
+  configVersion       Int?           @map("config_version")
+  creditsCharged      Decimal?       @map("credits_charged") @db.Decimal(12, 2)
+  /// COGS only, from call_analyzed. Never bills (§14.2).
+  retellCostCents     Int?           @map("retell_cost_cents")
+  transcriptText      String?        @map("transcript_text")
+  transcriptJson      Json?          @map("transcript_json")
+  recordingUrl        String?        @map("recording_url")
+  analysisJson        Json?          @map("analysis_json")
+  outcome             String?
+  handledAt           DateTime?      @map("handled_at")
+  note                String?
+  status              CallStatus     @default(registered)
+  declineReason       DeclineReason? @map("decline_reason")
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  Agent?       @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  number PhoneNumber? @relation(fields: [numberId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, startedAt(sort: Desc)])
+  @@index([tenantId, status])
+  @@index([numberId, startedAt(sort: Desc)])
+  @@map("calls")
+}
+
+// ---------------------------------------------------------------------------
+// Portal §15 — wallet and billing
+// ---------------------------------------------------------------------------
+
+/// Config table (spec §5.2, admin SA5). Prices/credits are defaults of the pricing config.
+model Pack {
+  id             String   @id
+  name           String
+  priceCents     Int      @map("price_cents")
+  currency       String   @default("USD") @db.Char(3)
+  credits        Int
+  planTier       PlanTier @map("plan_tier")
+  concurrencyCap Int      @map("concurrency_cap")
+  kbAllowance    Int      @map("kb_allowance")
+  active         Boolean  @default(true)
+
+  purchases Purchase[]
+
+  @@map("packs")
+}
+
+/// One lot per purchase, 12-month expiry, consumed FIFO by expires_at (spec §5.4).
+model CreditLot {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @map("tenant_id") @db.Uuid
+  purchaseId       String?  @map("purchase_id") @db.Uuid
+  creditsTotal     Decimal  @map("credits_total") @db.Decimal(12, 2)
+  creditsRemaining Decimal  @map("credits_remaining") @db.Decimal(12, 2)
+  expiresAt        DateTime @map("expires_at")
+  /// admin §8 — the wallet policy version (expiry months, grace) this lot was created under.
+  policyVersion    Int?     @map("policy_version")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchase Purchase?      @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  ledger   CreditLedger[]
+
+  @@index([tenantId, expiresAt])
+  @@map("credit_lots")
+}
+
+/// APPEND-ONLY. Balance = Σ delta, cached at bal:{ws}. Every write goes through the wallet
+/// module — no direct inserts anywhere else. Reversals are new negative rows (§14.2, §17).
+model CreditLedger {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String       @map("tenant_id") @db.Uuid
+  delta        Decimal      @db.Decimal(12, 2)
+  balanceAfter Decimal      @map("balance_after") @db.Decimal(12, 2)
+  reason       LedgerReason
+  refType      String?      @map("ref_type")
+  /// For reason=call this is calls.id — the unique index below is the idempotency guard.
+  refId        String?      @map("ref_id")
+  lotId        String?      @map("lot_id") @db.Uuid
+  createdAt    DateTime     @default(now()) @map("created_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lot         CreditLot?         @relation(fields: [lotId], references: [id], onDelete: SetNull)
+  adjustments CreditAdjustment[]
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("credit_ledger")
+}
+
+model Purchase {
+  id                  String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId            String         @map("tenant_id") @db.Uuid
+  packId              String?        @map("pack_id")
+  amountCents         Int            @map("amount_cents")
+  currency            String         @default("USD") @db.Char(3)
+  credits             Int
+  stripeSessionId     String?        @unique @map("stripe_session_id")
+  stripePaymentIntent String?        @map("stripe_payment_intent")
+  invoiceUrl          String?        @map("invoice_url")
+  status              PurchaseStatus @default(pending)
+  isAutoTopup         Boolean        @default(false) @map("is_auto_topup")
+  promoCode           String?        @map("promo_code")
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pack    Pack?       @relation(fields: [packId], references: [id])
+  lots    CreditLot[]
+  refunds Refund[]
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("purchases")
+}
+
+// ---------------------------------------------------------------------------
+// Portal §15 — plumbing
+// ---------------------------------------------------------------------------
+
+/// Exactly-once guard for every inbound webhook (§13.10, §14.2). Duplicate insert → 204.
+/// Global: written before the tenant is known, so no RLS. Staff-only reads.
 model WebhookEvent {
-  id          String   @id @default(uuid()) @db.Uuid
-  provider    String   // 'retell' | 'stripe' | 'clerk'
-  externalId  String   @map("external_id")
-  eventType   String   @map("event_type")
-  payload     Json
-  receivedAt  DateTime @default(now()) @map("received_at")
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// retell | stripe | auth
+  provider    String
+  externalId  String    @map("external_id")
+  eventType   String    @map("event_type")
+  payloadJson Json      @map("payload_json")
+  receivedAt  DateTime  @default(now()) @map("received_at")
   processedAt DateTime? @map("processed_at")
   error       String?
 
   @@unique([provider, externalId, eventType])
   @@index([provider, receivedAt])
   @@map("webhook_events")
+}
+
+/// Long operations return 202 {job_id}; the client polls GET /jobs/:id and listens on SSE (§16).
+model Job {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String?   @map("tenant_id") @db.Uuid
+  type      String
+  status    JobStatus @default(queued)
+  stepsJson Json?     @map("steps_json")
+  error     String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  tenant       Tenant?       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dataRequests DataRequest[]
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("jobs")
+}
+
+/// Low-balance and rental alerts (spec §5.4). One row per threshold crossing.
+model Alert {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  type        String
+  threshold   Decimal?  @db.Decimal(12, 2)
+  sentAt      DateTime? @map("sent_at")
+  channel     String?
+  dismissedAt DateTime? @map("dismissed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, dismissedAt])
+  @@map("alerts")
+}
+
+// ---------------------------------------------------------------------------
+// Admin §8 — staff identity
+// ---------------------------------------------------------------------------
+
+/// Staff live in a second Auth0 tenant (ADR 0002): Google Workspace SSO + mandatory TOTP.
+model StaffUser {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  authProviderId String    @unique @map("auth_provider_id")
+  email          String    @unique
+  name           String?
+  role           StaffRole
+  mfaEnforced    Boolean   @default(true) @map("mfa_enforced")
+  active         Boolean   @default(true)
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  auditLog       StaffAuditLog[]
+  adjustments    CreditAdjustment[]
+  refunds        Refund[]
+  tickets        SupportTicket[]
+  notes          CustomerNote[]
+  impersonations ImpersonationSession[]
+  fraudReviews   FraudReview[]
+
+  @@map("staff_users")
+}
+
+/// Admin §2.2 — the per-role limits, in a table so they are tunable in SA13 without a deploy.
+/// Enforced server-side on every staff write, never only in the UI.
+model StaffRoleLimit {
+  role                     StaffRole @id
+  creditAdjustMaxPerAction Decimal?  @map("credit_adjust_max_per_action") @db.Decimal(12, 2)
+  creditAdjustMaxPerDay    Decimal?  @map("credit_adjust_max_per_day") @db.Decimal(12, 2)
+  refundMaxCents           Int?      @map("refund_max_cents")
+  canListenRecordings      Boolean   @default(false) @map("can_listen_recordings")
+  canChangePlan            Boolean   @default(false) @map("can_change_plan")
+  canPauseTenant           Boolean   @default(false) @map("can_pause_tenant")
+  canEditPricingDraft      Boolean   @default(false) @map("can_edit_pricing_draft")
+  canPublishPricing        Boolean   @default(false) @map("can_publish_pricing")
+  canEditAgentStack        Boolean   @default(false) @map("can_edit_agent_stack")
+  canPublishAgentStack     Boolean   @default(false) @map("can_publish_agent_stack")
+  canManageFlags           Boolean   @default(false) @map("can_manage_flags")
+  canViewAsCustomer        Boolean   @default(false) @map("can_view_as_customer")
+  canActAsCustomer         Boolean   @default(false) @map("can_act_as_customer")
+  canDeleteCustomerData    Boolean   @default(false) @map("can_delete_customer_data")
+  canManageStaff           Boolean   @default(false) @map("can_manage_staff")
+  canExport                Boolean   @default(false) @map("can_export")
+  updatedAt                DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("staff_role_limits")
+}
+
+/// APPEND-ONLY. Every customer-affecting staff write lands here with a reason code (§10).
+model StaffAuditLog {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId         String      @map("staff_id") @db.Uuid
+  action          String
+  targetType      String?     @map("target_type")
+  targetId        String?     @map("target_id")
+  tenantId        String?     @map("tenant_id") @db.Uuid
+  reasonCode      ReasonCode? @map("reason_code")
+  note            String?
+  beforeJson      Json?       @map("before_json")
+  afterJson       Json?       @map("after_json")
+  ip              String?     @db.Inet
+  impersonationId String?     @map("impersonation_id") @db.Uuid
+  createdAt       DateTime    @default(now()) @map("created_at")
+
+  staff         StaffUser             @relation(fields: [staffId], references: [id])
+  tenant        Tenant?               @relation(fields: [tenantId], references: [id], onDelete: SetNull)
+  impersonation ImpersonationSession? @relation(fields: [impersonationId], references: [id], onDelete: SetNull)
+
+  @@index([staffId, createdAt(sort: Desc)])
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("staff_audit_log")
+}
+
+// ---------------------------------------------------------------------------
+// Admin §8 — versioned configuration (SA5, SA6)
+// ---------------------------------------------------------------------------
+
+model PricingDraft {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  basedOnVersion Int?     @map("based_on_version")
+  configJson     Json     @map("config_json")
+  editedBy       String?  @map("edited_by") @db.Uuid
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("pricing_drafts")
+}
+
+/// Read through GET /pricing and cached at pricing:current. Never hard-code a price (§13.12).
+model PricingConfig {
+  version         Int       @id
+  configJson      Json      @map("config_json")
+  publishedBy     String?   @map("published_by") @db.Uuid
+  publishedAt     DateTime? @map("published_at")
+  effectiveAt     DateTime? @map("effective_at")
+  changeSummary   String?   @map("change_summary")
+  grandfatherMode String?   @map("grandfather_mode")
+
+  stripePrices StripePriceMap[]
+
+  @@map("pricing_configs")
+}
+
+model StripePriceMap {
+  packId          String  @map("pack_id")
+  currency        String  @db.Char(3)
+  configVersion   Int     @map("config_version")
+  stripeProductId String  @map("stripe_product_id")
+  stripePriceId   String  @map("stripe_price_id")
+  active          Boolean @default(true)
+
+  config PricingConfig @relation(fields: [configVersion], references: [version], onDelete: Cascade)
+
+  @@id([packId, currency, configVersion])
+  @@map("stripe_price_map")
+}
+
+model PromoCode {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String    @unique
+  /// percent | fixed | bonus_credits
+  type            String
+  value           Decimal   @db.Decimal(12, 2)
+  appliesToPacks  String[]  @default([]) @map("applies_to_packs")
+  maxUses         Int?      @map("max_uses")
+  perCustomerOnce Boolean   @default(true) @map("per_customer_once")
+  validFrom       DateTime? @map("valid_from")
+  validTo         DateTime? @map("valid_to")
+  regions         String[]  @default([])
+  active          Boolean   @default(true)
+  usesCount       Int       @default(0) @map("uses_count")
+
+  @@map("promo_codes")
+}
+
+model CustomDeal {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  name          String
+  priceCents    Int       @map("price_cents")
+  currency      String    @default("USD") @db.Char(3)
+  credits       Int
+  capsJson      Json?     @map("caps_json")
+  gatesJson     Json?     @map("gates_json")
+  /// checkout | invoice
+  paymentMode   String    @default("checkout") @map("payment_mode")
+  stripePriceId String?   @map("stripe_price_id")
+  contractStart DateTime? @map("contract_start")
+  contractEnd   DateTime? @map("contract_end")
+  notes         String?
+  createdBy     String?   @map("created_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  tenant      Tenant   @relation("CustomDealTenant", fields: [tenantId], references: [id], onDelete: Cascade)
+  tenantsOnIt Tenant[] @relation("TenantCustomDeal")
+
+  @@index([tenantId])
+  @@map("custom_deals")
+}
+
+/// caps:{ws} = tier defaults ∘ these overrides (admin §C).
+model TenantOverride {
+  tenantId       String   @id @map("tenant_id") @db.Uuid
+  concurrencyCap Int?     @map("concurrency_cap")
+  kbAllowance    Int?     @map("kb_allowance")
+  maxAgents      Int?     @map("max_agents")
+  maxNumbers     Int?     @map("max_numbers")
+  gatesJson      Json?    @map("gates_json")
+  flagsJson      Json?    @map("flags_json")
+  reason         String?
+  setBy          String?  @map("set_by") @db.Uuid
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_overrides")
+}
+
+/// SA6 — tier → model/voice stack, guardrails (§9.4) and generation prompts.
+model AgentStackConfig {
+  version               Int       @id
+  tiersJson             Json      @map("tiers_json")
+  voiceOverridesJson    Json?     @map("voice_overrides_json")
+  guardrailsText        String    @map("guardrails_text")
+  lintJson              Json?     @map("lint_json")
+  generationPromptsJson Json?     @map("generation_prompts_json")
+  publishedBy           String?   @map("published_by") @db.Uuid
+  publishedAt           DateTime? @map("published_at")
+
+  @@map("agent_stack_configs")
+}
+
+/// Retell's own per-minute costs, for the COGS and margin views (admin Appendix A).
+model RetellCostInput {
+  version   Int      @id
+  costsJson Json     @map("costs_json")
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("retell_cost_inputs")
+}
+
+// ---------------------------------------------------------------------------
+// Admin §8 — money actions, support, trust
+// ---------------------------------------------------------------------------
+
+/// The staff-side record of a ledger movement. The ledger row itself is written by the
+/// wallet module and is what the customer sees in D5 (admin principle 4).
+model CreditAdjustment {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String     @map("tenant_id") @db.Uuid
+  ledgerId        String     @unique @map("ledger_id") @db.Uuid
+  delta           Decimal    @db.Decimal(12, 2)
+  reasonCode      ReasonCode @map("reason_code")
+  note            String?
+  /// Plain-English text shown to the customer in their own ledger.
+  customerText    String?    @map("customer_text")
+  staffId         String     @map("staff_id") @db.Uuid
+  ticketId        Int?       @map("ticket_id")
+  impersonationId String?    @map("impersonation_id") @db.Uuid
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ledger CreditLedger   @relation(fields: [ledgerId], references: [id])
+  staff  StaffUser      @relation(fields: [staffId], references: [id])
+  ticket SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@map("credit_adjustments")
+}
+
+model Refund {
+  id              String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  purchaseId      String     @map("purchase_id") @db.Uuid
+  amountCents     Int        @map("amount_cents")
+  creditsReversed Decimal    @map("credits_reversed") @db.Decimal(12, 2)
+  stripeRefundId  String?    @unique @map("stripe_refund_id")
+  reasonCode      ReasonCode @map("reason_code")
+  staffId         String     @map("staff_id") @db.Uuid
+  status          String     @default("pending")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  purchase Purchase  @relation(fields: [purchaseId], references: [id])
+  staff    StaffUser @relation(fields: [staffId], references: [id])
+
+  @@map("refunds")
+}
+
+/// Customers reach these through D7 Help (admin §7.1) — hence RLS, unlike the other admin tables.
+model SupportTicket {
+  id                  Int          @id @default(autoincrement())
+  tenantId            String       @map("tenant_id") @db.Uuid
+  requesterUserId     String?      @map("requester_user_id") @db.Uuid
+  subject             String
+  category            String?
+  priority            String       @default("normal")
+  status              TicketStatus @default(open)
+  assigneeStaffId     String?      @map("assignee_staff_id") @db.Uuid
+  slaFirstResponseDue DateTime?    @map("sla_first_response_due")
+  slaResolutionDue    DateTime?    @map("sla_resolution_due")
+  firstRespondedAt    DateTime?    @map("first_responded_at")
+  resolvedAt          DateTime?    @map("resolved_at")
+  closedAt            DateTime?    @map("closed_at")
+  csat                Int?
+  tags                String[]     @default([])
+  linkedCallIds       String[]     @default([]) @map("linked_call_ids")
+  linkedPurchaseIds   String[]     @default([]) @map("linked_purchase_ids")
+  createdAt           DateTime     @default(now()) @map("created_at")
+
+  tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  requester   User?              @relation(fields: [requesterUserId], references: [id], onDelete: SetNull)
+  assignee    StaffUser?         @relation(fields: [assigneeStaffId], references: [id], onDelete: SetNull)
+  messages    TicketMessage[]
+  adjustments CreditAdjustment[]
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([status, priority])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketId        Int              @map("ticket_id")
+  authorType      TicketAuthorType @map("author_type")
+  authorId        String?          @map("author_id") @db.Uuid
+  body            String
+  /// Internal notes are hidden from the customer by an RLS policy, not only by the UI.
+  isInternal      Boolean          @default(false) @map("is_internal")
+  attachmentsJson Json?            @map("attachments_json")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model CannedResponse {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title     String
+  body      String
+  category  String?
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("canned_responses")
+}
+
+model CustomerNote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  staffId   String   @map("staff_id") @db.Uuid
+  body      String
+  pinned    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  staff  StaffUser @relation(fields: [staffId], references: [id])
+
+  @@index([tenantId, pinned])
+  @@map("customer_notes")
+}
+
+model CustomerFlag {
+  tenantId  String   @map("tenant_id") @db.Uuid
+  /// fraud_review | custom_deal | vip | do_not_contact | …
+  flag      String
+  setBy     String?  @map("set_by") @db.Uuid
+  note      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, flag])
+  @@map("customer_flags")
+}
+
+/// View-as / act-as. Time-boxed, reason-coded, and stamped onto every staff_audit_log row.
+model ImpersonationSession {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId    String            @map("staff_id") @db.Uuid
+  tenantId   String            @map("tenant_id") @db.Uuid
+  mode       ImpersonationMode
+  reasonCode ReasonCode        @map("reason_code")
+  ticketId   Int?              @map("ticket_id")
+  startedAt  DateTime          @default(now()) @map("started_at")
+  expiresAt  DateTime          @map("expires_at")
+  endedAt    DateTime?         @map("ended_at")
+
+  staff    StaffUser       @relation(fields: [staffId], references: [id])
+  tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  auditLog StaffAuditLog[]
+
+  @@index([tenantId, startedAt(sort: Desc)])
+  @@map("impersonation_sessions")
+}
+
+model Announcement {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// banner | email
+  type         String
+  body         String
+  severity     String    @default("info")
+  audienceJson Json?     @map("audience_json")
+  startsAt     DateTime? @map("starts_at")
+  endsAt       DateTime? @map("ends_at")
+  dismissible  Boolean   @default(true)
+  createdBy    String?   @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@map("announcements")
+}
+
+model EmailTemplate {
+  key       String   @id
+  subject   String
+  body      String
+  version   Int      @default(1)
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("email_templates")
+}
+
+/// Read through GET /flags and cached at flags:*. Publishing invalidates the cache (§13.12).
+model FeatureFlag {
+  key                 String  @id
+  description         String?
+  defaultOn           Boolean @default(false) @map("default_on")
+  rolloutPct          Int     @default(0) @map("rollout_pct")
+  tenantOverridesJson Json?   @map("tenant_overrides_json")
+
+  @@map("feature_flags")
+}
+
+model KillSwitch {
+  key       String    @id
+  on        Boolean   @default(false)
+  reason    String?
+  setBy     String?   @map("set_by") @db.Uuid
+  expiresAt DateTime? @map("expires_at")
+  updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
+
+  @@map("kill_switches")
+}
+
+model Blocklist {
+  type      BlocklistType
+  value     String
+  reason    String?
+  expiresAt DateTime?     @map("expires_at")
+  setBy     String?       @map("set_by") @db.Uuid
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@id([type, value])
+  @@map("blocklists")
+}
+
+model FraudReview {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  trigger    String
+  score      Int?
+  status     String   @default("open")
+  reviewerId String?  @map("reviewer_id") @db.Uuid
+  decision   String?
+  note       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  reviewer StaffUser? @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@map("fraud_reviews")
+}
+
+/// GDPR/PIPEDA delete and export requests (§17, admin SA11).
+model DataRequest {
+  id          String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String          @map("tenant_id") @db.Uuid
+  type        DataRequestType
+  requestedBy String?         @map("requested_by") @db.Uuid
+  dueAt       DateTime?       @map("due_at")
+  executedAt  DateTime?       @map("executed_at")
+  jobId       String?         @map("job_id") @db.Uuid
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  job    Job?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@map("data_requests")
 }

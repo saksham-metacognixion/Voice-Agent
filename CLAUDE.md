@@ -12,6 +12,7 @@ staff admin console) share one backend.
 | 1    | Portal spec v0.2, 10 Sep 2026, owner Pramod (CTO) | `docs/Voice Agent Project.pdf` (57 pp)          |
 | 1    | Admin spec v0.1, 10 Sep 2026                      | `docs/Admin dashboard Voice agent .pdf` (23 pp) |
 | 2    | Architecture decisions                            | `docs/decisions/*.md`                           |
+| 2    | System architecture, with diagrams and rationale  | `docs/architecture.md`                          |
 | 3    | Code                                              | this repo                                       |
 
 Greppable identifiers (routes, tables, columns, events, Redis keys) live in
@@ -23,9 +24,11 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 
 ## Glossary
 
-- **Workspace** = tenant = one business. Table is `tenants`. A **user** can belong to many workspaces
-  via `memberships` with a role (owner / admin / editor / viewer). Everything billable belongs to the
-  workspace, never the user.
+- **Workspace** = tenant = one business. Table is `tenants`, and every foreign key to it is
+  `tenant_id` (§15). The product and the HTTP surface say _workspace_ (`X-Workspace-Id`,
+  `ctx.workspaceId`); the database says `tenant_id`. The translation happens once, in
+  `WorkspaceGuard`. A **user** can belong to many workspaces via `memberships` with a role
+  (owner / admin / editor / viewer). Everything billable belongs to the workspace, never the user.
 - **Brief** — the structured fields the customer fills in (`agent_versions.brief_json`). The raw prompt
   is generated from it and is hidden behind "Advanced".
 - **Agent version** — an immutable row in `agent_versions`. `source ∈ {generated, feedback, manual, regenerate}`.
@@ -54,22 +57,23 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 | Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                                                                           |
 | Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                                                                |
 | Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                                                                      |
-| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**                                                                                                                                 |
-| Hosting        | **AWS Amplify Hosting** ×2 (portal, admin; CloudFront + managed Next.js SSR, ADR 0005) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + Neon Postgres. Webhooks and SSE hit `api.<domain>` directly. ADR 0004 |
+| LLM            | OpenAI SDK, `gpt-5`, structured output. Brief → prompt only, **never in the call path**. ADR 0007                                                                                                                                    |
+| Hosting        | **S3 (private) + CloudFront (OAC) + ACM** ×2 (portal, admin; Next.js static export, ADR 0008) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + Neon Postgres. Webhooks and SSE hit `api.<domain>` directly. ADR 0004 |
 | Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack alerts                                                                                                                                                                                  |
 | Storage        | Cloudflare R2 for exports. Recordings stay on Retell URLs, proxied with signed 1-hour URLs                                                                                                                                           |
 
-Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+Decisions live in `docs/decisions/`: 0001 tech stack, 0002 Auth0, 0004 EC2, ~~0005 Amplify~~,
+0006 tenancy (two DB roles, RLS, append-only), 0007 OpenAI, 0008 S3 + CloudFront (supersedes 0005). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
 ## Repo layout
 
-Split by deploy target. `frontend/` ships to AWS Amplify Hosting (CloudFront), `backend/` ships to AWS EC2, `shared/` is imported
-by both and never deployed on its own.
+Split by deploy target. `frontend/` ships as a static export to S3 + CloudFront, `backend/` ships to AWS EC2, `shared/` is
+imported by both and never deployed on its own.
 
 ```
-frontend/                         → AWS Amplify Hosting (CloudFront)
+frontend/                         → S3 + CloudFront (static export, ADR 0008)
   web/            @portal/web         Next.js customer portal      app.<domain>
   admin/          @portal/admin       Next.js staff console        admin.<domain>
   ui/             @portal/ui          shadcn components + shared domain widgets
@@ -77,13 +81,17 @@ frontend/                         → AWS Amplify Hosting (CloudFront)
 backend/                          → AWS EC2 (Docker Compose)
   api/            @portal/api         NestJS + Fastify. Two entrypoints: src/main.ts (HTTP, api.<domain>)
                                       and src/worker.ts (BullMQ processors + schedulers). One image, two compose services.
-  db/             @portal/db          Prisma schema, client, migrations incl. hand-written RLS/grants/triggers
+                                      src/common/* (error envelope, cursor pagination) and src/modules/auth
+                                      are global and every feature module inherits them.
+  db/             @portal/db          Prisma schema, the two role-scoped clients, withWorkspace(),
+                                      migrations incl. hand-written RLS/grants/triggers, seed
 shared/
   schemas/        @portal/schemas     zod request/response/SSE schemas, enums, error codes. Depends on zod only.
   config/         @portal/config      tsconfig bases, eslint, tailwind preset
 templates/                        *.json agent templates (receptionist, appointment, afterhours, lead_qual, ...)
-infra/                            Dockerfile (turbo prune), docker-compose.yml (local), docker-compose.prod.yml (EC2), auth0/
-docs/                             specs, decisions, spec-extract, plan, tools
+infra/                            Dockerfile (turbo prune), docker-compose.yml (local), docker-compose.prod.yml (EC2),
+                                  auth0/, scripts/doctor.mjs (`pnpm doctor` — what is unset, what is reachable)
+docs/                             specs, decisions, runbooks, spec-extract, plan, tools
 ```
 
 The API and the worker import the same `backend/api/src/modules/*/service.ts`. Routes call services; job
@@ -129,13 +137,18 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
   Declined rows carry `decline_reason ∈ {balance, cap, blocked, hours, paused}` and show as "Missed".
 - `runtime-cache.refresh(workspaceId)` must be called from every mutating path: pause/resume, plan
   change, number change, publish, ledger write. Plus a periodic full refresh.
-- The Redis-down policy is decided in `docs/decisions/0002-retell-findings.md`. Do not invent one.
+- The Redis-down policy is decided in `docs/decisions/0003-retell-findings.md`. Do not invent one.
 
 **Append-only tables**
 
 - `credit_ledger`, `audit_log`, `staff_audit_log`. Enforced twice: `REVOKE UPDATE, DELETE` from the app
   role, **and** a `BEFORE UPDATE OR DELETE … RAISE EXCEPTION` trigger so even a BYPASSRLS connection
   cannot rewrite history. Reversals are new negative rows.
+- Consequence: a workspace with ledger history cannot be hard-deleted — the cascade hits the trigger.
+  The §17 delete request is an anonymisation job, not a `DELETE`. `TRUNCATE` is deliberately not
+  covered by the trigger, so a local `pnpm db:reset` still works.
+- A partial unique index on `credit_ledger (ref_id) WHERE reason = 'call'` is the idempotency guard:
+  a replayed `call_ended` collides instead of double-billing.
 - Balance = Σ `credit_ledger.delta`, cached at `bal:{ws}`, rebuilt from the ledger on mismatch.
   Lots are consumed FIFO by `expires_at`.
 
@@ -153,11 +166,29 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
   read through `GET /pricing` and `GET /flags`. Never hard-code a price, rate, cap or model id.
 - Publishing invalidates `pricing:current`, `flags:*` and `caps:{ws}`; the portal re-reads within 60 s.
 
-**Tenancy and staff access**
+**Tenancy and staff access** (ADR 0006)
 
 - Every request carries `Authorization: Bearer <jwt>` and `X-Workspace-Id`. Middleware verifies the JWT
   against the JWKS for that route namespace, loads the membership, and attaches
   `ctx = {userId, workspaceId, role}`. Postgres RLS is the second guard, not the first.
+- **There are exactly two ways to reach Postgres.** `withWorkspace(ctx.workspaceId, db => …)` on the
+  customer request path, and `adminDb` for work that legitimately crosses workspaces — webhooks (the
+  workspace is only known after the payload is parsed), scheduled jobs, workspace creation, `/admin/*`.
+  A query outside both sees an empty database, because `app.tenant_id` is unset and every policy
+  compares against NULL. That is the intended failure mode.
+- **No network I/O inside `withWorkspace`.** The callback runs in an interactive transaction
+  holding a pooled connection for its whole duration, and the pool is `num_cpus × 2 + 1`.
+  Read → close → call OpenAI / Retell / Stripe → reopen to write. A handler that awaits a
+  generation inside the callback exhausts the pool at ~6 concurrent users at 3% CPU. The
+  5 s default timeout turns that into a loud `P2024` in dev rather than a stall under load.
+- Three connection strings, two roles: `DATABASE_URL` (portal_app, RLS enforced),
+  `ADMIN_DATABASE_URL` (portal_admin, crosses workspaces), `DIRECT_DATABASE_URL` (owner, migrations
+  only). `assertRlsEnforced()` runs before the API or worker binds anything and refuses to start if
+  `DATABASE_URL` is a superuser, a table owner, or not a portal_app member.
+- Routes are authenticated by default. `@Public()` opts out, `@NoWorkspace()` skips the workspace
+  lookup, `@Roles(...)` and `@StaffRoles(...)` enforce the §6.1 and admin §2.2 matrices.
+- Auth namespace is chosen by the route path, never by the token: `/admin/*` is verified against the
+  staff JWKS only, so a customer token fails on `iss` and never reaches a staff handler.
 - `/admin/*` accepts staff JWTs only. On boot, assert the staff issuer differs from the customer issuer.
   A staff JWT without the `https://portal/mfa` claim is rejected.
 - Every customer-affecting staff write requires a reason code (admin Appendix B) and an audit row.
@@ -214,10 +245,10 @@ Events in: `call_started`, `call_ended`, `call_analyzed`, `transfer_*`, plus the
 `checkout.session.async_payment_succeeded`, `checkout.session.expired`, off-session PaymentIntent for
 auto top-up, `charge.dispute.created`.
 
-**Auth0**: two tenants. Post-User-Registration Action → `POST /webhooks/auth` (shared-secret header) → upsert `users`. Post-Login Action adds namespaced claims `https://portal/email_verified` and `https://portal/mfa`. Frontend uses `@auth0/nextjs-auth0`; Actions source lives in `infra/auth0/actions/`.
+**Auth0**: two tenants, both **Single Page Application** type. Post-User-Registration Action → `POST /webhooks/auth` (shared-secret header) → upsert `users`. Post-Login Action adds namespaced claims `https://portal/email_verified` and `https://portal/mfa`. Frontend uses `@auth0/auth0-spa-js` (Authorization Code + PKCE — no client secret in the browser, ADR 0008); Actions source lives in `infra/auth0/actions/`.
 
 Open questions to answer against Retell in P0 are §21; the answers land in
-`docs/decisions/0002-retell-findings.md`.
+`docs/decisions/0003-retell-findings.md`.
 
 ## Business rules quick reference
 
@@ -235,6 +266,19 @@ calls only, no card, no phone number before first purchase.
 Roles (§6.1): owner, admin, editor, viewer; exactly one owner per workspace.
 Staff roles (admin §2.2): super admin, ops, finance, support, read-only, with per-role limits stored in
 `staff_role_limits` so they are tunable without a deploy.
+
+## Getting a working machine
+
+```sh
+pnpm install
+pnpm infra:up          # local Postgres + Redis
+pnpm db:roles          # local portal_app / portal_admin login roles (dev only)
+pnpm db:deploy         # migrations, incl. RLS, grants and the append-only triggers
+pnpm db:seed           # staff_role_limits (admin §2.2), packs (§5.2)
+pnpm doctor            # which env vars are unset, what is reachable
+```
+
+External accounts and staging infrastructure: `docs/runbooks/provisioning.md`.
 
 ## Open decisions (§20, §5.5, admin)
 
@@ -276,6 +320,10 @@ knowledge W4 → auto top-up → team and invites.
   one webhook URL set per environment. Stripe test and live keys never mix.
 - Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths and
   RLS cross-tenant isolation. Other areas are best-effort.
+- `pnpm test` is unit-only and needs nothing running. `pnpm test:e2e` needs Postgres and covers the
+  parts that cannot be mocked: RLS isolation, the append-only triggers, and the auth boundaries
+  (`backend/db/test/*`, `backend/api/test/*`). Start with `pnpm infra:up && pnpm db:roles &&
+pnpm db:deploy && pnpm db:seed`; `pnpm doctor` says what is still missing.
 - Conventional commits. Reference the spec section in the body.
 - Update this file and add an ADR whenever a decision changes. Do not let CLAUDE.md drift from reality.
 - Prefer editing the spec-derived schema in `shared/schemas` first, then the API, then the UI.

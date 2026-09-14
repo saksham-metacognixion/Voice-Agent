@@ -25,7 +25,12 @@
     "test": "vitest run --passWithNoTests",
     "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
     "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
-    "studio": "dotenv -e ../../.env -- prisma studio"
+    "studio": "dotenv -e ../../.env -- prisma studio",
+    "migrate:status": "dotenv -e ../../.env -- prisma migrate status",
+    "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
+    "roles": "dotenv -e ../../.env -- node prisma/dev-roles.mjs",
+    "reset": "dotenv -e ../../.env -- prisma migrate reset --force",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.10.0"
@@ -37,6 +42,10 @@
     "eslint": "^9.30.0",
     "prisma": "^6.10.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.2.0"
+    "vitest": "^3.2.0",
+    "tsx": "^4.19.0"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }

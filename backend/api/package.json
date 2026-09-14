@@ -23,6 +23,8 @@
     "@portal/db": "workspace:*",
     "@portal/schemas": "workspace:*",
     "fastify": "^5.4.0",
+    "jose": "^6.2.12",
+    "nestjs-zod": "^5.5.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.0",
     "zod": "^3.25.0"
@@ -31,11 +33,12 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/testing": "^11.1.0",
     "@portal/config": "workspace:*",
+    "@swc/core": "^1.11.0",
     "@types/node": "^22.15.0",
+    "dotenv-cli": "^8.0.0",
     "eslint": "^9.30.0",
     "typescript": "^5.8.0",
     "unplugin-swc": "^1.5.0",
-    "@swc/core": "^1.11.0",
     "vitest": "^3.2.0"
   }
 }

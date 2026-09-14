@@ -34,8 +34,8 @@ Three constraints shaped every choice:
 | Auth           | ~~Clerk, two separate applications~~ → **Auth0, two tenants**. Superseded by [ADR 0002](0002-auth-provider-auth0.md) on 2026-09-11                                                                         |
 | Payments       | Stripe Checkout + Customer Portal                                                                                                                                                                          |
 | Voice          | Retell Node SDK behind `RetellGateway`                                                                                                                                                                     |
-| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output                                                                                                                                                        |
-| Hosting        | ~~Vercel ×2 + Railway + Neon~~ → **AWS Amplify Hosting ×2 + AWS EC2 + Neon**. Superseded by [ADR 0004](0004-backend-hosting-aws-ec2.md) and [ADR 0005](0005-frontend-hosting-aws-amplify.md) on 2026-09-11 |
+| LLM            | ~~Anthropic SDK, `claude-sonnet-5`~~ → **OpenAI SDK, `gpt-5`**, structured output. Superseded by [ADR 0007](0007-llm-provider-openai.md) on 2026-09-14                                                     |
+| Hosting        | ~~Vercel ×2 + Railway + Neon~~ → ~~AWS Amplify Hosting~~ → **S3 + CloudFront (ADR 0008) ×2 + AWS EC2 + Neon**. Superseded by [ADR 0004](0004-backend-hosting-aws-ec2.md) and [ADR 0005](0005-frontend-hosting-aws-amplify.md) on 2026-09-11 |
 | Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack                                                                                                                                                               |
 
 ## Alternatives considered

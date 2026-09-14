@@ -18,7 +18,15 @@
     "db:generate": "pnpm --filter @portal/db generate",
     "db:migrate": "pnpm --filter @portal/db migrate:dev",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
-    "infra:down": "docker compose -f infra/docker-compose.yml down"
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "test:e2e": "turbo run test:e2e",
+    "db:deploy": "pnpm --filter @portal/db migrate:deploy",
+    "db:status": "pnpm --filter @portal/db migrate:status",
+    "db:roles": "pnpm --filter @portal/db roles",
+    "db:seed": "pnpm --filter @portal/db seed",
+    "db:reset": "pnpm --filter @portal/db reset",
+    "db:studio": "pnpm --filter @portal/db studio",
+    "doctor": "node infra/scripts/doctor.mjs"
   },
   "devDependencies": {
     "prettier": "^3.6.0",

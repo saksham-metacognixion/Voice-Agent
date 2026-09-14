@@ -46,3 +46,53 @@ export const sseTopic = z.union([
   z.string().regex(/^call:[0-9a-f-]+$/),
   z.string().regex(/^activation:[0-9a-f-]+$/),
 ]);
+
+/**
+ * Role precedence for the §6.1 matrix. Higher wins. Used for "admin or above" checks;
+ * capabilities that are not a simple ladder (only an Owner transfers ownership; an admin
+ * may not change the Owner's role) are enforced explicitly in the service.
+ */
+export const ROLE_RANK: Record<MemberRole, number> = {
+  viewer: 0,
+  editor: 1,
+  admin: 2,
+  owner: 3,
+};
+
+export function roleAtLeast(role: MemberRole, minimum: MemberRole): boolean {
+  return ROLE_RANK[role] >= ROLE_RANK[minimum];
+}
+
+/** Admin Appendix B — mandatory on every customer-affecting staff write. */
+export const reasonCode = z.enum([
+  'goodwill',
+  'service_issue',
+  'billing_error',
+  'promo',
+  'partner_deal',
+  'fraud_suspected',
+  'abuse_policy',
+  'customer_request',
+  'chargeback',
+  'expiry_extension',
+  'testing_internal',
+  'support_investigation',
+  'legal_request',
+  'other',
+]);
+export type ReasonCode = z.infer<typeof reasonCode>;
+
+/** Admin Appendix B: `other` is only accepted with a note. */
+export const reasonCodeWithNote = z
+  .object({ reason_code: reasonCode, note: z.string().min(1).optional() })
+  .refine((v) => v.reason_code !== 'other' || Boolean(v.note?.trim()), {
+    message: 'A note is required when the reason code is "other"',
+    path: ['note'],
+  });
+
+/** §16 auth headers. X-Workspace-Id is required on every workspace-scoped route. */
+export const WORKSPACE_HEADER = 'x-workspace-id';
+
+/** Namespaced Auth0 claims added by the Post-Login Action (ADR 0002). */
+export const CLAIM_EMAIL_VERIFIED = 'https://portal/email_verified';
+export const CLAIM_MFA = 'https://portal/mfa';
