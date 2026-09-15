@@ -1,0 +1,53 @@
+{
+  "captured_at": "2026-09-15T12:03:50.619Z",
+  "provider": "stripe",
+  "event_type": "invoice_payment.paid",
+  "path": "/webhooks/stripe",
+  "headers": {
+    "host": "localhost:4000",
+    "user-agent": "Stripe/1.0 (+https://stripe.com/docs/webhooks)",
+    "content-length": "843",
+    "accept": "*/*; q=0.5, application/xml",
+    "cache-control": "no-cache",
+    "content-type": "application/json; charset=utf-8",
+    "stripe-signature": "t=1789473830,v1=168d0fc66a8b3d4a1a5ada6cdbca143f013444dea60d89c12ac003af341562b3,v0=6ca731072d7103e087b214fffd6064937f356e88d7c3f0f06745f1f90d53bb73",
+    "accept-encoding": "gzip"
+  },
+  "raw": "{\n  \"id\": \"evt_1UFv5WC8uQC6VEv5XtzJRkbu\",\n  \"object\": \"event\",\n  \"api_version\": \"2026-08-26.dahlia\",\n  \"created\": 1789473830,\n  \"data\": {\n    \"object\": {\n      \"id\": \"inpay_1UFv51C8uQC6VEv5UTsmXoT9\",\n      \"object\": \"invoice_payment\",\n      \"amount_paid\": 14900,\n      \"amount_requested\": 14900,\n      \"created\": 1789473799,\n      \"currency\": \"usd\",\n      \"invoice\": \"in_1UFv51C8uQC6VEv5Q0uEnqZU\",\n      \"is_default\": true,\n      \"livemode\": false,\n      \"payment\": {\n        \"payment_intent\": \"pi_3UFv4zC8uQC6VEv523R8f59E\",\n        \"type\": \"payment_intent\"\n      },\n      \"status\": \"paid\",\n      \"status_transitions\": {\n        \"canceled_at\": null,\n        \"paid_at\": 1789473798\n      }\n    }\n  },\n  \"livemode\": false,\n  \"pending_webhooks\": 2,\n  \"request\": {\n    \"id\": null,\n    \"idempotency_key\": null\n  },\n  \"type\": \"invoice_payment.paid\"\n}",
+  "body": {
+    "id": "evt_1UFv5WC8uQC6VEv5XtzJRkbu",
+    "object": "event",
+    "api_version": "2026-08-26.dahlia",
+    "created": 1789473830,
+    "data": {
+      "object": {
+        "id": "inpay_1UFv51C8uQC6VEv5UTsmXoT9",
+        "object": "invoice_payment",
+        "amount_paid": 14900,
+        "amount_requested": 14900,
+        "created": 1789473799,
+        "currency": "usd",
+        "invoice": "in_1UFv51C8uQC6VEv5Q0uEnqZU",
+        "is_default": true,
+        "livemode": false,
+        "payment": {
+          "payment_intent": "pi_3UFv4zC8uQC6VEv523R8f59E",
+          "type": "payment_intent"
+        },
+        "status": "paid",
+        "status_transitions": {
+          "canceled_at": null,
+          "paid_at": 1789473798
+        }
+      }
+    },
+    "livemode": false,
+    "pending_webhooks": 2,
+    "request": {
+      "id": null,
+      "idempotency_key": null
+    },
+    "type": "invoice_payment.paid"
+  },
+  "signature_valid": true
+}

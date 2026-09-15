@@ -1,0 +1,54 @@
+{
+  "captured_at": "2026-09-15T10:49:50.828Z",
+  "provider": "stripe",
+  "event_type": "checkout.session.completed",
+  "path": "/webhooks/stripe",
+  "headers": {
+    "host": "localhost:4000",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*",
+    "content-type": "application/json",
+    "stripe-signature": "t=1789469390,v1=c1e2ffa02179614a36747ccd3d641cabfec6ab5c0b588576ab108e9452077de3",
+    "content-length": "736"
+  },
+  "raw": "{\"id\": \"evt_pm_2e246723ca73617e37d5ee1e\", \"object\": \"event\", \"api_version\": \"2026-08-27\", \"created\": 1789469390, \"livemode\": false, \"pending_webhooks\": 1, \"request\": {\"id\": null, \"idempotency_key\": null}, \"type\": \"checkout.session.completed\", \"data\": {\"object\": {\"id\": \"cs_test_pm_x\", \"object\": \"checkout.session\", \"mode\": \"payment\", \"status\": \"complete\", \"payment_status\": \"paid\", \"currency\": \"usd\", \"amount_total\": 14900, \"customer\": \"cus_pm_x\", \"payment_intent\": \"pi_pm_x\", \"invoice\": null, \"client_reference_id\": \"\", \"metadata\": {\"workspace_id\": \"87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1\", \"purchase_id\": \"\", \"pack_id\": \"growth\", \"config_version\": \"1\", \"auto_topup\": \"false\", \"auto_topup_threshold\": \"\", \"agent_id\": \"\", \"env\": \"dev\"}}}}",
+  "body": {
+    "id": "evt_pm_2e246723ca73617e37d5ee1e",
+    "object": "event",
+    "api_version": "2026-08-27",
+    "created": 1789469390,
+    "livemode": false,
+    "pending_webhooks": 1,
+    "request": {
+      "id": null,
+      "idempotency_key": null
+    },
+    "type": "checkout.session.completed",
+    "data": {
+      "object": {
+        "id": "cs_test_pm_x",
+        "object": "checkout.session",
+        "mode": "payment",
+        "status": "complete",
+        "payment_status": "paid",
+        "currency": "usd",
+        "amount_total": 14900,
+        "customer": "cus_pm_x",
+        "payment_intent": "pi_pm_x",
+        "invoice": null,
+        "client_reference_id": "",
+        "metadata": {
+          "workspace_id": "87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1",
+          "purchase_id": "",
+          "pack_id": "growth",
+          "config_version": "1",
+          "auto_topup": "false",
+          "auto_topup_threshold": "",
+          "agent_id": "",
+          "env": "dev"
+        }
+      }
+    }
+  },
+  "signature_valid": true
+}

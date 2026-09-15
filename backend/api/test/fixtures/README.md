@@ -40,3 +40,21 @@ Named by behaviour, one file each. Twilio SIDs and signed media URLs are redacte
 Regenerate with `pnpm --filter @portal/api spike:retell …` (header comment in
 `backend/api/scripts/retell-spike.ts` lists the commands); the API must be running behind the
 tunnel in `API_PUBLIC_URL`.
+
+## `stripe/` — captured on D3, 15 Sep 2026
+
+Captured through `stripe listen --forward-to localhost:4000/webhooks/stripe` and `stripe trigger`, so
+the `stripe-signature` header is real but was computed with that day's CLI signing secret; tests do
+not verify these headers, they re-sign the raw body with `StripeGateway.signForTest()`. What the
+billing e2e suite asserts (`test/billing.e2e.test.ts`) is built from the same shape.
+
+| File | Behaviour |
+| --- | --- |
+| `checkout.session.completed-*.json` | `payment_status: paid`, our `client_reference_id` + `metadata` → purchase paid, lot + ledger row, plan tier |
+| `checkout.session.expired-*.json` | pending purchase → `abandoned` |
+
+## `pricing/`
+
+`config-v1.json` — a `pricing_configs.config_json` document for the unit and e2e tests (the §5.2
+catalogue plus a CAD-only pack and a hidden partner pack to exercise region and visibility filters).
+It is test data; the seed in `backend/db/prisma/seed-data/pricing-v1.ts` is what an empty database gets.

@@ -1,0 +1,38 @@
+{
+  "captured_at": "2026-09-15T10:50:16.999Z",
+  "provider": "stripe",
+  "event_type": "checkout.session.expired",
+  "path": "/webhooks/stripe",
+  "headers": {
+    "host": "localhost:4000",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*",
+    "content-type": "application/json",
+    "stripe-signature": "t=1789469416,v1=c106bf9a0e1ff7bee58525d272bc32c8e272448a2f0137e0637a0a5d1a48bb9a",
+    "content-length": "509"
+  },
+  "raw": "{\"id\": \"evt_pm_13a46def426d2be586ebc248\", \"object\": \"event\", \"created\": 1789469416, \"type\": \"checkout.session.expired\", \"data\": {\"object\": {\"id\": \"cs_test_pm_y\", \"object\": \"checkout.session\", \"status\": \"expired\", \"payment_status\": \"unpaid\", \"currency\": \"usd\", \"client_reference_id\": \"a5bc97a3-6e20-4256-bb97-b996332cdc41\\nINSERT 0 1\", \"metadata\": {\"workspace_id\": \"87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1\", \"purchase_id\": \"a5bc97a3-6e20-4256-bb97-b996332cdc41\\nINSERT 0 1\", \"pack_id\": \"starter\", \"env\": \"dev\"}}}}",
+  "body": {
+    "id": "evt_pm_13a46def426d2be586ebc248",
+    "object": "event",
+    "created": 1789469416,
+    "type": "checkout.session.expired",
+    "data": {
+      "object": {
+        "id": "cs_test_pm_y",
+        "object": "checkout.session",
+        "status": "expired",
+        "payment_status": "unpaid",
+        "currency": "usd",
+        "client_reference_id": "a5bc97a3-6e20-4256-bb97-b996332cdc41\nINSERT 0 1",
+        "metadata": {
+          "workspace_id": "87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1",
+          "purchase_id": "a5bc97a3-6e20-4256-bb97-b996332cdc41\nINSERT 0 1",
+          "pack_id": "starter",
+          "env": "dev"
+        }
+      }
+    }
+  },
+  "signature_valid": true
+}

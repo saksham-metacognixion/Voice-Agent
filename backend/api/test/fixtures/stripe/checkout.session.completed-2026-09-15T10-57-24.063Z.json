@@ -1,0 +1,45 @@
+{
+  "captured_at": "2026-09-15T10:57:24.063Z",
+  "provider": "stripe",
+  "event_type": "checkout.session.completed",
+  "path": "/webhooks/stripe",
+  "headers": {
+    "host": "localhost:4000",
+    "user-agent": "curl/8.7.1",
+    "accept": "*/*",
+    "content-type": "application/json",
+    "stripe-signature": "t=1789469843,v1=79f877eb10566957ae0527a6823828ad968ed464ff1f570105db7a88f1e801c5",
+    "content-length": "632"
+  },
+  "raw": "{\"id\": \"evt_dup_d9d67cda5236eeaaac94\", \"object\": \"event\", \"created\": 1789469843, \"type\": \"checkout.session.completed\", \"data\": {\"object\": {\"id\": \"cs_dup\", \"object\": \"checkout.session\", \"mode\": \"payment\", \"status\": \"complete\", \"payment_status\": \"paid\", \"currency\": \"usd\", \"amount_total\": 4900, \"customer\": \"cus_dup\", \"payment_intent\": \"pi_dup\", \"invoice\": null, \"client_reference_id\": \"3411a0c4-886c-4f1a-ab4c-8ad8b73292d1\", \"metadata\": {\"workspace_id\": \"87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1\", \"purchase_id\": \"3411a0c4-886c-4f1a-ab4c-8ad8b73292d1\", \"pack_id\": \"starter\", \"config_version\": \"1\", \"auto_topup\": \"false\", \"env\": \"dev\"}}}}",
+  "body": {
+    "id": "evt_dup_d9d67cda5236eeaaac94",
+    "object": "event",
+    "created": 1789469843,
+    "type": "checkout.session.completed",
+    "data": {
+      "object": {
+        "id": "cs_dup",
+        "object": "checkout.session",
+        "mode": "payment",
+        "status": "complete",
+        "payment_status": "paid",
+        "currency": "usd",
+        "amount_total": 4900,
+        "customer": "cus_dup",
+        "payment_intent": "pi_dup",
+        "invoice": null,
+        "client_reference_id": "3411a0c4-886c-4f1a-ab4c-8ad8b73292d1",
+        "metadata": {
+          "workspace_id": "87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1",
+          "purchase_id": "3411a0c4-886c-4f1a-ab4c-8ad8b73292d1",
+          "pack_id": "starter",
+          "config_version": "1",
+          "auto_topup": "false",
+          "env": "dev"
+        }
+      }
+    }
+  },
+  "signature_valid": true
+}

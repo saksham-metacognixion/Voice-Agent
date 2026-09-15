@@ -32,8 +32,9 @@ const CHECKS = [
   { key: 'RETELL_API_KEY', phase: 'D2', required: true, secret: true },
   { key: 'API_PUBLIC_URL', phase: 'D2', required: true },
   { key: 'ANTHROPIC_API_KEY', phase: 'D2', required: false, secret: true },
-  { key: 'STRIPE_SECRET_KEY', phase: 'D3', required: false, secret: true },
-  { key: 'STRIPE_WEBHOOK_SECRET', phase: 'D3', required: false, secret: true },
+  { key: 'STRIPE_SECRET_KEY', phase: 'D3', required: true, secret: true },
+  { key: 'STRIPE_WEBHOOK_SECRET', phase: 'D3', required: true, secret: true },
+  { key: 'PORTAL_URL', phase: 'D3', required: true },
   { key: 'RESEND_API_KEY', phase: 'D5', required: false, secret: true },
   { key: 'SIP_CREDENTIALS_KMS_KEY_ID', phase: 'D8', required: false },
 ];

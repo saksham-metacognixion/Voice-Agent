@@ -66,7 +66,8 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 Decisions live in `docs/decisions/`: 0001 tech stack, 0002 Auth0, 0003 Retell findings (§21 +
 Redis-down), 0004 EC2, ~~0005 Amplify~~,
 0006 tenancy (two DB roles, RLS, append-only), ~~0007 OpenAI~~, 0008 S3 + CloudFront (supersedes 0005),
-0009 Anthropic `claude-sonnet-5` (supersedes 0007). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+0009 Anthropic `claude-sonnet-5` (supersedes 0007), 0010 wallet ledger semantics + pricing config shape +
+Stripe webhook retries (D3). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -120,7 +121,11 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 - Verify signature on the **raw body** (parser scoped to `/webhooks/*` only) → upsert `webhook_events`
   with unique `(provider, external_id, event_type)` → return 2xx fast → process in the queue.
 - Duplicate insert returns 204. Never return 5xx to Retell after the event is stored; retry in BullMQ.
-- Handle Stripe `checkout.session.completed`, `async_payment_succeeded` and `expired`.
+  Stripe, until the D4 queue lands: a processing failure is recorded on the row and answered 500 so
+  Stripe retries; `WebhookEventsService.store()` returns `retry` (not `duplicate`) for a stored but
+  unprocessed event (ADR 0010 §5).
+- Handle Stripe `checkout.session.completed` (credit only when `payment_status = paid`),
+  `async_payment_succeeded`, `async_payment_failed` and `expired` (→ `abandoned`).
 
 **Metering (§14) — the money rules**
 
@@ -160,8 +165,17 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
   covered by the trigger, so a local `pnpm db:reset` still works.
 - A partial unique index on `credit_ledger (ref_id) WHERE reason = 'call'` is the idempotency guard:
   a replayed `call_ended` collides instead of double-billing.
-- Balance = Σ `credit_ledger.delta`, cached at `bal:{ws}`, rebuilt from the ledger on mismatch.
-  Lots are consumed FIFO by `expires_at`.
+- Balance = Σ `credit_ledger.delta`, cached at `bal:{ws}` with a 1-hour TTL, rebuilt from the ledger
+  on a miss or mismatch. Lots are consumed FIFO by `expires_at`. One ledger row per movement even
+  when it spans lots; an overdraft leaves lots at 0 and the balance negative, and the next grant's lot
+  is created short by that amount (ADR 0010). Every wallet write runs under a per-workspace advisory
+  lock via `WalletService.withWallet()`; billing marks a purchase paid and grants inside the same lock.
+- A lapsed lot is swept into an `expiry` row at the top of every grant and debit, not only by the
+  §13.11 job — FIFO skips expired lots, so a debit taken before the sweep would otherwise be charged
+  twice. `bal:{ws}` is published inside the wallet transaction while the lock is still held, which is
+  what keeps the cache in commit order; it is the one piece of I/O allowed in there (ADR 0010 §3).
+- Stripe fulfilment credits nothing unless `amount_total` and `currency` match the pending purchase.
+  A mismatch leaves the purchase `pending` for SA9 and answers 200 (ADR 0010 §5).
 
 **Prompts and versions (§9)**
 
@@ -178,7 +192,12 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 
 - Pricing, feature flags, kill switches, templates and the agent stack live in versioned tables and are
   read through `GET /pricing` and `GET /flags`. Never hard-code a price, rate, cap or model id.
+  The `pricing_configs.config_json` shape is `pricingConfig` in `shared/schemas/src/pricing.ts`;
+  read it through `PlatformConfigService` (`modules/config`), which caches in Redis with a 60 s TTL.
+  Version 1 comes from `pnpm db:seed` (`backend/db/prisma/seed-data/pricing-v1.ts`), only into an
+  empty table.
 - Publishing invalidates `pricing:current`, `flags:*` and `caps:{ws}`; the portal re-reads within 60 s.
+  Kill switch keys: `reject_inbound`, `pause_web_tests`, `pause_purchases`, `pause_generation`.
 
 **Tenancy and staff access** (ADR 0006)
 
@@ -217,12 +236,16 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 
 | Key               | Contents                                                                   |
 | ----------------- | -------------------------------------------------------------------------- |
-| `bal:{ws}`        | cached credit balance                                                      |
+| `bal:{ws}`        | cached credit balance, 1-hour TTL                                          |
 | `active:{ws}`     | active call counter, TTL = max duration + 5 min                            |
 | `caps:{ws}`       | plan caps and grace, from the current pricing config plus tenant overrides |
 | `num:{e164}`      | number → workspace, agent, tier, hours, transfer targets, paused flags     |
 | `pricing:current` | current pricing config snapshot                                            |
-| `flags:*`         | feature flags and kill switches                                            |
+| `flags:global`    | feature_flags + kill_switches rows                                         |
+| `flags:{ws}`      | `GET /flags` resolved for one workspace                                    |
+
+Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
+throws and never waits past its budget (ADR 0010 §6).
 
 ## API conventions (§16)
 
@@ -335,10 +358,12 @@ knowledge W4 → auto top-up → team and invites.
   one webhook URL set per environment. Stripe test and live keys never mix.
 - Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths and
   RLS cross-tenant isolation. Other areas are best-effort.
-- `pnpm test` is unit-only and needs nothing running. `pnpm test:e2e` needs Postgres and covers the
-  parts that cannot be mocked: RLS isolation, the append-only triggers, and the auth boundaries
-  (`backend/db/test/*`, `backend/api/test/*`). Start with `pnpm infra:up && pnpm db:roles &&
-pnpm db:deploy && pnpm db:seed`; `pnpm doctor` says what is still missing.
+- `pnpm test` is unit-only and needs nothing running. `pnpm test:e2e` needs Postgres **and Redis** and
+  covers the parts that cannot be mocked: RLS isolation, the append-only triggers, the auth
+  boundaries, the wallet (FIFO, overdraft, idempotent call debit, `bal:{ws}` rebuild) and the Stripe
+  webhook path with real signatures (`backend/db/test/*`, `backend/api/test/*`). Start with
+  `pnpm infra:up && pnpm db:roles && pnpm db:deploy && pnpm db:seed`; `pnpm doctor` says what is
+  still missing.
 - Conventional commits. Reference the spec section in the body.
 - Update this file and add an ADR whenever a decision changes. Do not let CLAUDE.md drift from reality.
 - Prefer editing the spec-derived schema in `shared/schemas` first, then the API, then the UI.

@@ -6,3 +6,5 @@ export * from './common.js';
 export * from './errors.js';
 export * from './enums.js';
 export * from './health.js';
+export * from './pricing.js';
+export * from './wallet.js';

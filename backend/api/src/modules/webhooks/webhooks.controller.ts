@@ -1,8 +1,11 @@
 import { Body, Controller, HttpCode, Logger, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import { AppError } from '../../common/errors/app-error';
 import { Public } from '../auth';
+import { StripeEventHandler, StripeGateway } from '../billing';
 import { RetellGateway } from '../retell';
 import { FixtureWriter } from './fixture-writer.service';
+import { WebhookEventsService } from './webhook-events.service';
 
 /**
  * How the inbound-authorisation stub answers Retell. The real endpoint (§13.9) decides
@@ -30,13 +33,13 @@ type InboundMode = (typeof INBOUND_MODES)[number];
  *
  * Every route here is @Public() — Retell, Stripe and Auth0 cannot hold a JWT (§16). What
  * these do today: keep the raw body, write the payload to a fixture, answer 2xx fast.
- * What they do NOT do yet, and where it lands:
+ * Where each receiver stands:
  *
- *   signature verification on request.rawBody        D3 (Stripe). Retell: checked here,
- *                                                     recorded in the fixture, not yet enforced
- *   upsert webhook_events (provider, external_id, event_type), 204 on duplicate   D3
- *   hand-off to BullMQ; never a 5xx to the provider once the event is stored       D3
- *   the six §13.9 checks against Redis on the inbound path                          D4
+ *   /webhooks/stripe          D3: signature verified, webhook_events exactly-once, processed
+ *   /webhooks/retell          Retell signature checked and recorded, not yet enforced; the
+ *                             lifecycle handler (store → 204 on duplicate → enqueue) is D4
+ *   /webhooks/retell/inbound  D2 stub; the six §13.9 checks against Redis land D4
+ *   /webhooks/auth            capture only; the users upsert lands with workspaces (D5)
  *
  * The route shapes and the raw-body rule are permanent. The handler bodies are not.
  */
@@ -48,6 +51,9 @@ export class WebhooksController {
   constructor(
     private readonly fixtures: FixtureWriter,
     private readonly retell: RetellGateway,
+    private readonly stripeGateway: StripeGateway,
+    private readonly stripeHandler: StripeEventHandler,
+    private readonly events: WebhookEventsService,
   ) {}
 
   /**
@@ -135,19 +141,54 @@ export class WebhooksController {
     }
   }
 
-  /** checkout.session.* and charge.dispute.created, via `stripe listen` in dev. */
+  /**
+   * Stripe (§13.7, §13.10). The D3 shape of the webhook rule:
+   *
+   *   1. verify `stripe-signature` over `request.rawBody`      → 401 INVALID_SIGNATURE
+   *   2. upsert webhook_events (stripe, event.id, event.type)  → duplicate = 204
+   *   3. process                                               → 200 {received: true}
+   *
+   * Processing runs inline until the D4 queue lands. If it throws, the failure is recorded
+   * on the event row and the answer is 500 on purpose: Stripe retries for up to three
+   * days, `store()` sees an unprocessed row and lets the retry through, and the handlers
+   * are idempotent. Returning 200 here would turn one transient error into a paid
+   * purchase that never credits. (Retell is the opposite case — see D4.)
+   */
   @Post('stripe')
-  @HttpCode(200)
-  async stripe(@Req() request: FastifyRequest, @Body() body: unknown): Promise<{ received: true }> {
+  async stripe(@Req() request: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
+    const header = request.headers['stripe-signature'];
+    const signature = Array.isArray(header) ? header[0] : header;
+    if (!request.rawBody || !signature) {
+      throw new AppError('INVALID_SIGNATURE', 'Missing Stripe signature.');
+    }
+
+    let event;
+    try {
+      event = this.stripeGateway.constructEvent(request.rawBody, signature);
+    } catch (error) {
+      this.log.warn(`stripe-signature did not verify: ${error instanceof Error ? error.message : String(error)}`);
+      throw new AppError('INVALID_SIGNATURE', 'Stripe signature did not verify.');
+    }
+
     await this.fixtures.capture({
       provider: 'stripe',
-      eventType: stringField(body, 'type') ?? 'unknown',
+      eventType: event.type,
       path: request.url,
       headers: request.headers,
       raw: request.rawBody,
-      body,
+      body: event,
+      signatureValid: true,
     });
-    return { received: true };
+
+    const stored = await this.events.store({ provider: 'stripe', externalId: event.id, eventType: event.type, payload: event });
+    if (stored.kind === 'duplicate') {
+      void reply.code(204).send();
+      return;
+    }
+
+    const outcome = await this.events.process(stored.id, () => this.stripeHandler.handle(event));
+    this.log.log(`stripe ${event.type} ${event.id}: ${JSON.stringify(outcome)}`);
+    void reply.code(200).send({ received: true });
   }
 
   /** Auth0 Post-User-Registration Action (infra/auth0/actions/). Shared-secret header. */

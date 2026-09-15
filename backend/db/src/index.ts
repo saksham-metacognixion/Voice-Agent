@@ -65,6 +65,7 @@ export {
   isAppendOnlyViolation,
   isRlsViolation,
   isUniqueViolation,
+  uniqueTargetUnknown,
   isDuplicateCallDebit,
   isDuplicateWebhook,
 } from './errors.js';

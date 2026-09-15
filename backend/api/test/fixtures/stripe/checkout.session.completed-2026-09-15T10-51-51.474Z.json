@@ -1,0 +1,58 @@
+{
+  "captured_at": "2026-09-15T10:51:51.474Z",
+  "provider": "stripe",
+  "event_type": "checkout.session.completed",
+  "path": "/webhooks/stripe",
+  "headers": {
+    "stripe-signature": "t=1789469511,v1=239c0a403ef27f05a90d3d7a0453eb9fca16107187d301a5c14ba0686830423b",
+    "content-type": "application/json",
+    "user-agent": "PostmanRuntime/7.39.1",
+    "accept": "*/*",
+    "cache-control": "no-cache",
+    "postman-token": "8d991e2f-1940-403f-8452-2e6117751f94",
+    "host": "localhost:4000",
+    "accept-encoding": "gzip, deflate, br",
+    "connection": "keep-alive",
+    "content-length": "794"
+  },
+  "raw": "{\"id\":\"evt_pm_7d000ebcf4ab95ff105879c1\",\"object\":\"event\",\"api_version\":\"2026-08-27\",\"created\":1789469511,\"livemode\":false,\"pending_webhooks\":1,\"request\":{\"id\":null,\"idempotency_key\":null},\"type\":\"checkout.session.completed\",\"data\":{\"object\":{\"id\":\"cs_test_pm_84615967fdec7916ae22\",\"object\":\"checkout.session\",\"mode\":\"payment\",\"status\":\"complete\",\"payment_status\":\"paid\",\"currency\":\"usd\",\"amount_total\":14900,\"customer\":\"cus_pm_51557984dc5c8e\",\"payment_intent\":\"pi_pm_8b3b0567cdc410\",\"invoice\":null,\"client_reference_id\":\"7b3f89c2-6059-4acd-ae16-88efa624b133\",\"metadata\":{\"workspace_id\":\"87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1\",\"purchase_id\":\"7b3f89c2-6059-4acd-ae16-88efa624b133\",\"pack_id\":\"growth\",\"config_version\":\"1\",\"auto_topup\":\"false\",\"auto_topup_threshold\":\"\",\"agent_id\":\"\",\"env\":\"dev\"}}}}",
+  "body": {
+    "id": "evt_pm_7d000ebcf4ab95ff105879c1",
+    "object": "event",
+    "api_version": "2026-08-27",
+    "created": 1789469511,
+    "livemode": false,
+    "pending_webhooks": 1,
+    "request": {
+      "id": null,
+      "idempotency_key": null
+    },
+    "type": "checkout.session.completed",
+    "data": {
+      "object": {
+        "id": "cs_test_pm_84615967fdec7916ae22",
+        "object": "checkout.session",
+        "mode": "payment",
+        "status": "complete",
+        "payment_status": "paid",
+        "currency": "usd",
+        "amount_total": 14900,
+        "customer": "cus_pm_51557984dc5c8e",
+        "payment_intent": "pi_pm_8b3b0567cdc410",
+        "invoice": null,
+        "client_reference_id": "7b3f89c2-6059-4acd-ae16-88efa624b133",
+        "metadata": {
+          "workspace_id": "87af43b3-5ba8-46d5-9ddc-8e3cfbfb92b1",
+          "purchase_id": "7b3f89c2-6059-4acd-ae16-88efa624b133",
+          "pack_id": "growth",
+          "config_version": "1",
+          "auto_topup": "false",
+          "auto_topup_threshold": "",
+          "agent_id": "",
+          "env": "dev"
+        }
+      }
+    }
+  },
+  "signature_valid": true
+}

@@ -10,6 +10,7 @@
 | `spec-extract/`                    | Grep-able text pulled from the PDFs, with a page-to-section index.      |
 | `plan/`                            | Delivery schedule, ClickUp task board, status message.                  |
 | `tools/pdfdump.swift`              | Renders the PDFs to text and PNG using PDFKit. macOS only.              |
+| `tools/postman/`                   | Importable Postman collections, one per day of verification work. See the table below. |
 
 ## Reading the specs
 
@@ -33,3 +34,25 @@ The second argument is the output directory, the third is the scale factor. Rend
 
 Use `§13.9` for the portal spec and `admin §5.2` for the admin spec, in commit messages, PR descriptions
 and code comments. The page index at the top of each `spec-extract/*.txt` maps sections to page numbers.
+
+## Postman collections
+
+Import the collection and its environment, fill the blanks the collection description lists, then run
+the folders top to bottom. Every request asserts something, so the Runner's pass count is the check.
+
+| File | Covers |
+| --- | --- |
+| `tools/postman/retell-d2.postman_collection.json` | D2: the Retell gateway and the webhook receivers, plus the raw Retell calls the gateway wraps |
+| `tools/postman/d3-money.postman_collection.json` | D3: `GET /pricing`, `GET /flags`, the wallet reads, Stripe Checkout, and the webhook path with signatures computed in the request itself |
+| `tools/postman/smoke.postman_collection.json` | The one-request liveness check |
+
+The D3 collection signs its own Stripe payloads, so `stripe listen` is optional — paste
+`STRIPE_WEBHOOK_SECRET` into the environment and folder E exercises the real verification path.
+Getting a customer JWT into it needs one local step, because the users upsert lands with D5:
+
+```sh
+cd backend/api
+pnpm exec dotenv -e ../../.env -- tsx scripts/dev-link-user.ts "<token from Postman's OAuth 2.0 helper>"
+```
+
+That prints the `workspace_id` to paste into the environment.

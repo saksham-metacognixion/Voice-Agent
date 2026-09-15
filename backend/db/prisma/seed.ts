@@ -4,10 +4,14 @@
  *   pnpm db:seed
  *
  * staff_role_limits is admin §2.2 turned into rows, so the limits are tunable in SA13
- * without a deploy. packs is §5.2; from D3 the pricing config owns these numbers and
- * this seed only bootstraps an empty database.
+ * without a deploy. packs is §5.2 — the catalogue rows purchases point at. pricing_configs
+ * version 1 (seed-data/pricing-v1.ts) is what `GET /pricing` and the wallet actually read;
+ * it is published only when the table is empty, because published versions are immutable
+ * and later ones come from SA5, never from a seed. kill_switches and feature_flags get
+ * their P1 rows, all off.
  */
-import { PrismaClient, PlanTier, StaffRole } from '@prisma/client';
+import { PrismaClient, PlanTier, StaffRole, type Prisma } from '@prisma/client';
+import { FEATURE_FLAGS, KILL_SWITCHES, PRICING_V1 } from './seed-data/pricing-v1.js';
 
 const db = new PrismaClient({
   datasources: { db: { url: process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL } },
@@ -172,6 +176,41 @@ async function main() {
     });
   }
   console.log(`seeded ${PACKS.length} packs (§5.2)`);
+
+  const published = await db.pricingConfig.count();
+  if (published === 0) {
+    await db.pricingConfig.create({
+      data: {
+        version: 1,
+        configJson: PRICING_V1 as unknown as Prisma.InputJsonValue,
+        publishedAt: new Date(),
+        effectiveAt: new Date(),
+        changeSummary: 'Initial catalogue from spec v0.2 §5 and admin spec v0.1 §5.',
+        grandfatherMode: 'keep_until_next_purchase',
+      },
+    });
+    console.log('published pricing_configs v1 (admin §5.1)');
+  } else {
+    console.log(`pricing_configs already has ${published} version(s); not touching it`);
+  }
+
+  for (const sw of KILL_SWITCHES) {
+    await db.killSwitch.upsert({
+      where: { key: sw.key },
+      create: { key: sw.key, on: false, reason: null },
+      update: {},
+    });
+  }
+  console.log(`seeded ${KILL_SWITCHES.length} kill_switches (admin SA12), all off`);
+
+  for (const flag of FEATURE_FLAGS) {
+    await db.featureFlag.upsert({
+      where: { key: flag.key },
+      create: { key: flag.key, description: flag.description, defaultOn: flag.defaultOn, rolloutPct: flag.rolloutPct },
+      update: { description: flag.description },
+    });
+  }
+  console.log(`seeded ${FEATURE_FLAGS.length} feature_flags`);
 }
 
 main()

@@ -1,0 +1,189 @@
+{
+  "captured_at": "2026-09-15T12:03:22.324Z",
+  "provider": "stripe",
+  "event_type": "invoice.created",
+  "path": "/webhooks/stripe",
+  "headers": {
+    "host": "localhost:4000",
+    "user-agent": "Stripe/1.0 (+https://stripe.com/docs/webhooks)",
+    "content-length": "5252",
+    "accept": "*/*; q=0.5, application/xml",
+    "cache-control": "no-cache",
+    "content-type": "application/json; charset=utf-8",
+    "stripe-signature": "t=1789473802,v1=7df56b9f31914746db7cf668c8a1eded6702b9788cc0ba6515e6918641332ed3,v0=3255c6c01c3e22de753800b4809e6b09582f6aa2e662adf224a8610b5ee274b0",
+    "accept-encoding": "gzip"
+  },
+  "raw": "{\n  \"id\": \"evt_1UFv54C8uQC6VEv5QPzXlJky\",\n  \"object\": \"event\",\n  \"api_version\": \"2026-08-26.dahlia\",\n  \"created\": 1789473801,\n  \"data\": {\n    \"object\": {\n      \"id\": \"in_1UFv51C8uQC6VEv5Q0uEnqZU\",\n      \"object\": \"invoice\",\n      \"account_country\": \"US\",\n      \"account_name\": \"Voice \",\n      \"account_tax_ids\": null,\n      \"amount_due\": 14900,\n      \"amount_overpaid\": 0,\n      \"amount_paid\": 14900,\n      \"amount_remaining\": 0,\n      \"amount_shipping\": 0,\n      \"application\": null,\n      \"attempt_count\": 1,\n      \"attempted\": true,\n      \"auto_advance\": false,\n      \"automatic_tax\": {\n        \"disabled_reason\": null,\n        \"enabled\": false,\n        \"liability\": null,\n        \"provider\": null,\n        \"status\": null\n      },\n      \"automatically_finalizes_at\": null,\n      \"billing_reason\": \"manual\",\n      \"collection_method\": \"send_invoice\",\n      \"created\": 1789473798,\n      \"currency\": \"usd\",\n      \"custom_fields\": null,\n      \"customer\": \"cus_VGRuIHmhDPIci8\",\n      \"customer_account\": null,\n      \"customer_address\": {\n        \"city\": null,\n        \"country\": \"IN\",\n        \"line1\": null,\n        \"line2\": null,\n        \"postal_code\": null,\n        \"state\": null\n      },\n      \"customer_email\": \"google-oauth2-103417575963222055792@dev.local\",\n      \"customer_name\": \"Saksham\",\n      \"customer_phone\": null,\n      \"customer_shipping\": null,\n      \"customer_tax_exempt\": \"none\",\n      \"customer_tax_ids\": [],\n      \"default_payment_method\": null,\n      \"default_source\": null,\n      \"default_tax_rates\": [],\n      \"description\": null,\n      \"discounts\": [],\n      \"due_date\": 1789473798,\n      \"effective_at\": 1789473798,\n      \"ending_balance\": 0,\n      \"footer\": null,\n      \"from_invoice\": null,\n      \"hosted_invoice_url\": \"https://invoice.stripe.com/i/acct_1UFVCEC8uQC6VEv5/test_YWNjdF8xVUZWQ0VDOHVRQzZWRXY1LF9WR1J6SlhxU2FhaWQyYmNTYXA2Q3laeWw2VE41blJvLDE4MDAxNDYwMg0200Ct2mnP3t?s=ap\",\n      \"invoice_pdf\": \"https://pay.stripe.com/invoice/acct_1UFVCEC8uQC6VEv5/test_YWNjdF8xVUZWQ0VDOHVRQzZWRXY1LF9WR1J6SlhxU2FhaWQyYmNTYXA2Q3laeWw2VE41blJvLDE4MDAxNDYwMg0200Ct2mnP3t/pdf?s=ap\",\n      \"issuer\": {\n        \"type\": \"self\"\n      },\n      \"last_finalization_error\": null,\n      \"latest_revision\": null,\n      \"lines\": {\n        \"object\": \"list\",\n        \"data\": [\n          {\n            \"id\": \"il_1UFv51C8uQC6VEv5JhlltZ7K\",\n            \"object\": \"line_item\",\n            \"amount\": 14900,\n            \"currency\": \"usd\",\n            \"description\": \"Growth pack\",\n            \"discount_amounts\": [],\n            \"discountable\": true,\n            \"discounts\": [],\n            \"invoice\": \"in_1UFv51C8uQC6VEv5Q0uEnqZU\",\n            \"livemode\": false,\n            \"metadata\": {},\n            \"parent\": {\n              \"invoice_item_details\": {\n                \"invoice_item\": \"ii_1UFv51C8uQC6VEv5lgKm0N3q\",\n                \"proration\": false,\n                \"proration_details\": {\n                  \"credited_items\": null\n                },\n                \"subscription\": null\n              },\n              \"subscription_item_details\": null,\n              \"type\": \"invoice_item_details\"\n            },\n            \"period\": {\n              \"end\": 1789473799,\n              \"start\": 1789473799\n            },\n            \"pretax_credit_amounts\": [],\n            \"pricing\": {\n              \"price_details\": {\n                \"price\": \"price_1UFv4jC8uQC6VEv5pKRdWlMk\",\n                \"product\": \"prod_VGRYRuI8DrRbKt\"\n              },\n              \"type\": \"price_details\",\n              \"unit_amount_decimal\": \"14900\"\n            },\n            \"quantity\": 1,\n            \"quantity_decimal\": \"1\",\n            \"subtotal\": 14900,\n            \"taxes\": []\n          }\n        ],\n        \"has_more\": false,\n        \"total_count\": 1,\n        \"url\": \"/v1/invoices/in_1UFv51C8uQC6VEv5Q0uEnqZU/lines\"\n      },\n      \"livemode\": false,\n      \"metadata\": {},\n      \"next_payment_attempt\": null,\n      \"number\": \"VMWTDSBJ-0002\",\n      \"on_behalf_of\": null,\n      \"parent\": null,\n      \"payment_settings\": {\n        \"default_mandate\": null,\n        \"payment_method_options\": null,\n        \"payment_method_types\": null\n      },\n      \"period_end\": 1789473798,\n      \"period_start\": 1789473798,\n      \"post_payment_credit_notes_amount\": 0,\n      \"pre_payment_credit_notes_amount\": 0,\n      \"receipt_number\": null,\n      \"rendering\": {\n        \"amount_tax_display\": null,\n        \"pdf\": {\n          \"page_size\": \"letter\"\n        },\n        \"template\": null,\n        \"template_version\": null\n      },\n      \"shipping_cost\": null,\n      \"shipping_details\": null,\n      \"starting_balance\": 0,\n      \"statement_descriptor\": null,\n      \"status\": \"paid\",\n      \"status_transitions\": {\n        \"finalized_at\": 1789473798,\n        \"marked_uncollectible_at\": null,\n        \"paid_at\": 1789473798,\n        \"voided_at\": null\n      },\n      \"subtotal\": 14900,\n      \"subtotal_excluding_tax\": 14900,\n      \"test_clock\": null,\n      \"total\": 14900,\n      \"total_discount_amounts\": [],\n      \"total_excluding_tax\": 14900,\n      \"total_pretax_credit_amounts\": [],\n      \"total_taxes\": [],\n      \"webhooks_delivered_at\": null\n    }\n  },\n  \"livemode\": false,\n  \"pending_webhooks\": 2,\n  \"request\": {\n    \"id\": null,\n    \"idempotency_key\": null\n  },\n  \"type\": \"invoice.created\"\n}",
+  "body": {
+    "id": "evt_1UFv54C8uQC6VEv5QPzXlJky",
+    "object": "event",
+    "api_version": "2026-08-26.dahlia",
+    "created": 1789473801,
+    "data": {
+      "object": {
+        "id": "in_1UFv51C8uQC6VEv5Q0uEnqZU",
+        "object": "invoice",
+        "account_country": "US",
+        "account_name": "Voice ",
+        "account_tax_ids": null,
+        "amount_due": 14900,
+        "amount_overpaid": 0,
+        "amount_paid": 14900,
+        "amount_remaining": 0,
+        "amount_shipping": 0,
+        "application": null,
+        "attempt_count": 1,
+        "attempted": true,
+        "auto_advance": false,
+        "automatic_tax": {
+          "disabled_reason": null,
+          "enabled": false,
+          "liability": null,
+          "provider": null,
+          "status": null
+        },
+        "automatically_finalizes_at": null,
+        "billing_reason": "manual",
+        "collection_method": "send_invoice",
+        "created": 1789473798,
+        "currency": "usd",
+        "custom_fields": null,
+        "customer": "cus_VGRuIHmhDPIci8",
+        "customer_account": null,
+        "customer_address": {
+          "city": null,
+          "country": "IN",
+          "line1": null,
+          "line2": null,
+          "postal_code": null,
+          "state": null
+        },
+        "customer_email": "google-oauth2-103417575963222055792@dev.local",
+        "customer_name": "Saksham",
+        "customer_phone": null,
+        "customer_shipping": null,
+        "customer_tax_exempt": "none",
+        "customer_tax_ids": [],
+        "default_payment_method": null,
+        "default_source": null,
+        "default_tax_rates": [],
+        "description": null,
+        "discounts": [],
+        "due_date": 1789473798,
+        "effective_at": 1789473798,
+        "ending_balance": 0,
+        "footer": null,
+        "from_invoice": null,
+        "hosted_invoice_url": "https://invoice.stripe.com/i/acct_1UFVCEC8uQC6VEv5/test_YWNjdF8xVUZWQ0VDOHVRQzZWRXY1LF9WR1J6SlhxU2FhaWQyYmNTYXA2Q3laeWw2VE41blJvLDE4MDAxNDYwMg0200Ct2mnP3t?s=ap",
+        "invoice_pdf": "https://pay.stripe.com/invoice/acct_1UFVCEC8uQC6VEv5/test_YWNjdF8xVUZWQ0VDOHVRQzZWRXY1LF9WR1J6SlhxU2FhaWQyYmNTYXA2Q3laeWw2VE41blJvLDE4MDAxNDYwMg0200Ct2mnP3t/pdf?s=ap",
+        "issuer": {
+          "type": "self"
+        },
+        "last_finalization_error": null,
+        "latest_revision": null,
+        "lines": {
+          "object": "list",
+          "data": [
+            {
+              "id": "il_1UFv51C8uQC6VEv5JhlltZ7K",
+              "object": "line_item",
+              "amount": 14900,
+              "currency": "usd",
+              "description": "Growth pack",
+              "discount_amounts": [],
+              "discountable": true,
+              "discounts": [],
+              "invoice": "in_1UFv51C8uQC6VEv5Q0uEnqZU",
+              "livemode": false,
+              "metadata": {},
+              "parent": {
+                "invoice_item_details": {
+                  "invoice_item": "ii_1UFv51C8uQC6VEv5lgKm0N3q",
+                  "proration": false,
+                  "proration_details": {
+                    "credited_items": null
+                  },
+                  "subscription": null
+                },
+                "subscription_item_details": null,
+                "type": "invoice_item_details"
+              },
+              "period": {
+                "end": 1789473799,
+                "start": 1789473799
+              },
+              "pretax_credit_amounts": [],
+              "pricing": {
+                "price_details": {
+                  "price": "price_1UFv4jC8uQC6VEv5pKRdWlMk",
+                  "product": "prod_VGRYRuI8DrRbKt"
+                },
+                "type": "price_details",
+                "unit_amount_decimal": "14900"
+              },
+              "quantity": 1,
+              "quantity_decimal": "1",
+              "subtotal": 14900,
+              "taxes": []
+            }
+          ],
+          "has_more": false,
+          "total_count": 1,
+          "url": "/v1/invoices/in_1UFv51C8uQC6VEv5Q0uEnqZU/lines"
+        },
+        "livemode": false,
+        "metadata": {},
+        "next_payment_attempt": null,
+        "number": "VMWTDSBJ-0002",
+        "on_behalf_of": null,
+        "parent": null,
+        "payment_settings": {
+          "default_mandate": null,
+          "payment_method_options": null,
+          "payment_method_types": null
+        },
+        "period_end": 1789473798,
+        "period_start": 1789473798,
+        "post_payment_credit_notes_amount": 0,
+        "pre_payment_credit_notes_amount": 0,
+        "receipt_number": null,
+        "rendering": {
+          "amount_tax_display": null,
+          "pdf": {
+            "page_size": "letter"
+          },
+          "template": null,
+          "template_version": null
+        },
+        "shipping_cost": null,
+        "shipping_details": null,
+        "starting_balance": 0,
+        "statement_descriptor": null,
+        "status": "paid",
+        "status_transitions": {
+          "finalized_at": 1789473798,
+          "marked_uncollectible_at": null,
+          "paid_at": 1789473798,
+          "voided_at": null
+        },
+        "subtotal": 14900,
+        "subtotal_excluding_tax": 14900,
+        "test_clock": null,
+        "total": 14900,
+        "total_discount_amounts": [],
+        "total_excluding_tax": 14900,
+        "total_pretax_credit_amounts": [],
+        "total_taxes": [],
+        "webhooks_delivered_at": null
+      }
+    },
+    "livemode": false,
+    "pending_webhooks": 2,
+    "request": {
+      "id": null,
+      "idempotency_key": null
+    },
+    "type": "invoice.created"
+  },
+  "signature_valid": true
+}
