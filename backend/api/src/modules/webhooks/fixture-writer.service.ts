@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Injectable, Logger } from '@nestjs/common';
+import { resolveAppEnv } from '../../common/env';
 
 export type WebhookProvider = 'retell' | 'stripe' | 'auth';
 
@@ -14,6 +15,10 @@ export interface CapturedWebhook {
   /** Exact bytes as received. Kept so D3's signature tests run against real input. */
   raw: Buffer | undefined;
   body: unknown;
+  /** Result of the provider signature check against `raw`, when one was run. */
+  signatureValid?: boolean;
+  /** What we answered, for webhooks whose response changes provider behaviour. */
+  response?: unknown;
 }
 
 /** Headers that carry a secret rather than something a test needs. */
@@ -40,9 +45,11 @@ export class FixtureWriter {
   readonly directory: string;
 
   constructor() {
-    const env = process.env.APP_ENV ?? 'dev';
+    const env = resolveAppEnv();
     const optedOut = process.env.CAPTURE_FIXTURES === 'false';
-    this.enabled = env !== 'prod' && env !== 'production' && !optedOut;
+    // `resolveAppEnv` reads an unset or unrecognised APP_ENV as prod, so "hard-off
+    // outside dev/staging" holds even in a container that dropped the variable.
+    this.enabled = env !== 'prod' && !optedOut;
     this.directory = path.resolve(process.cwd(), process.env.FIXTURE_DIR ?? 'test/fixtures');
 
     if (this.enabled) {
@@ -67,6 +74,8 @@ export class FixtureWriter {
       headers: redact(hook.headers),
       raw: hook.raw?.toString('utf8'),
       body: hook.body,
+      ...(hook.signatureValid === undefined ? {} : { signature_valid: hook.signatureValid }),
+      ...(hook.response === undefined ? {} : { response: hook.response }),
     };
 
     try {

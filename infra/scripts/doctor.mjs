@@ -29,9 +29,9 @@ const CHECKS = [
   { key: 'AUTH0_CUSTOMER_ACTION_SECRET', phase: 'D1', required: true, secret: true },
   { key: 'AUTH0_STAFF_DOMAIN', phase: 'D1', required: true },
   { key: 'AUTH0_STAFF_AUDIENCE', phase: 'D1', required: true },
-  { key: 'RETELL_API_KEY', phase: 'D2', required: false, secret: true },
-  { key: 'RETELL_WEBHOOK_SECRET', phase: 'D2', required: false, secret: true },
-  { key: 'OPENAI_API_KEY', phase: 'D2', required: false, secret: true },
+  { key: 'RETELL_API_KEY', phase: 'D2', required: true, secret: true },
+  { key: 'API_PUBLIC_URL', phase: 'D2', required: true },
+  { key: 'ANTHROPIC_API_KEY', phase: 'D2', required: false, secret: true },
   { key: 'STRIPE_SECRET_KEY', phase: 'D3', required: false, secret: true },
   { key: 'STRIPE_WEBHOOK_SECRET', phase: 'D3', required: false, secret: true },
   { key: 'RESEND_API_KEY', phase: 'D5', required: false, secret: true },
@@ -51,6 +51,23 @@ for (const check of CHECKS) {
   } else {
     results.push(['--', check.key, `needed by ${check.phase}`]);
   }
+}
+
+// APP_ENV is a gate, not a label: the backend reads an unset or unrecognised value as
+// prod (backend/api/src/common/env/app-env.ts), which silently disables the dev routes
+// and fixture capture. Catch a typo here instead.
+const APP_ENVS = ['dev', 'ci', 'staging', 'prod'];
+const appEnv = process.env.APP_ENV?.trim();
+if (appEnv && !APP_ENVS.includes(appEnv)) {
+  fatal += 1;
+  results.push(['FAIL', 'APP_ENV', `"${appEnv}" is not one of ${APP_ENVS.join(' | ')}`]);
+}
+
+// Retell bakes API_PUBLIC_URL into every agent and number at create time, so a plaintext
+// or unreachable callback host is not a runtime problem, it is a stranded-objects problem.
+if (process.env.API_PUBLIC_URL?.trim() && appEnv === 'prod' && !/^https:\/\//i.test(process.env.API_PUBLIC_URL.trim())) {
+  fatal += 1;
+  results.push(['FAIL', 'API_PUBLIC_URL', 'must be https in prod — Retell callbacks are baked in at create time']);
 }
 
 // Two Auth0 tenants or the staff boundary is decorative (ADR 0002).

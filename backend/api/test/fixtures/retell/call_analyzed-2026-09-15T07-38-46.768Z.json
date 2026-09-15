@@ -1,0 +1,65 @@
+{
+  "captured_at": "2026-09-15T07:38:46.768Z",
+  "provider": "retell",
+  "event_type": "call_analyzed",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "1265",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=2334160da7a7448a97742e8fac3f109e,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "2334160da7a7448a97742e8fac3f109e-bc7fe3d7cb7f63c5",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789457926284,d=a787d6648237fee6fe1be9e409728f0e102b593743c739a25c6526cb36c63604"
+  },
+  "raw": "{\"event\":\"call_analyzed\",\"call\":{\"call_id\":\"call_50ee4c183a808751de7feb5b84f\",\"call_type\":\"web_call\",\"agent_id\":\"agent_2ead4963bcbbb3cb1e0e6561c3\",\"agent_version\":0,\"agent_name\":\"dev-postman-receptionist\",\"call_status\":\"error\",\"start_timestamp\":1789457925051,\"end_timestamp\":1789457925051,\"duration_ms\":0,\"transcript\":\"\",\"transcript_object\":[],\"transcript_with_tool_calls\":[],\"public_log_url\":\"https://dxc03zgurdly9.cloudfront.net/ffb7dc944bf531041c5b23fc16d1cc19553ad7a1fd552dbfe5ab09543b106e47/public.log\",\"disconnection_reason\":\"error_user_not_joined\",\"latency\":{},\"metadata\":{\"test\":true,\"source\":\"postman\"},\"call_cost\":{\"product_costs\":[],\"total_duration_unit_price\":0,\"total_duration_seconds\":0,\"combined_cost\":0},\"call_analysis\":{\"call_summary\":\"\",\"in_voicemail\":false,\"user_sentiment\":\"Unknown\",\"call_successful\":false,\"custom_analysis_data\":{}},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":false,\"tool_calls\":[],\"access_token\":\"eyJhbGciOiJIUzI1NiJ9.eyJ2aWRlbyI6eyJyb29tSm9pbiI6dHJ1ZSwicm9vbSI6IndlYl9jYWxsXzUwZWU0YzE4M2E4MDg3NTFkZTdmZWI1Yjg0ZiJ9LCJpc3MiOiJBUElVTXg5OFUyR2MyanIiLCJleHAiOjE3ODk0NTg0OTUsIm5iZiI6MTc4OTQ1Nzg5NSwic3ViIjoiY2xpZW50In0.dPcRVLW9HJ00cQVlN8ei5qM-bk3XkKEvSNp_GvaC3ZI\",\"transport\":\"livekit\"},\"event_timestamp\":1789457926284}",
+  "body": {
+    "event": "call_analyzed",
+    "call": {
+      "call_id": "call_50ee4c183a808751de7feb5b84f",
+      "call_type": "web_call",
+      "agent_id": "agent_2ead4963bcbbb3cb1e0e6561c3",
+      "agent_version": 0,
+      "agent_name": "dev-postman-receptionist",
+      "call_status": "error",
+      "start_timestamp": 1789457925051,
+      "end_timestamp": 1789457925051,
+      "duration_ms": 0,
+      "transcript": "",
+      "transcript_object": [],
+      "transcript_with_tool_calls": [],
+      "public_log_url": "https://dxc03zgurdly9.cloudfront.net/ffb7dc944bf531041c5b23fc16d1cc19553ad7a1fd552dbfe5ab09543b106e47/public.log",
+      "disconnection_reason": "error_user_not_joined",
+      "latency": {},
+      "metadata": {
+        "test": true,
+        "source": "postman"
+      },
+      "call_cost": {
+        "product_costs": [],
+        "total_duration_unit_price": 0,
+        "total_duration_seconds": 0,
+        "combined_cost": 0
+      },
+      "call_analysis": {
+        "call_summary": "",
+        "in_voicemail": false,
+        "user_sentiment": "Unknown",
+        "call_successful": false,
+        "custom_analysis_data": {}
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": false,
+      "tool_calls": [],
+      "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJ2aWRlbyI6eyJyb29tSm9pbiI6dHJ1ZSwicm9vbSI6IndlYl9jYWxsXzUwZWU0YzE4M2E4MDg3NTFkZTdmZWI1Yjg0ZiJ9LCJpc3MiOiJBUElVTXg5OFUyR2MyanIiLCJleHAiOjE3ODk0NTg0OTUsIm5iZiI6MTc4OTQ1Nzg5NSwic3ViIjoiY2xpZW50In0.dPcRVLW9HJ00cQVlN8ei5qM-bk3XkKEvSNp_GvaC3ZI",
+      "transport": "livekit"
+    },
+    "event_timestamp": 1789457926284
+  },
+  "signature_valid": true
+}

@@ -1,0 +1,39 @@
+{
+  "captured_at": "2026-09-15T07:22:52.106Z",
+  "provider": "retell",
+  "event_type": "call_inbound",
+  "path": "/webhooks/retell/inbound/spike_x1afrsrwgek?mode=decline_reject",
+  "headers": {
+    "content-type": "application/json",
+    "x-retell-signature": "v=1789456972049,d=4d46af711d7b1d3f742c8a6370fbd3699e01d68f0a8c92789491605757fc55e8",
+    "cache-control": "no-cache",
+    "postman-token": "952e1093-6399-48e3-a5aa-d6156625e2a8",
+    "content-length": "266",
+    "host": "localhost:4000",
+    "user-agent": "PostmanRuntime/2.6.0",
+    "accept": "*/*",
+    "accept-encoding": "gzip, deflate, br",
+    "connection": "keep-alive"
+  },
+  "raw": "{\n  \"event\": \"call_inbound\",\n  \"event_timestamp\": 1789450192487,\n  \"call_inbound\": {\n    \"call_id\": \"call_postman_3\",\n    \"agent_id\": \"agent_c72a20039d1559e8c6e345c03c\",\n    \"agent_version\": 0,\n    \"from_number\": \"+15550000001\",\n    \"to_number\": \"+16204459730\"\n  }\n}",
+  "body": {
+    "event": "call_inbound",
+    "event_timestamp": 1789450192487,
+    "call_inbound": {
+      "call_id": "call_postman_3",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 0,
+      "from_number": "+15550000001",
+      "to_number": "+16204459730"
+    }
+  },
+  "signature_valid": false,
+  "response": {
+    "mode": "decline_reject",
+    "body": {
+      "call_inbound": {
+        "reject": true
+      }
+    }
+  }
+}

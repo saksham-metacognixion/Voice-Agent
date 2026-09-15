@@ -1,0 +1,45 @@
+{
+  "captured_at": "2026-09-15T05:41:02.001Z",
+  "provider": "retell",
+  "event_type": "call_inbound",
+  "path": "/webhooks/retell/inbound/spike_x1afrsrwgek?mode=decline_500",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "545",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=f6c01ad2a425452a8cbb487eca1b6857,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "f6c01ad2a425452a8cbb487eca1b6857-8db5fa18a5f95682",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789450860782,d=361f1a0fa36114287d8646572838c1bfffa86fbf077709c23fecdb32a6af7baa"
+  },
+  "raw": "{\"event\":\"call_inbound\",\"event_timestamp\":1789450860782,\"call_inbound\":{\"call_id\":\"call_223a17f623992dc042d706288e1\",\"agent_id\":\"agent_c72a20039d1559e8c6e345c03c\",\"agent_version\":0,\"from_number\":\"+19377293562\",\"to_number\":\"+16204459730\",\"custom_sip_headers\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"x-twilio-accountsid\":\"AC[redacted]\",\"x-twilio-callsid\":\"CA[redacted]\",\"x-twilio-verstat\":\"TN-Validation-Passed-B\"}}}",
+  "body": {
+    "event": "call_inbound",
+    "event_timestamp": 1789450860782,
+    "call_inbound": {
+      "call_id": "call_223a17f623992dc042d706288e1",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 0,
+      "from_number": "+19377293562",
+      "to_number": "+16204459730",
+      "custom_sip_headers": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "x-twilio-accountsid": "AC[redacted]",
+        "x-twilio-callsid": "CA[redacted]",
+        "x-twilio-verstat": "TN-Validation-Passed-B"
+      }
+    }
+  },
+  "signature_valid": true,
+  "response": {
+    "mode": "decline_500"
+  },
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_inbound-2026-09-15T05-41-02.001Z.json"
+}

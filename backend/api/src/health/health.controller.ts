@@ -1,6 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { type HealthResponse, healthResponse } from '@portal/schemas';
 import { Public } from '../modules/auth';
+import { resolveAppEnv } from '../common/env';
 
 /**
  * Liveness probe. @Public() because the callers cannot hold an Auth0 token: the compose
@@ -15,7 +16,7 @@ export class HealthController {
     return healthResponse.parse({
       status: 'ok',
       service: 'api',
-      env: process.env.APP_ENV ?? 'dev',
+      env: resolveAppEnv(),
       version: process.env.npm_package_version ?? '0.0.1',
       time: new Date().toISOString(),
     });

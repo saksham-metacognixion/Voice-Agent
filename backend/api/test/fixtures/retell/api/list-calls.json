@@ -1,0 +1,1086 @@
+{
+  "captured_at": "2026-09-15T05:36:12.221Z",
+  "data": {
+    "items": [
+      {
+        "call_id": "call_2fd304b35149efef91b58662b02",
+        "call_type": "phone_call",
+        "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+        "agent_version": 0,
+        "agent_name": "dev-spike-caller",
+        "contact_dynamic_variables": {},
+        "custom_sip_headers": {},
+        "call_status": "ended",
+        "start_timestamp": 1789450460906,
+        "end_timestamp": 1789450525912,
+        "duration_ms": 65006,
+        "recording_url": "[redacted-signed-url]",
+        "recording_multi_channel_url": "[redacted-signed-url]",
+        "public_log_url": "[redacted-signed-url]",
+        "disconnection_reason": "max_duration_reached",
+        "latency": {
+          "llm": {
+            "max": 1607,
+            "num": 11,
+            "sum": 12016,
+            "p90": 1441,
+            "min": 2,
+            "p99": 1590.4,
+            "p50": 1110,
+            "p95": 1524,
+            "values": [
+              2,
+              1215,
+              1441,
+              1020,
+              1048,
+              1057,
+              988,
+              1110,
+              1607,
+              1315,
+              1213
+            ]
+          },
+          "e2e": {
+            "max": 1812,
+            "values": [
+              1715,
+              1564.0009765625,
+              1583,
+              1470.9990234375,
+              1812,
+              1500
+            ],
+            "p99": 1807.15,
+            "min": 1470.9990234375,
+            "sum": 9645,
+            "num": 6,
+            "p50": 1573.50048828125,
+            "p95": 1787.75,
+            "p90": 1763.5
+          },
+          "tts": {
+            "p95": 386.9999999999999,
+            "min": 153,
+            "p50": 177.5,
+            "p99": 459.79999999999995,
+            "max": 478,
+            "num": 8,
+            "sum": 1757,
+            "p90": 295.99999999999994,
+            "values": [
+              218,
+              153,
+              178,
+              176,
+              478,
+              177,
+              200,
+              177
+            ]
+          },
+          "asr": {
+            "p95": 328,
+            "num": 6,
+            "min": 0,
+            "p50": 138.5,
+            "sum": 976,
+            "values": [
+              0,
+              348,
+              100,
+              177,
+              268,
+              83
+            ],
+            "p90": 308,
+            "max": 348,
+            "p99": 344
+          }
+        },
+        "metadata": {
+          "test": true,
+          "source": "spike-outbound"
+        },
+        "call_cost": {
+          "total_duration_unit_price": 0.1966667,
+          "product_costs": [
+            {
+              "product": "retell_voice_engine",
+              "unit_price": 0.0916667,
+              "cost": 6.0500022
+            },
+            {
+              "product": "elevenlabs_tts_03_2026",
+              "unit_price": 0.0666667,
+              "cost": 4.4000022
+            },
+            {
+              "cost": 0.8799978,
+              "product": "gpt_5_mini",
+              "unit_price": 0.0133333
+            },
+            {
+              "product": "us_twilio_telephony",
+              "unit_price": 0.025,
+              "cost": 1.65
+            },
+            {
+              "unit_price": 2.08,
+              "cost": 2.08,
+              "product": "gpt_5_6_terra_text_testing"
+            }
+          ],
+          "combined_cost": 15.0600022,
+          "total_duration_seconds": 66
+        },
+        "call_analysis": {
+          "custom_analysis_data": {},
+          "call_successful": false,
+          "in_voicemail": false,
+          "user_sentiment": "Neutral",
+          "call_summary": "The agent contacted Maple Dental and confirmed they are closed Saturdays, have onsite parking, accept new patients, offer emergency appointments for sudden tooth pain, and will provide standard cleaning pricing by callback. The call ended after the agent asked for the office's best phone number, without receiving an answer."
+        },
+        "data_storage_setting": "everything",
+        "opt_in_signed_url": true,
+        "llm_token_usage": {
+          "values": [
+            217,
+            261,
+            221,
+            271,
+            299,
+            306,
+            316,
+            306,
+            360,
+            407,
+            417,
+            471
+          ],
+          "average": 321,
+          "num_requests": 12
+        },
+        "tool_calls": [],
+        "from_number": "+19377293562",
+        "to_number": "+16204459730",
+        "direction": "outbound",
+        "telephony_identifier": {
+          "twilio_call_sid": "CA[redacted]"
+        },
+        "pcap_url": "https://d1d33audaiiiuu.cloudfront.net/e03ed5bd0ed629547607287e8d4643429c5e7495206bed895285a10d7afb1c81/call_2fd304b35149efef91b58662b02.pcap?Expires=1789536972&Key-Pair-Id=K3ETYG3FHFNIMP&Signature=Z-fMOlmdbUgmrFODwgM9Xfs-w1LNbXp-aqIiy1nB-tkS7k3dC02vY7rfPa7t-ROJgnJTcYrdI-amS265DPlnNPpBWe52tlhgAWvDLhx2QPpoP1QcYVDbaGxMn-B39XltX~OIQKaceoa~jqJIMOX6WAQYq4IvbA~J6qiQcOll6eStrlug4Mob5Xr7A2XfQkC9163R54pkaeLD7kFgI9Y81Rrtoal~1IBQwiIf2IGgUYyTmOrLBTs8N5he6B0WBd1W5WNvDgLgiE2okT1K9GfVEB1AA9v3GGr9vx3ddA7UxdjXWkRSdlk1Iv412I7A3DWU91HClH4WqF06sv7ItVsZzA__"
+      },
+      {
+        "call_id": "call_6892956f3545802c60e2bdd2cc7",
+        "call_type": "phone_call",
+        "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+        "agent_version": 0,
+        "agent_name": "dev-spike-receptionist",
+        "retell_llm_dynamic_variables": {
+          "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+          "twilio-callsid": "CA[redacted]",
+          "twilio-verstat": "TN-Validation-Passed-B",
+          "twilio-accountsid": "AC[redacted]",
+          "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional"
+        },
+        "contact_dynamic_variables": {},
+        "custom_sip_headers": {
+          "x-twilio-accountsid": "AC[redacted]",
+          "x-twilio-verstat": "TN-Validation-Passed-B",
+          "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+          "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+          "x-twilio-callsid": "CA[redacted]"
+        },
+        "call_status": "ended",
+        "start_timestamp": 1789450460872,
+        "end_timestamp": 1789450526424,
+        "duration_ms": 65552,
+        "recording_url": "[redacted-signed-url]",
+        "recording_multi_channel_url": "[redacted-signed-url]",
+        "public_log_url": "[redacted-signed-url]",
+        "disconnection_reason": "user_hangup",
+        "latency": {
+          "llm": {
+            "p50": 1147,
+            "p95": 2570.499999999999,
+            "min": 5,
+            "max": 3097,
+            "num": 7,
+            "sum": 8978,
+            "values": [
+              5,
+              1147,
+              1235,
+              1096,
+              1056,
+              1342,
+              3097
+            ],
+            "p90": 2044.0000000000005,
+            "p99": 2991.699999999999
+          },
+          "e2e": {
+            "min": 1397,
+            "p95": 3003,
+            "p50": 1541,
+            "p90": 2576,
+            "p99": 3344.6000000000004,
+            "max": 3430,
+            "sum": 11110,
+            "values": [
+              1479,
+              1575,
+              1507,
+              1397,
+              1722,
+              3430
+            ],
+            "num": 6
+          },
+          "tts": {
+            "p95": 199.09999999999997,
+            "values": [
+              209,
+              154,
+              160,
+              165,
+              151,
+              170,
+              176
+            ],
+            "sum": 1185,
+            "num": 7,
+            "p99": 207.01999999999998,
+            "min": 151,
+            "p50": 165,
+            "p90": 189.20000000000002,
+            "max": 209
+          },
+          "asr": {
+            "num": 6,
+            "p95": 242.5,
+            "max": 254,
+            "sum": 1210,
+            "values": [
+              197,
+              178,
+              254,
+              208,
+              206,
+              167
+            ],
+            "p50": 201.5,
+            "p90": 231,
+            "p99": 251.70000000000002,
+            "min": 167
+          }
+        },
+        "call_cost": {
+          "product_costs": [
+            {
+              "unit_price": 0.0916667,
+              "product": "retell_voice_engine",
+              "cost": 6.0500022
+            },
+            {
+              "cost": 4.4000022,
+              "unit_price": 0.0666667,
+              "product": "elevenlabs_tts_03_2026"
+            },
+            {
+              "product": "gpt_5_mini",
+              "cost": 0.8799978,
+              "unit_price": 0.0133333
+            },
+            {
+              "product": "us_twilio_telephony",
+              "cost": 1.65,
+              "unit_price": 0.025
+            },
+            {
+              "cost": 2.08,
+              "product": "gpt_5_6_terra_text_testing",
+              "unit_price": 2.08
+            }
+          ],
+          "total_duration_seconds": 66,
+          "combined_cost": 15.0600022,
+          "total_duration_unit_price": 0.1966667
+        },
+        "call_analysis": {
+          "call_summary": "Caller asked about Saturday hours, parking, new-patient acceptance, cleaning pricing, emergency appointments, and the office phone number. The agent answered the first five questions but the call ended before providing the phone number.",
+          "call_successful": false,
+          "custom_analysis_data": {
+            "callback_requested": false,
+            "party_size": 0,
+            "call_reason": "question",
+            "caller_name": "Thanks"
+          },
+          "user_sentiment": "Positive",
+          "in_voicemail": false
+        },
+        "data_storage_setting": "everything",
+        "opt_in_signed_url": true,
+        "llm_token_usage": {
+          "values": [
+            401,
+            431,
+            444,
+            486,
+            530,
+            579,
+            637,
+            633
+          ],
+          "average": 517.625,
+          "num_requests": 8
+        },
+        "tool_calls": [],
+        "from_number": "+19377293562",
+        "to_number": "+16204459730",
+        "direction": "inbound",
+        "telephony_identifier": {
+          "twilio_call_sid": "CA[redacted]"
+        }
+      },
+      {
+        "call_id": "call_d46832b71bcd83010f4a9e2f142",
+        "call_type": "phone_call",
+        "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+        "agent_version": 0,
+        "agent_name": "dev-spike-caller",
+        "contact_dynamic_variables": {},
+        "custom_sip_headers": {},
+        "call_status": "not_connected",
+        "start_timestamp": 1789450446096,
+        "end_timestamp": 1789450446096,
+        "duration_ms": 0,
+        "public_log_url": "[redacted-signed-url]",
+        "disconnection_reason": "dial_busy",
+        "latency": {},
+        "metadata": {
+          "source": "spike-outbound",
+          "test": true
+        },
+        "call_cost": {
+          "total_duration_seconds": 0,
+          "total_duration_unit_price": 0,
+          "combined_cost": 0,
+          "product_costs": []
+        },
+        "call_analysis": {
+          "in_voicemail": false,
+          "call_successful": false,
+          "user_sentiment": "Unknown",
+          "custom_analysis_data": {},
+          "call_summary": ""
+        },
+        "data_storage_setting": "everything",
+        "opt_in_signed_url": true,
+        "tool_calls": [],
+        "from_number": "+19377293562",
+        "to_number": "+16204459730",
+        "direction": "outbound",
+        "pcap_url": "https://d1d33audaiiiuu.cloudfront.net/a3755890fcc14c6880ff751d8ae0725f293623aaf798ea36de7c75715ac2d74e/call_d46832b71bcd83010f4a9e2f142.pcap?Expires=1789536972&Key-Pair-Id=K3ETYG3FHFNIMP&Signature=NX4wQ9oklAPrb8KHHlTGDY3-scKYIxcXgbciGJ5kVHQe3cFdc3gcVZRuftK6m1w1uJ7~D5zFdcE5yzGwxOHaNICY1dXZg5GE5hkGHVj7d3hQjUf3P5pZ7AC-tVedD3BHQIx0wulf7jXEg8l38E810mpQ8IVxhO9btdzwXHOSZPaKkq~vlWKrxsjgH8KsSqq59Xu9CpiW8ygVlj3S8FVVC~awEXEs~7mJXj4JUFcXZI0AO7-KQyVHUnQ7NchoKpfiPCtNqECBbL1ZMsau7HTO8Hk8-e22RjHTNyLuyQ7bj22EHadTxCYKG7klDh2b9m1rbWIBMbOoM5dz2H~~2FdhHA__"
+      },
+      {
+        "call_id": "call_6331e75815b65070570058f827a",
+        "call_type": "phone_call",
+        "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+        "agent_version": 0,
+        "agent_name": "dev-spike-caller",
+        "contact_dynamic_variables": {},
+        "custom_sip_headers": {},
+        "call_status": "ended",
+        "start_timestamp": 1789450314546,
+        "end_timestamp": 1789450375069,
+        "duration_ms": 60523,
+        "recording_url": "[redacted-signed-url]",
+        "recording_multi_channel_url": "[redacted-signed-url]",
+        "public_log_url": "[redacted-signed-url]",
+        "disconnection_reason": "user_hangup",
+        "latency": {
+          "llm": {
+            "p50": 1006,
+            "p95": 1214,
+            "p99": 1242,
+            "sum": 10195,
+            "num": 11,
+            "p90": 1179,
+            "values": [
+              2,
+              1036,
+              1047,
+              1080,
+              929,
+              836,
+              1179,
+              902,
+              929,
+              1006,
+              1249
+            ],
+            "max": 1249,
+            "min": 2
+          },
+          "e2e": {
+            "p90": 1758.00146484375,
+            "num": 6,
+            "p99": 1803.002783203125,
+            "min": 1205,
+            "max": 1808.0029296875,
+            "values": [
+              1708,
+              1363.9990234375,
+              1609,
+              1359,
+              1205,
+              1808.0029296875
+            ],
+            "p50": 1486.49951171875,
+            "p95": 1783.002197265625,
+            "sum": 9053.001953125
+          },
+          "tts": {
+            "p99": 206.82,
+            "max": 207,
+            "p90": 205.2,
+            "values": [
+              204,
+              163,
+              207,
+              181,
+              169,
+              181,
+              170
+            ],
+            "min": 163,
+            "p50": 181,
+            "p95": 206.1,
+            "num": 7,
+            "sum": 1275
+          },
+          "asr": {
+            "p99": 337,
+            "values": [
+              0,
+              211,
+              231,
+              242,
+              0,
+              342
+            ],
+            "num": 6,
+            "sum": 1026,
+            "p90": 292,
+            "min": 0,
+            "p50": 221,
+            "max": 342,
+            "p95": 317
+          }
+        },
+        "metadata": {
+          "test": true,
+          "source": "spike-outbound"
+        },
+        "call_cost": {
+          "product_costs": [
+            {
+              "cost": 5.5916687,
+              "product": "retell_voice_engine",
+              "unit_price": 0.0916667
+            },
+            {
+              "product": "elevenlabs_tts_03_2026",
+              "unit_price": 0.0666667,
+              "cost": 4.0666687
+            },
+            {
+              "cost": 0.8133313,
+              "unit_price": 0.0133333,
+              "product": "gpt_5_mini"
+            },
+            {
+              "product": "us_twilio_telephony",
+              "unit_price": 0.025,
+              "cost": 1.525
+            },
+            {
+              "product": "gpt_5_6_terra_text_testing",
+              "unit_price": 2.08,
+              "cost": 2.08
+            }
+          ],
+          "total_duration_unit_price": 0.1966667,
+          "total_duration_seconds": 61,
+          "combined_cost": 14.0766687
+        },
+        "call_analysis": {
+          "call_successful": true,
+          "call_summary": "The agent contacted Family Dental Clinic and gathered information about hours, parking, new-patient acceptance, cleaning pricing, emergency handling, and insurance. The clinic said it is closed Saturdays, has limited on-site and nearby street parking, accepts new patients and insurance, offers same-day emergency appointments when available, and will provide cleaning pricing by callback.",
+          "user_sentiment": "Neutral",
+          "in_voicemail": false,
+          "custom_analysis_data": {}
+        },
+        "data_storage_setting": "everything",
+        "opt_in_signed_url": true,
+        "llm_token_usage": {
+          "values": [
+            217,
+            236,
+            258,
+            264,
+            299,
+            315,
+            343,
+            298,
+            355,
+            400,
+            345,
+            395,
+            449
+          ],
+          "average": 321.0769230769231,
+          "num_requests": 13
+        },
+        "tool_calls": [],
+        "from_number": "+19377293562",
+        "to_number": "+16204459730",
+        "direction": "outbound",
+        "telephony_identifier": {
+          "twilio_call_sid": "CA[redacted]"
+        },
+        "pcap_url": "https://d1d33audaiiiuu.cloudfront.net/b7cc3fc124af9cf574d2cc5d1dd87690da5c5166fca0a6adff0e3225ed130ac4/call_6331e75815b65070570058f827a.pcap?Expires=1789536972&Key-Pair-Id=K3ETYG3FHFNIMP&Signature=LNpq1rlxamjPyZ3LPJju35awXkrOoKTR7J2Ov48hLAMGuyeFVp2SSnjM23reHDyobXPzl82OVX9--y~8NXPAib0aQu0sWj628Iv7rwP3wZ8VIUfRpEbQrzqaiZaW8gWEHTYe6pWKjmXJFBKJw-JVvCayUYWUuuopsK9LEStokN-j8UhrZJhrVhnqgSsSUAjZTvTNvkOpK278r4HcmOz~GLHtxdCqJ-a3Ho0VYfsQeOTPb6Q8-Rhgn04WqTYVWH-w-GATVJH0p4atvVZtvcVXAUWv3JcoWIW1XEGjfljSvpAmfZfkyhcivSqJEOeQxBnjBMwwE-h8ezpbp2Pdz-We4w__"
+      },
+      {
+        "call_id": "call_1d3267c6d47427b466beb1d1d1e",
+        "call_type": "phone_call",
+        "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+        "agent_version": 1,
+        "agent_name": "dev-spike-receptionist",
+        "retell_llm_dynamic_variables": {
+          "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+          "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+          "business_name": "Maple Dental Override",
+          "agent_name": "Maya",
+          "twilio-accountsid": "AC[redacted]",
+          "twilio-callsid": "CA[redacted]",
+          "twilio-verstat": "TN-Validation-Passed-B"
+        },
+        "contact_dynamic_variables": {},
+        "custom_sip_headers": {
+          "x-twilio-accountsid": "AC[redacted]",
+          "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+          "x-twilio-callsid": "CA[redacted]",
+          "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+          "x-twilio-verstat": "TN-Validation-Passed-B"
+        },
+        "call_status": "ended",
+        "start_timestamp": 1789450314512,
+        "end_timestamp": 1789450374516,
+        "duration_ms": 60004,
+        "recording_url": "[redacted-signed-url]",
+        "recording_multi_channel_url": "[redacted-signed-url]",
+        "public_log_url": "[redacted-signed-url]",
+        "disconnection_reason": "max_duration_reached",
+        "latency": {
+          "llm": {
+            "p95": 1266.3,
+            "num": 7,
+            "sum": 6555,
+            "max": 1284,
+            "p90": 1248.6,
+            "min": 8,
+            "values": [
+              8,
+              928,
+              963,
+              1006,
+              1141,
+              1284,
+              1225
+            ],
+            "p50": 1006,
+            "p99": 1280.46
+          },
+          "e2e": {
+            "num": 6,
+            "values": [
+              2068.000244140625,
+              1448,
+              1373,
+              1383,
+              1742,
+              1499.0029296875
+            ],
+            "p95": 1986.5001831054688,
+            "min": 1373,
+            "sum": 9513.003173828125,
+            "p99": 2051.700231933594,
+            "p90": 1905.0001220703125,
+            "max": 2068.000244140625,
+            "p50": 1473.50146484375
+          },
+          "tts": {
+            "p50": 148,
+            "max": 215,
+            "sum": 1103,
+            "num": 7,
+            "values": [
+              215,
+              148,
+              143,
+              149,
+              148,
+              153,
+              147
+            ],
+            "p99": 211.27999999999997,
+            "min": 143,
+            "p90": 177.8,
+            "p95": 196.39999999999995
+          },
+          "asr": {
+            "p99": 955.3500000000001,
+            "p95": 820.75,
+            "values": [
+              989,
+              316,
+              208,
+              94,
+              312,
+              121
+            ],
+            "min": 94,
+            "max": 989,
+            "p90": 652.5,
+            "sum": 2040,
+            "p50": 260,
+            "num": 6
+          }
+        },
+        "metadata": {
+          "tenant_id": "ws_spike",
+          "number_id": "num_spike",
+          "tier": "standard"
+        },
+        "call_cost": {
+          "combined_cost": 14.0766687,
+          "total_duration_unit_price": 0.1966667,
+          "product_costs": [
+            {
+              "cost": 5.5916687,
+              "product": "retell_voice_engine",
+              "unit_price": 0.0916667
+            },
+            {
+              "unit_price": 0.0666667,
+              "product": "elevenlabs_tts_03_2026",
+              "cost": 4.0666687
+            },
+            {
+              "cost": 0.8133313,
+              "unit_price": 0.0133333,
+              "product": "gpt_5_mini"
+            },
+            {
+              "cost": 1.525,
+              "unit_price": 0.025,
+              "product": "us_twilio_telephony"
+            },
+            {
+              "cost": 2.08,
+              "product": "gpt_5_6_terra_text_testing",
+              "unit_price": 2.08
+            }
+          ],
+          "total_duration_seconds": 61
+        },
+        "call_analysis": {
+          "call_summary": "Caller asked several general questions about Saturday hours, parking, new-patient acceptance, routine cleaning costs, emergency handling, and insurance. The call ended before the insurance question was answered; the caller did not provide a name or request an appointment.",
+          "in_voicemail": false,
+          "custom_analysis_data": {
+            "party_size": 0,
+            "callback_requested": false,
+            "call_reason": "question",
+            "caller_name": ""
+          },
+          "call_successful": false,
+          "user_sentiment": "Neutral"
+        },
+        "data_storage_setting": "everything",
+        "opt_in_signed_url": true,
+        "llm_token_usage": {
+          "values": [
+            392,
+            399,
+            404,
+            404,
+            447,
+            502,
+            549,
+            592,
+            577,
+            635,
+            680
+          ],
+          "average": 507.3636363636364,
+          "num_requests": 11
+        },
+        "tool_calls": [],
+        "from_number": "+19377293562",
+        "to_number": "+16204459730",
+        "direction": "inbound",
+        "telephony_identifier": {
+          "twilio_call_sid": "CA[redacted]"
+        }
+      },
+      {
+        "call_id": "call_38feddb0db23f2d5d5146a49f71",
+        "call_type": "phone_call",
+        "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+        "agent_version": 0,
+        "agent_name": "dev-spike-caller",
+        "custom_sip_headers": {},
+        "call_status": "ended",
+        "start_timestamp": 1789450194032,
+        "end_timestamp": 1789450269035,
+        "duration_ms": 75003,
+        "recording_url": "[redacted-signed-url]",
+        "recording_multi_channel_url": "[redacted-signed-url]",
+        "public_log_url": "[redacted-signed-url]",
+        "disconnection_reason": "max_duration_reached",
+        "latency": {
+          "llm": {
+            "p95": 1808.1999999999998,
+            "min": 2,
+            "num": 13,
+            "p90": 1683.0000000000002,
+            "p99": 1891.2399999999998,
+            "sum": 14640,
+            "max": 1912,
+            "values": [
+              2,
+              940,
+              1274,
+              1047,
+              1053,
+              1912,
+              849,
+              1046,
+              1074,
+              1160,
+              1739,
+              1459,
+              1085
+            ],
+            "p50": 1074
+          },
+          "e2e": {
+            "sum": 11279,
+            "p99": 2307,
+            "min": 1407,
+            "p90": 2253,
+            "p50": 1965.5,
+            "p95": 2283,
+            "max": 2313,
+            "num": 6,
+            "values": [
+              2161,
+              2313,
+              1407,
+              2193,
+              1770,
+              1435
+            ]
+          },
+          "tts": {
+            "sum": 1269,
+            "p90": 202.4,
+            "p50": 170,
+            "values": [
+              218,
+              167,
+              169,
+              168,
+              170,
+              185,
+              192
+            ],
+            "min": 167,
+            "num": 7,
+            "max": 218,
+            "p99": 216.44,
+            "p95": 210.2
+          },
+          "asr": {
+            "sum": 1028,
+            "values": [
+              221,
+              206,
+              164,
+              269,
+              109,
+              59
+            ],
+            "p95": 257,
+            "min": 59,
+            "p90": 245,
+            "p99": 266.6,
+            "max": 269,
+            "p50": 185,
+            "num": 6
+          }
+        },
+        "metadata": {
+          "source": "spike-outbound",
+          "test": true
+        },
+        "call_cost": {
+          "product_costs": [
+            {
+              "cost": 6.9666692,
+              "product": "retell_voice_engine",
+              "unit_price": 0.0916667
+            },
+            {
+              "unit_price": 0.0666667,
+              "product": "elevenlabs_tts_03_2026",
+              "cost": 5.0666692
+            },
+            {
+              "unit_price": 0.0133333,
+              "cost": 1.0133308,
+              "product": "gpt_5_mini"
+            },
+            {
+              "unit_price": 0.025,
+              "product": "us_twilio_telephony",
+              "cost": 1.9
+            },
+            {
+              "unit_price": 2.08,
+              "cost": 2.08,
+              "product": "gpt_5_6_terra_text_testing"
+            }
+          ],
+          "total_duration_seconds": 76,
+          "total_duration_unit_price": 0.1966667,
+          "combined_cost": 17.0266692
+        },
+        "call_analysis": {
+          "custom_analysis_data": {},
+          "call_successful": false,
+          "user_sentiment": "Neutral",
+          "call_summary": "The agent called Maple Dental to ask about new-patient availability, hours, parking, cleaning costs, and emergency/same-day appointments. The office confirmed they accept new patients, have weekday daytime hours only, limited parking, cleaning fees typically around $80–$200, and began confirming emergency services before the call timed out.",
+          "in_voicemail": false
+        },
+        "data_storage_setting": "everything",
+        "opt_in_signed_url": true,
+        "llm_token_usage": {
+          "values": [
+            216,
+            208,
+            206,
+            247,
+            253,
+            266,
+            274,
+            314,
+            322,
+            360,
+            364,
+            374,
+            437,
+            432,
+            494
+          ],
+          "average": 317.8,
+          "num_requests": 15
+        },
+        "tool_calls": [],
+        "from_number": "+19377293562",
+        "to_number": "+16204459730",
+        "direction": "outbound",
+        "telephony_identifier": {
+          "twilio_call_sid": "CA[redacted]"
+        },
+        "pcap_url": "https://d1d33audaiiiuu.cloudfront.net/ab70a3a151cf15ca9b234ef7b269b8c51688b5005671a85154f00fbd10d587bb/call_38feddb0db23f2d5d5146a49f71.pcap?Expires=1789536972&Key-Pair-Id=K3ETYG3FHFNIMP&Signature=q6zkP-V-SFRIQa6woTiYH--4TZ5RC2yxXdmN5AOHAqY6L2r531e5BcvWdWr9GP9MVJ1lgxbk8SStd9sDO75q7MoYzq4pTg~s3WNFuHVB-Jf1jBFnqgaBLXKAfGyFtTXZsXYIlRwufgrqIGjjrxBUOPpPSx3~HLLIwrWCCHzzMXVgqgAAk-HRPigpFHDHbEgGTBRw9OJ0xmbbaX-gIT2frt36R3DOMgXQ-eRPOevhpexgPK-ZMNcNwBDZxNgHuxAtuagJXlpSsXXqqONnIUdtmhIRZWhMXgs5TZqQOcCthWP1AbmXoIScaHnmS5pjxnPWg7hyq041Ovsd15sDkltHjA__"
+      },
+      {
+        "call_id": "call_016c7be0a88e114a05437321e03",
+        "call_type": "phone_call",
+        "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+        "agent_version": 1,
+        "agent_name": "dev-spike-receptionist",
+        "retell_llm_dynamic_variables": {
+          "twilio-accountsid": "AC[redacted]",
+          "twilio-callsid": "CA[redacted]",
+          "twilio-verstat": "TN-Validation-Passed-B",
+          "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+          "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>"
+        },
+        "custom_sip_headers": {
+          "x-twilio-accountsid": "AC[redacted]",
+          "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+          "x-twilio-callsid": "CA[redacted]",
+          "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+          "x-twilio-verstat": "TN-Validation-Passed-B"
+        },
+        "call_status": "ended",
+        "start_timestamp": 1789450193999,
+        "end_timestamp": 1789450269548,
+        "duration_ms": 75549,
+        "recording_url": "[redacted-signed-url]",
+        "recording_multi_channel_url": "[redacted-signed-url]",
+        "public_log_url": "[redacted-signed-url]",
+        "disconnection_reason": "user_hangup",
+        "latency": {
+          "llm": {
+            "p90": 1640.2,
+            "sum": 7545,
+            "num": 7,
+            "p99": 1801.12,
+            "min": 5,
+            "values": [
+              5,
+              828,
+              1138,
+              1206,
+              1521,
+              1819,
+              1028
+            ],
+            "p50": 1138,
+            "p95": 1729.6,
+            "max": 1819
+          },
+          "e2e": {
+            "sum": 10147,
+            "p50": 1515,
+            "p95": 2175,
+            "values": [
+              1479,
+              1478,
+              1551,
+              2007,
+              2231,
+              1401
+            ],
+            "p90": 2119,
+            "min": 1401,
+            "num": 6,
+            "p99": 2219.8,
+            "max": 2231
+          },
+          "tts": {
+            "max": 215,
+            "p99": 210.91999999999996,
+            "p50": 147,
+            "min": 136,
+            "values": [
+              215,
+              147,
+              146,
+              147,
+              147,
+              136,
+              144
+            ],
+            "p90": 174.20000000000002,
+            "sum": 1082,
+            "num": 7,
+            "p95": 194.59999999999997
+          },
+          "asr": {
+            "p90": 412,
+            "p95": 450,
+            "sum": 1672,
+            "values": [
+              488,
+              179,
+              185,
+              336,
+              262,
+              222
+            ],
+            "num": 6,
+            "min": 179,
+            "p99": 480.40000000000003,
+            "max": 488,
+            "p50": 242
+          }
+        },
+        "call_cost": {
+          "combined_cost": 17.0266692,
+          "product_costs": [
+            {
+              "product": "retell_voice_engine",
+              "cost": 6.9666692,
+              "unit_price": 0.0916667
+            },
+            {
+              "product": "elevenlabs_tts_03_2026",
+              "unit_price": 0.0666667,
+              "cost": 5.0666692
+            },
+            {
+              "cost": 1.0133308,
+              "product": "gpt_5_mini",
+              "unit_price": 0.0133333
+            },
+            {
+              "unit_price": 0.025,
+              "product": "us_twilio_telephony",
+              "cost": 1.9
+            },
+            {
+              "unit_price": 2.08,
+              "product": "gpt_5_6_terra_text_testing",
+              "cost": 2.08
+            }
+          ],
+          "total_duration_seconds": 76,
+          "total_duration_unit_price": 0.1966667
+        },
+        "call_analysis": {
+          "custom_analysis_data": {
+            "caller_name": "",
+            "call_reason": "question",
+            "callback_requested": false,
+            "party_size": 0
+          },
+          "call_successful": false,
+          "in_voicemail": false,
+          "user_sentiment": "Positive",
+          "call_summary": "Caller asked whether Maple Dental accepts new patients, its hours, parking, standard cleaning costs, and emergency/same-day availability. The call ended while the agent was answering the emergency appointment question; no appointment was booked."
+        },
+        "data_storage_setting": "everything",
+        "opt_in_signed_url": true,
+        "llm_token_usage": {
+          "values": [
+            404,
+            434,
+            485,
+            543,
+            550,
+            602,
+            660,
+            718
+          ],
+          "average": 549.5,
+          "num_requests": 8
+        },
+        "tool_calls": [],
+        "from_number": "+19377293562",
+        "to_number": "+16204459730",
+        "direction": "inbound",
+        "telephony_identifier": {
+          "twilio_call_sid": "CA[redacted]"
+        }
+      }
+    ],
+    "has_more": false
+  }
+}

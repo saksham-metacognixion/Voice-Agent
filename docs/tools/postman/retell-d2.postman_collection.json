@@ -1,0 +1,1163 @@
+{
+  "info": {
+    "_postman_id": "3371bd51-2960-4ada-a816-3b6fdaf49d51",
+    "name": "Voice Agent - Retell D2 verification",
+    "description": "Folder A hits our API on :4000. Folder B hits Retell directly, so you can see what RetellGateway wraps.\n\nSetup: import the environment file next to this one, select it, and paste your Retell API key into retell_api_key (the only blank). Check public_url matches the running ngrok URL.\n\nEvery request's Docs tab says what it proves. The findings are written up in docs/decisions/0003-retell-findings.md, with the captured payloads in backend/api/test/fixtures/retell/.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "A. Our API (localhost:4000)",
+      "item": [
+        {
+          "name": "1. Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/health",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness. Run this first - everything below assumes the API is up on :4000."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('up', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Mint web-call token (dev only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/dev/retell/web-call",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "dev",
+                "retell",
+                "web-call"
+              ]
+            },
+            "description": "Goes through RetellGateway.createWebCall. Proves our API can reach Retell and returns access_token, call_id, transport, ice_servers.\n\nPostman cannot carry audio. For the actual call open http://localhost:3000/dev/test-call, paste the agent id, press Start, allow the mic.\n\nRoute is 404 unless APP_ENV=dev.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_id\": \"{{agent_id}}\",\n  \"agent_version\": 0,\n  \"max_call_duration_ms\": 60000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('token minted', () => {",
+                  "  const j = pm.response.json();",
+                  "  pm.expect(j.access_token).to.be.a('string');",
+                  "  pm.expect(j.transport).to.eql('gateway');",
+                  "  pm.environment.set('call_id', j.call_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Inbound webhook - allow {}",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}?mode=allow",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "allow"
+                }
+              ]
+            },
+            "description": "Simulates Retell's call_inbound authorisation webhook. Expect 200 with {} (or whatever RETELL_INBOUND_RESPONSE_JSON holds).\n\nA fixture appears in backend/api/test/fixtures/retell/ with signature_valid true, because the pre-request script signs the body exactly as Retell does.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_inbound\",\n  \"event_timestamp\": 1789450192487,\n  \"call_inbound\": {\n    \"call_id\": \"call_postman_1\",\n    \"agent_id\": \"{{agent_id}}\",\n    \"agent_version\": 0,\n    \"from_number\": \"+15550000001\",\n    \"to_number\": \"{{phone_number}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell signs: v=<ms>,d=hex(HMAC-SHA256(rawBody + ms, API key)) - same thing our gateway verifies.",
+                  "const ts = Date.now();",
+                  "const raw = pm.request.body ? pm.request.body.raw : '';",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, pm.environment.get('retell_api_key')).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-retell-signature', value: 'v=' + ts + ',d=' + digest });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 allow', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Inbound webhook - allow with override",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}?mode=allow&response={{inbound_response_b64}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "allow"
+                },
+                {
+                  "key": "response",
+                  "value": "{{inbound_response_b64}}"
+                }
+              ]
+            },
+            "description": "Same request, but the allow body is carried in the URL as base64url JSON. The pre-request script builds inbound_response_b64 from inbound_response_json for you.\n\nExpect the override echoed back: override_agent_id, dynamic_variables, metadata and agent_override.agent.max_call_duration_ms. This is the shape sec 13.9 will return in production.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_inbound\",\n  \"event_timestamp\": 1789450192487,\n  \"call_inbound\": {\n    \"call_id\": \"call_postman_2\",\n    \"agent_id\": \"{{agent_id}}\",\n    \"agent_version\": 0,\n    \"from_number\": \"+15550000001\",\n    \"to_number\": \"{{phone_number}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('inbound_response_b64',",
+                  "  CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(pm.environment.get('inbound_response_json')))",
+                  "    .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, ''));",
+                  "// Retell signs: v=<ms>,d=hex(HMAC-SHA256(rawBody + ms, API key)) - same thing our gateway verifies.",
+                  "const ts = Date.now();",
+                  "const raw = pm.request.body ? pm.request.body.raw : '';",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, pm.environment.get('retell_api_key')).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-retell-signature', value: 'v=' + ts + ',d=' + digest });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('override echoed', () =>",
+                  "  pm.expect(pm.response.json().call_inbound.agent_override.agent.max_call_duration_ms).to.eql(60000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Inbound webhook - decline (reject:true)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}?mode=decline_reject",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "decline_reject"
+                }
+              ]
+            },
+            "description": "The ONLY real decline (ADR 0003 sec 1). Expect 200 with {\"call_inbound\":{\"reject\":true}}.\n\nAgainst real Retell: caller hears busy, no call object is created, cost is zero.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_inbound\",\n  \"event_timestamp\": 1789450192487,\n  \"call_inbound\": {\n    \"call_id\": \"call_postman_3\",\n    \"agent_id\": \"{{agent_id}}\",\n    \"agent_version\": 0,\n    \"from_number\": \"+15550000001\",\n    \"to_number\": \"{{phone_number}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell signs: v=<ms>,d=hex(HMAC-SHA256(rawBody + ms, API key)) - same thing our gateway verifies.",
+                  "const ts = Date.now();",
+                  "const raw = pm.request.body ? pm.request.body.raw : '';",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, pm.environment.get('retell_api_key')).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-retell-signature', value: 'v=' + ts + ',d=' + digest });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('reject', () => pm.expect(pm.response.json().call_inbound.reject).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Inbound webhook - 403 (NOT a decline)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}?mode=decline_403",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ],
+              "query": [
+                {
+                  "key": "mode",
+                  "value": "decline_403"
+                }
+              ]
+            },
+            "description": "Expect 403, empty body.\n\nAgainst real Retell this is not a decline at all: it retries 3x about 0.8 s apart and then answers with the number's bound agent. Change mode to decline_500 (same behaviour) or decline_timeout (holds 15 s; Retell gives up at 10 s and the caller rings out).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_inbound\",\n  \"event_timestamp\": 1789450192487,\n  \"call_inbound\": {\n    \"call_id\": \"call_postman_4\",\n    \"agent_id\": \"{{agent_id}}\",\n    \"agent_version\": 0,\n    \"from_number\": \"+15550000001\",\n    \"to_number\": \"{{phone_number}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell signs: v=<ms>,d=hex(HMAC-SHA256(rawBody + ms, API key)) - same thing our gateway verifies.",
+                  "const ts = Date.now();",
+                  "const raw = pm.request.body ? pm.request.body.raw : '';",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, pm.environment.get('retell_api_key')).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-retell-signature', value: 'v=' + ts + ',d=' + digest });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Agent webhook - replay a real call_ended (signed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "A real captured call_ended, trimmed to the fields metering reads, re-signed with a fresh valid signature.\n\nToday: 200 {received:true} and a new fixture with signature_valid true.\n\nSend it TWICE. Both are accepted today. From D3 the second must return 204 - this request is the exactly-once regression test.\n\nNote in the body: duration comes from end_timestamp - start_timestamp (ms), call_cost is in CENTS as floats, and metadata carries tenant_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_ended\",\n  \"call\": {\n    \"call_id\": \"call_1d3267c6d47427b466beb1d1d1e\",\n    \"call_type\": \"phone_call\",\n    \"agent_id\": \"agent_c72a20039d1559e8c6e345c03c\",\n    \"agent_version\": 1,\n    \"call_status\": \"ended\",\n    \"direction\": \"inbound\",\n    \"from_number\": \"+19377293562\",\n    \"to_number\": \"+16204459730\",\n    \"start_timestamp\": 1789450314512,\n    \"end_timestamp\": 1789450374516,\n    \"duration_ms\": 60004,\n    \"disconnection_reason\": \"max_duration_reached\",\n    \"metadata\": {\n      \"tenant_id\": \"ws_spike\",\n      \"number_id\": \"num_spike\",\n      \"tier\": \"standard\"\n    },\n    \"retell_llm_dynamic_variables\": {\n      \"diversion\": \"<sip:+16204459730@twilio.com>;reason=unconditional\",\n      \"p-asserted-identity\": \"<sip:+19377293562@sip.retellai.com>\",\n      \"twilio-accountsid\": \"AC[redacted]\",\n      \"twilio-callsid\": \"CA[redacted]\",\n      \"twilio-verstat\": \"TN-Validation-Passed-B\",\n      \"business_name\": \"Maple Dental Override\",\n      \"agent_name\": \"Maya\"\n    },\n    \"call_cost\": {\n      \"product_costs\": [\n        {\n          \"product\": \"retell_voice_engine\",\n          \"unit_price\": 0.0916667,\n          \"cost\": 5.5916687\n        },\n        {\n          \"product\": \"elevenlabs_tts_03_2026\",\n          \"unit_price\": 0.0666667,\n          \"cost\": 4.0666687\n        },\n        {\n          \"product\": \"gpt_5_mini\",\n          \"unit_price\": 0.0133333,\n          \"cost\": 0.8133313\n        },\n        {\n          \"product\": \"us_twilio_telephony\",\n          \"unit_price\": 0.025,\n          \"cost\": 1.525\n        },\n        {\n          \"product\": \"gpt_5_6_terra_text_testing\",\n          \"unit_price\": 2.08,\n          \"cost\": 2.08\n        }\n      ],\n      \"total_duration_seconds\": 61,\n      \"total_duration_unit_price\": 0.1966667,\n      \"combined_cost\": 14.0766687\n    },\n    \"transcript\": \"Agent: Thank \\nUser: Hi there. Is Do you open on Saturdays? \\nUser: Saturdays? \\nUser: Saturdays? \\nAgent: Hello! We\\u2019re a family dental clinic in Toronto. We\\u2019re open Monday\\u2013Friday 9am\\u20135pm, closed Saturdays. May I have your name?\\nUser: Thanks. Are there parking facilities or nearby parking options? \\nAgent: Hello! We have limited on-site parking and street parking nearby; for details please provide your name and I\\u2019ll note to call you back.\\nUser: Thanks. Do you accept new patients? \\nAgent: Hello! Yes, we accept new patients. May I have your name to book or schedule a callback?\\nUser: Thanks. What do you charge for a routine cleaning? \\nAgent: Hello! Routine cleaning fees vary; our office will call you back with exact pricing. May I have your name?\\nUser: Thanks. How do you handle dental emergencies? \\nAgent: Hello! For dental emergencies we provide same-day appointments when available; otherwise the office will call you back. May I have your name?\\nUser: Thanks. Do you accept insurance? \\n\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell signs: v=<ms>,d=hex(HMAC-SHA256(rawBody + ms, API key)) - same thing our gateway verifies.",
+                  "const ts = Date.now();",
+                  "const raw = pm.request.body ? pm.request.body.raw : '';",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, pm.environment.get('retell_api_key')).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-retell-signature', value: 'v=' + ts + ',d=' + digest });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('received', () => pm.expect(pm.response.json().received).to.eql(true));",
+                  "const c = JSON.parse(pm.request.body.raw).call;",
+                  "pm.test('duration matches the sec 14.2 rule', () =>",
+                  "  pm.expect((c.end_timestamp - c.start_timestamp) / 1000).to.eql(c.duration_ms / 1000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. Agent webhook - unsigned (recorded invalid)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "No x-retell-signature header (no pre-request script on this one).\n\nToday: 200, and the fixture records signature_valid false. From D3/D4 this must become 401 - the other half of the enforcement regression test.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_started\",\n  \"call\": {\n    \"call_id\": \"call_postman_unsigned\",\n    \"call_type\": \"phone_call\",\n    \"direction\": \"inbound\",\n    \"agent_id\": \"{{agent_id}}\",\n    \"call_status\": \"ongoing\",\n    \"start_timestamp\": 1789450193999\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "B. Retell direct - what the gateway wraps",
+      "item": [
+        {
+          "name": "1. list-voices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/list-voices",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "list-voices"
+              ]
+            },
+            "description": "The W3 catalogue: 301 voices. Each carries preview_audio_url - that clip IS the voice preview; Retell has no text-to-speech preview endpoint (ADR 0003 sec 9)."
+          },
+          "response": []
+        },
+        {
+          "name": "2. get-concurrency",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/get-concurrency",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "get-concurrency"
+              ]
+            },
+            "description": "Workspace call pool: base 20, purchasable to 200. Inbound, outbound and browser calls all draw from it (ADR 0003 sec 10)."
+          },
+          "response": []
+        },
+        {
+          "name": "3. create-retell-llm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/create-retell-llm",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "create-retell-llm"
+              ]
+            },
+            "description": "Step 1 of an agent: the prompt and model live on the LLM object. Saves llm_id to the environment.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"gpt-5-mini\",\n  \"general_prompt\": \"You are the receptionist for Maple Dental, a family dental clinic in Toronto. Hours are Monday to Friday, 9am to 5pm. Keep every reply under 25 words.\",\n  \"begin_message\": \"Thanks for calling {{business_name}}, how can I help?\",\n  \"start_speaker\": \"agent\",\n  \"default_dynamic_variables\": {\n    \"business_name\": \"Maple Dental\",\n    \"agent_name\": \"Maya\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.llm_id) pm.environment.set('llm_id', j.llm_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. create-agent (draft v0)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/create-agent",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "create-agent"
+              ]
+            },
+            "description": "Returns version 0, is_published false.\n\nTwo things to notice: language is an ARRAY of locales (ADR 0003 sec 6), and all four sec 9.8 analysis types are accepted (sec 11).\n\nwebhook_url must be your live ngrok URL or no events will ever arrive. Saves agent_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_name\": \"dev-postman-receptionist\",\n  \"response_engine\": {\n    \"type\": \"retell-llm\",\n    \"llm_id\": \"{{llm_id}}\"\n  },\n  \"voice_id\": \"11labs-Adrian\",\n  \"voice_model\": \"eleven_flash_v2_5\",\n  \"language\": [\n    \"en-US\",\n    \"fr-CA\"\n  ],\n  \"max_call_duration_ms\": 600000,\n  \"webhook_url\": \"{{public_url}}/webhooks/retell\",\n  \"webhook_events\": [\n    \"call_started\",\n    \"call_ended\",\n    \"call_analyzed\"\n  ],\n  \"post_call_analysis_data\": [\n    {\n      \"type\": \"string\",\n      \"name\": \"caller_name\",\n      \"description\": \"The caller's name if given.\"\n    },\n    {\n      \"type\": \"enum\",\n      \"name\": \"call_reason\",\n      \"description\": \"Why they called.\",\n      \"choices\": [\n        \"appointment\",\n        \"question\",\n        \"other\"\n      ]\n    },\n    {\n      \"type\": \"boolean\",\n      \"name\": \"callback_requested\",\n      \"description\": \"True if they asked to be called back.\"\n    },\n    {\n      \"type\": \"number\",\n      \"name\": \"party_size\",\n      \"description\": \"People in the booking, if stated.\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.agent_id) {",
+                  "  pm.environment.set('agent_id', j.agent_id);",
+                  "  pm.environment.set('agent_version', j.version);",
+                  "}",
+                  "pm.test('starts as an unpublished draft', () => pm.expect(j.is_published).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. publish-agent-version",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/publish-agent-version/{{agent_id}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "publish-agent-version",
+                "{{agent_id}}"
+              ]
+            },
+            "description": "Expect 200 with an EMPTY body. That empty body is why RetellGateway.publishAgent() bypasses the SDK's agent.publish(), which throws trying to parse it (ADR 0003 sec 7).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 0,\n  \"version_title\": \"postman v0\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('published', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. get-agent (latest)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/get-agent/{{agent_id}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "get-agent",
+                "{{agent_id}}"
+              ]
+            },
+            "description": "is_published is now true. Add ?version=0 to read one specific version and prove old versions never change."
+          },
+          "response": []
+        },
+        {
+          "name": "7. update-agent while published -> 422",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/update-agent/{{agent_id}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "update-agent",
+                "{{agent_id}}"
+              ]
+            },
+            "description": "Expect 422 'Cannot update published agent other than version title'.\n\nThis is the immutability finding: a published Retell version cannot be edited, which is why publishing is a real boundary and not a flag.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"max_call_duration_ms\": 540000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('immutable', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. create-agent-version (open draft v1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/create-agent-version/{{agent_id}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "create-agent-version",
+                "{{agent_id}}"
+              ]
+            },
+            "description": "Opens draft v1 from v0. This is the first step of every edit, and of every rollback (branch from the old version, then publish).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"base_version\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "9. update-agent on the draft -> 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/update-agent/{{agent_id}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "update-agent",
+                "{{agent_id}}"
+              ]
+            },
+            "description": "Now it works, and it edits v1 only. Re-run get-agent?version=0 afterwards: still 600000.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"max_call_duration_ms\": 540000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10. list-agent-versions",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/list-agent-versions/{{agent_id}}?sort_order=descending",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "list-agent-versions",
+                "{{agent_id}}"
+              ],
+              "query": [
+                {
+                  "key": "sort_order",
+                  "value": "descending"
+                }
+              ]
+            },
+            "description": "Shape is {items:[...], has_more} - not a bare array. Each entry carries is_published, base_version, assigned_tags and custom_analysis_fields."
+          },
+          "response": []
+        },
+        {
+          "name": "11. create-web-call (explicit version)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/v2/create-web-call",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "v2",
+                "create-web-call"
+              ]
+            },
+            "description": "The raw form of folder A request 2 - compare the responses.\n\nagent_version is explicit on purpose: this is the ONLY door to an unpublished draft (sec 9.9). Note transport 'gateway' and ice_servers; the browser SDK fails with 'invalid API key' if you don't pass them through.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_id\": \"{{agent_id}}\",\n  \"agent_version\": 0,\n  \"metadata\": {\n    \"test\": true,\n    \"source\": \"postman\"\n  },\n  \"agent_override\": {\n    \"agent\": {\n      \"max_call_duration_ms\": 60000\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.call_id) pm.environment.set('call_id', j.call_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. list-phone-numbers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/list-phone-numbers",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "list-phone-numbers"
+              ]
+            },
+            "description": "See the spike number, its inbound_agents (pinned to latest_published) and its inbound_webhook_url with the ?mode= you last set."
+          },
+          "response": []
+        },
+        {
+          "name": "13. update-phone-number - switch inbound mode",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/update-phone-number/{{phone_number}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "update-phone-number",
+                "{{phone_number}}"
+              ]
+            },
+            "description": "THE REAL-WORLD TEST. Set mode to decline_reject, send, then call {{phone_number}} from your own phone: you hear busy. Set it to decline_500 and call again: two seconds of silence, then the agent answers anyway. Set it back to allow: normal call.\n\nKeep agent_version 'latest_published'. Drop it and the number runs 'latest', drafts included - that is the bug the spike caught (ADR 0003 sec 7).\n\nAlso re-run this whenever ngrok restarts, so public_url points at the live tunnel.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"inbound_webhook_url\": \"{{public_url}}/webhooks/retell/inbound/{{number_token}}?mode=allow\",\n  \"inbound_agents\": [\n    {\n      \"agent_id\": \"{{agent_id}}\",\n      \"weight\": 1,\n      \"agent_version\": \"latest_published\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "14. create-phone-number - COSTS $2/month",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/create-phone-number",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "create-phone-number"
+              ]
+            },
+            "description": "Only if you need a second number - the spike number already exists and is in the environment. Delete with DELETE /delete-phone-number/{e164}.\n\nA Twilio number cannot call itself, so testing inbound without a phone needs two numbers.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"country_code\": \"US\",\n  \"nickname\": \"dev-postman\",\n  \"inbound_agents\": [\n    {\n      \"agent_id\": \"{{agent_id}}\",\n      \"weight\": 1,\n      \"agent_version\": \"latest_published\"\n    }\n  ],\n  \"inbound_webhook_url\": \"{{public_url}}/webhooks/retell/inbound/{{number_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "15. get-call",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/v2/get-call/{{call_id}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "v2",
+                "get-call",
+                "{{call_id}}"
+              ]
+            },
+            "description": "Run after any call. This is exactly what D3's metering consumes:\n\n- start_timestamp / end_timestamp in ms -> duration_s\n- disconnection_reason - dial_busy, dial_no_answer and dial_failed charge 0\n- call_cost in CENTS (floats), with per-product breakdown\n- call_analysis.custom_analysis_data - absent values come back as \"\", 0 or false, never null"
+          },
+          "response": []
+        },
+        {
+          "name": "16. list-calls (reconciliation)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/v2/list-calls",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "v2",
+                "list-calls"
+              ]
+            },
+            "description": "The nightly reconciliation view (sec 14.2). Shape is {items, has_more}.\n\nTo window it add: \"filter_criteria\": {\"start_timestamp\": {\"op\":\"bt\",\"type\":\"range\",\"value\":[<from_ms>,<to_ms>]}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sort_order\": \"descending\",\n  \"limit\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "17. create-knowledge-base",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/create-knowledge-base",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "create-knowledge-base"
+              ]
+            },
+            "description": "Returns status in_progress. Ingestion is asynchronous - poll request 18 until complete (took 12 s on the spike). Saves kb_id.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"knowledge_base_name\": \"dev-postman-kb\",\n  \"knowledge_base_texts\": [\n    {\n      \"title\": \"Hours\",\n      \"text\": \"Maple Dental is open Monday to Friday, 9am to 5pm.\"\n    }\n  ],\n  \"knowledge_base_urls\": [\n    \"https://www.example.com/\"\n  ],\n  \"enable_auto_refresh\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j.knowledge_base_id) pm.environment.set('kb_id', j.knowledge_base_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "18. get-knowledge-base (poll)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{retell_api_key}}"
+              }
+            ],
+            "url": {
+              "raw": "https://api.retellai.com/get-knowledge-base/{{kb_id}}",
+              "protocol": "https",
+              "host": [
+                "api",
+                "retellai",
+                "com"
+              ],
+              "path": [
+                "get-knowledge-base",
+                "{{kb_id}}"
+              ]
+            },
+            "description": "status: in_progress -> complete. Adding sources later flips it to refreshing_in_progress while staying usable. Each source gets a source_id you can delete individually."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

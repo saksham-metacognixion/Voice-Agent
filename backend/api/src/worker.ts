@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { assertRlsEnforced, disconnect } from '@portal/db';
 import { WorkerModule } from './worker.module';
+import { resolveAppEnv } from './common/env';
 
 /**
  * Worker entrypoint. Same codebase as the API, separate process, separate compose
@@ -19,7 +20,7 @@ async function bootstrap() {
     logger: ['log', 'warn', 'error'],
   });
   app.enableShutdownHooks();
-  Logger.log(`Worker started (${process.env.APP_ENV ?? 'dev'})`, 'Worker');
+  Logger.log(`Worker started (${resolveAppEnv()})`, 'Worker');
 
   const shutdown = async (signal: string) => {
     Logger.log(`Received ${signal}, shutting down`, 'Worker');

@@ -1,0 +1,54 @@
+{
+  "captured_at": "2026-09-15T05:29:54.475Z",
+  "provider": "retell",
+  "event_type": "call_started",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "623",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=1376b8dd0bc5437c89112811406c11c3,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "1376b8dd0bc5437c89112811406c11c3-a0227bd2143b8a67",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789450194032,d=18141fbc54e3d91460a66fb38e32c4125c38626e073271cd05e9f2131f82facc"
+  },
+  "raw": "{\"event\":\"call_started\",\"call\":{\"call_id\":\"call_38feddb0db23f2d5d5146a49f71\",\"call_type\":\"phone_call\",\"agent_id\":\"agent_0c2f94391111e5aaac72b2d49f\",\"agent_version\":0,\"agent_name\":\"dev-spike-caller\",\"custom_sip_headers\":{},\"call_status\":\"ongoing\",\"start_timestamp\":1789450194032,\"latency\":{},\"metadata\":{\"test\":true,\"source\":\"spike-outbound\"},\"call_cost\":{\"product_costs\":[],\"total_duration_seconds\":0,\"total_duration_unit_price\":0,\"combined_cost\":0},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":true,\"from_number\":\"+19377293562\",\"to_number\":\"+16204459730\",\"direction\":\"outbound\"},\"event_timestamp\":1789450194032}",
+  "body": {
+    "event": "call_started",
+    "call": {
+      "call_id": "call_38feddb0db23f2d5d5146a49f71",
+      "call_type": "phone_call",
+      "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+      "agent_version": 0,
+      "agent_name": "dev-spike-caller",
+      "custom_sip_headers": {},
+      "call_status": "ongoing",
+      "start_timestamp": 1789450194032,
+      "latency": {},
+      "metadata": {
+        "test": true,
+        "source": "spike-outbound"
+      },
+      "call_cost": {
+        "product_costs": [],
+        "total_duration_seconds": 0,
+        "total_duration_unit_price": 0,
+        "combined_cost": 0
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": true,
+      "from_number": "+19377293562",
+      "to_number": "+16204459730",
+      "direction": "outbound"
+    },
+    "event_timestamp": 1789450194032
+  },
+  "signature_valid": true,
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_started-2026-09-15T05-29-54.475Z.json"
+}

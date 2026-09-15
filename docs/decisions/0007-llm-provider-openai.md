@@ -1,6 +1,6 @@
 # ADR 0007 — LLM provider for prompt generation: OpenAI
 
-- Status: accepted
+- Status: superseded by [ADR 0009](0009-llm-provider-anthropic.md) on 2026-09-15
 - Date: 2026-09-14
 - Deciders: Saksham
 - Supersedes: the LLM row of [ADR 0001](0001-tech-stack.md) (Anthropic SDK, `claude-sonnet-5`)

@@ -1,0 +1,12 @@
+{
+  "captured_at": "2026-09-15T05:24:32.553Z",
+  "data": {
+    "knowledge_base_id": "knowledge_base_ccfeabaaf06d6dfb",
+    "knowledge_base_name": "dev-spike-kb",
+    "auto_crawling_paths": [],
+    "enable_auto_refresh": true,
+    "status": "in_progress",
+    "last_refreshed_timestamp": 0,
+    "user_modified_timestamp": 1789449872465
+  }
+}

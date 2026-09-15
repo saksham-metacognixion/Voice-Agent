@@ -1,0 +1,42 @@
+{
+  "captured_at": "2026-09-15T05:29:07.934Z",
+  "data": {
+    "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+    "channel": "voice",
+    "last_modification_timestamp": 1789450147804,
+    "agent_name": "dev-spike-caller",
+    "response_engine": {
+      "type": "retell-llm",
+      "llm_id": "llm_02cff5c2d2733fd011fb06400cb1",
+      "version": 0
+    },
+    "webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell",
+    "webhook_timeout_ms": 10000,
+    "language": "en-US",
+    "data_storage_setting": "everything",
+    "contact_memory_config": {
+      "enable_update": false,
+      "enable_read": true
+    },
+    "opt_in_signed_url": true,
+    "version": 0,
+    "assigned_tags": [],
+    "is_published": false,
+    "post_call_analysis_model": "gpt-5.6-terra",
+    "pii_config": {
+      "mode": "post_call",
+      "categories": []
+    },
+    "voice_id": "11labs-Adrian",
+    "max_call_duration_ms": 600000,
+    "allow_user_dtmf": true,
+    "user_dtmf_options": {},
+    "webhook_events": [
+      "call_started",
+      "call_ended",
+      "call_analyzed",
+      "transfer_started",
+      "transfer_ended"
+    ]
+  }
+}

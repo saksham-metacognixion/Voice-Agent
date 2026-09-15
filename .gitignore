@@ -42,3 +42,4 @@ pnpm-debug.log*
 # prisma
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal
+.retell-spike.json

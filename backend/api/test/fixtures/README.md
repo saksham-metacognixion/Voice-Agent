@@ -11,6 +11,32 @@ tests run against the bytes a provider actually sends.
 | `stripe/` | `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `charge.dispute.created` |
 | `auth/` | `post_user_registration` |
 
-Keep one representative file per event type and delete the rest before committing. Fixtures are
-test data: a change in a provider's payload shape should show up here as a diff, not as a
-surprise in production.
+Keep one representative file per **behaviour** (not just per event type) and delete the rest before
+committing. Fixtures are test data: a change in a provider's payload shape should show up here as a
+diff, not as a surprise in production.
+
+## `retell/` — captured on D2, 15 Sep 2026
+
+Named by behaviour, one file each. Twilio SIDs and signed media URLs are redacted in `body` **and**
+`raw`, so `x-retell-signature` no longer verifies against `raw`; tests re-sign with
+`RetellGateway.signWebhookBody()`. What each proves is in
+[ADR 0003](../../../../docs/decisions/0003-retell-findings.md).
+
+| File | Behaviour |
+| --- | --- |
+| `call_inbound-allow.json` | inbound authorisation request; we answered `{}` |
+| `call_inbound-allow-with-override.json` | we answered with `override_agent_id`, `dynamic_variables`, `metadata`, `agent_override.max_call_duration_ms` |
+| `call_inbound-decline_reject.json` | the decline: `{call_inbound:{reject:true}}` → busy, no call object, no cost |
+| `call_inbound-decline_{403,500}-attempt*.json` | non-2xx → Retell retries 3× (~0.8 s apart, same `call_id`) then answers with the bound agent |
+| `call_inbound-decline_timeout-attempt*.json` | no answer in 10 s → retries at 10 s, caller times out (`dial_no_answer`) |
+| `call_started-{inbound,outbound,web}.json` | `call_cost` empty; inbound carries our `metadata` + `dynamic_variables` |
+| `call_ended-inbound-max_duration_reached.json` | the inbound-webhook duration override cut the call at 60 s |
+| `call_ended-inbound-user_hangup.json`, `call_ended-outbound-max_duration_reached.json` | normal billable ends, full `call_cost` |
+| `call_ended-outbound-not_connected-{dial_busy,dial_no_answer}.json`, `call_ended-inbound-zero-duration.json` | the §14.2 zero-charge cases |
+| `call_ended-web-max_duration_reached.json` | browser call (no telephony product) |
+| `call_analyzed-{inbound,web,not_connected}.json` | `call_analysis.custom_analysis_data` with string/enum/boolean/number; zero values when absent |
+| `api/*.json` | responses of every gateway call the spike made (voices, LLM, agent, versions, publish, web call, numbers, KB, concurrency, get-call) |
+
+Regenerate with `pnpm --filter @portal/api spike:retell …` (header comment in
+`backend/api/scripts/retell-spike.ts` lists the commands); the API must be running behind the
+tunnel in `API_PUBLIC_URL`.

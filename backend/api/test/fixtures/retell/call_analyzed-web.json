@@ -1,0 +1,478 @@
+{
+  "captured_at": "2026-09-15T05:45:32.101Z",
+  "provider": "retell",
+  "event_type": "call_analyzed",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "7326",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=5050583232dc4c1da0e1369c5015d634,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "5050583232dc4c1da0e1369c5015d634-95786ff7de93a9e2",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789451131640,d=f3032a3b0eeab665cbc09ded855a1d181a2de0d4b2ec08b8d3a22e4b90e9c2d5"
+  },
+  "raw": "{\"event\":\"call_analyzed\",\"call\":{\"call_id\":\"call_1cb31dd3e5300aafeded570879c\",\"call_type\":\"web_call\",\"agent_id\":\"agent_c72a20039d1559e8c6e345c03c\",\"agent_version\":0,\"agent_name\":\"dev-spike-receptionist\",\"call_status\":\"ended\",\"start_timestamp\":1789451069005,\"end_timestamp\":1789451129009,\"duration_ms\":60004,\"transcript\":\"Agent: Thank you for calling Maple Dental, this is Maya. How can I help you today?\\nAgent: Just checking in—do you need to book an appointment, ask a question, or something else?\\n\",\"transcript_object\":[{\"role\":\"agent\",\"content\":\"Thank you for calling Maple Dental, this is Maya. How can I help you today?\",\"words\":[{\"word\":\"Thank \",\"start\":0.243,\"end\":0.487},{\"word\":\"you \",\"start\":0.487,\"end\":0.603},{\"word\":\"for \",\"start\":0.603,\"end\":0.731},{\"word\":\"calling \",\"start\":0.731,\"end\":1.021},{\"word\":\"Maple \",\"start\":1.021,\"end\":1.276},{\"word\":\"Dental, \",\"start\":1.276,\"end\":1.625},{\"word\":\"this \",\"start\":1.625,\"end\":1.81},{\"word\":\"is \",\"start\":1.81,\"end\":1.938},{\"word\":\"Maya. \",\"start\":1.938,\"end\":2.519},{\"word\":\"How \",\"start\":2.519,\"end\":2.728},{\"word\":\"can \",\"start\":2.728,\"end\":2.879},{\"word\":\"I \",\"start\":2.879,\"end\":2.96},{\"word\":\"help \",\"start\":2.96,\"end\":3.123},{\"word\":\"you \",\"start\":3.123,\"end\":3.239},{\"word\":\"today?\",\"start\":3.239,\"end\":3.726}],\"metadata\":{\"response_id\":0}},{\"role\":\"agent\",\"content\":\"Just checking in—do you need to book an appointment, ask a question, or something else?\",\"words\":[{\"word\":\"Just \",\"start\":14.917,\"end\":15.126},{\"word\":\"checking \",\"start\":15.126,\"end\":15.474},{\"word\":\"in—do \",\"start\":15.474,\"end\":15.892},{\"word\":\"you \",\"start\":15.892,\"end\":15.996},{\"word\":\"need \",\"start\":15.996,\"end\":16.136},{\"word\":\"to \",\"start\":16.136,\"end\":16.217},{\"word\":\"book \",\"start\":16.217,\"end\":16.391},{\"word\":\"an \",\"start\":16.391,\"end\":16.472},{\"word\":\"appointment, \",\"start\":16.472,\"end\":17.123},{\"word\":\"ask \",\"start\":17.123,\"end\":17.378},{\"word\":\"a \",\"start\":17.378,\"end\":17.448},{\"word\":\"question, \",\"start\":17.448,\"end\":17.854},{\"word\":\"or \",\"start\":17.854,\"end\":17.97},{\"word\":\"something \",\"start\":17.97,\"end\":18.284},{\"word\":\"else?\",\"start\":18.284,\"end\":18.864}],\"metadata\":{\"response_id\":1}}],\"transcript_with_tool_calls\":[{\"role\":\"agent\",\"content\":\"Thank you for calling Maple Dental, this is Maya. How can I help you today?\",\"words\":[{\"word\":\"Thank \",\"start\":0.243,\"end\":0.487},{\"word\":\"you \",\"start\":0.487,\"end\":0.603},{\"word\":\"for \",\"start\":0.603,\"end\":0.731},{\"word\":\"calling \",\"start\":0.731,\"end\":1.021},{\"word\":\"Maple \",\"start\":1.021,\"end\":1.276},{\"word\":\"Dental, \",\"start\":1.276,\"end\":1.625},{\"word\":\"this \",\"start\":1.625,\"end\":1.81},{\"word\":\"is \",\"start\":1.81,\"end\":1.938},{\"word\":\"Maya. \",\"start\":1.938,\"end\":2.519},{\"word\":\"How \",\"start\":2.519,\"end\":2.728},{\"word\":\"can \",\"start\":2.728,\"end\":2.879},{\"word\":\"I \",\"start\":2.879,\"end\":2.96},{\"word\":\"help \",\"start\":2.96,\"end\":3.123},{\"word\":\"you \",\"start\":3.123,\"end\":3.239},{\"word\":\"today?\",\"start\":3.239,\"end\":3.726}],\"metadata\":{\"response_id\":0}},{\"role\":\"agent\",\"content\":\"Just checking in—do you need to book an appointment, ask a question, or something else?\",\"words\":[{\"word\":\"Just \",\"start\":14.917,\"end\":15.126},{\"word\":\"checking \",\"start\":15.126,\"end\":15.474},{\"word\":\"in—do \",\"start\":15.474,\"end\":15.892},{\"word\":\"you \",\"start\":15.892,\"end\":15.996},{\"word\":\"need \",\"start\":15.996,\"end\":16.136},{\"word\":\"to \",\"start\":16.136,\"end\":16.217},{\"word\":\"book \",\"start\":16.217,\"end\":16.391},{\"word\":\"an \",\"start\":16.391,\"end\":16.472},{\"word\":\"appointment, \",\"start\":16.472,\"end\":17.123},{\"word\":\"ask \",\"start\":17.123,\"end\":17.378},{\"word\":\"a \",\"start\":17.378,\"end\":17.448},{\"word\":\"question, \",\"start\":17.448,\"end\":17.854},{\"word\":\"or \",\"start\":17.854,\"end\":17.97},{\"word\":\"something \",\"start\":17.97,\"end\":18.284},{\"word\":\"else?\",\"start\":18.284,\"end\":18.864}],\"metadata\":{\"response_id\":1}}],\"recording_url\":\"[redacted-signed-url]\",\"recording_multi_channel_url\":\"[redacted-signed-url]\",\"public_log_url\":\"[redacted-signed-url]\",\"disconnection_reason\":\"max_duration_reached\",\"latency\":{\"llm\":{\"p50\":447.5,\"p90\":803.0999999999999,\"p95\":847.55,\"p99\":883.11,\"min\":3,\"max\":892,\"num\":2,\"sum\":895,\"values\":[3,892]},\"tts\":{\"p50\":204,\"p90\":230.39999999999998,\"p95\":233.7,\"p99\":236.34,\"min\":171,\"max\":237,\"num\":2,\"sum\":408,\"values\":[237,171]}},\"metadata\":{\"test\":true,\"source\":\"dev-test-call-page\"},\"call_cost\":{\"product_costs\":[{\"product\":\"retell_voice_engine\",\"unit_price\":0.0916667,\"cost\":5.5916687},{\"product\":\"elevenlabs_tts_03_2026\",\"unit_price\":0.0666667,\"cost\":4.0666687},{\"product\":\"gpt_5_mini\",\"unit_price\":0.0133333,\"cost\":0.8133313},{\"product\":\"gpt_5_6_terra_text_testing\",\"unit_price\":2.08,\"cost\":2.08}],\"total_duration_unit_price\":0.1716667,\"total_duration_seconds\":61,\"combined_cost\":12.5516687},\"call_analysis\":{\"call_summary\":\"The agent greeted the caller and asked whether they needed an appointment, had a question, or needed something else. The caller did not respond before the call ended.\",\"in_voicemail\":false,\"user_sentiment\":\"Neutral\",\"call_successful\":false,\"custom_analysis_data\":{\"caller_name\":\"\",\"call_reason\":\"other\",\"callback_requested\":false,\"party_size\":0}},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":true,\"llm_token_usage\":{\"values\":[449],\"average\":449,\"num_requests\":1},\"tool_calls\":[],\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbGllbnQiLCJleHAiOjE3ODk0NTg4NjYsIm5iZiI6MTc4OTQ1MTA2NiwiaWF0IjoxNzg5NDUxMDY2LCJpZGVudGl0eSI6ImNsaWVudCIsInZpZGVvIjp7InJvb21Kb2luIjp0cnVlLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWV9LCJjYWxsX2lkIjoiY2FsbF8xY2IzMWRkM2U1MzAwYWFmZWRlZDU3MDg3OWMiLCJpbnN0IjoiaS0wNmM1MmJkMzRhM2FjMTE3NiJ9.JS9bifKhJe9qwKfn0g4GH-Qj-6SHU3ciRJwkzdKxteA\",\"transport\":\"gateway\",\"gateway_ip\":\"3.42.144.150\",\"ice_servers\":[{\"urls\":\"stun:stun.l.google.com:19302\"},{\"urls\":\"stun:stun.cloudflare.com:3478\"}]},\"event_timestamp\":1789451131640}",
+  "body": {
+    "event": "call_analyzed",
+    "call": {
+      "call_id": "call_1cb31dd3e5300aafeded570879c",
+      "call_type": "web_call",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 0,
+      "agent_name": "dev-spike-receptionist",
+      "call_status": "ended",
+      "start_timestamp": 1789451069005,
+      "end_timestamp": 1789451129009,
+      "duration_ms": 60004,
+      "transcript": "Agent: Thank you for calling Maple Dental, this is Maya. How can I help you today?\nAgent: Just checking in—do you need to book an appointment, ask a question, or something else?\n",
+      "transcript_object": [
+        {
+          "role": "agent",
+          "content": "Thank you for calling Maple Dental, this is Maya. How can I help you today?",
+          "words": [
+            {
+              "word": "Thank ",
+              "start": 0.243,
+              "end": 0.487
+            },
+            {
+              "word": "you ",
+              "start": 0.487,
+              "end": 0.603
+            },
+            {
+              "word": "for ",
+              "start": 0.603,
+              "end": 0.731
+            },
+            {
+              "word": "calling ",
+              "start": 0.731,
+              "end": 1.021
+            },
+            {
+              "word": "Maple ",
+              "start": 1.021,
+              "end": 1.276
+            },
+            {
+              "word": "Dental, ",
+              "start": 1.276,
+              "end": 1.625
+            },
+            {
+              "word": "this ",
+              "start": 1.625,
+              "end": 1.81
+            },
+            {
+              "word": "is ",
+              "start": 1.81,
+              "end": 1.938
+            },
+            {
+              "word": "Maya. ",
+              "start": 1.938,
+              "end": 2.519
+            },
+            {
+              "word": "How ",
+              "start": 2.519,
+              "end": 2.728
+            },
+            {
+              "word": "can ",
+              "start": 2.728,
+              "end": 2.879
+            },
+            {
+              "word": "I ",
+              "start": 2.879,
+              "end": 2.96
+            },
+            {
+              "word": "help ",
+              "start": 2.96,
+              "end": 3.123
+            },
+            {
+              "word": "you ",
+              "start": 3.123,
+              "end": 3.239
+            },
+            {
+              "word": "today?",
+              "start": 3.239,
+              "end": 3.726
+            }
+          ],
+          "metadata": {
+            "response_id": 0
+          }
+        },
+        {
+          "role": "agent",
+          "content": "Just checking in—do you need to book an appointment, ask a question, or something else?",
+          "words": [
+            {
+              "word": "Just ",
+              "start": 14.917,
+              "end": 15.126
+            },
+            {
+              "word": "checking ",
+              "start": 15.126,
+              "end": 15.474
+            },
+            {
+              "word": "in—do ",
+              "start": 15.474,
+              "end": 15.892
+            },
+            {
+              "word": "you ",
+              "start": 15.892,
+              "end": 15.996
+            },
+            {
+              "word": "need ",
+              "start": 15.996,
+              "end": 16.136
+            },
+            {
+              "word": "to ",
+              "start": 16.136,
+              "end": 16.217
+            },
+            {
+              "word": "book ",
+              "start": 16.217,
+              "end": 16.391
+            },
+            {
+              "word": "an ",
+              "start": 16.391,
+              "end": 16.472
+            },
+            {
+              "word": "appointment, ",
+              "start": 16.472,
+              "end": 17.123
+            },
+            {
+              "word": "ask ",
+              "start": 17.123,
+              "end": 17.378
+            },
+            {
+              "word": "a ",
+              "start": 17.378,
+              "end": 17.448
+            },
+            {
+              "word": "question, ",
+              "start": 17.448,
+              "end": 17.854
+            },
+            {
+              "word": "or ",
+              "start": 17.854,
+              "end": 17.97
+            },
+            {
+              "word": "something ",
+              "start": 17.97,
+              "end": 18.284
+            },
+            {
+              "word": "else?",
+              "start": 18.284,
+              "end": 18.864
+            }
+          ],
+          "metadata": {
+            "response_id": 1
+          }
+        }
+      ],
+      "transcript_with_tool_calls": [
+        {
+          "role": "agent",
+          "content": "Thank you for calling Maple Dental, this is Maya. How can I help you today?",
+          "words": [
+            {
+              "word": "Thank ",
+              "start": 0.243,
+              "end": 0.487
+            },
+            {
+              "word": "you ",
+              "start": 0.487,
+              "end": 0.603
+            },
+            {
+              "word": "for ",
+              "start": 0.603,
+              "end": 0.731
+            },
+            {
+              "word": "calling ",
+              "start": 0.731,
+              "end": 1.021
+            },
+            {
+              "word": "Maple ",
+              "start": 1.021,
+              "end": 1.276
+            },
+            {
+              "word": "Dental, ",
+              "start": 1.276,
+              "end": 1.625
+            },
+            {
+              "word": "this ",
+              "start": 1.625,
+              "end": 1.81
+            },
+            {
+              "word": "is ",
+              "start": 1.81,
+              "end": 1.938
+            },
+            {
+              "word": "Maya. ",
+              "start": 1.938,
+              "end": 2.519
+            },
+            {
+              "word": "How ",
+              "start": 2.519,
+              "end": 2.728
+            },
+            {
+              "word": "can ",
+              "start": 2.728,
+              "end": 2.879
+            },
+            {
+              "word": "I ",
+              "start": 2.879,
+              "end": 2.96
+            },
+            {
+              "word": "help ",
+              "start": 2.96,
+              "end": 3.123
+            },
+            {
+              "word": "you ",
+              "start": 3.123,
+              "end": 3.239
+            },
+            {
+              "word": "today?",
+              "start": 3.239,
+              "end": 3.726
+            }
+          ],
+          "metadata": {
+            "response_id": 0
+          }
+        },
+        {
+          "role": "agent",
+          "content": "Just checking in—do you need to book an appointment, ask a question, or something else?",
+          "words": [
+            {
+              "word": "Just ",
+              "start": 14.917,
+              "end": 15.126
+            },
+            {
+              "word": "checking ",
+              "start": 15.126,
+              "end": 15.474
+            },
+            {
+              "word": "in—do ",
+              "start": 15.474,
+              "end": 15.892
+            },
+            {
+              "word": "you ",
+              "start": 15.892,
+              "end": 15.996
+            },
+            {
+              "word": "need ",
+              "start": 15.996,
+              "end": 16.136
+            },
+            {
+              "word": "to ",
+              "start": 16.136,
+              "end": 16.217
+            },
+            {
+              "word": "book ",
+              "start": 16.217,
+              "end": 16.391
+            },
+            {
+              "word": "an ",
+              "start": 16.391,
+              "end": 16.472
+            },
+            {
+              "word": "appointment, ",
+              "start": 16.472,
+              "end": 17.123
+            },
+            {
+              "word": "ask ",
+              "start": 17.123,
+              "end": 17.378
+            },
+            {
+              "word": "a ",
+              "start": 17.378,
+              "end": 17.448
+            },
+            {
+              "word": "question, ",
+              "start": 17.448,
+              "end": 17.854
+            },
+            {
+              "word": "or ",
+              "start": 17.854,
+              "end": 17.97
+            },
+            {
+              "word": "something ",
+              "start": 17.97,
+              "end": 18.284
+            },
+            {
+              "word": "else?",
+              "start": 18.284,
+              "end": 18.864
+            }
+          ],
+          "metadata": {
+            "response_id": 1
+          }
+        }
+      ],
+      "recording_url": "[redacted-signed-url]",
+      "recording_multi_channel_url": "[redacted-signed-url]",
+      "public_log_url": "[redacted-signed-url]",
+      "disconnection_reason": "max_duration_reached",
+      "latency": {
+        "llm": {
+          "p50": 447.5,
+          "p90": 803.0999999999999,
+          "p95": 847.55,
+          "p99": 883.11,
+          "min": 3,
+          "max": 892,
+          "num": 2,
+          "sum": 895,
+          "values": [
+            3,
+            892
+          ]
+        },
+        "tts": {
+          "p50": 204,
+          "p90": 230.39999999999998,
+          "p95": 233.7,
+          "p99": 236.34,
+          "min": 171,
+          "max": 237,
+          "num": 2,
+          "sum": 408,
+          "values": [
+            237,
+            171
+          ]
+        }
+      },
+      "metadata": {
+        "test": true,
+        "source": "dev-test-call-page"
+      },
+      "call_cost": {
+        "product_costs": [
+          {
+            "product": "retell_voice_engine",
+            "unit_price": 0.0916667,
+            "cost": 5.5916687
+          },
+          {
+            "product": "elevenlabs_tts_03_2026",
+            "unit_price": 0.0666667,
+            "cost": 4.0666687
+          },
+          {
+            "product": "gpt_5_mini",
+            "unit_price": 0.0133333,
+            "cost": 0.8133313
+          },
+          {
+            "product": "gpt_5_6_terra_text_testing",
+            "unit_price": 2.08,
+            "cost": 2.08
+          }
+        ],
+        "total_duration_unit_price": 0.1716667,
+        "total_duration_seconds": 61,
+        "combined_cost": 12.5516687
+      },
+      "call_analysis": {
+        "call_summary": "The agent greeted the caller and asked whether they needed an appointment, had a question, or needed something else. The caller did not respond before the call ended.",
+        "in_voicemail": false,
+        "user_sentiment": "Neutral",
+        "call_successful": false,
+        "custom_analysis_data": {
+          "caller_name": "",
+          "call_reason": "other",
+          "callback_requested": false,
+          "party_size": 0
+        }
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": true,
+      "llm_token_usage": {
+        "values": [
+          449
+        ],
+        "average": 449,
+        "num_requests": 1
+      },
+      "tool_calls": [],
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbGllbnQiLCJleHAiOjE3ODk0NTg4NjYsIm5iZiI6MTc4OTQ1MTA2NiwiaWF0IjoxNzg5NDUxMDY2LCJpZGVudGl0eSI6ImNsaWVudCIsInZpZGVvIjp7InJvb21Kb2luIjp0cnVlLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWV9LCJjYWxsX2lkIjoiY2FsbF8xY2IzMWRkM2U1MzAwYWFmZWRlZDU3MDg3OWMiLCJpbnN0IjoiaS0wNmM1MmJkMzRhM2FjMTE3NiJ9.JS9bifKhJe9qwKfn0g4GH-Qj-6SHU3ciRJwkzdKxteA",
+      "transport": "gateway",
+      "gateway_ip": "3.42.144.150",
+      "ice_servers": [
+        {
+          "urls": "stun:stun.l.google.com:19302"
+        },
+        {
+          "urls": "stun:stun.cloudflare.com:3478"
+        }
+      ]
+    },
+    "event_timestamp": 1789451131640
+  },
+  "signature_valid": true,
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_analyzed-2026-09-15T05-45-32.099Z.json"
+}

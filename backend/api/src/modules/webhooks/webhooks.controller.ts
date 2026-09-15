@@ -1,6 +1,7 @@
 import { Body, Controller, HttpCode, Logger, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { Public } from '../auth';
+import { RetellGateway } from '../retell';
 import { FixtureWriter } from './fixture-writer.service';
 
 /**
@@ -10,15 +11,18 @@ import { FixtureWriter } from './fixture-writer.service';
  * reason the Redis-down policy in ADR 0003 cannot be written until it is answered.
  *
  *   allow            200 with RETELL_INBOUND_RESPONSE_JSON, or `{}` when unset
+ *   decline_reject   200 `{call_inbound:{reject:true}}` — the documented mechanism
  *   decline_403      403, empty body
  *   decline_404      404, empty body
  *   decline_500      500, empty body
  *   decline_timeout  wait RETELL_INBOUND_TIMEOUT_MS (default 15 000) then 200 — Retell
  *                    gives up at 10 s, so this shows the timeout behaviour
  *
- * Chosen by `?mode=` on the configured URL, falling back to RETELL_INBOUND_MODE.
+ * Chosen by `?mode=` on the configured URL, falling back to RETELL_INBOUND_MODE. In `allow`
+ * mode, `?response=<base64url JSON>` on the URL replaces RETELL_INBOUND_RESPONSE_JSON, so a
+ * spike can change the answer by re-pointing the number instead of restarting the API.
  */
-const INBOUND_MODES = ['allow', 'decline_403', 'decline_404', 'decline_500', 'decline_timeout'] as const;
+const INBOUND_MODES = ['allow', 'decline_reject', 'decline_403', 'decline_404', 'decline_500', 'decline_timeout'] as const;
 type InboundMode = (typeof INBOUND_MODES)[number];
 
 /**
@@ -28,7 +32,8 @@ type InboundMode = (typeof INBOUND_MODES)[number];
  * these do today: keep the raw body, write the payload to a fixture, answer 2xx fast.
  * What they do NOT do yet, and where it lands:
  *
- *   signature verification on request.rawBody        D3 (Stripe), D3/D4 (Retell)
+ *   signature verification on request.rawBody        D3 (Stripe). Retell: checked here,
+ *                                                     recorded in the fixture, not yet enforced
  *   upsert webhook_events (provider, external_id, event_type), 204 on duplicate   D3
  *   hand-off to BullMQ; never a 5xx to the provider once the event is stored       D3
  *   the six §13.9 checks against Redis on the inbound path                          D4
@@ -40,12 +45,29 @@ type InboundMode = (typeof INBOUND_MODES)[number];
 export class WebhooksController {
   private readonly log = new Logger(WebhooksController.name);
 
-  constructor(private readonly fixtures: FixtureWriter) {}
+  constructor(
+    private readonly fixtures: FixtureWriter,
+    private readonly retell: RetellGateway,
+  ) {}
+
+  /**
+   * D2 records whether Retell's signature verifies against the raw bytes; D3/D4 turn a
+   * `false` into a 401. Logged loudly so a mis-badged API key shows up today, not when
+   * enforcement lands.
+   */
+  private async retellSignature(request: FastifyRequest): Promise<{ header?: string; valid: boolean }> {
+    const header = request.headers['x-retell-signature'];
+    const value = Array.isArray(header) ? header[0] : header;
+    const valid = await this.retell.verifyWebhookSignature(request.rawBody, value);
+    if (!valid) this.log.warn(`x-retell-signature did not verify on ${request.url}`);
+    return { header: value, valid };
+  }
 
   /** call_started, call_ended, call_analyzed, transfer_* — set as the agent's webhook_url. */
   @Post('retell')
   @HttpCode(200)
-  async retell(@Req() request: FastifyRequest, @Body() body: unknown): Promise<{ received: true }> {
+  async retellEvents(@Req() request: FastifyRequest, @Body() body: unknown): Promise<{ received: true }> {
+    const signature = await this.retellSignature(request);
     await this.fixtures.capture({
       provider: 'retell',
       eventType: stringField(body, 'event') ?? 'unknown',
@@ -53,6 +75,7 @@ export class WebhooksController {
       headers: request.headers,
       raw: request.rawBody,
       body,
+      signatureValid: signature.valid,
     });
     return { received: true };
   }
@@ -65,10 +88,15 @@ export class WebhooksController {
   async retellInbound(
     @Param('number_token') numberToken: string,
     @Query('mode') queryMode: string | undefined,
+    @Query('response') queryResponse: string | undefined,
     @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
     @Body() body: unknown,
   ): Promise<void> {
+    const signature = await this.retellSignature(request);
+    const mode = resolveMode(queryMode ?? process.env.RETELL_INBOUND_MODE);
+    const response =
+      mode === 'allow' ? allowResponse(queryResponse) : mode === 'decline_reject' ? RetellGateway.inboundDecline() : undefined;
     await this.fixtures.capture({
       provider: 'retell',
       eventType: stringField(body, 'event') ?? 'call_inbound',
@@ -76,12 +104,16 @@ export class WebhooksController {
       headers: request.headers,
       raw: request.rawBody,
       body,
+      signatureValid: signature.valid,
+      // What we answered, so the fixture pairs the question with the answer Retell got.
+      response: { mode, body: response },
     });
-
-    const mode = resolveMode(queryMode ?? process.env.RETELL_INBOUND_MODE);
     this.log.log(`inbound token=${numberToken} mode=${mode}`);
 
     switch (mode) {
+      case 'decline_reject':
+        void reply.code(200).send(response);
+        return;
       case 'decline_403':
         void reply.code(403).send();
         return;
@@ -98,7 +130,7 @@ export class WebhooksController {
         return;
       }
       case 'allow':
-        void reply.code(200).send(allowResponse());
+        void reply.code(200).send(response);
         return;
     }
   }
@@ -145,18 +177,18 @@ function resolveMode(value: string | undefined): InboundMode {
 }
 
 /**
- * Whatever JSON RETELL_INBOUND_RESPONSE_JSON holds, or `{}`. The shape Retell expects
- * back from an inbound webhook — override_agent_id, dynamic_variables, and whether a
- * max-duration override is honoured here — is what D2 establishes, so the response is
- * data, not code. Malformed JSON is logged and treated as `{}` rather than 500ing a call.
+ * Whatever JSON RETELL_INBOUND_RESPONSE_JSON holds, or `{}`. The established shape is
+ * `RetellGateway.inboundAllow()` (ADR 0003 §1); the env override stays so a spike can
+ * answer with any variant — a max_call_duration_ms override, a wrong version — without
+ * a code change. Malformed JSON is logged and treated as `{}` rather than 500ing a call.
  */
-function allowResponse(): unknown {
-  const configured = process.env.RETELL_INBOUND_RESPONSE_JSON;
+function allowResponse(encoded?: string): unknown {
+  const configured = encoded ? Buffer.from(encoded, 'base64url').toString('utf8') : process.env.RETELL_INBOUND_RESPONSE_JSON;
   if (!configured) return {};
   try {
     return JSON.parse(configured);
   } catch {
-    new Logger(WebhooksController.name).warn('RETELL_INBOUND_RESPONSE_JSON is not valid JSON; answering {}');
+    new Logger(WebhooksController.name).warn('inbound allow response is not valid JSON; answering {}');
     return {};
   }
 }

@@ -11,9 +11,9 @@ staging and prod (§17: nothing but `.env.example` is ever committed).
 
 | Vendor        | What to create                                                                              | Lands in                                                               |
 | ------------- | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| **Retell AI** | Account; one API key per environment; webhook secret                                        | `RETELL_API_KEY`, `RETELL_WEBHOOK_SECRET`                              |
+| **Retell AI** | One **workspace per environment** (dev/staging/prod — dashboard only, no API); one API key per workspace, with the *webhook* badge — it is also the webhook signing secret (ADR 0003) | `RETELL_API_KEY`                                                       |
 | **Stripe**    | Account in **test mode**; restricted key; webhook endpoint → `api.<domain>/webhooks/stripe` | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` |
-| **OpenAI**    | API key. Brief → prompt only, never in the call path (ADR 0007)                             | `OPENAI_API_KEY`, `GENERATION_MODEL`                                   |
+| **Anthropic** | API key (console.anthropic.com, with billing). Brief → prompt only, never in the call path (ADR 0009) | `ANTHROPIC_API_KEY`, `GENERATION_MODEL`                                |
 | **Resend**    | Domain verified, sending key                                                                | `RESEND_API_KEY`, `EMAIL_FROM`                                         |
 
 Stripe test and live keys never mix — separate accounts or at least separate restricted
@@ -110,14 +110,25 @@ reads.
 
 ## 5. Local webhook tunnel
 
-Retell and Stripe need a public URL during development:
+Retell needs a public URL during development (Stripe does not: `stripe listen` forwards to
+localhost). Use a **fixed hostname**: the URL is written into every Retell agent
+(`webhook_url`) and number (`inbound_webhook_url`) when the gateway creates them, so a tunnel
+whose hostname changes strands every object made against the old one.
 
 ```sh
-cloudflared tunnel --url http://localhost:4000
+ngrok http 4000 --url=<name>.ngrok-free.app     # one static domain is free; `ngrok http 4000` alone rotates
 ```
 
-Put the printed hostname into the Retell and Stripe **test** webhook settings and into
-`API_PUBLIC_URL`. The tunnel URL changes on restart; a named tunnel avoids that.
+Put the hostname into `API_PUBLIC_URL`, then restart the API so `RetellConfig` picks it up. Nothing
+is configured in the Retell dashboard: the gateway sets the agent-level `webhook_url` and the
+per-number `inbound_webhook_url` itself. If the hostname does change, re-point existing dev
+objects with `pnpm --filter @portal/api spike:retell number mode allow` (numbers) and a
+re-publish (agents), or tear them down and recreate.
+
+Verify the round trip without a phone: `spike:retell setup`, `setup-caller`, `phone-call`,
+`wait` — the caller number dials the spike number and the fixtures land in
+`backend/api/test/fixtures/retell/`. Delete everything with `spike:retell teardown` (numbers are
+$2/month each).
 
 ## 6. Verify
 

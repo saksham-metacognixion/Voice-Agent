@@ -99,7 +99,7 @@ flowchart TB
         RT["Retell"]
         ST["Stripe"]
         A0["Auth0 x2"]
-        OAI["OpenAI"]
+        ANT["Anthropic"]
         R2["Cloudflare R2"]
     end
 
@@ -115,7 +115,7 @@ flowchart TB
     API --> RT
     WRK --> RT
     API --> ST
-    WRK --> OAI
+    WRK --> ANT
     WRK --> R2
     RT -->|"webhooks"| CA
     ST -->|"webhooks"| CA
@@ -649,7 +649,7 @@ sequenceDiagram
     participant API
     participant Q as BullMQ
     participant WK as Worker
-    participant AI as OpenAI gpt-5
+    participant AI as Anthropic claude-sonnet-5
     participant PG as Postgres
 
     W->>API: POST /agents/:id/generate {brief}
@@ -675,16 +675,21 @@ exports. One pattern, learned once.
 problems and it is easy to conflate them. The **generation** LLM runs two or three times in an
 agent's entire life, from a background job, and its output is text we store. The **in-call** LLM
 runs on every turn of every call, inside Retell, with a latency budget measured in hundreds of
-milliseconds. The first is OpenAI `gpt-5` and is ours
-([ADR 0007](decisions/0007-llm-provider-openai.md)); the second is Retell's to configure and is
+milliseconds. The first is Anthropic `claude-sonnet-5` and is ours
+([ADR 0009](decisions/0009-llm-provider-anthropic.md)); the second is Retell's to configure and is
 still open (§20 item 3).
 
-**Why OpenAI for generation.** Owner preference plus family alignment with the in-call model — the
-prompt this LLM writes is executed by an OpenAI model inside Retell, so the writer and the executor
-share phrasing conventions. ADR 0007 is explicit that this was a judgement call made without a
-benchmark, that the benchmark is scheduled, and that the provider therefore lives behind
-`modules/prompting/providers/` so reversing it is one file. Cost did not enter into it: a
-generation call is three or four cents against a $49 Starter pack.
+**Why Anthropic for generation.** Key in hand on 15 Sep, and no measured reason to prefer anything
+else. ADR 0007 had moved this to OpenAI for a day on owner preference plus a "family alignment"
+hypothesis — writer and executor in the same model family — that ADR 0009 sets aside as
+unmeasured and weak: a prompt is text, not a model-specific format, and vendor count is a tie
+because the in-call model runs on Retell's keys. Both ADRs are explicit that the choice was made
+without a benchmark, that the benchmark is scheduled for D2, and that the provider lives behind
+`modules/prompting/providers/` so reversing it is one file — which the reversal itself just
+demonstrated. Cost did not enter into it: a generation call is cents against a $49 Starter pack.
+Sonnet rather than Opus because the §9.4 guardrails are appended by the worker after generation
+(see the sequence above), so the model's job is plain structured drafting, and Sonnet meets the
+10 s p95 exit check without effort tuning.
 
 **Why not Retell Conductor.** Conductor is Retell's dashboard copilot. It is not in the SDK, it is
 capped at 30 messages per person and 200 per organisation per day, and its stated golden rule is
@@ -719,6 +724,13 @@ Postgres is the source of truth; the Retell objects are a **projection** of it. 
 always run `latest_published` — drafts are reachable only by passing an explicit `agent_version`
 to `create-web-call`, which is how the wizard tests an unpublished draft without ever exposing it
 to a real caller.
+
+Two facts from the spike shape this ([ADR 0003 §7](decisions/0003-retell-findings.md)). A number
+bound without `agent_version` runs `latest`, **drafts included**, so the gateway always binds with
+`agent_version: "latest_published"`; publishing then needs no `update-phone-number`. And a
+published Retell version is immutable (`update-agent` returns 422), so every edit starts with
+`create-agent-version(base = published)`; the LLM is versioned with the agent, and "roll back" is a
+new version from an old base, published.
 
 **Why every Retell call goes through one gateway.** `RetellGateway` owns the tier → model/voice
 mapping, webhook URL construction, and retry/backoff. Concentrating it means the P0 findings about
@@ -789,9 +801,14 @@ Retell enforces it, so a customer with 3 credits left gets a call that ends clea
 minutes instead of one that runs up an overdraft. Combined with the 10-credit grace overdraft, the
 result is that a call is never cut mid-sentence *and* never runs away.
 
-**The Redis-down policy is not invented here.** It is decided by the P0 spike and recorded in
-[`docs/decisions/0003-retell-findings.md`](decisions/) (pending, due 15 Sep 2026). Fail-open means
-free calls; fail-closed means a dead phone line. That trade needs the spike's data, not a guess.
+**Redis down: fail open, fast and bounded** ([ADR 0003 §12](decisions/0003-retell-findings.md)).
+The spike showed what each answer buys: a hung webhook is ~30 s of ringing and a missed call, a
+fast 5xx is three retries and then the bound agent anyway, `reject` is a busy tone. So every Redis
+read here runs under a 150 ms budget and on failure the handler answers `200 {}` at once — the
+number's `latest_published` agent takes the call with the plan maximum baked into its
+`max_call_duration_ms`, `call_ended` still bills through Postgres, and what is lost for the outage
+window is only the authorisation. Alert on the first fail-open; `INBOUND_REDIS_DOWN_POLICY=closed`
+exists for an operator who prefers busy tones during an incident.
 
 ---
 
@@ -1005,7 +1022,7 @@ are silent, expensive, and discovered by customers rather than by us.
 | Redis | Redis 7 container on the backend box | BullMQ needs blocking TCP; loopback keeps the 300 ms inbound budget | Upstash — HTTP Redis cannot run BullMQ at all | [0001](decisions/0001-tech-stack.md) |
 | Database | Neon Postgres | Branch-per-environment, 7-day PITR, no instance to patch | RDS (more ops for no gain at this size) | [0001](decisions/0001-tech-stack.md) |
 | Tenancy | Two roles + RLS + append-only triggers | Second guard under the app; failure mode is "see nothing"; history survives even a BYPASSRLS connection | App-level `where tenant_id` only (silently cross-tenant in prod); schema-per-tenant (migration cost) | [0006](decisions/0006-tenancy-rls-and-append-only.md) |
-| Generation LLM | OpenAI `gpt-5`, structured output | Owner's quality judgement + family alignment with the in-call model; behind a provider interface so it is one file to reverse | Anthropic `claude-sonnet-5` (no evidence against, just not preferred); both per template (ambiguous `stack_version`); **Retell Conductor** (dashboard-only, 200 msg/org/day, requires human approval) | [0007](decisions/0007-llm-provider-openai.md) |
+| Generation LLM | Anthropic `claude-sonnet-5`, structured output | Key in hand; the family-alignment case for OpenAI was unmeasured and weak; Sonnet tier because the §9.4 guardrails are appended by code and Sonnet meets the 10 s p95 without tuning; behind a provider interface so it is one file to reverse — as the 0007 → 0009 reversal showed | Anthropic `claude-opus-5` (unused headroom, needs latency tuning; D2 benchmarks it); OpenAI `gpt-5` (ADR 0007 — no evidence against, key not in hand); both per template (ambiguous `stack_version`); **Retell Conductor** (dashboard-only, 200 msg/org/day, requires human approval) | [0009](decisions/0009-llm-provider-anthropic.md) |
 | Voice platform | Retell behind `RetellGateway` | Single import site bounds the blast radius and concentrates the P0 findings | Direct SDK use across modules | [0001](decisions/0001-tech-stack.md) |
 | Ledger idempotency | Partial unique index on `(ref_id) WHERE reason='call'` | A database constraint survives a race; application logic does not | Application-level "check then insert" | [0006](decisions/0006-tenancy-rls-and-append-only.md) |
 | Inbound authorisation | Redis-only, six ordered checks | 300 ms p95 against a 10 s Retell timeout; Neon is off-box | Synchronous Postgres reads | §13.9 |
@@ -1030,7 +1047,7 @@ can wait.
 
 | Ask | Why we need it | Why now | Blocked without it |
 | --- | --- | --- | --- |
-| **OpenAI API key** with billing, on the existing org | The only LLM we call ourselves: brief → prompt (§9.3) and feedback patches (§9.6). The in-call model is Retell's ([ADR 0007](decisions/0007-llm-provider-openai.md)) | D5 is prompt generation | `POST /agents/:id/generate` returns nothing; W2 is a dead end; the D2 quality benchmark cannot run |
+| ~~**OpenAI API key**~~ → **Anthropic API key** with billing — available 15 Sep 2026, needs to land in `.env` and SSM | The only LLM we call ourselves: brief → prompt (§9.3) and feedback patches (§9.6). The in-call model is Retell's ([ADR 0009](decisions/0009-llm-provider-anthropic.md)) | D5 is prompt generation | `POST /agents/:id/generate` returns nothing; W2 is a dead end; the D2 quality benchmark cannot run |
 | **Neon project** — one I can create branches and roles in | The only Postgres we run. 7-day PITR is the §17 recovery requirement; branch-per-environment gives staging its own data with no second server ([ADR 0006](decisions/0006-tenancy-rls-and-append-only.md)) | Migrations, RLS, triggers and seed are done and green locally. Nothing on AWS is worth creating before the database it talks to exists | No staging environment at all |
 | **AWS — scoped access, not admin** (see below) | Runs the backend: the long-lived process BullMQ, SSE and a stable webhook hostname all require ([ADR 0004](decisions/0004-backend-hosting-aws-ec2.md)), plus S3 + CloudFront for the two apps ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)) | D7–D8. Setting up IAM, SSM and the instance is a day of work that should not land on deploy day | Nothing deploys anywhere |
 | **Domain** — registrar login or a delegated zone | `app.`, `admin.` and `api.` all hang off it | It costs nothing to decide and unblocks four other things | Webhooks stay on a `trycloudflare` URL that changes on restart; no Auth0 production callbacks; no ACM certificate; Caddy cannot issue TLS |
@@ -1118,7 +1135,7 @@ build needs no AWS role at all, because a static export has no server-side secre
 | **Retell AI** | Voice platform behind `RetellGateway`: agents, LLM objects, numbers, knowledge bases, web and phone calls, webhooks | One API key per environment; webhook secret; webhook URL → `api.<domain>/webhooks/retell` | **Live (dev).** Workspace on pay-as-you-go, key and webhook secret set, a test agent and a number exist. Webhooks currently reach a `trycloudflare` tunnel |
 | **Stripe** | Checkout, Customer Portal, `checkout.session.*` webhooks, off-session PaymentIntent for auto top-up, disputes | Test-mode account, restricted key, webhook endpoint → `/webhooks/stripe`. Live keys live in a separate SSM path and never in `.env` | **Live (test mode).** Secret, publishable and webhook secret all set. The live account waits on the merchant-of-record decision and is not needed before the first real purchase |
 | **Auth0** — two tenants ([ADR 0002](decisions/0002-auth-provider-auth0.md)) | Customer login (database, Google, Microsoft); staff login (Google Workspace + mandatory TOTP); Post-Registration and Post-Login Actions | Per tenant: a **Single Page Application** ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)), an API audience, an M2M app for the Management API | **Live (dev).** `pnpm doctor` confirms two distinct issuers, both audiences and the action secret. Still to do: switch both apps from Regular Web App to SPA, and verify the Actions are deployed from `infra/auth0/actions/` |
-| **OpenAI** | Brief → prompt generation only ([ADR 0007](decisions/0007-llm-provider-openai.md)) | API key; org id | **Partial.** `OPENAI_ORG_ID` and `GENERATION_MODEL=gpt-5` set, `OPENAI_API_KEY` empty. Blocks D5 |
+| **Anthropic** | Brief → prompt generation only ([ADR 0009](decisions/0009-llm-provider-anthropic.md)) | API key | **Key available, 15 Sep 2026.** Set `ANTHROPIC_API_KEY` in `.env` and SSM, `GENERATION_MODEL=claude-sonnet-5`; drop the stale `OPENAI_*` values. Unblocks the D2 benchmark and D5 |
 | **GitHub** | Repo, Actions CI, GHCR image registry | Actions secrets: the AWS `ci` user keys only. GHCR uses `GITHUB_TOKEN` | **Live.** `saksham-metacognixion/Voice-Agent`, CI workflow present |
 | **Cloudflare** | Tunnel for local webhook delivery today; **R2** bucket for CSV and audio exports later | Tunnel: none. R2: bucket + scoped API token, worker only | **Tunnel in use** (`API_PUBLIC_URL`). R2 not started — exports are D14 |
 | **Resend** | Verification email, low-balance alerts, invites | Verified sending domain, API key | **Not started.** Needed by D5, blocked on the domain |
@@ -1140,7 +1157,7 @@ flowchart LR
     end
     subgraph partial["Partial"]
         P1["Auth0: switch to SPA,<br/>verify Actions deployed"]
-        P2["OpenAI org, no key"]
+        P2["Anthropic: key available,<br/>not yet in .env / SSM"]
         P3["Cloudflare tunnel, no R2"]
     end
     subgraph todo["Not started"]
@@ -1157,6 +1174,6 @@ flowchart LR
     end
 ```
 
-The critical path to the 15 Sep P0 exit is **OpenAI key → Neon**. AWS is a D7–D8 job and is not on
+The critical path to the 15 Sep P0 exit is **Anthropic key → Neon**. AWS is a D7–D8 job and is not on
 this week's critical path, which is fortunate given the access question above. The domain blocks five
 things and costs nothing to decide.

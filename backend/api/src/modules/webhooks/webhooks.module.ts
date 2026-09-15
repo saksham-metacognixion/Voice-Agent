@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { RetellModule } from '../retell';
 import { FixtureWriter } from './fixture-writer.service';
 import { WebhooksController } from './webhooks.controller';
 
@@ -9,6 +10,7 @@ import { WebhooksController } from './webhooks.controller';
  * registered in main.ts (see raw-body.ts for why it is not a Nest option).
  */
 @Module({
+  imports: [RetellModule],
   controllers: [WebhooksController],
   providers: [FixtureWriter],
   exports: [FixtureWriter],

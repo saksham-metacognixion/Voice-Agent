@@ -40,7 +40,8 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
   allowance and feature gates.
 - **Tier** (agent) — Standard or Premium. Drives the model/voice stack and the credit rate.
 - **Retell objects** — one `retell_llm_id` + one `retell_agent_id` per agent, plus phone numbers and
-  knowledge bases. Numbers always run the `latest_published` agent version.
+  knowledge bases. Numbers are bound with `agent_version: "latest_published"` — unpinned, Retell
+  runs `latest`, drafts included (ADR 0003 §7).
 - **Screen IDs** — A1–A8 (auth), W1–W7b (wizard), D1–D8 (dashboard), SA1–SA14 (admin).
 
 ## Tech stack
@@ -57,13 +58,15 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 | Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                                                                           |
 | Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                                                                |
 | Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                                                                      |
-| LLM            | OpenAI SDK, `gpt-5`, structured output. Brief → prompt only, **never in the call path**. ADR 0007                                                                                                                                    |
+| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**. ADR 0009                                                                                                                                    |
 | Hosting        | **S3 (private) + CloudFront (OAC) + ACM** ×2 (portal, admin; Next.js static export, ADR 0008) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + Neon Postgres. Webhooks and SSE hit `api.<domain>` directly. ADR 0004 |
 | Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack alerts                                                                                                                                                                                  |
 | Storage        | Cloudflare R2 for exports. Recordings stay on Retell URLs, proxied with signed 1-hour URLs                                                                                                                                           |
 
-Decisions live in `docs/decisions/`: 0001 tech stack, 0002 Auth0, 0004 EC2, ~~0005 Amplify~~,
-0006 tenancy (two DB roles, RLS, append-only), 0007 OpenAI, 0008 S3 + CloudFront (supersedes 0005). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+Decisions live in `docs/decisions/`: 0001 tech stack, 0002 Auth0, 0003 Retell findings (§21 +
+Redis-down), 0004 EC2, ~~0005 Amplify~~,
+0006 tenancy (two DB roles, RLS, append-only), ~~0007 OpenAI~~, 0008 S3 + CloudFront (supersedes 0005),
+0009 Anthropic `claude-sonnet-5` (supersedes 0007). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -105,7 +108,10 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 **Retell isolation**
 
 - Only `RetellGateway` imports the Retell SDK. It owns tier → model/voice mapping, webhook URL
-  construction, and retry/backoff.
+  construction, and retry/backoff. Everything Retell actually does is in ADR 0003; when in doubt
+  read the fixture in `backend/api/test/fixtures/retell/`, not the docs page.
+- The webhook signature (`x-retell-signature`) is HMAC-SHA256 over the raw body **keyed with the
+  API key**; there is no separate webhook secret. Verified through the gateway only.
 - Retell is never named in customer-facing copy. Say "voice", not "TTS"; "what your agent knows",
   not "knowledge base".
 
@@ -133,11 +139,16 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 - Six ordered checks: workspace not paused → number not paused → caller not in blocklist →
   balance > −10 → active calls < plan cap → hours rule.
 - `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`.
+- Allow = `RetellGateway.inboundAllow()`; decline = `RetellGateway.inboundDecline()`, which is
+  HTTP 200 `{call_inbound:{reject:true}}` (busy tone, no call object, no cost). A 4xx/5xx is
+  **not** a decline: Retell retries 3× then answers with the bound agent (ADR 0003 §1).
 - Both the allowed and declined paths write a `calls` row **via an enqueued job**, never inline.
   Declined rows carry `decline_reason ∈ {balance, cap, blocked, hours, paused}` and show as "Missed".
 - `runtime-cache.refresh(workspaceId)` must be called from every mutating path: pause/resume, plan
   change, number change, publish, ledger write. Plus a periodic full refresh.
-- The Redis-down policy is decided in `docs/decisions/0003-retell-findings.md`. Do not invent one.
+- Redis down = **fail open, fast and bounded** (ADR 0003 §12): 150 ms Redis budget, then answer
+  200 `{}` immediately (never 5xx, never `reject`), alert, and let `call_ended` bill as usual.
+  `INBOUND_REDIS_DOWN_POLICY=closed` flips it to `reject` for an operator. Do not reinvent this.
 
 **Append-only tables**
 
@@ -159,6 +170,9 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
   Feedback that conflicts with a guardrail returns `changes: []` plus an explanation.
 - Numbers always run `latest_published`. Drafts are only reachable by passing an explicit
   `agent_version` to `create-web-call`.
+- Retell versions are immutable once published (`update-agent` → 422). Edit flow is
+  `create-agent-version(base)` → `update-agent` / `update-retell-llm` → `publish-agent-version`;
+  roll back = new version from the old base, then publish (ADR 0003 §7).
 
 **Configuration**
 
@@ -178,7 +192,7 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
   compares against NULL. That is the intended failure mode.
 - **No network I/O inside `withWorkspace`.** The callback runs in an interactive transaction
   holding a pooled connection for its whole duration, and the pool is `num_cpus × 2 + 1`.
-  Read → close → call OpenAI / Retell / Stripe → reopen to write. A handler that awaits a
+  Read → close → call Anthropic / Retell / Stripe → reopen to write. A handler that awaits a
   generation inside the callback exhausts the pool at ~6 concurrent users at 3% CPU. The
   5 s default timeout turns that into a loud `P2024` in dev rather than a stall under load.
 - Three connection strings, two roles: `DATABASE_URL` (portal_app, RLS enforced),
@@ -247,8 +261,9 @@ auto top-up, `charge.dispute.created`.
 
 **Auth0**: two tenants, both **Single Page Application** type. Post-User-Registration Action → `POST /webhooks/auth` (shared-secret header) → upsert `users`. Post-Login Action adds namespaced claims `https://portal/email_verified` and `https://portal/mfa`. Frontend uses `@auth0/auth0-spa-js` (Authorization Code + PKCE — no client secret in the browser, ADR 0008); Actions source lives in `infra/auth0/actions/`.
 
-Open questions to answer against Retell in P0 are §21; the answers land in
-`docs/decisions/0003-retell-findings.md`.
+§21 is answered in `docs/decisions/0003-retell-findings.md` (15 Sep 2026), with fixtures. One Retell
+workspace per environment, never per tenant. Post-call analysis is a flat per-call charge, so
+`post_call_analysis_model` is part of the tier stack. Retell's website widget is not used (§11.5 is ours).
 
 ## Business rules quick reference
 

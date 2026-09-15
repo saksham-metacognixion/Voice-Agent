@@ -1,0 +1,74 @@
+{
+  "captured_at": "2026-09-15T05:31:54.933Z",
+  "provider": "retell",
+  "event_type": "call_started",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "1420",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=e23f423f08ac46f6bb14d73d2f3dc280,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "e23f423f08ac46f6bb14d73d2f3dc280-aeef79fde644a5b3",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789450314513,d=fbf070a73ac1776d98a6bc1bb67c94ceb5d92634b86137b552b8d929cd84c945"
+  },
+  "raw": "{\"event\":\"call_started\",\"call\":{\"call_id\":\"call_1d3267c6d47427b466beb1d1d1e\",\"call_type\":\"phone_call\",\"agent_id\":\"agent_c72a20039d1559e8c6e345c03c\",\"agent_version\":1,\"agent_name\":\"dev-spike-receptionist\",\"retell_llm_dynamic_variables\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"twilio-accountsid\":\"AC[redacted]\",\"twilio-callsid\":\"CA[redacted]\",\"twilio-verstat\":\"TN-Validation-Passed-B\",\"business_name\":\"Maple Dental Override\",\"agent_name\":\"Maya\"},\"contact_dynamic_variables\":{},\"custom_sip_headers\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"x-twilio-accountsid\":\"AC[redacted]\",\"x-twilio-callsid\":\"CA[redacted]\",\"x-twilio-verstat\":\"TN-Validation-Passed-B\"},\"call_status\":\"ongoing\",\"start_timestamp\":1789450314512,\"latency\":{},\"metadata\":{\"tenant_id\":\"ws_spike\",\"number_id\":\"num_spike\",\"tier\":\"standard\"},\"call_cost\":{\"product_costs\":[],\"total_duration_seconds\":0,\"total_duration_unit_price\":0,\"combined_cost\":0},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":true,\"from_number\":\"+19377293562\",\"to_number\":\"+16204459730\",\"direction\":\"inbound\",\"telephony_identifier\":{\"twilio_call_sid\":\"CA[redacted]\"}},\"event_timestamp\":1789450314512}",
+  "body": {
+    "event": "call_started",
+    "call": {
+      "call_id": "call_1d3267c6d47427b466beb1d1d1e",
+      "call_type": "phone_call",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 1,
+      "agent_name": "dev-spike-receptionist",
+      "retell_llm_dynamic_variables": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "twilio-accountsid": "AC[redacted]",
+        "twilio-callsid": "CA[redacted]",
+        "twilio-verstat": "TN-Validation-Passed-B",
+        "business_name": "Maple Dental Override",
+        "agent_name": "Maya"
+      },
+      "contact_dynamic_variables": {},
+      "custom_sip_headers": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "x-twilio-accountsid": "AC[redacted]",
+        "x-twilio-callsid": "CA[redacted]",
+        "x-twilio-verstat": "TN-Validation-Passed-B"
+      },
+      "call_status": "ongoing",
+      "start_timestamp": 1789450314512,
+      "latency": {},
+      "metadata": {
+        "tenant_id": "ws_spike",
+        "number_id": "num_spike",
+        "tier": "standard"
+      },
+      "call_cost": {
+        "product_costs": [],
+        "total_duration_seconds": 0,
+        "total_duration_unit_price": 0,
+        "combined_cost": 0
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": true,
+      "from_number": "+19377293562",
+      "to_number": "+16204459730",
+      "direction": "inbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA[redacted]"
+      }
+    },
+    "event_timestamp": 1789450314512
+  },
+  "signature_valid": true,
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_started-2026-09-15T05-31-54.933Z.json"
+}

@@ -5,6 +5,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { AllExceptionsFilter } from './common/errors/all-exceptions.filter';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './modules/auth';
+import { RetellModule } from './modules/retell';
 import { WebhooksModule } from './modules/webhooks';
 
 /**
@@ -22,6 +23,7 @@ import { WebhooksModule } from './modules/webhooks';
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../../.env'] }),
     AuthModule,
     HealthModule,
+    RetellModule,
     WebhooksModule,
   ],
   providers: [

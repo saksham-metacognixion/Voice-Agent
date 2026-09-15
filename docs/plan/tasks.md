@@ -38,7 +38,7 @@ Due Mon 14 Sep · 8h · Urgent · `phase:p0` `area:backend` `area:infra` `spec:�
 
 Provision every external account and land the full database + auth foundation in one pass.
 
-- Accounts: Retell, Stripe (test), OpenAI
+- Accounts: Retell, Stripe (test), Anthropic
 - Auth0 x2 (customer tenant, staff tenant) + M2M apps
 - AWS account: IAM user for CI, EC2 staging instance (t3.small) + Elastic IP, SSM Parameter Store, KMS key; Neon (dev branch); S3 buckets x2 + CloudFront distributions x2 + ACM cert in us-east-1 (ADR 0008)
 - cloudflared tunnel for webhooks
@@ -135,7 +135,7 @@ Tenancy plus the brief → prompt engine that makes the product feel like magic.
 - agents: create from templates/*.json, PATCH draft, versions list/select
 - agents: publish via RetellGateway, pause, delete
 - Prompt lint rules (§9.5)
-- prompting: generate job (202 + job_id) on gpt-5 structured output
+- prompting: generate job (202 + job_id) on claude-sonnet-5 structured output
 - prompting: feedback patch job (source=feedback)
 - Platform guardrails appended and non-editable (§9.4)
 - SSE agent:{id} events

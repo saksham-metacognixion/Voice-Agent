@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-09-15T05:29:17.865Z",
+  "data": {
+    "phone_number": "+19377293562",
+    "phone_number_type": "retell-twilio",
+    "phone_number_pretty": "(937) 729-3562",
+    "nickname": "dev-spike-caller",
+    "inbound_agents": [
+      {
+        "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+        "weight": 1
+      }
+    ],
+    "area_code": 937,
+    "inbound_webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell/inbound/caller_ao1shwl5svp",
+    "last_modification_timestamp": 1789450157768,
+    "toll_free": false,
+    "country_code": "US",
+    "custom_sms_enabled": false,
+    "creation_timestamp": 1789450157768,
+    "sip_outbound_trunk_config": "[redacted]"
+  }
+}

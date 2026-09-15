@@ -1,0 +1,68 @@
+{
+  "captured_at": "2026-09-15T05:38:24.525Z",
+  "provider": "retell",
+  "event_type": "call_ended",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "1823",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=bb5565403431480588e5cbd12bda32ed,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "bb5565403431480588e5cbd12bda32ed-8c69a5c4c7b2bec4",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789450704113,d=8daab87bebe12493aa2ec2f243cb6ed114683296d29842323444117613c5e09a"
+  },
+  "raw": "{\"event\":\"call_ended\",\"call\":{\"call_id\":\"call_c3d33541baab6d9754c6f725f91\",\"call_type\":\"phone_call\",\"agent_id\":\"agent_c72a20039d1559e8c6e345c03c\",\"agent_version\":0,\"agent_name\":\"dev-spike-receptionist\",\"retell_llm_dynamic_variables\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"twilio-accountsid\":\"AC[redacted]\",\"twilio-callsid\":\"CA[redacted]\",\"twilio-verstat\":\"TN-Validation-Passed-B\"},\"contact_dynamic_variables\":{},\"custom_sip_headers\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"x-twilio-accountsid\":\"AC[redacted]\",\"x-twilio-callsid\":\"CA[redacted]\",\"x-twilio-verstat\":\"TN-Validation-Passed-B\"},\"call_status\":\"not_connected\",\"start_timestamp\":1789450704112,\"end_timestamp\":1789450704112,\"duration_ms\":0,\"public_log_url\":\"[redacted-signed-url]\",\"disconnection_reason\":\"user_hangup\",\"latency\":{},\"call_cost\":{\"product_costs\":[],\"total_duration_seconds\":0,\"total_duration_unit_price\":0,\"combined_cost\":0},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":true,\"from_number\":\"+19377293562\",\"to_number\":\"+16204459730\",\"direction\":\"inbound\"},\"event_timestamp\":1789450704112}",
+  "body": {
+    "event": "call_ended",
+    "call": {
+      "call_id": "call_c3d33541baab6d9754c6f725f91",
+      "call_type": "phone_call",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 0,
+      "agent_name": "dev-spike-receptionist",
+      "retell_llm_dynamic_variables": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "twilio-accountsid": "AC[redacted]",
+        "twilio-callsid": "CA[redacted]",
+        "twilio-verstat": "TN-Validation-Passed-B"
+      },
+      "contact_dynamic_variables": {},
+      "custom_sip_headers": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "x-twilio-accountsid": "AC[redacted]",
+        "x-twilio-callsid": "CA[redacted]",
+        "x-twilio-verstat": "TN-Validation-Passed-B"
+      },
+      "call_status": "not_connected",
+      "start_timestamp": 1789450704112,
+      "end_timestamp": 1789450704112,
+      "duration_ms": 0,
+      "public_log_url": "[redacted-signed-url]",
+      "disconnection_reason": "user_hangup",
+      "latency": {},
+      "call_cost": {
+        "product_costs": [],
+        "total_duration_seconds": 0,
+        "total_duration_unit_price": 0,
+        "combined_cost": 0
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": true,
+      "from_number": "+19377293562",
+      "to_number": "+16204459730",
+      "direction": "inbound"
+    },
+    "event_timestamp": 1789450704112
+  },
+  "signature_valid": true,
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_ended-2026-09-15T05-38-24.525Z.json"
+}

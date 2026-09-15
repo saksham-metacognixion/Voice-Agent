@@ -1,0 +1,109 @@
+{
+  "captured_at": "2026-09-15T05:47:22.349Z",
+  "data": {
+    "items": [
+      {
+        "phone_number": "+16204459730",
+        "phone_number_type": "retell-twilio",
+        "phone_number_pretty": "(620) 445-9730",
+        "nickname": "dev-spike-inbound",
+        "inbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+            "agent_version": "latest_published"
+          }
+        ],
+        "area_code": 620,
+        "inbound_webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell/inbound/spike_x1afrsrwgek?mode=allow",
+        "last_modification_timestamp": 1789450932855,
+        "toll_free": false,
+        "country_code": "US",
+        "custom_sms_enabled": false,
+        "creation_timestamp": 1789450017526,
+        "sip_outbound_trunk_config": "[redacted]"
+      },
+      {
+        "phone_number": "+15064066299",
+        "phone_number_type": "retell-twilio",
+        "phone_number_pretty": "(506) 406-6299",
+        "inbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_7188c63894d668c7562e976d13",
+            "agent_version": 0
+          }
+        ],
+        "outbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_7188c63894d668c7562e976d13",
+            "agent_version": 0
+          }
+        ],
+        "area_code": 506,
+        "last_modification_timestamp": 1785145107727,
+        "toll_free": false,
+        "country_code": "CA",
+        "custom_sms_enabled": false,
+        "creation_timestamp": 1785145086720,
+        "sip_outbound_trunk_config": "[redacted]"
+      },
+      {
+        "phone_number": "+15074668118",
+        "phone_number_type": "retell-telnyx",
+        "phone_number_pretty": "(507) 466-8118",
+        "inbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_a4b03a7f9d753958a3288a350b",
+            "agent_version": 2
+          }
+        ],
+        "outbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_a4b03a7f9d753958a3288a350b",
+            "agent_version": 2
+          }
+        ],
+        "area_code": 507,
+        "last_modification_timestamp": 1784837152830,
+        "toll_free": false,
+        "country_code": "US",
+        "custom_sms_enabled": false,
+        "creation_timestamp": 1784833213450,
+        "sip_outbound_trunk_config": "[redacted]",
+        "allowed_outbound_country_list": [
+          "CA",
+          "US",
+          "IN"
+        ],
+        "fallback_number": "+15147101843"
+      },
+      {
+        "phone_number": "+14502938118",
+        "phone_number_type": "custom",
+        "phone_number_pretty": "+14502938118",
+        "nickname": "+1(450)293-8118",
+        "inbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_97d66d738affe3928c24ddb64e"
+          }
+        ],
+        "outbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_28b6357c3be835da8b65c130ee"
+          }
+        ],
+        "last_modification_timestamp": 1783059379692,
+        "custom_sms_enabled": false,
+        "creation_timestamp": 1780589161362,
+        "sip_outbound_trunk_config": "[redacted]"
+      }
+    ],
+    "has_more": false
+  }
+}

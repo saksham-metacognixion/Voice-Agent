@@ -1,0 +1,42 @@
+{
+  "captured_at": "2026-09-15T05:34:11.568Z",
+  "data": {
+    "call_id": "call_d46832b71bcd83010f4a9e2f142",
+    "call_type": "phone_call",
+    "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+    "agent_version": 0,
+    "agent_name": "dev-spike-caller",
+    "contact_dynamic_variables": {},
+    "custom_sip_headers": {},
+    "call_status": "not_connected",
+    "start_timestamp": 1789450446096,
+    "end_timestamp": 1789450446096,
+    "duration_ms": 0,
+    "public_log_url": "[redacted-signed-url]",
+    "disconnection_reason": "dial_busy",
+    "latency": {},
+    "metadata": {
+      "source": "spike-outbound",
+      "test": true
+    },
+    "call_cost": {
+      "total_duration_seconds": 0,
+      "total_duration_unit_price": 0,
+      "combined_cost": 0,
+      "product_costs": []
+    },
+    "call_analysis": {
+      "in_voicemail": false,
+      "call_successful": false,
+      "user_sentiment": "Unknown",
+      "custom_analysis_data": {},
+      "call_summary": ""
+    },
+    "data_storage_setting": "everything",
+    "opt_in_signed_url": true,
+    "tool_calls": [],
+    "from_number": "+19377293562",
+    "to_number": "+16204459730",
+    "direction": "outbound"
+  }
+}

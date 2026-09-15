@@ -1,0 +1,29 @@
+{
+  "captured_at": "2026-09-15T05:40:59.682Z",
+  "data": {
+    "call_id": "call_3156d5a9baa0f5c1148e62ac8b2",
+    "call_type": "phone_call",
+    "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+    "agent_version": 0,
+    "agent_name": "dev-spike-caller",
+    "contact_dynamic_variables": {},
+    "custom_sip_headers": {},
+    "call_status": "registered",
+    "latency": {},
+    "metadata": {
+      "test": true,
+      "source": "spike-outbound"
+    },
+    "call_cost": {
+      "product_costs": [],
+      "total_duration_seconds": 0,
+      "total_duration_unit_price": 0,
+      "combined_cost": 0
+    },
+    "data_storage_setting": "everything",
+    "opt_in_signed_url": true,
+    "from_number": "+19377293562",
+    "to_number": "+16204459730",
+    "direction": "outbound"
+  }
+}
