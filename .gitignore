@@ -43,3 +43,8 @@ pnpm-debug.log*
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal
 .retell-spike.json
+
+# raw webhook captures (FixtureWriter names them <event>-<ISO timestamp>.json).
+# Curated fixtures are named by behaviour and have no timestamp, so they stay tracked.
+# Keep one file per behaviour, rename it, delete the rest — see backend/api/test/fixtures/README.md.
+backend/api/test/fixtures/*/*-20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*.json

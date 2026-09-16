@@ -13,7 +13,23 @@ export interface RedisLike {
   set(key: string, value: string, mode: 'EX', seconds: number, condition: 'NX'): Promise<'OK' | null>;
   set(key: string, value: string): Promise<unknown>;
   del(...keys: string[]): Promise<number>;
+  mget(...keys: string[]): Promise<(string | null)[]>;
   scan(cursor: string, matchToken: 'MATCH', pattern: string, countToken: 'COUNT', count: number): Promise<[string, string[]]>;
+  /** `active:{ws}` is a hash: one field per live call (redis.keys.ts). */
+  hgetall(key: string): Promise<Record<string, string>>;
+  hset(key: string, field: string, value: string): Promise<number>;
+  hsetnx(key: string, field: string, value: string): Promise<number>;
+  hdel(key: string, ...fields: string[]): Promise<number>;
+  expire(key: string, seconds: number): Promise<number>;
+  /** SSE fan-out (modules/events). Returns the number of subscribers that received it. */
+  publish(channel: string, message: string): Promise<number>;
+  /**
+   * Optional: the §13.9 check-and-reserve runs as one atomic script (reserve.script.ts).
+   * Optional because `InMemoryRedis` has no Lua interpreter — a caller that does not find
+   * it falls back to a plain HSET, which is correct for one process and is exactly what a
+   * unit test is.
+   */
+  eval?(script: string, numKeys: number, ...args: (string | number)[]): Promise<unknown>;
   ping(): Promise<string>;
   quit(): Promise<unknown>;
 }
@@ -91,6 +107,9 @@ export async function closeRedis(client: Redis): Promise<void> {
  */
 export class InMemoryRedis implements RedisLike {
   private readonly store = new Map<string, { value: string; expiresAt?: number }>();
+  private readonly hashes = new Map<string, { fields: Map<string, string>; expiresAt?: number }>();
+  /** Every PUBLISH, in order, for the SSE tests. */
+  published: Array<{ channel: string; message: string }> = [];
   /** Set to true to make every command throw, for the "Redis is down" paths. */
   down = false;
   calls: string[] = [];
@@ -127,8 +146,80 @@ export class InMemoryRedis implements RedisLike {
   async del(...keys: string[]): Promise<number> {
     this.guard('del');
     let n = 0;
-    for (const key of keys) if (this.store.delete(key)) n += 1;
+    for (const key of keys) {
+      if (this.store.delete(key)) n += 1;
+      if (this.hashes.delete(key)) n += 1;
+    }
     return n;
+  }
+
+  async mget(...keys: string[]): Promise<(string | null)[]> {
+    this.guard('mget');
+    return keys.map((key) => this.live(key)?.value ?? null);
+  }
+
+  private liveHash(key: string): { fields: Map<string, string>; expiresAt?: number } | undefined {
+    const entry = this.hashes.get(key);
+    if (!entry) return undefined;
+    if (entry.expiresAt !== undefined && entry.expiresAt <= Date.now()) {
+      this.hashes.delete(key);
+      return undefined;
+    }
+    return entry;
+  }
+
+  async hgetall(key: string): Promise<Record<string, string>> {
+    this.guard('hgetall');
+    return Object.fromEntries(this.liveHash(key)?.fields ?? []);
+  }
+
+  async hset(key: string, field: string, value: string): Promise<number> {
+    this.guard('hset');
+    const entry = this.liveHash(key) ?? { fields: new Map<string, string>() };
+    const added = entry.fields.has(field) ? 0 : 1;
+    entry.fields.set(field, value);
+    this.hashes.set(key, entry);
+    return added;
+  }
+
+  async hsetnx(key: string, field: string, value: string): Promise<number> {
+    this.guard('hsetnx');
+    const entry = this.liveHash(key) ?? { fields: new Map<string, string>() };
+    if (entry.fields.has(field)) return 0;
+    entry.fields.set(field, value);
+    this.hashes.set(key, entry);
+    return 1;
+  }
+
+  async hdel(key: string, ...fields: string[]): Promise<number> {
+    this.guard('hdel');
+    const entry = this.liveHash(key);
+    if (!entry) return 0;
+    let n = 0;
+    for (const field of fields) if (entry.fields.delete(field)) n += 1;
+    if (entry.fields.size === 0) this.hashes.delete(key);
+    return n;
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    this.guard('expire');
+    const hash = this.liveHash(key);
+    if (hash) {
+      hash.expiresAt = Date.now() + seconds * 1000;
+      return 1;
+    }
+    const plain = this.live(key);
+    if (plain) {
+      plain.expiresAt = Date.now() + seconds * 1000;
+      return 1;
+    }
+    return 0;
+  }
+
+  async publish(channel: string, message: string): Promise<number> {
+    this.guard('publish');
+    this.published.push({ channel, message });
+    return 0;
   }
 
   async scan(_cursor: string, _m: 'MATCH', pattern: string): Promise<[string, string[]]> {
@@ -148,6 +239,6 @@ export class InMemoryRedis implements RedisLike {
 
   /** Test helper. */
   keys(): string[] {
-    return [...this.store.keys()].filter((k) => this.live(k));
+    return [...[...this.store.keys()].filter((k) => this.live(k)), ...[...this.hashes.keys()].filter((k) => this.liveHash(k))];
   }
 }

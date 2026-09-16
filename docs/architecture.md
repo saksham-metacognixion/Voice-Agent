@@ -784,6 +784,17 @@ checks need is denormalised into Redis — `num:{e164}`, `bal:{ws}`, `active:{ws
 loopback. The cost of that choice is cache-freshness discipline, which is paid by
 `runtime-cache.refresh()` on every mutating path.
 
+Measured on D4 with `backend/api/test/load/inbound.k6.js`: 189 639 authorisations at 6 319/s,
+**p95 8.4 ms, p99 12.7 ms**, no non-2xx. Four keys in two round trips plus one atomic
+check-and-reserve script, all inside one 150 ms budget.
+
+**Why `active:{ws}` is a hash and not a counter** ([ADR 0011 §1](decisions/0011-call-runtime-and-queues.md)).
+One field per live call, `call_id → "<reserved credits>|<expires at ms>"`. A counter cannot be made
+idempotent — an authorisation, a `call_started` and a missing `call_ended` all drift it — and it
+cannot answer the question check 4 actually asks: the balance *minus what the other live calls may
+still spend*. Without that, five simultaneous calls on a six-credit balance are each authorised for
+six credits of talking.
+
 **Why both outcomes write the `calls` row via an enqueued job, never inline.** A synchronous insert
 would put Postgres back on the hot path and hand Retell a 500 whenever the database hiccuped. The
 decline path matters as much as the allow path: declined rows carry
@@ -826,7 +837,7 @@ sequenceDiagram
     RT->>API: call_started
     API->>Q: enqueue
     Q->>PG: calls row — capture rate + config_version NOW
-    Q->>RD: INCR active:{ws}
+    Q->>RD: HSETNX active:{ws} call_id
 
     RT->>API: call_ended
     API->>Q: enqueue
@@ -840,7 +851,7 @@ sequenceDiagram
         WL->>PG: draw down credit_lots FIFO by expires_at
         WL->>RD: update bal:{ws}
     end
-    Q->>RD: DECR active:{ws}
+    Q->>RD: HDEL active:{ws} call_id
 
     RT->>API: call_analyzed
     API->>Q: enqueue
@@ -853,6 +864,10 @@ The rules, stated once so they can be checked against the code:
 - **`call_ended` is the only event that moves credits.** `call_analyzed` stores analysis and
   `retell_cost_cents` and never bills. Two events that both touch money is how you get
   double-billing under retry.
+- **The rate is captured once**, by whichever event creates the row, and never overwritten — so a
+  pricing publish mid-call cannot re-price a call in flight, and Retell delivering `call_ended`
+  before `call_started` still bills exactly once
+  ([ADR 0011 §4](decisions/0011-call-runtime-and-queues.md)).
 - `duration_s = (end_timestamp − start_timestamp)/1000`. If `disconnection_reason` indicates the
   call never connected (dial failed, no answer, busy), the charge is **0** — the customer does not
   pay for a phone ringing.
@@ -907,7 +922,10 @@ configuration.
 nothing further — so we return 2xx immediately and do the work in BullMQ where retries are ours to
 control, with backoff and a dead-letter queue. **Never return 5xx to Retell after the event is
 stored**: that would make Retell retry an event we already have, and a provider's retry policy is a
-worse queue than the one we run.
+worse queue than the one we run. Since D4 Stripe takes the same path
+([ADR 0011 §3](decisions/0011-call-runtime-and-queues.md)); the `webhook-sweeper` job closes the one
+gap the queue introduces, where the row commits and the enqueue then fails because Redis is what is
+down.
 
 **Why `(provider, external_id, event_type)` and not just `external_id`.** One Retell call produces
 `call_started`, `call_ended` and `call_analyzed` all carrying the same `call_id`. The event type is
@@ -927,7 +945,7 @@ a redeploy or a second worker does not double-register a schedule.
 | --- | --- | --- |
 | Long, user-visible | `generate-agent`, number provisioning, knowledge ingestion, export | Wizard must stay responsive — `202 {job_id}` + SSE |
 | Webhook processing | Retell + Stripe event handlers | Retries under our control, not the provider's |
-| Write-behind | the `calls` row from the inbound path | Keeps Postgres off a 300 ms hot path |
+| Write-behind | the `calls` row from the inbound path, runtime-cache warm-ups | Keeps Postgres off a 300 ms hot path |
 | Scheduled | number rental (15 cr/month on the purchase anniversary), extra-KB charges, lot expiry, low-balance alerts, `voice-cache` refresh, periodic runtime-cache refresh | Nobody is holding a request open |
 
 Jobs use `adminDb` — they sweep across workspaces by design — or `withWorkspace(workspaceId, ...)`

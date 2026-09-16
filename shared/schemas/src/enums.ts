@@ -39,11 +39,17 @@ export const templateId = z.enum([
 ]);
 export type TemplateId = z.infer<typeof templateId>;
 
-/** Spec §16 — SSE topics. */
+/**
+ * Spec §16 — SSE topics: `wallet`, `agent:{id}`, `call:{id}`, `activation:{id}`.
+ *
+ * `call:{id}` is deliberately wider than a uuid: `calls.id` is the Retell `call_id`
+ * (`call_016c7be0a88e114a05437321e03`) for a real call and `dec_<uuid>` for a §13.9
+ * decline, so a hex-only pattern would reject every real call topic.
+ */
 export const sseTopic = z.union([
   z.literal('wallet'),
   z.string().regex(/^agent:[0-9a-f-]+$/),
-  z.string().regex(/^call:[0-9a-f-]+$/),
+  z.string().regex(/^call:[A-Za-z0-9_-]+$/),
   z.string().regex(/^activation:[0-9a-f-]+$/),
 ]);
 

@@ -36,6 +36,13 @@ interface GlobalFlags {
 export const CONFIG_TTL_S = 60;
 /** Caps are re-derived on every mutating path anyway; the TTL only bounds a missed refresh. */
 export const CAPS_TTL_S = 300;
+/**
+ * `kill:reject_inbound` outlives its refresh cadence many times over, on purpose: the
+ * inbound path reads it raw, and a miss there reads as "switch off". At the 60 s config
+ * TTL the key would be absent for four minutes in every five-minute `runtime-cache-refresh`
+ * cycle and the veto would do nothing (see redisKeys.rejectInbound).
+ */
+export const REJECT_INBOUND_TTL_S = 3_600;
 
 /**
  * Configuration as data (spec §13.12, admin §5): pricing, flags, kill switches and the
@@ -184,7 +191,22 @@ export class PlatformConfigService {
       update: { on: input.on, reason: input.reason, setBy: input.setBy, expiresAt: input.expiresAt ?? null },
     });
     await this.cache.delPattern(redisKeys.flagsPattern);
+    // The one switch with a reader that cannot fall back to Postgres. Republish it now so
+    // an operator flipping it during an incident is obeyed by the next call, not by the
+    // next five-minute refresh.
+    await this.refreshRejectInbound();
     this.log.warn(`kill switch ${key} ${input.on ? 'ON' : 'off'}${input.reason ? ` — ${input.reason}` : ''}`);
+  }
+
+  /**
+   * Projects `reject_inbound` to `kill:reject_inbound` for the §13.9 hot path, which has
+   * no time to resolve a flags document and no Postgres to fall back to. Called on every
+   * flip and by `runtime-cache-refresh`; returns what it wrote.
+   */
+  async refreshRejectInbound(): Promise<boolean> {
+    const on = await this.killSwitch('reject_inbound');
+    await this.cache.set(redisKeys.rejectInbound, on ? '1' : '0', REJECT_INBOUND_TTL_S);
+    return on;
   }
 
   /** GET /flags for one workspace (admin §5.3: tier defaults ∘ tenant overrides ∘ feature flags). */

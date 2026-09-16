@@ -37,11 +37,19 @@ const REDACTED_HEADERS = new Set(['authorization', 'cookie', 'x-auth0-secret']);
  * webhook over a full disk helps nobody.
  *
  * Hard-off outside dev/staging. There is no configuration that makes it write in prod.
+ *
+ * The §13.9 inbound route is the exception: it is the one endpoint with a latency SLO and
+ * the one that can arrive thousands of times a minute, so capture there is **opt-in**
+ * (`CAPTURE_INBOUND_FIXTURES=true`) rather than on by default. A k6 run against a dev API
+ * with it on writes one file per request — 52 000 of them in a 30-second run, which is how
+ * this rule was learned.
  */
 @Injectable()
 export class FixtureWriter {
   private readonly log = new Logger(FixtureWriter.name);
   readonly enabled: boolean;
+  /** Capture on the inbound hot path. Off unless asked for explicitly; see the class note. */
+  readonly enabledOnHotPath: boolean;
   readonly directory: string;
 
   constructor() {
@@ -50,13 +58,24 @@ export class FixtureWriter {
     // `resolveAppEnv` reads an unset or unrecognised APP_ENV as prod, so "hard-off
     // outside dev/staging" holds even in a container that dropped the variable.
     this.enabled = env !== 'prod' && !optedOut;
+    this.enabledOnHotPath = this.enabled && process.env.CAPTURE_INBOUND_FIXTURES === 'true';
     this.directory = path.resolve(process.cwd(), process.env.FIXTURE_DIR ?? 'test/fixtures');
 
     if (this.enabled) {
-      this.log.log(`capturing webhook fixtures to ${this.directory}`);
+      this.log.log(`capturing webhook fixtures to ${this.directory}${this.enabledOnHotPath ? ' (including the inbound hot path)' : ''}`);
     } else {
       this.log.log(`fixture capture off (APP_ENV=${env}, CAPTURE_FIXTURES=${process.env.CAPTURE_FIXTURES ?? 'unset'})`);
     }
+  }
+
+  /**
+   * Capture for the §13.9 inbound route. A separate method, not a flag on `capture()`, so
+   * the hot path cannot be switched on by the same variable that turns on ordinary
+   * capture — and so this call site is greppable.
+   */
+  async captureInbound(hook: CapturedWebhook): Promise<string | undefined> {
+    if (!this.enabledOnHotPath) return undefined;
+    return this.capture(hook);
   }
 
   /** Resolves to the written path, or undefined when disabled or the write failed. */

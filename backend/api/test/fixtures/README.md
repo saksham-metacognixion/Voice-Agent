@@ -11,9 +11,16 @@ tests run against the bytes a provider actually sends.
 | `stripe/` | `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.expired`, `charge.dispute.created` |
 | `auth/` | `post_user_registration` |
 
-Keep one representative file per **behaviour** (not just per event type) and delete the rest before
-committing. Fixtures are test data: a change in a provider's payload shape should show up here as a
-diff, not as a surprise in production.
+Keep one representative file per **behaviour** (not just per event type): rename the capture you want
+after what it proves and let the rest go. Fixtures are test data: a change in a provider's payload
+shape should show up here as a diff, not as a surprise in production.
+
+That is enforced rather than remembered. `FixtureWriter` names every capture
+`<event>-<ISO timestamp>.json`, and the root `.gitignore` ignores exactly that shape under this
+directory, so a raw capture is never committed by accident and a file only becomes tracked once you
+have renamed it to the behaviour it stands for. Curated files carry no timestamp, which is what keeps
+them tracked. The D2 and D3 captures the tables below describe were pruned this way on 16 Sep 2026;
+42 unrenamed dumps went, and nothing read them.
 
 ## `retell/` — captured on D2, 15 Sep 2026
 

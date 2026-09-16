@@ -35,6 +35,8 @@ export interface CallEndedFacts {
   call_status?: string | null;
   start_timestamp?: number | null;
   end_timestamp?: number | null;
+  /** Retell's own span. Used only when a timestamp is missing; the timestamps win otherwise. */
+  duration_ms?: number | null;
   disconnection_reason?: string | null;
 }
 
@@ -65,9 +67,18 @@ export function computeCharge(call: CallEndedFacts, rate: number): Charge {
   if (call.disconnection_reason && NOT_CONNECTED_REASONS.has(call.disconnection_reason)) return zero('not_connected');
 
   const { start_timestamp: start, end_timestamp: end } = call;
-  if (typeof start !== 'number' || typeof end !== 'number') return zero('missing_timestamps');
+  let span_ms: number;
+  if (typeof start === 'number' && typeof end === 'number') {
+    span_ms = end - start;
+  } else if (typeof call.duration_ms === 'number' && Number.isFinite(call.duration_ms)) {
+    // A payload with one timestamp dropped still carries duration_ms; bill the seconds
+    // Retell itself measured rather than giving the minutes away.
+    span_ms = call.duration_ms;
+  } else {
+    return zero('missing_timestamps');
+  }
 
-  const duration_s = Math.max(0, (end - start) / 1000);
+  const duration_s = Math.max(0, span_ms / 1000);
   if (duration_s <= 0) return zero('zero_duration', 0);
 
   const credits = roundCredits((duration_s / 60) * rate);

@@ -35,6 +35,10 @@ const CHECKS = [
   { key: 'STRIPE_SECRET_KEY', phase: 'D3', required: true, secret: true },
   { key: 'STRIPE_WEBHOOK_SECRET', phase: 'D3', required: true, secret: true },
   { key: 'PORTAL_URL', phase: 'D3', required: true },
+  // D4: the call runtime. Both have safe defaults, so neither is fatal — but a multi-process
+  // API without a shared recording secret mints links its own siblings refuse (§17).
+  { key: 'RECORDING_SIGNING_SECRET', phase: 'D4', required: false, secret: true },
+  { key: 'INBOUND_REDIS_DOWN_POLICY', phase: 'D4', required: false },
   { key: 'RESEND_API_KEY', phase: 'D5', required: false, secret: true },
   { key: 'SIP_CREDENTIALS_KMS_KEY_ID', phase: 'D8', required: false },
 ];
@@ -69,6 +73,23 @@ if (appEnv && !APP_ENVS.includes(appEnv)) {
 if (process.env.API_PUBLIC_URL?.trim() && appEnv === 'prod' && !/^https:\/\//i.test(process.env.API_PUBLIC_URL.trim())) {
   fatal += 1;
   results.push(['FAIL', 'API_PUBLIC_URL', 'must be https in prod — Retell callbacks are baked in at create time']);
+}
+
+// The §13.9 Redis-down policy is a deploy-time switch with exactly two values; a typo in it
+// would silently mean "fail open" during the incident it was set for (ADR 0003 §12).
+const inboundPolicy = process.env.INBOUND_REDIS_DOWN_POLICY?.trim().toLowerCase();
+if (inboundPolicy && !['open', 'closed'].includes(inboundPolicy)) {
+  fatal += 1;
+  results.push(['FAIL', 'INBOUND_REDIS_DOWN_POLICY', `"${inboundPolicy}" is not open | closed`]);
+} else if (inboundPolicy === 'closed') {
+  results.push(['ok', 'INBOUND_REDIS_DOWN_POLICY', 'closed — a Redis outage answers busy on every inbound call']);
+}
+
+// A recording link signed with a per-process secret does not survive a second API process.
+const recordingSecret = process.env.RECORDING_SIGNING_SECRET?.trim();
+if (recordingSecret && recordingSecret.length < 32) {
+  fatal += 1;
+  results.push(['FAIL', 'RECORDING_SIGNING_SECRET', `${recordingSecret.length} characters; needs at least 32`]);
 }
 
 // Two Auth0 tenants or the staff boundary is decorative (ADR 0002).

@@ -9,6 +9,8 @@ import { AllExceptionsFilter } from '../src/common/errors/all-exceptions.filter'
 import { AuthModule } from '../src/modules/auth';
 import { BillingModule, BillingService, StripeGateway } from '../src/modules/billing';
 import { PlatformConfigModule, PlatformConfigService } from '../src/modules/config';
+import { EventsModule } from '../src/modules/events';
+import { JobsModule, WorkerRuntime } from '../src/modules/jobs';
 import { RedisModule, RedisCache, redisKeys } from '../src/modules/redis';
 import { WalletModule } from '../src/modules/wallet';
 import { WebhooksModule, registerWebhookRawBody } from '../src/modules/webhooks';
@@ -32,6 +34,11 @@ process.env.STRIPE_SECRET_KEY ||= 'sk_test_e2e_placeholder_not_used_for_network'
 process.env.STRIPE_WEBHOOK_SECRET ||= 'whsec_e2e_placeholder';
 process.env.APP_ENV ||= 'dev';
 process.env.CAPTURE_FIXTURES = 'false';
+process.env.RETELL_API_KEY ||= 'key_e2e_placeholder_0123456789abcdef';
+process.env.API_PUBLIC_URL ||= 'http://localhost:4000';
+// D4 moved Stripe processing behind BullMQ, so this suite runs a real worker on its own
+// queue namespace and waits for each event to be processed before asserting on the ledger.
+process.env.BULLMQ_PREFIX = `portal:e2e-billing-${randomUUID().slice(0, 8)}`;
 
 const customerTenant = new FakeAuth0Tenant('customers', 'https://api.test');
 const staffTenant = new FakeAuth0Tenant('staff', 'https://admin-api.test');
@@ -55,7 +62,7 @@ beforeAll(async () => {
   ws = { ...created, sub: user.authProviderId };
 
   @Module({
-    imports: [AuthModule, RedisModule, PlatformConfigModule, WalletModule, BillingModule, WebhooksModule],
+    imports: [AuthModule, RedisModule, PlatformConfigModule, JobsModule, EventsModule, WalletModule, BillingModule, WebhooksModule],
     providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
   })
   class TestModule {}
@@ -65,6 +72,7 @@ beforeAll(async () => {
   registerWebhookRawBody(app);
   await app.init();
   await app.getHttpAdapter().getInstance().ready();
+  await app.get(WorkerRuntime).start();
 
   stripe = app.get(StripeGateway);
   config = app.get(PlatformConfigService);
@@ -108,9 +116,14 @@ function sessionEvent(type: string, session: Record<string, unknown>) {
   };
 }
 
+/**
+ * Posts a signed Stripe event and, when it was accepted for processing, waits until the
+ * worker has finished it. Since D4 the HTTP handler only stores and enqueues (ADR 0010 §5
+ * as amended), so an assertion made straight after the response would race the job.
+ */
 async function post(payload: unknown, signature?: string) {
   const body = JSON.stringify(payload);
-  return app.inject({
+  const response = await app.inject({
     method: 'POST',
     url: '/webhooks/stripe',
     headers: {
@@ -119,6 +132,20 @@ async function post(payload: unknown, signature?: string) {
     },
     payload: body,
   });
+  const eventId = (payload as { id?: string }).id;
+  if (response.statusCode === 200 && eventId) await settle(eventId);
+  return response;
+}
+
+/** Polls `webhook_events.processed_at` for one event id. */
+async function settle(eventId: string, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const row = await adminDb.webhookEvent.findFirst({ where: { provider: 'stripe', externalId: eventId }, select: { processedAt: true, error: true } });
+    if (row?.processedAt) return;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error(`stripe event ${eventId} was not processed within ${timeoutMs} ms`);
 }
 
 async function pendingPurchase(packId = 'starter') {

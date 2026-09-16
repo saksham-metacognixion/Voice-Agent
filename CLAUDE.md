@@ -67,7 +67,8 @@ Decisions live in `docs/decisions/`: 0001 tech stack, 0002 Auth0, 0003 Retell fi
 Redis-down), 0004 EC2, ~~0005 Amplify~~,
 0006 tenancy (two DB roles, RLS, append-only), ~~0007 OpenAI~~, 0008 S3 + CloudFront (supersedes 0005),
 0009 Anthropic `claude-sonnet-5` (supersedes 0007), 0010 wallet ledger semantics + pricing config shape +
-Stripe webhook retries (D3). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+Stripe webhook retries (D3; §5 amended by 0011), 0011 call runtime — `active:{ws}` reservations, the
+BullMQ hand-off for both providers, the recording proxy (D4). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -102,7 +103,18 @@ The API and the worker import the same `backend/api/src/modules/*/service.ts`. R
 processors call the same services.
 
 Backend modules mirror §13.1: `auth, workspaces, agents, prompting, voices, knowledge, numbers, calls,
-wallet, billing, webhooks, notifications, events, jobs, admin`.
+wallet, billing, webhooks, notifications, events, jobs, admin`, plus `config` (pricing/flags/caps),
+`redis`, `retell`, `runtime-cache` (the Redis projection the inbound path reads) and `scheduled`.
+
+Jobs: `modules/jobs` owns the BullMQ plumbing only — three queues (`webhooks`, `calls`, `scheduled`),
+a handler registry every feature module registers into at module init, the worker runtime, and the
+§13.11 schedulers. The API registers every handler and starts no Worker; `src/worker.ts` starts them.
+Job ids are deterministic, which is the queue side of exactly-once — but `Queue.add()` cannot tell
+a caller that an id was refused (BullMQ builds the returned Job locally), so `JobQueues.add(...,
+verify)` reads the stored job back. `enqueueWebhook` verifies: an id held by a job that already
+failed for good would otherwise swallow the sweeper's re-enqueue forever. Cache repairs
+(`warm-workspace`, `refresh-number`) use `REPAIR_JOB_OPTIONS`, which frees the id as soon as the
+job settles.
 
 ## Invariants — do not violate
 
@@ -120,10 +132,13 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 
 - Verify signature on the **raw body** (parser scoped to `/webhooks/*` only) → upsert `webhook_events`
   with unique `(provider, external_id, event_type)` → return 2xx fast → process in the queue.
-- Duplicate insert returns 204. Never return 5xx to Retell after the event is stored; retry in BullMQ.
-  Stripe, until the D4 queue lands: a processing failure is recorded on the row and answered 500 so
-  Stripe retries; `WebhookEventsService.store()` returns `retry` (not `duplicate`) for a stored but
-  unprocessed event (ADR 0010 §5).
+- Duplicate of a *processed* event returns 204. Never return 5xx to a provider after the event is
+  stored; retries are BullMQ's, eight attempts with exponential backoff (ADR 0011 §3). Both providers
+  follow this rule since D4 — the D3 Stripe exception is gone. `WebhookEventsService.store()` still
+  returns `retry` (not `duplicate`) for a stored but unprocessed event, and the `webhook-sweeper` job
+  re-enqueues anything stored that never reached the queue.
+- Retell's `external_id` is the `call_id`; a payload without one is deduped on a digest of its bytes.
+  `transfer_*` and unknown types are stored, acknowledged and left for a later handler.
 - Handle Stripe `checkout.session.completed` (credit only when `payment_status = paid`),
   `async_payment_succeeded`, `async_payment_failed` and `expired` (→ `abandoned`).
 
@@ -134,26 +149,63 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 - `duration_s = (end_timestamp − start_timestamp)/1000`. If `disconnection_reason` indicates not
   connected (dial failed, no answer, busy) the charge is 0.
 - `credits = duration_s/60 × rate(tier)` rounded to 0.01. Ledger debit is idempotent on `call_id`.
-- `calls.rate` and `calls.config_version` are captured at `call_started` from the config current at
-  that moment, so a mid-call price change never double-bills.
+- `calls.rate` and `calls.config_version` are captured **once**, by whichever event creates the row
+  (the inbound write-behind, `call_started`, or `call_ended` if it arrives first), and are never
+  overwritten, so a mid-call price change cannot re-price a call in flight (ADR 0011 §4).
+- Retell can deliver out of order: `call_ended` first finalises the row and the late `call_started`
+  does not reopen it; `call_analyzed` first creates an **unbilled** row and leaves it unbilled.
 - Every ledger write goes through the `wallet` module. No direct `credit_ledger` inserts anywhere else.
 
 **Inbound call authorisation (§13.9) — p95 < 300 ms**
 
 - `POST /webhooks/retell/inbound/:number_token`. Redis-only path; Retell times out at 10 s and retries 3×.
-- Six ordered checks: workspace not paused → number not paused → caller not in blocklist →
-  balance > −10 → active calls < plan cap → hours rule.
-- `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`.
+  Four keys, two round trips, one 150 ms budget. Measured p95 8.4 ms at 6 319 req/s (`test/load/inbound.k6.js`).
+- Six ordered checks: workspace not paused → number not paused (or no live agent) → caller not in
+  blocklist → balance > −grace → active calls < plan cap → hours rule. The SA12 `reject_inbound`
+  kill switch declines before all of them. The checks are a pure function, `decide()` in
+  `modules/calls/inbound.decide.ts`; the service only fetches and answers.
+- `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`, clamped to Retell's
+  [60 s, 2 h]. "remainingCredits" is the balance **minus what the other live calls may still
+  spend** — that is what `active:{ws}` holds per call (ADR 0011 §1).
+- The SA12 veto is read from `kill:reject_inbound`, not from `flags:global`, for the same reason:
+  a `flags:` key carries the 60 s config TTL against a 5-minute refresh, so it is absent for most
+  of every cycle and a miss there reads as "switch off" — a kill switch that silently never fires.
+  `PlatformConfigService.setKillSwitch()` republishes it on every flip; `runtime-cache-refresh`
+  keeps it alive.
+- `decide()` and `reserve.script.ts` both exclude the call's **own** `active:{ws}` entry. Retell
+  re-sends `call_inbound` with the same `call_id` up to three times, so a retry meets its own
+  reservation; counted, it is a busy tone for the caller whose slot is being held for them.
+- Both halves of that formula come from `num:{e164}`: `plan_max_ms` and `rate_per_min`. The rate is
+  deliberately **not** read from `pricing:current` on this path — that key carries the 60 s config
+  TTL while `runtime-cache-refresh` runs every five minutes, so it is absent for most of every
+  cycle, and a decision without a rate reserves nothing and lets concurrent calls overrun the
+  grace. A stale rate here can misprice nothing: it only sizes a ceiling, and `calls.rate` is
+  captured by the worker from the live config.
+- Check-and-reserve is atomic: the slot is written by a Lua script that re-checks the cap and the
+  balance ceiling as it writes, so two calls racing cannot both take the last slot or the last
+  credits (ADR 0011 §1). A lost race is an ordinary `cap`/`balance` decline.
+- A number we cannot identify — no `to_number`, no `num:{e164}`, a token that does not match, or a
+  signature that does not verify — is a fail-open (`200 {}`), never a 4xx: Retell would retry three
+  times and answer with the bound agent anyway (ADR 0011 §2).
 - Allow = `RetellGateway.inboundAllow()`; decline = `RetellGateway.inboundDecline()`, which is
   HTTP 200 `{call_inbound:{reject:true}}` (busy tone, no call object, no cost). A 4xx/5xx is
   **not** a decline: Retell retries 3× then answers with the bound agent (ADR 0003 §1).
 - Both the allowed and declined paths write a `calls` row **via an enqueued job**, never inline.
   Declined rows carry `decline_reason ∈ {balance, cap, blocked, hours, paused}` and show as "Missed".
+  The one exception is an allow with no `call_id`: `call_started` owns that row, and a synthetic id
+  here would be a phantom `registered` call beside the real one.
 - `runtime-cache.refresh(workspaceId)` must be called from every mutating path: pause/resume, plan
-  change, number change, publish, ledger write. Plus a periodic full refresh.
+  change, number change, publish, ledger write. Plus the 5-minute `runtime-cache-refresh` schedule
+  and a full warm-up on worker boot. It is the only writer of `num:{e164}`.
 - Redis down = **fail open, fast and bounded** (ADR 0003 §12): 150 ms Redis budget, then answer
   200 `{}` immediately (never 5xx, never `reject`), alert, and let `call_ended` bill as usual.
   `INBOUND_REDIS_DOWN_POLICY=closed` flips it to `reject` for an operator. Do not reinvent this.
+- A call let through by any fail-open carries **no metadata**, so the lifecycle handlers resolve the
+  workspace from `metadata.tenant_id`, then the Retell agent, then the number it was dialled on.
+  Without that fallback `call_ended` cannot bill it and the call is free and invisible (ADR 0011 §2).
+- A reservation in `active:{ws}` is sized to what the call can actually spend — min(the agent's
+  `max_call_duration_s`, the wallet after the other live calls) — never Retell's 2 h ceiling, which
+  would decline other callers on `balance` while the credits are still there (ADR 0011 §1).
 
 **Append-only tables**
 
@@ -239,12 +291,14 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
 | Key               | Contents                                                                   |
 | ----------------- | -------------------------------------------------------------------------- |
 | `bal:{ws}`        | cached credit balance, 1-hour TTL                                          |
-| `active:{ws}`     | active call counter, TTL = max duration + 5 min                            |
+| `active:{ws}`     | **hash** of live calls: `call_id → "<reserved credits>\|<expires at ms>"`, key TTL = max duration + 5 min (ADR 0011 §1) |
+| `events:{ws}`     | pub/sub channel carrying that workspace's SSE frames (PUBLISH only, never a key) |
 | `caps:{ws}`       | plan caps and grace, from the current pricing config plus tenant overrides |
-| `num:{e164}`      | number → workspace, agent, tier, hours, transfer targets, paused flags     |
+| `num:{e164}`      | number → workspace, agent, tier, **rate**, plan max, hours, transfer targets, paused flags |
 | `pricing:current` | current pricing config snapshot                                            |
 | `flags:global`    | feature_flags + kill_switches rows                                         |
 | `flags:{ws}`      | `GET /flags` resolved for one workspace                                    |
+| `kill:reject_inbound` | the SA12 veto, `'1'`/`'0'`, for the hot path — outside `flags:` and its 60 s TTL |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
 throws and never waits past its budget (ADR 0010 §6).
@@ -256,7 +310,12 @@ throws and never waits past its budget (ADR 0010 §6).
 - Pagination: `?cursor=&limit=`.
 - Long operations return `202 {job_id}`; the client subscribes to SSE and falls back to
   `GET /jobs/:id` every 3 s.
-- SSE topics: `wallet`, `agent:{id}`, `call:{id}`, `activation:{id}`.
+- SSE topics: `wallet`, `agent:{id}`, `call:{id}`, `activation:{id}`. `GET /events` is an ordinary
+  authenticated route (the client is `@microsoft/fetch-event-source`), narrowed with `?topics=`, and
+  only ever carries `ctx.workspaceId`'s own channel.
+- Recordings: `GET /calls/:id/recording` mints a signed one-hour link to
+  `GET /calls/:id/recording/stream?token=`, which is `@Public()` and proxies the bytes. The Retell
+  URL is never given to the browser (ADR 0011 §5).
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 
@@ -360,6 +419,9 @@ knowledge W4 → auto top-up → team and invites.
   one webhook URL set per environment. Stripe test and live keys never mix.
 - Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths and
   RLS cross-tenant isolation. Other areas are best-effort.
+- The §13.9 latency SLO is asserted, not eyeballed: `pnpm --filter @portal/api load:setup` then
+  `load:inbound` runs k6 with `p(95)<300` as a threshold, so the run exits non-zero if it regresses.
+  `load:reset` frees the slots a previous run reserved; `load:teardown` pauses the number afterwards.
 - `pnpm test` is unit-only and needs nothing running. `pnpm test:e2e` needs Postgres **and Redis** and
   covers the parts that cannot be mocked: RLS isolation, the append-only triggers, the auth
   boundaries, the wallet (FIFO, overdraft, idempotent call debit, `bal:{ws}` rebuild) and the Stripe

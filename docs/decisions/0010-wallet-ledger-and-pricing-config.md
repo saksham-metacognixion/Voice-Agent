@@ -95,7 +95,12 @@ purchases by that column could let a Growth pack sold with a bonus outrank Scale
 resolves each paid purchase to its pack (current config, else the `packs` catalogue row a
 retired pack left behind) and takes the highest tier; ties go to the larger credit count.
 
-### 5. Stripe webhook failures answer 5xx until the queue lands (D4)
+### 5. Stripe webhook failures answer 5xx until the queue lands (D4) — *superseded by ADR 0011 §3 on 16 Sep 2026*
+
+> **Amended.** The D4 queue has landed. Stripe now follows the same rule as Retell — verify → store →
+> 204 on a duplicate → enqueue → 200 — and processing failures are BullMQ retries, not 500s. The
+> paragraph below is kept as the record of why the exception existed. See ADR 0011 §3.
+
 
 `POST /webhooks/stripe`: verify → `webhook_events` upsert → process **inline** → 200. If processing
 throws, the failure is recorded on the row and the answer is **500 on purpose**: Stripe retries for

@@ -16,3 +16,14 @@ export type {
   Language,
   PostCallAnalysisField,
 } from './retell.types';
+export {
+  parseRetellWebhook,
+  callIdOf,
+  channelOf,
+  directionOf,
+  retellCallFacts,
+  retellLifecycleEvent,
+  retellInboundEvent,
+  RETELL_LIFECYCLE_EVENTS,
+} from './retell-webhook';
+export type { ParsedRetellWebhook, RetellCallFacts, RetellLifecycleEvent, RetellInboundEvent, RetellLifecycleEventType } from './retell-webhook';

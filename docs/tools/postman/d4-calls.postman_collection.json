@@ -1,0 +1,1666 @@
+{
+  "info": {
+    "name": "Voice Agent - D4 call runtime",
+    "description": "D4: inbound authorisation, Retell webhooks, metering, calls API, stats aur SSE (spec §13.9, §13.10, §14, §16; ADR 0011).\n\n## Ek line me kahani\n\nKoi customer ke number par call karta hai → Retell humse poochta hai \"uthaun?\" (folder B) → call chalti hai aur khatam hoti hai, Retell events bhejta hai (folder C) → credits kat te hain → customer dashboard me call dekhta hai (folder D, E).\n\n## Setup\n\n```sh\npnpm infra:up && pnpm db:deploy && pnpm db:seed\npnpm --filter @portal/api dev        # API :4000 par\npnpm --filter @portal/api dev:worker # ALAG terminal me — ye zaroori hai!\npnpm --filter @portal/api load:setup # number_token, to_number, workspace_id print karega\n```\n\n**Worker chalana mat bhoolna.** D4 me API sirf webhook store karke queue me daal deta hai; asli kaam (calls row banana, credits kaatna, SSE bhejna) worker karta hai. Worker band hoga to sab 200 aayega par database me kuch nahi badlega.\n\n## Environment variables\n\n| Variable | Kahan se |\n| --- | --- |\n| `retell_api_key` | `.env` ka `RETELL_API_KEY` — **signature isi se banta hai** |\n| `number_token`, `to_number`, `workspace_id` | `load:setup` ka output |\n| `token` | Customer JWT (D3 collection me OAuth helper ki setting hai) |\n| `from_number` | Kuch bhi, default `+19377293562` |\n\n## Signature kaise banta hai\n\nRetell ka koi alag webhook secret nahi hai — API key hi signing key hai. `x-retell-signature: v=<ms>,d=<HMAC-SHA256(apiKey, rawBody + ms)>`, ±5 minute ki window.\n\nHar signed request ka pre-request script body ko `{{signed_body}}` me daal deta hai aur usi exact string ko sign karta hai. **Request ki raw body me `{{signed_body}}` ke alawa kuch mat likhna** — ek extra space bhi signature tod dega, kyunki verify raw bytes par hota hai.\n\n## Isme kya nahi hai\n\nConcurrency race aur latency SLO Postman se test nahi ho sakte. Unke liye:\n`backend/api/test/calls.e2e.test.ts` (20 ek saath aane wali calls vs cap 3) aur `pnpm --filter @portal/api load:inbound` (k6, `p(95)<300` threshold ke saath).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "A. Shuru karne se pehle",
+      "description": "Pehle `pnpm infra:up && pnpm db:deploy && pnpm db:seed`, phir API `:4000` par chalao.\n\nEnvironment me ye bharna zaroori hai:\n\n| Variable | Kahan se milega |\n| --- | --- |\n| `retell_api_key` | `.env` ka `RETELL_API_KEY`. Signature isi se banta hai, isliye API ki key se **bilkul same** hona chahiye. |\n| `number_token`, `to_number`, `workspace_id` | `pnpm --filter @portal/api load:setup` chalao — ye teeno print kar deta hai, ek ready-made workspace ke saath (live agent, active number, 100k credits, cap 500). |\n| `token` | Customer JWT. D3 collection me OAuth 2.0 helper ki poori setting likhi hai; wahi yahan bhi chalega. |\n\nFolder order maayne rakhta hai: **B** call ko authorise karta hai, **C** usi call ko bill karta hai, **D/E** us call ko padhte hain. Collection Runner me upar se neeche chalao.",
+      "item": [
+        {
+          "name": "1. GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{api_base}}/health",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Sirf liveness check. Agar ye fail hua to neeche kuch bhi chalane ka matlab nahi."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('API zinda hai', () => pm.response.to.have.status(200));",
+                  "pm.test('dev environment hai', () => pm.expect(pm.response.json().env).to.eql('dev'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Environment check — sab variables bhare hain?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{api_base}}/health",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Ye request kuch naya nahi maangti — bas environment check karti hai, taki aage ki galtiyaan samajhne me waqt na jaaye.\n\n**Sabse common galti:** `number_token` khali reh jaata hai. Tab URL `/webhooks/retell/inbound/` ban jaata hai (token ke bina), route use token-mismatch samajhta hai aur fail-open `200 {}` de deta hai. Status 200 dikhega, par `call_inbound` undefined hoga aur tests `Cannot read properties of undefined (reading 'agent_override')` se fail honge. Ye bug nahi hai — yahi design hai (ADR 0011 §2), bas input adhoora tha.\n\nValues yahan se lo:\n\n```sh\npnpm --filter @portal/api load:setup\n```\n\nWo `NUMBER_TOKEN`, `TO_NUMBER`, `WORKSPACE_ID` print karta hai. `retell_api_key` `.env` ke `RETELL_API_KEY` se **exactly** same hona chahiye — wahi webhook signing key bhi hai.\n\n**Dhyan rakho:** har `load:setup` naya number banata hai, aur `load:teardown` purane numbers pause kar deta hai. Purana token dobara use karoge to `paused` decline milega."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const need = ['api_base', 'retell_api_key', 'number_token', 'to_number', 'workspace_id'];",
+                  "const missing = need.filter((k) => !pm.environment.get(k));",
+                  "pm.test('saare environment variables bhare hain', () => {",
+                  "  pm.expect(missing, 'khali: ' + missing.join(', ') + ' — pnpm --filter @portal/api load:setup chalao').to.be.empty;",
+                  "});",
+                  "pm.test('number_token ka shape sahi hai (tok_...)', () =>",
+                  "  pm.expect(String(pm.environment.get('number_token'))).to.match(/^tok_[0-9a-f]{32}$/));",
+                  "pm.test('to_number E.164 hai (+1...)', () =>",
+                  "  pm.expect(String(pm.environment.get('to_number'))).to.match(/^\\+[1-9]\\d{6,14}$/));",
+                  "pm.test('API zinda hai', () => pm.response.to.have.status(200));",
+                  "if (missing.length) { console.error('RUKO — ye variables bharo:', missing.join(', ')); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Token kaise laayein (padho, chalao mat)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{api_base}}/health",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Folder **D, E, F** ko customer JWT chahiye. Bina uske `401 UNAUTHENTICATED — \"Sign in to continue.\"` milega, jo bilkul sahi hai: har customer route authenticated hai by default, `@Public()` sirf webhooks aur recording stream par lagta hai.\n\n### Step 1 — token lo\n\nKisi bhi ek D/E request ke **Authorization** tab me jaao, type **OAuth 2.0** rakho aur ye bharo (customer tenant, SPA app `Voice Agent`):\n\n| Setting | Value |\n| --- | --- |\n| Grant type | Authorization Code (With PKCE) |\n| Auth URL | `https://dev-tpj0dmu6yauk2360.us.auth0.com/authorize` |\n| Access Token URL | `https://dev-tpj0dmu6yauk2360.us.auth0.com/oauth/token` |\n| Client ID | `l0UZ5TKdAcHETAzg0swJFIVeFftfJBd3` |\n| Client Secret | *khali chhodo* — SPA hai, browser me secret nahi hota (ADR 0008) |\n| Callback URL | `https://oauth.pstmn.io/v1/callback` |\n| Scope | `openid profile email` |\n| Advanced → Auth request params | `audience` = `https://api.metacognixion.com` |\n| **Client Authentication** | **Send client credentials in body** |\n\n**Client Authentication zaroor badalna.** Postman default me *Send as Basic Auth header* rakhta hai, yaani khali secret ke saath `Authorization: Basic base64(client_id:)`. Ye app SPA (public client) hai — uska koi secret hai hi nahi — to Auth0 us header ko confidential-client ki koshish samajh ke `access_denied: Unauthorized` de deta hai. Body me bhejne par wo PKCE flow maanta hai aur `code_verifier` se verify karta hai.\n\n### Do gotchas jo waqt kha jaate hain\n\n- **Trailing newline.** In values ko kahin se copy-paste karoge to line break saath aa sakta hai. URL me wo `%0A` ban jaata hai: `.../oauth/token%0A` → **404**, aur error message asli wajah nahi batata. Paste ke baad `End` daba ke dekh lo ki cursor usi line par hai.\n- **`audience` chhodna mat.** Uske bina Auth0 opaque token deta hai, JWT nahi, aur API use verify nahi kar payegi.\n\nKahan atke ho, ye console batata hai: `/authorize` par **302** matlab client id aur callback URL dono theek hain; uske baad `/oauth/token` ka jawab batata hai client authentication sahi hai ya nahi.\n\n**Get New Access Token** dabao, browser me login karo, phir token dialog me **Access Token copy karo**.\n\n> Callback URL Auth0 app ki *Allowed Callback URLs* me hona chahiye, warna Auth0 callback reject kar dega.\n\n### Step 2 — token ko local account se jodo\n\nSirf valid token kaafi nahi hai. API caller ko `users.auth_provider_id = <jwt ka sub>` se dhoondta hai, aur jiske peeche row nahi wo token bhi 401 deta hai. Wo row normally Auth0 ki Post-User-Registration Action banati hai (`POST /webhooks/auth`) — wo D5 par aayega. Tab tak haath se:\n\n```sh\ncd backend/api\npnpm exec dotenv -e ../../.env -- tsx scripts/dev-link-user.ts \"<token>\" <workspace_id>\n```\n\n`workspace_id` **de dena** — wahi jo `load:setup` ne diya tha. Us workspace me folder B/C se banayi hui asli calls hain, to `GET /calls` khali nahi aayega. Bina workspace_id ke script ek naya khali workspace banata hai aur 20 trial credits deta hai.\n\n### Step 3 — Postman me daalo\n\n1. Copy kiya hua token environment ke **`token`** variable me paste karo.\n2. Jis request par aapne OAuth 2.0 set kiya tha, uske Authorization tab me type wapas **\"Inherit auth from parent\"** kar do. Collection already `Bearer {{token}}` bhejti hai, to sab requests ek hi jagah se token uthayengi.\n3. `workspace_id` wahi rakho jo step 2 me diya tha — `X-Workspace-Id` header usi se banta hai.\n\n### Do header kyun chahiye\n\n`Authorization` batata hai **aap kaun ho**, `X-Workspace-Id` batata hai **kis business ka data**. Ek user kai workspaces ka member ho sakta hai (`memberships`), isliye token se workspace infer nahi kiya ja sakta. `WorkspaceGuard` membership check karta hai, phir Postgres RLS doosri layer hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const t = pm.environment.get('token');",
+                  "pm.test('token environment me hai', () => pm.expect(t, 'Docs tab padho — 3 step hain').to.be.a('string').and.not.empty);",
+                  "if (t) {",
+                  "  const parts = String(t).replace(/^Bearer\\s+/i, '').split('.');",
+                  "  pm.test('JWT jaisa dikhta hai (3 hisse)', () => pm.expect(parts).to.have.lengthOf(3));",
+                  "  try {",
+                  "    const claims = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));",
+                  "    const left = Math.round((claims.exp * 1000 - Date.now()) / 60000);",
+                  "    pm.test('token expire nahi hua', () => pm.expect(left, left + ' min baaki').to.be.above(0));",
+                  "    console.log('sub:', claims.sub, '| aud:', claims.aud, '|', left, 'min baaki');",
+                  "    console.log('agar 401 aa raha hai to dev-link-user.ts is sub ke saath chalao');",
+                  "  } catch (e) { console.log('payload decode nahi hua:', e.message); }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B. Inbound authorisation (§13.9) — latency wala rasta",
+      "description": "`POST /webhooks/retell/inbound/:number_token` — **poore system ka sabse time-critical endpoint**.\n\nJab koi customer ke number par call karta hai, Retell pehle humse poochta hai: *ye call uthaun ya nahi?* Hamare paas 10 second ka hard timeout hai aur SLO p95 < 300 ms hai. Isliye ye route **sirf Redis** padhta hai (4 keys, 2 round trip, 150 ms ka budget) — Postgres ko chhuta tak nahi. `calls` row baad me queue se likhi jaati hai.\n\nChhe check is order me: kill switch → workspace paused → number paused/agent nahi → blocklist → balance vs grace → concurrency cap → business hours.\n\n**Sabse important baat:** yahan koi bhi galti 4xx nahi deti. Retell non-2xx ko decline nahi samajhta — wo 3 baar retry karta hai aur phir apne bound agent se call utha leta hai. To galat signature, unknown number, Redis down — sab `200 {}` (fail open) dete hain. Asli decline sirf `200 {call_inbound:{reject:true}}` hota hai (ADR 0003 §1).",
+      "item": [
+        {
+          "name": "1. Allow — sab check pass",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ]
+            },
+            "description": "Sab kuch theek hai to Retell ko batate hain: kaun sa agent uthaye, kitne der tak bol sakta hai, aur metadata me `tenant_id` — jise baad me `call_ended` billing ke liye use karta hai.\n\n`max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`, Retell ki [60s, 2h] limit me clamp karke. `remainingCredits` matlab balance **minus jitna baaki live calls abhi kharch kar sakte hain** — isi liye `active:{ws}` ab counter nahi, per-call reservation hash hai (ADR 0011 §1)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// --- pehle environment check, warna galti chup-chaap 200 de degi ---",
+                  "// number_token khali hoga to URL /inbound/ ban jaata hai, route token-mismatch",
+                  "// samajh ke fail-open 200 {} de deta hai — yani test fail par status theek. Isliye",
+                  "// yahin rok dete hain, saaf message ke saath.",
+                  "['retell_api_key', 'number_token', 'to_number', 'workspace_id'].forEach((k) => {",
+                  "  if (!pm.environment.get(k)) {",
+                  "    throw new Error(k + ' environment me khali hai. Upar right me \"Voice Agent D4\" ' +",
+                  "      'environment chuna hai? Values ke liye: pnpm --filter @portal/api load:setup');",
+                  "  }",
+                  "});",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Alag webhook secret nahi hai — API key hi signing key hai (CLAUDE.md, Retell isolation).",
+                  "const key = pm.environment.get('retell_api_key');",
+                  "",
+                  "// Ek naya call_id har baar — kyunki call_id hi हमारा idempotency key hai.",
+                  "const callId = 'call_' + pm.variables.replaceIn('{{$guid}}').replace(/-/g, '').slice(0, 24);",
+                  "pm.environment.set('call_id', callId);",
+                  "const payload = {",
+                  "  event: 'call_inbound',",
+                  "  event_timestamp: Date.now(),",
+                  "  call_inbound: {",
+                  "    call_id: callId,",
+                  "    agent_id: 'agent_postman',",
+                  "    agent_version: 1,",
+                  "    from_number: pm.environment.get('from_number'),",
+                  "    to_number: pm.environment.get('to_number'),",
+                  "  },",
+                  "};",
+                  "",
+                  "// Body ko yahin string bana ke variable me daal rahe hain. Request ki raw body",
+                  "// sirf {{signed_body}} hai, taki Postman use dubara format na kare — warna ek",
+                  "// extra space bhi signature tod dega.",
+                  "const raw = JSON.stringify(payload);",
+                  "const ts = Date.now();",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('signed_body', raw);",
+                  "pm.environment.set('retell_signature', 'v=' + ts + ',d=' + digest);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('hamesha 200 — Retell ke liye 4xx ka matlab decline nahi hota', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('reject nahi hua', () => pm.expect(b.call_inbound && b.call_inbound.reject).to.not.eql(true));",
+                  "pm.test('agent bataya gaya', () => pm.expect(b.call_inbound).to.have.property('override_agent_id'));",
+                  "pm.test('duration cap laga', () => pm.expect(b.call_inbound.agent_override.agent.max_call_duration_ms).to.be.a('number'));",
+                  "pm.test('metadata me tenant_id hai (billing isi se workspace dhoondta hai)', () =>",
+                  "  pm.expect(b.call_inbound.metadata.tenant_id).to.eql(pm.environment.get('workspace_id')));",
+                  "pm.test('SLO ke andar: p95 < 300 ms', () => pm.expect(pm.response.responseTime).to.be.below(300));",
+                  "console.log('is call ka id:', pm.environment.get('call_id'), '— folder C isi ko bill karega');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Galat signature — fail open, 4xx nahi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "v=1700000000000,d=0000000000000000000000000000000000000000000000000000000000000000"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_inbound\",\n  \"event_timestamp\": 1789450192487,\n  \"call_inbound\": {\n    \"call_id\": \"call_forged_postman\",\n    \"agent_id\": \"agent_postman\",\n    \"from_number\": \"{{from_number}}\",\n    \"to_number\": \"{{to_number}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ]
+            },
+            "description": "Yahan 401 dena **galat** hota. Socho: kisi ne API key rotate kar di aur signature match nahi ho raha — agar hum 401 dete, to caller ko 2 second ring sunai deti aur phir bhi call uth jaati (Retell bound agent se). Matlab 401 se kuch bacha nahi, sirf caller ka time gaya.\n\nIsliye `200 {}` dete hain **bina kuch authorise kiye** — koi `calls` row nahi, koi reservation nahi, aur log me ERROR. Forged request se attacker ko kuch nahi milta, aur genuine call uth jaati hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200, 401 nahi', () => pm.response.to.have.status(200));",
+                  "pm.test('khali body — kuch authorise nahi hua', () => pm.expect(pm.response.json()).to.eql({}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Anjaan number — fail open",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ]
+            },
+            "description": "`to_number` aisa jiska `num:{e164}` Redis me hai hi nahi. Ho sakta hai number abhi provision hua ho aur cache warm na hui ho — us waqt asli customer ki call decline kar dena sabse bura outcome hai. Fail open."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// --- pehle environment check, warna galti chup-chaap 200 de degi ---",
+                  "// number_token khali hoga to URL /inbound/ ban jaata hai, route token-mismatch",
+                  "// samajh ke fail-open 200 {} de deta hai — yani test fail par status theek. Isliye",
+                  "// yahin rok dete hain, saaf message ke saath.",
+                  "['retell_api_key', 'number_token', 'to_number', 'workspace_id'].forEach((k) => {",
+                  "  if (!pm.environment.get(k)) {",
+                  "    throw new Error(k + ' environment me khali hai. Upar right me \"Voice Agent D4\" ' +",
+                  "      'environment chuna hai? Values ke liye: pnpm --filter @portal/api load:setup');",
+                  "  }",
+                  "});",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Alag webhook secret nahi hai — API key hi signing key hai (CLAUDE.md, Retell isolation).",
+                  "const key = pm.environment.get('retell_api_key');",
+                  "",
+                  "const payload = {",
+                  "  event: 'call_inbound',",
+                  "  event_timestamp: Date.now(),",
+                  "  call_inbound: {",
+                  "    call_id: 'call_' + pm.variables.replaceIn('{{$guid}}').replace(/-/g, '').slice(0, 24),",
+                  "    agent_id: 'agent_postman',",
+                  "    from_number: pm.environment.get('from_number'),",
+                  "    to_number: '+15550001111',   // aisa number jo kisi workspace ka nahi hai",
+                  "  },",
+                  "};",
+                  "",
+                  "// Body ko yahin string bana ke variable me daal rahe hain. Request ki raw body",
+                  "// sirf {{signed_body}} hai, taki Postman use dubara format na kare — warna ek",
+                  "// extra space bhi signature tod dega.",
+                  "const raw = JSON.stringify(payload);",
+                  "const ts = Date.now();",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('signed_body', raw);",
+                  "pm.environment.set('retell_signature', 'v=' + ts + ',d=' + digest);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('khali body', () => pm.expect(pm.response.json()).to.eql({}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. Token mismatch — fail open",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/tok_ye_galat_token_hai",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "tok_ye_galat_token_hai"
+              ]
+            },
+            "description": "Number to sahi hai par URL ka token us number ke `inbound_token` se match nahi karta. Signature already verify ho chuka hai, to ye sabotage nahi — zyada chance hai ki number ka token rotate hua aur Retell ke paas purana URL hai. Wahi fail-open policy."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// --- pehle environment check, warna galti chup-chaap 200 de degi ---",
+                  "// number_token khali hoga to URL /inbound/ ban jaata hai, route token-mismatch",
+                  "// samajh ke fail-open 200 {} de deta hai — yani test fail par status theek. Isliye",
+                  "// yahin rok dete hain, saaf message ke saath.",
+                  "['retell_api_key', 'number_token', 'to_number', 'workspace_id'].forEach((k) => {",
+                  "  if (!pm.environment.get(k)) {",
+                  "    throw new Error(k + ' environment me khali hai. Upar right me \"Voice Agent D4\" ' +",
+                  "      'environment chuna hai? Values ke liye: pnpm --filter @portal/api load:setup');",
+                  "  }",
+                  "});",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Alag webhook secret nahi hai — API key hi signing key hai (CLAUDE.md, Retell isolation).",
+                  "const key = pm.environment.get('retell_api_key');",
+                  "",
+                  "// Ek naya call_id har baar — kyunki call_id hi हमारा idempotency key hai.",
+                  "const callId = 'call_' + pm.variables.replaceIn('{{$guid}}').replace(/-/g, '').slice(0, 24);",
+                  "pm.environment.set('call_id', callId);",
+                  "const payload = {",
+                  "  event: 'call_inbound',",
+                  "  event_timestamp: Date.now(),",
+                  "  call_inbound: {",
+                  "    call_id: callId,",
+                  "    agent_id: 'agent_postman',",
+                  "    agent_version: 1,",
+                  "    from_number: pm.environment.get('from_number'),",
+                  "    to_number: pm.environment.get('to_number'),",
+                  "  },",
+                  "};",
+                  "",
+                  "// Body ko yahin string bana ke variable me daal rahe hain. Request ki raw body",
+                  "// sirf {{signed_body}} hai, taki Postman use dubara format na kare — warna ek",
+                  "// extra space bhi signature tod dega.",
+                  "const raw = JSON.stringify(payload);",
+                  "const ts = Date.now();",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('signed_body', raw);",
+                  "pm.environment.set('retell_signature', 'v=' + ts + ',d=' + digest);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('khali body — token match nahi hua to authorise nahi kiya', () => pm.expect(pm.response.json()).to.eql({}));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "C. Lifecycle webhooks (§14) — paisa yahan chalta hai",
+      "description": "`POST /webhooks/retell` — teeno lifecycle events isi ek route par aate hain. Har event ka rasta same hai:\n\n1. raw body par signature verify → galat hua to **401, kuch store nahi**\n2. `webhook_events` me upsert, unique `(provider, external_id, event_type)`\n3. already processed duplicate → **204**, kuch nahi karte\n4. BullMQ queue me daalo → **200 `{received:true}`** turant\n\nAsli processing queue me hoti hai, 8 attempts exponential backoff ke saath. Event store hone ke baad provider ko kabhi 5xx nahi milta — kyunki Retell ke liye retry storm ka matlab hai live call par asar, aur Stripe ke liye 3 din ki retries se behtar hamari apni queue hai.\n\n**Paise ka rule:** sirf `call_ended` credits kaatta hai. `call_started` credits *reserve* karta hai aur rate lock karta hai. `call_analyzed` sirf transcript/analysis save karta hai — **kabhi bill nahi karta**.",
+      "item": [
+        {
+          "name": "1. call_started — rate lock + slot reserve",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Call uth gayi. Yahan do kaam hote hain:\n\n**Rate capture.** `calls.rate` aur `calls.config_version` **ek hi baar** likhe jaate hain aur kabhi overwrite nahi hote. Wajah: agar call ke beech me admin pricing badal de, to chal rahi call ka rate badalna nahi chahiye — customer ko wahi rate lagega jo call shuru hote waqt tha (ADR 0011 §4).\n\n**Reservation.** `active:{ws}` hash me is call ka slot HSETNX se likhte hain. HSETNX isliye ki agar Retell wahi event dobara bheje, to do reservation na ban jaayein."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// --- pehle environment check, warna galti chup-chaap 200 de degi ---",
+                  "// number_token khali hoga to URL /inbound/ ban jaata hai, route token-mismatch",
+                  "// samajh ke fail-open 200 {} de deta hai — yani test fail par status theek. Isliye",
+                  "// yahin rok dete hain, saaf message ke saath.",
+                  "['retell_api_key', 'number_token', 'to_number', 'workspace_id'].forEach((k) => {",
+                  "  if (!pm.environment.get(k)) {",
+                  "    throw new Error(k + ' environment me khali hai. Upar right me \"Voice Agent D4\" ' +",
+                  "      'environment chuna hai? Values ke liye: pnpm --filter @portal/api load:setup');",
+                  "  }",
+                  "});",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Alag webhook secret nahi hai — API key hi signing key hai (CLAUDE.md, Retell isolation).",
+                  "const key = pm.environment.get('retell_api_key');",
+                  "",
+                  "// Lifecycle webhook ka shape D2 ke asli fixtures se copy kiya gaya hai",
+                  "// (backend/api/test/fixtures/retell/). metadata.tenant_id isliye bhej rahe hain",
+                  "// taki ye request akeli bhi kaam kare — warna workspace sirf tab milta hai jab",
+                  "// folder B ne pehle row bana di ho.",
+                  "const callId = pm.environment.get('call_id');",
+                  "if (!callId) { throw new Error('pehle folder B ka \"1. Allow\" chalao — wahan se call_id aata hai'); }",
+                  "const startedAt = Number(pm.environment.get('started_at') || Date.now());",
+                  "pm.environment.set('started_at', String(startedAt));",
+                  "const payload = {",
+                  "  event: 'call_started',",
+                  "  call: {",
+                  "    call_id: callId,",
+                  "    call_type: 'phone_call',",
+                  "    direction: 'inbound',",
+                  "    agent_id: 'agent_postman',",
+                  "    agent_version: 1,",
+                  "    from_number: pm.environment.get('from_number'),",
+                  "    to_number: pm.environment.get('to_number'),",
+                  "    metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "    call_status: 'ongoing',",
+                  "    start_timestamp: startedAt,",
+                  "  },",
+                  "};",
+                  "",
+                  "// Body ko yahin string bana ke variable me daal rahe hain. Request ki raw body",
+                  "// sirf {{signed_body}} hai, taki Postman use dubara format na kare — warna ek",
+                  "// extra space bhi signature tod dega.",
+                  "const raw = JSON.stringify(payload);",
+                  "const ts = Date.now();",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('signed_body', raw);",
+                  "pm.environment.set('retell_signature', 'v=' + ts + ',d=' + digest);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 turant — processing queue me hai', () => pm.response.to.have.status(200));",
+                  "pm.test('received', () => pm.expect(pm.response.json().received).to.eql(true));",
+                  "// Worker ko row update karne ka thoda time do; folder D isi row ko padhega."
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. call_ended — yahi ek event bill karta hai",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "`duration_s = (end_timestamp − start_timestamp)/1000`, `credits = duration_s/60 × rate`, 0.01 tak round.\n\nYahan 120 second bheja hai, standard tier (1 credit/min) par = **2.00 credits**.\n\nAgar `disconnection_reason` batata hai ki call connect hi nahi hui (`dial_busy`, `dial_no_answer`, `dial_failed`) to charge **0** hota hai — customer ko ring ke paise nahi dene chahiye.\n\nIdempotency application code se nahi, **database se** aati hai: `credit_ledger (ref_id) WHERE reason='call'` par partial unique index hai. Replay hone par insert collide karta hai — `if (!exists)` jaisa check race condition me double-bill kar sakta tha, isliye us par bharosa nahi kiya."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// --- pehle environment check, warna galti chup-chaap 200 de degi ---",
+                  "// number_token khali hoga to URL /inbound/ ban jaata hai, route token-mismatch",
+                  "// samajh ke fail-open 200 {} de deta hai — yani test fail par status theek. Isliye",
+                  "// yahin rok dete hain, saaf message ke saath.",
+                  "['retell_api_key', 'number_token', 'to_number', 'workspace_id'].forEach((k) => {",
+                  "  if (!pm.environment.get(k)) {",
+                  "    throw new Error(k + ' environment me khali hai. Upar right me \"Voice Agent D4\" ' +",
+                  "      'environment chuna hai? Values ke liye: pnpm --filter @portal/api load:setup');",
+                  "  }",
+                  "});",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Alag webhook secret nahi hai — API key hi signing key hai (CLAUDE.md, Retell isolation).",
+                  "const key = pm.environment.get('retell_api_key');",
+                  "",
+                  "// Lifecycle webhook ka shape D2 ke asli fixtures se copy kiya gaya hai",
+                  "// (backend/api/test/fixtures/retell/). metadata.tenant_id isliye bhej rahe hain",
+                  "// taki ye request akeli bhi kaam kare — warna workspace sirf tab milta hai jab",
+                  "// folder B ne pehle row bana di ho.",
+                  "const callId = pm.environment.get('call_id');",
+                  "if (!callId) { throw new Error('pehle folder B ka \"1. Allow\" chalao — wahan se call_id aata hai'); }",
+                  "const startedAt = Number(pm.environment.get('started_at') || Date.now());",
+                  "pm.environment.set('started_at', String(startedAt));",
+                  "const payload = {",
+                  "  event: 'call_ended',",
+                  "  call: {",
+                  "    call_id: callId,",
+                  "    call_type: 'phone_call',",
+                  "    direction: 'inbound',",
+                  "    agent_id: 'agent_postman',",
+                  "    agent_version: 1,",
+                  "    from_number: pm.environment.get('from_number'),",
+                  "    to_number: pm.environment.get('to_number'),",
+                  "    metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "    call_status: 'ended',",
+                  "    start_timestamp: startedAt,",
+                  "    end_timestamp: startedAt + 120000,   // 120 s => standard tier par 2.00 credits",
+                  "    duration_ms: 120000,",
+                  "    disconnection_reason: 'user_hangup',",
+                  "    transcript: 'Agent: Hello, thanks for calling.\\nUser: Hi, I need an appointment.',",
+                  "    recording_url: 'https://dxc03zgurdly9.cloudfront.net/postman-demo.wav',",
+                  "  },",
+                  "};",
+                  "",
+                  "// Body ko yahin string bana ke variable me daal rahe hain. Request ki raw body",
+                  "// sirf {{signed_body}} hai, taki Postman use dubara format na kare — warna ek",
+                  "// extra space bhi signature tod dega.",
+                  "const raw = JSON.stringify(payload);",
+                  "const ts = Date.now();",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('signed_body', raw);",
+                  "pm.environment.set('retell_signature', 'v=' + ts + ',d=' + digest);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('received', () => pm.expect(pm.response.json().received).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. call_ended dobara — replay, double charge nahi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Bilkul wahi event dobara. Agar worker pehla event process kar chuka hai to **204** milega — \"ye to ho chuka, kuch mat karo\".\n\n**Dhyan se:** agar aap turant chala do aur worker abhi busy ho, to **200** milega, 204 nahi. Ye bug nahi hai — `store()` stored-but-unprocessed event ke liye `retry` return karta hai, taki ek event jo queue tak pahunche bina reh gaya ho wo phir se enqueue ho jaaye. Ledger phir bhi double nahi hoga, kyunki asli guard database ka unique index hai. 204 dekhna ho to 2–3 second ruk ke chalao."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// --- pehle environment check, warna galti chup-chaap 200 de degi ---",
+                  "// number_token khali hoga to URL /inbound/ ban jaata hai, route token-mismatch",
+                  "// samajh ke fail-open 200 {} de deta hai — yani test fail par status theek. Isliye",
+                  "// yahin rok dete hain, saaf message ke saath.",
+                  "['retell_api_key', 'number_token', 'to_number', 'workspace_id'].forEach((k) => {",
+                  "  if (!pm.environment.get(k)) {",
+                  "    throw new Error(k + ' environment me khali hai. Upar right me \"Voice Agent D4\" ' +",
+                  "      'environment chuna hai? Values ke liye: pnpm --filter @portal/api load:setup');",
+                  "  }",
+                  "});",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Alag webhook secret nahi hai — API key hi signing key hai (CLAUDE.md, Retell isolation).",
+                  "const key = pm.environment.get('retell_api_key');",
+                  "",
+                  "// Lifecycle webhook ka shape D2 ke asli fixtures se copy kiya gaya hai",
+                  "// (backend/api/test/fixtures/retell/). metadata.tenant_id isliye bhej rahe hain",
+                  "// taki ye request akeli bhi kaam kare — warna workspace sirf tab milta hai jab",
+                  "// folder B ne pehle row bana di ho.",
+                  "const callId = pm.environment.get('call_id');",
+                  "if (!callId) { throw new Error('pehle folder B ka \"1. Allow\" chalao — wahan se call_id aata hai'); }",
+                  "const startedAt = Number(pm.environment.get('started_at') || Date.now());",
+                  "pm.environment.set('started_at', String(startedAt));",
+                  "const payload = {",
+                  "  event: 'call_ended',",
+                  "  call: {",
+                  "    call_id: callId,",
+                  "    call_type: 'phone_call',",
+                  "    direction: 'inbound',",
+                  "    agent_id: 'agent_postman',",
+                  "    agent_version: 1,",
+                  "    from_number: pm.environment.get('from_number'),",
+                  "    to_number: pm.environment.get('to_number'),",
+                  "    metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "    call_status: 'ended',",
+                  "    start_timestamp: startedAt,",
+                  "    end_timestamp: startedAt + 120000,",
+                  "    duration_ms: 120000,",
+                  "    disconnection_reason: 'user_hangup',",
+                  "  },",
+                  "};",
+                  "",
+                  "// Body ko yahin string bana ke variable me daal rahe hain. Request ki raw body",
+                  "// sirf {{signed_body}} hai, taki Postman use dubara format na kare — warna ek",
+                  "// extra space bhi signature tod dega.",
+                  "const raw = JSON.stringify(payload);",
+                  "const ts = Date.now();",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('signed_body', raw);",
+                  "pm.environment.set('retell_signature', 'v=' + ts + ',d=' + digest);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 (processed duplicate) ya 200 (abhi queue me hai)', () =>",
+                  "  pm.expect([200, 204]).to.include(pm.response.code));",
+                  "if (pm.response.code === 200) {",
+                  "  console.log('worker ne abhi pehla event process nahi kiya — 2-3 sec baad dobara chalao to 204 milega');",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. call_analyzed — analysis save, bill nahi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Retell call khatam hone ke ~30 second baad analysis bhejta hai: summary, sentiment, custom fields.\n\nYe event **kabhi credits nahi kaatta**. Agar kaat deta to har call do baar bill hoti. Ye sirf `analysis_json` aur `retell_cost_cents` (hamari apni COGS reporting ke liye, customer ko kabhi nahi dikhta) save karta hai.\n\nEdge case jo handle kiya hai: agar `call_analyzed` sabse pehle aa jaaye (out of order delivery), to row **unbilled** banti hai aur unbilled hi rehti hai — analysis se billing trigger nahi hoti."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// --- pehle environment check, warna galti chup-chaap 200 de degi ---",
+                  "// number_token khali hoga to URL /inbound/ ban jaata hai, route token-mismatch",
+                  "// samajh ke fail-open 200 {} de deta hai — yani test fail par status theek. Isliye",
+                  "// yahin rok dete hain, saaf message ke saath.",
+                  "['retell_api_key', 'number_token', 'to_number', 'workspace_id'].forEach((k) => {",
+                  "  if (!pm.environment.get(k)) {",
+                  "    throw new Error(k + ' environment me khali hai. Upar right me \"Voice Agent D4\" ' +",
+                  "      'environment chuna hai? Values ke liye: pnpm --filter @portal/api load:setup');",
+                  "  }",
+                  "});",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Alag webhook secret nahi hai — API key hi signing key hai (CLAUDE.md, Retell isolation).",
+                  "const key = pm.environment.get('retell_api_key');",
+                  "",
+                  "// Lifecycle webhook ka shape D2 ke asli fixtures se copy kiya gaya hai",
+                  "// (backend/api/test/fixtures/retell/). metadata.tenant_id isliye bhej rahe hain",
+                  "// taki ye request akeli bhi kaam kare — warna workspace sirf tab milta hai jab",
+                  "// folder B ne pehle row bana di ho.",
+                  "const callId = pm.environment.get('call_id');",
+                  "if (!callId) { throw new Error('pehle folder B ka \"1. Allow\" chalao — wahan se call_id aata hai'); }",
+                  "const startedAt = Number(pm.environment.get('started_at') || Date.now());",
+                  "pm.environment.set('started_at', String(startedAt));",
+                  "const payload = {",
+                  "  event: 'call_analyzed',",
+                  "  call: {",
+                  "    call_id: callId,",
+                  "    call_type: 'phone_call',",
+                  "    direction: 'inbound',",
+                  "    agent_id: 'agent_postman',",
+                  "    agent_version: 1,",
+                  "    from_number: pm.environment.get('from_number'),",
+                  "    to_number: pm.environment.get('to_number'),",
+                  "    metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "    call_status: 'ended',",
+                  "    start_timestamp: startedAt,",
+                  "    end_timestamp: startedAt + 120000,",
+                  "    duration_ms: 120000,",
+                  "    disconnection_reason: 'user_hangup',",
+                  "    call_analysis: {",
+                  "      call_summary: 'Caller ne appointment maanga.',",
+                  "      user_sentiment: 'Positive',",
+                  "      call_successful: true,",
+                  "      custom_analysis_data: { intent: 'booking' },",
+                  "    },",
+                  "    call_cost: { combined_cost: 12.5 },",
+                  "  },",
+                  "};",
+                  "",
+                  "// Body ko yahin string bana ke variable me daal rahe hain. Request ki raw body",
+                  "// sirf {{signed_body}} hai, taki Postman use dubara format na kare — warna ek",
+                  "// extra space bhi signature tod dega.",
+                  "const raw = JSON.stringify(payload);",
+                  "const ts = Date.now();",
+                  "const digest = CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('signed_body', raw);",
+                  "pm.environment.set('retell_signature', 'v=' + ts + ',d=' + digest);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Galat signature — yahan 401 sahi hai",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "v=1700000000000,d=ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+              }
+            ],
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_ended\",\n  \"call\": {\n    \"call_id\": \"call_forged_postman\",\n    \"start_timestamp\": 1789450193999,\n    \"end_timestamp\": 1789450269548,\n    \"disconnection_reason\": \"user_hangup\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Inbound route se ulta — **yahan 401 dena bilkul sahi hai**.\n\nFarak kyun? Inbound par koi live caller line par wait kar raha hota hai, aur reject karne se uska nuksaan hota hai. Yahan koi wait nahi kar raha. Ek forged `call_ended` seedha ledger me nakli debit daal sakta hai, to ise pehle gate par hi rok dena chahiye — kuch store nahi hota, queue me kuch nahi jaata."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('error envelope {code, message} hai', () => pm.expect(pm.response.json()).to.have.property('code'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "D. Calls API (§16) — D2 screen ka data",
+      "description": "Ab jab call authorise bhi ho gayi aur bill bhi ho gayi, customer use dashboard me dekhega. Ye saare route normal authenticated route hain: `Authorization: Bearer` + `X-Workspace-Id`, aur Postgres RLS doosri layer hai.\n\nEk design decision jo poore folder me dikhta hai: database me status `declined` hai, par customer ko **\"missed\"** dikhta hai. Customer ko ye nahi sochna chahiye ki humne uski call \"decline\" ki — uske liye wo bas ek missed call hai.",
+      "item": [
+        {
+          "name": "1. GET /calls — list with filters",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls?limit=20",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "ended",
+                  "disabled": true
+                },
+                {
+                  "key": "channel",
+                  "value": "phone",
+                  "disabled": true
+                },
+                {
+                  "key": "direction",
+                  "value": "inbound",
+                  "disabled": true
+                },
+                {
+                  "key": "is_test",
+                  "value": "false",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2026-09-01T00:00:00Z",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "2026-09-30T00:00:00Z",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Cursor pagination (`?cursor=&limit=`), offset nahi — call list roz badhti hai aur offset pagination page 50 par slow ho jaati hai.\n\nFilters: `status`, `channel`, `direction`, `agent_id`, `number_id`, `from`/`to`, `is_test`. Disabled params ko enable karke try karo.\n\nChhoti si detail: `is_test` ko `z.coerce.boolean()` se parse nahi kiya, kyunki wo string `\"false\"` ko `true` padh leta hai — query string me sab kuch text hota hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('page shape {items, next_cursor}', () => pm.expect(b).to.have.property('items'));",
+                  "if (b.items.length) {",
+                  "  pm.environment.set('listed_call_id', b.items[0].id);",
+                  "  pm.test('COGS leak nahi ho raha (retell_cost_cents staff-only hai)', () =>",
+                  "    pm.expect(b.items[0]).to.not.have.property('retell_cost_cents'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /calls?status=missed — declined calls",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls?status=missed",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "missed"
+                }
+              ]
+            },
+            "description": "Jitni calls §13.9 ke checks ne roki, wo yahan aati hain — `decline_reason` ke saath (`balance`, `cap`, `blocked`, `hours`, `paused`).\n\nYe rows **queue se** likhi jaati hain, inline nahi — hot path par Postgres write karne ka matlab hota latency budget todna. Inka id `dec_<uuid>` hota hai kyunki Retell ne koi call banayi hi nahi, to uska `call_id` hai hi nahi.\n\nBusiness ke liye ye sabse kaam ki screen hai: `decline_reason=balance` matlab customer ke credits khatam ho gaye aur uska business chhoot raha hai — ye upsell ka signal hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const items = pm.response.json().items;",
+                  "pm.test('sab missed dikhte hain, declined nahi', () =>",
+                  "  items.forEach((c) => pm.expect(c.status).to.eql('missed')));",
+                  "pm.test('har missed call ke paas wajah hai', () =>",
+                  "  items.forEach((c) => pm.expect(c.decline_reason).to.be.a('string')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /calls/:id — detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}"
+              ]
+            },
+            "description": "List wale saare fields + `transcript_text`, `transcript_json`, `analysis_json`.\n\nYahan check karo ki folder C ne sahi kaam kiya: `credits_charged` 2 hona chahiye (120 s ÷ 60 × 1.0), `rate` locked hona chahiye, `status` `ended` ya `analyzed`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json();",
+                  "pm.test('bill ho chuki hai', () => pm.expect(c.credits_charged).to.eql(2));",
+                  "pm.test('rate lock hai', () => pm.expect(c.rate).to.be.a('number'));",
+                  "pm.test('config_version capture hua', () => pm.expect(c.config_version).to.be.a('number'));",
+                  "pm.test('120 second', () => pm.expect(c.duration_s).to.eql(120));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. PATCH /calls/:id — handled / note",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"handled\": true,\n  \"note\": \"Callback kar diya, appointment book ho gayi.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}"
+              ]
+            },
+            "description": "Ek chhota sa CRM. Business owner missed calls ki list dekhta hai, callback karta hai, aur tick laga deta hai.\n\n`@Roles('owner','admin','editor')` — viewer call dekh sakta hai par uspar kaam ka nishaan nahi laga sakta, kyunki wo team ke doosre logon ko dikhega."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json();",
+                  "pm.test('handled_at set hua', () => pm.expect(c.handled_at).to.be.a('string'));",
+                  "pm.test('note save hua', () => pm.expect(c.note).to.include('Callback'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. GET /calls/:id/recording — signed link",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id}}/recording",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}",
+                "recording"
+              ]
+            },
+            "description": "Recording do step me milti hai, aur iski wajah important hai.\n\nBrowser ka `<audio>` tag `Authorization` header nahi bhej sakta. Seedha Retell ka URL de dena aasan tha, par wo URL khud ek bearer credential hai customer ki call audio ke liye — uski expiry hamare control me nahi, aur wo browser history/logs me chala jaata hai.\n\nTo hum apna HMAC-signed token banate hain: ek call se bandha, ek workspace se bandha, 1 ghante me mar jaata hai. Retell ka URL browser tak kabhi nahi pahunchta (ADR 0011 §5)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('humara apna URL hai, Retell ka nahi', () =>",
+                  "  pm.expect(b.url).to.include('/recording/stream?token='));",
+                  "pm.test('Retell ka domain leak nahi hua', () => pm.expect(b.url).to.not.include('retell'));",
+                  "pm.test('1 ghante me expire', () => {",
+                  "  const mins = (new Date(b.expires_at) - Date.now()) / 60000;",
+                  "  pm.expect(mins).to.be.above(55).and.below(65);",
+                  "});",
+                  "pm.environment.set('recording_url', b.url);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. GET /calls/:id/recording/stream — audio proxy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{recording_url}}"
+            },
+            "description": "Ye route `@Public()` hai — token hi credential hai. Bytes proxy hote hain, redirect nahi, aur `Range` header pass through hota hai taki player seek kar sake.\n\nDemo recording URL asli nahi hai, isliye upstream fail ho sakta hai (503). Wo bhi theek hai — jo yahan test karna hai wo ye hai ki **token verify hua ya nahi**. Token ke aakhri character ko badal ke chalao: 401 milega."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('token accept hua (401/403 nahi)', () => pm.expect([200, 206, 503]).to.include(pm.response.code));",
+                  "if (pm.response.code === 503) { console.log('upstream demo URL asli nahi hai — token check phir bhi pass hua'); }"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "E. Stats aur SSE (§16) — dashboard ka live hissa",
+      "item": [
+        {
+          "name": "1. GET /stats?range=7d",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/stats?range=7d",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "7d"
+                }
+              ]
+            },
+            "description": "D1 home screen ke number. Total / answered / missed, minutes, credits, average duration, `missed_by_reason` breakdown, aur `by_day` chart data.\n\nDin **workspace ki timezone** me cut hote hain, UTC me nahi — `date_trunc('day', started_at AT TIME ZONE $tz)`. Toronto ke customer ke liye 8 PM ki call aaj ki hai, kal ki nahi. UTC me wo agle din chali jaati."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test('total = answered + missed', () =>",
+                  "  pm.expect(s.calls.total).to.eql(s.calls.answered + s.calls.missed));",
+                  "pm.test('workspace timezone me hai', () => pm.expect(s.timezone).to.be.a('string'));",
+                  "pm.test('by_day chart ke liye array hai', () => pm.expect(s.by_day).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /stats?range=custom",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/stats?range=custom&from=2026-09-01T00:00:00Z&to=2026-09-30T00:00:00Z",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "custom"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-09-01T00:00:00Z"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-09-30T00:00:00Z"
+                }
+              ]
+            },
+            "description": "`range=custom` ke saath `from` aur `to` dono zaroori hain, aur `from < to` hona chahiye — ye zod schema me refine se enforce hai, to galat input 422 deta hai, 500 nahi. Ek ko hata ke try karo."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('range custom', () => pm.expect(pm.response.json().range).to.eql('custom'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /events?topics=wallet,call:... (SSE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/events?topics=wallet",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "topics",
+                  "value": "wallet"
+                }
+              ]
+            },
+            "description": "Live updates ka stream. Dashboard ise khol ke rakhta hai, aur call aate hi UI update ho jaata hai — polling ki zaroorat nahi.\n\n**Postman me ye request latak jaayegi (hang)** — ye normal hai, stream band hi nahi hota. Cancel kar do. Terminal me behtar dikhta hai:\n\n```sh\ncurl -N -H \"Authorization: Bearer $TOKEN\" \\\n     -H \"X-Workspace-Id: $WS\" \\\n     \"http://localhost:4000/events?topics=wallet\"\n```\n\nYe chala ke doosre terminal se folder C ka `call_ended` maaro — `call:{id}` par `ended` frame aur `wallet` par ledger frame dono turant dikhenge.\n\nEk design note: ye normal authenticated route hai, magic nahi. Browser ka built-in `EventSource` `Authorization` aur `X-Workspace-Id` header bhej hi nahi sakta, isliye frontend `@microsoft/fetch-event-source` use karta hai. Aur `?topics=` se narrow kar sakte ho, par workspace kabhi nahi badal sakte — stream hamesha sirf `ctx.workspaceId` ka channel hi padhta hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 401/403 par response me items/fields hote hi nahi, aur neeche ke assertions",
+                  "// 'Cannot read properties of undefined' jaisa TypeError dete hain — jo asli wajah",
+                  "// (token nahi hai) chhupa deta hai. Isliye pehle yahin saaf bata dete hain.",
+                  "if ([401, 403].includes(pm.response.code)) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('token chahiye — folder A ki request 3 dekho', () => {",
+                  "    pm.expect.fail(body.code + ': ' + body.message +",
+                  "      ' | (1) environment me `token` bhara hai? (2) Auth type \"Inherit from parent\" hai?' +",
+                  "      ' (3) dev-link-user.ts chalaya tha?');",
+                  "  });",
+                  "  return;   // aage ke tests chalane ka matlab nahi",
+                  "}",
+                  "",
+                  "// Postman stream ko poora load hone ka wait karta hai, isliye ye test aksar timeout hoga.",
+                  "// Upar ka curl command hi sahi tarika hai.",
+                  "pm.test('SSE headers mile', () => {",
+                  "  pm.expect(pm.response.headers.get('content-type') || '').to.include('text/event-stream');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F. Guards — kya block hona chahiye",
+      "description": "Ye requests **fail honi chahiye**. Agar koi pass ho gaya to security hole hai.",
+      "item": [
+        {
+          "name": "1. Bina X-Workspace-Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/calls",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls"
+              ]
+            },
+            "description": "Har customer route ko workspace chahiye. JWT batata hai *kaun*, header batata hai *kis business ka data*. Ek user kai workspaces me ho sakta hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('4xx', () => pm.expect(pm.response.code).to.be.within(400, 499));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Doosre workspace ki call",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/call_kisi_aur_workspace_ki",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "call_kisi_aur_workspace_ki"
+              ]
+            },
+            "description": "404, 403 nahi — 403 se confirm ho jaata ki wo id exist karti hai. RLS doosri layer hai: `withWorkspace()` ke bahar koi query khali database dekhti hai, kyunki `app.tenant_id` set hi nahi hota."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Bina token wale recording stream",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id}}/recording/stream",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}",
+                "recording",
+                "stream"
+              ]
+            },
+            "description": "Route `@Public()` hai, magar token hi credential hai. Bina token ke kuch nahi milta."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('4xx', () => pm.expect(pm.response.code).to.be.within(400, 499));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -14,7 +14,11 @@
     "lint": "eslint src",
     "test": "vitest run --passWithNoTests",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "spike:retell": "dotenv -e ../../.env -- tsx scripts/retell-spike.ts"
+    "spike:retell": "dotenv -e ../../.env -- tsx scripts/retell-spike.ts",
+    "load:setup": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts setup",
+    "load:teardown": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts teardown",
+    "load:inbound": "k6 run test/load/inbound.k6.js",
+    "load:reset": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts reset"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.0",
@@ -23,6 +27,7 @@
     "@nestjs/platform-fastify": "^11.1.0",
     "@portal/db": "workspace:*",
     "@portal/schemas": "workspace:*",
+    "bullmq": "^6.3.6",
     "fastify": "^5.4.0",
     "ioredis": "6.0.0",
     "jose": "^6.2.12",

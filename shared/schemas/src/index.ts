@@ -8,3 +8,6 @@ export * from './enums.js';
 export * from './health.js';
 export * from './pricing.js';
 export * from './wallet.js';
+export * from './calls.js';
+export * from './events.js';
+export * from './business-hours.js';
