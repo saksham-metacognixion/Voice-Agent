@@ -41,9 +41,14 @@ export interface GrantInput {
   policyVersion?: number;
 }
 
+/**
+ * A FIFO draw-down across live lots. `expiry` is deliberately not a debit reason: a lapsed
+ * lot is written off by `WalletTx.expireLot`, which empties *that* lot rather than drawing
+ * from the ones still open.
+ */
 export interface DebitInput {
   credits: number;
-  reason: Extract<LedgerReason, 'call' | 'rental' | 'kb' | 'adjustment' | 'expiry'>;
+  reason: Extract<LedgerReason, 'call' | 'rental' | 'kb' | 'adjustment'>;
   refType?: string;
   refId?: string;
 }
@@ -113,11 +118,25 @@ export class WalletService {
     return this.rebuildBalance(workspaceId);
   }
 
-  /** Σ delta from the ledger, written back to the cache. The mismatch/miss repair path. */
-  async rebuildBalance(workspaceId: string, tx: Tx = adminDb): Promise<number> {
-    const balance = await this.sumLedger(tx, workspaceId);
-    await this.cacheBalance(workspaceId, balance);
-    return balance;
+  /**
+   * Σ delta from the ledger, written back to the cache. The mismatch/miss repair path.
+   *
+   * Takes the wallet lock for the few milliseconds it needs, and for the same reason the
+   * writers publish inside it: a rebuild that summed *before* a concurrent debit committed
+   * and published *after* it would put the pre-debit balance back — stale-high, which is
+   * the one direction the §13.9 inbound check cannot tolerate. Under the lock the sum
+   * waits for the in-flight writer and lands its committed value.
+   */
+  async rebuildBalance(workspaceId: string): Promise<number> {
+    return adminDb.$transaction(
+      async (tx) => {
+        await lockWallet(tx, workspaceId);
+        const balance = await this.sumLedger(tx, workspaceId);
+        await this.cacheBalance(workspaceId, balance);
+        return balance;
+      },
+      { timeout: 5_000, maxWait: 5_000 },
+    );
   }
 
   /** The one place `bal:{ws}` is written, so the TTL is never forgotten. */
@@ -173,7 +192,16 @@ export class WalletService {
     return this.withWallet(workspaceId, (_tx, wallet) => wallet.grant(input));
   }
 
-  /** Removes credits FIFO across open lots. Calls, rentals, KB fees, expiry, negative adjustments. */
+  /**
+   * Removes credits FIFO across open lots. Calls, rentals, KB fees, negative adjustments.
+   *
+   * Nothing here stops the balance going below −grace: for a call that is correct (the
+   * §13.9 inbound check already bounded it via `max_call_duration_ms`, and a call in
+   * progress is never cut for money), so the wallet cannot tell a legitimate overdraft
+   * from a careless one. A recurring charge (§5.3 rental, KB fee) must check `balance()`
+   * first and take the §5.3 "release after N days at zero" path instead of debiting into
+   * an unbounded negative.
+   */
   debit(workspaceId: string, input: DebitInput): Promise<LedgerWrite> {
     return this.withWallet(workspaceId, (_tx, wallet) => wallet.debit(input));
   }
@@ -248,8 +276,10 @@ export class WalletService {
       ]);
       return { tenant, nextLot, lastPaid, balance: roundCredits(sum._sum.delta?.toNumber() ?? 0) };
     });
-    // The read above is the truth; refresh the cache with it so the inbound path agrees.
-    await this.cacheBalance(ctx.workspaceId, balance);
+    // The read above is the truth *as of that read*, but it happened outside the wallet
+    // lock, so a debit may have committed and published since. Fill a miss, never overwrite:
+    // a plain SET here would put a stale-high balance back over a writer's fresher one.
+    await this.cache.setIfAbsent(redisKeys.balance(ctx.workspaceId), balance.toFixed(2), BALANCE_TTL_S);
 
     return {
       balance,
@@ -354,7 +384,7 @@ export class WalletTx {
 
     if (input.reason === 'call') {
       if (!input.refId) throw new Error('a call debit needs the call id as ref_id');
-      const existing = await this.tx.creditLedger.findFirst({ where: { reason: 'call', refId: input.refId } });
+      const existing = await this.tx.creditLedger.findFirst({ where: { tenantId: this.workspaceId, reason: 'call', refId: input.refId } });
       if (existing) return this.record(existing, true);
     }
 

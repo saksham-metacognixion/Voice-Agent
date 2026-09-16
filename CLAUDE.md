@@ -174,6 +174,8 @@ wallet, billing, webhooks, notifications, events, jobs, admin`.
   §13.11 job — FIFO skips expired lots, so a debit taken before the sweep would otherwise be charged
   twice. `bal:{ws}` is published inside the wallet transaction while the lock is still held, which is
   what keeps the cache in commit order; it is the one piece of I/O allowed in there (ADR 0010 §3).
+  Readers obey the same order: `rebuildBalance()` takes the wallet lock, and `summary()` only fills a
+  miss with `SET NX`. Nothing else writes `bal:{ws}`.
 - Stripe fulfilment credits nothing unless `amount_total` and `currency` match the pending purchase.
   A mismatch leaves the purchase `pending` for SA9 and answers 200 (ADR 0010 §5).
 

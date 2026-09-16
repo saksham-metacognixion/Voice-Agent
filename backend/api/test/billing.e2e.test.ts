@@ -4,10 +4,10 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { Test } from '@nestjs/testing';
 import { adminDb } from '@portal/db';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AllExceptionsFilter } from '../src/common/errors/all-exceptions.filter';
 import { AuthModule } from '../src/modules/auth';
-import { BillingModule, StripeGateway } from '../src/modules/billing';
+import { BillingModule, BillingService, StripeGateway } from '../src/modules/billing';
 import { PlatformConfigModule, PlatformConfigService } from '../src/modules/config';
 import { RedisModule, RedisCache, redisKeys } from '../src/modules/redis';
 import { WalletModule } from '../src/modules/wallet';
@@ -415,5 +415,27 @@ describe('GET /pricing and GET /flags', () => {
     expect(ledger.statusCode).toBe(200);
     expect(ledger.json().items).toHaveLength(2);
     expect(ledger.json().next_cursor).toBeTruthy();
+  });
+});
+
+describe('POST /wallet/checkout, the half before Stripe', () => {
+  it('refuses a promo code with PROMO_INVALID rather than charging full price under a promo', async () => {
+    const billing = app.get(BillingService);
+    const spy = vi.spyOn(stripe, 'createCheckoutSession');
+    const ctx = { userId: ws.userId, workspaceId: ws.tenantId, role: 'owner' as const };
+    await expect(billing.createCheckout(ctx, { pack_id: 'starter', promo_code: 'SAVE10' })).rejects.toMatchObject({ code: 'PROMO_INVALID' });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it('a Stripe failure abandons the pending purchase instead of leaving a ghost for SA9', async () => {
+    const billing = app.get(BillingService);
+    const spy = vi.spyOn(stripe, 'createCheckoutSession').mockRejectedValueOnce(new Error('stripe is down'));
+    const ctx = { userId: ws.userId, workspaceId: ws.tenantId, role: 'owner' as const };
+    await expect(billing.createCheckout(ctx, { pack_id: 'starter' })).rejects.toThrow('stripe is down');
+    spy.mockRestore();
+
+    const newest = await adminDb.purchase.findFirstOrThrow({ where: { tenantId: ws.tenantId }, orderBy: { createdAt: 'desc' } });
+    expect(newest).toMatchObject({ packId: 'starter', status: 'abandoned', stripeSessionId: null });
   });
 });

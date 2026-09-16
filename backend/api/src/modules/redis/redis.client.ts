@@ -9,6 +9,8 @@ import Redis from 'ioredis';
 export interface RedisLike {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, mode: 'EX', seconds: number): Promise<unknown>;
+  /** `SET key value EX seconds NX` — 'OK' when written, null when the key already existed. */
+  set(key: string, value: string, mode: 'EX', seconds: number, condition: 'NX'): Promise<'OK' | null>;
   set(key: string, value: string): Promise<unknown>;
   del(...keys: string[]): Promise<number>;
   scan(cursor: string, matchToken: 'MATCH', pattern: string, countToken: 'COUNT', count: number): Promise<[string, string[]]>;

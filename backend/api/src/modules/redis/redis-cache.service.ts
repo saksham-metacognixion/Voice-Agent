@@ -49,6 +49,15 @@ export class RedisCache {
     return this.attempt(`SET ${key}`, async () => (await write(), true), timeoutMs, false);
   }
 
+  /**
+   * Writes only when the key is absent (`SET … NX`). True when this call filled it. For a
+   * reader that rebuilt a value *outside* the lock that orders the writers: it may fill a
+   * miss, but it must never overwrite what a writer published after the reader's read.
+   */
+  async setIfAbsent(key: string, value: string, ttlSeconds: number, timeoutMs = DEFAULT_REDIS_TIMEOUT_MS): Promise<boolean> {
+    return this.attempt(`SET NX ${key}`, async () => (await this.client.set(key, value, 'EX', ttlSeconds, 'NX')) === 'OK', timeoutMs, false);
+  }
+
   setJson(key: string, value: unknown, ttlSeconds?: number, timeoutMs = DEFAULT_REDIS_TIMEOUT_MS): Promise<boolean> {
     return this.set(key, JSON.stringify(value), ttlSeconds, timeoutMs);
   }

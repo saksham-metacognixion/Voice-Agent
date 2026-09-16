@@ -1,6 +1,7 @@
 import { adminDb, isAppendOnlyViolation } from '@portal/db';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { redisKeys } from '../src/modules/redis';
+import type { WorkspaceContext } from '../src/modules/auth';
 import { BALANCE_TTL_S, DuplicateCallDebit } from '../src/modules/wallet';
 import { computeCharge } from '../src/modules/calls/metering';
 import { createWorkspace, inMonths, ledgerSum, moneyServices } from './money-fixtures';
@@ -176,8 +177,11 @@ describe('call debits are idempotent on call_id (§14.2)', () => {
 
 describe('bal:{ws} cache', () => {
   let ws = '';
+  let ctx: WorkspaceContext;
   beforeAll(async () => {
-    ws = (await createWorkspace('cache')).tenantId;
+    const created = await createWorkspace('cache');
+    ws = created.tenantId;
+    ctx = { userId: created.userId, workspaceId: ws, role: 'owner' };
   });
 
   it('is written on every ledger write and read back without touching the ledger', async () => {
@@ -229,6 +233,44 @@ describe('bal:{ws} cache', () => {
     expect(await svc.wallet.balance(rolled)).toBe(5);
     expect(await ledgerSum(rolled)).toBe(5);
     expect(await adminDb.creditLot.count({ where: { tenantId: rolled } })).toBe(1);
+  });
+
+  it('a rebuild that races an in-flight debit waits for its commit rather than putting the old balance back', async () => {
+    const raced = (await createWorkspace('rebuild-race')).tenantId;
+    await svc.wallet.grant(raced, { credits: 100, reason: 'purchase', expiresAt: inMonths(12) });
+    await svc.redis.del(redisKeys.balance(raced));
+
+    // A debit that has written its row and published 90, but is holding the lock open.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const debit = svc.wallet.withWallet(raced, async (_tx, wallet) => {
+      await wallet.debit({ credits: 10, reason: 'kb', refType: 'kb', refId: 'kb_race' });
+      await held;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // An unlocked rebuild would sum 100 now (the −10 is uncommitted) and, once the debit
+    // committed, overwrite its 90 with a stale-high 100. Under the lock it has to wait.
+    const rebuild = svc.wallet.rebuildBalance(raced);
+    const whileHeld = await Promise.race([rebuild.then(() => 'resolved'), new Promise<string>((resolve) => setTimeout(() => resolve('blocked'), 300))]);
+    expect(whileHeld).toBe('blocked');
+
+    release();
+    await debit;
+    expect(await rebuild).toBe(90);
+    expect(await svc.redis.get(redisKeys.balance(raced))).toBe('90.00');
+    expect(await ledgerSum(raced)).toBe(90);
+  });
+
+  it('GET /wallet fills a missing cache entry but never overwrites one a writer published', async () => {
+    await svc.redis.del(redisKeys.balance(ws));
+    expect((await svc.wallet.summary(ctx)).balance).toBe(12.34);
+    expect(await svc.redis.get(redisKeys.balance(ws))).toBe('12.34');
+
+    // Stand in for a debit that committed and published between summary's read and its write.
+    await svc.redis.set(redisKeys.balance(ws), '7.00');
+    expect((await svc.wallet.summary(ctx)).balance).toBe(12.34); // the response is the ledger truth
+    expect(await svc.redis.get(redisKeys.balance(ws))).toBe('7.00'); // the cache keeps the writer's value
   });
 
   it('publishes in commit order when debits race, so the last value is the real balance', async () => {

@@ -60,6 +60,13 @@ workspace does not have. The key also carries a 1-hour TTL (`BALANCE_TTL_S`), be
 never the truth: anything that leaves a wrong value behind has to age out rather than sit there
 forever, and `WalletService.balance()` rebuilds from the ledger on the miss.
 
+The same ordering rule binds the *readers* that touch the key (added 16 Sep 2026 after the D3
+review). `rebuildBalance()` takes the wallet lock for the few milliseconds it needs: an
+unlocked rebuild that summed before a concurrent debit committed and wrote after it would put
+the pre-debit balance back, stale-high. `summary()` (`GET /wallet`) runs outside the lock on
+the customer connection, so it may only *fill a miss* (`SET … NX`, `RedisCache.setIfAbsent`)
+and never overwrite what a writer published. Nothing else writes `bal:{ws}`.
+
 ### 4. `pricing_configs.config_json` shape
 
 `shared/schemas/src/pricing.ts` (`pricingConfig`): `currency_default`, `packs[]` (admin §5 Packs
@@ -80,6 +87,13 @@ tenants still on that tier. `tierCapsFor()` therefore walks *down* the §5.2 lad
 that does have a pack (volume → pro) and falls back to `config.trial` only for the trial tier itself.
 Falling back to trial for everything without a pack handed a Volume customer `max_agents: 1`,
 `max_numbers: 0` and every gate off.
+
+### 4a. Plan tier ranks by the §5.2 ladder, not by `purchases.credits`
+
+`purchases.credits` includes promotional `bonus_credits`, so ranking the last 12 months of
+purchases by that column could let a Growth pack sold with a bonus outrank Scale. Fulfilment
+resolves each paid purchase to its pack (current config, else the `packs` catalogue row a
+retired pack left behind) and takes the highest tier; ties go to the larger credit count.
 
 ### 5. Stripe webhook failures answer 5xx until the queue lands (D4)
 
@@ -106,6 +120,15 @@ not help.
 "portal re-reads within 60 s" holds even if an invalidation is missed. BullMQ and pub/sub (D4) use
 the raw client with their own semantics.
 
+### 7. Checkout never leaves a `pending` purchase without a session
+
+The pending purchase is written before the Stripe call (its id is the `client_reference_id`).
+If Stripe refuses the session, that row is flipped to `abandoned` before the error propagates:
+with no session there will never be a `checkout.session.expired` to do it, and SA9 would list
+a ghost forever. A `promo_code` on the request is refused with `400 PROMO_INVALID` until promo
+pricing (admin SA6) is wired into the session — accepting it would charge full price and record
+a promo that was never applied.
+
 ## Consequences
 
 - Nothing outside `WalletService`/`WalletTx` writes `credit_ledger` or `credit_lots`. Billing,
@@ -114,3 +137,11 @@ the raw client with their own semantics.
   rate is a parameter captured at `call_started`, never read from config at `call_ended`.
 - Two copies of the §5.2 numbers exist by design: the seed (bootstrap) and
   `backend/api/test/fixtures/pricing/config-v1.json` (test data). Code reads neither.
+- Two `wallet_policy` fields are stored but read by nobody yet: `max_first_purchase_cents_without_review`
+  (the admin §5 fraud gate at fulfilment — belongs to SA13 fraud reviews) and
+  `mfa_required_above_balance` (a D5 owner-action gate). A first purchase of any size credits
+  without review until SA13 lands. Do not assume either is live.
+- `WalletService.debit()` does not enforce the −grace floor; only the §13.9 inbound check does,
+  because a call already in progress is never cut for money. The §5.3 recurring job must check
+  the balance first and take the "release after N days at zero" path rather than debit into an
+  unbounded negative.
