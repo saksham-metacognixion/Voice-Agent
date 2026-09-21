@@ -4,7 +4,9 @@
  * Upserts the Auth0 user into `users`. This trigger is non-blocking: a throw here does
  * NOT fail the signup, so a failure means the account exists in Auth0 with no row in
  * Postgres. The handler is idempotent on (provider, external_id, event_type), so the
- * recovery path is replaying this call, and the Post Login action is the safety net.
+ * recovery path is replaying this call. Two safety nets sit behind it: the Post Login
+ * action posts `user.login` to the same route, and the API provisions the row itself from
+ * the token's `https://portal/email` claim on the first authenticated request.
  *
  * Secrets: API_PUBLIC_URL, ACTION_SECRET (matches AUTH0_CUSTOMER_ACTION_SECRET in .env).
  */

@@ -10,12 +10,16 @@ import { CallsModule } from './modules/calls';
 import { PlatformConfigModule } from './modules/config';
 import { EventsModule } from './modules/events';
 import { JobsModule } from './modules/jobs';
+import { AgentsModule } from './modules/agents';
+import { PromptingModule } from './modules/prompting';
 import { RedisModule } from './modules/redis';
 import { RetellModule } from './modules/retell';
 import { RuntimeCacheModule } from './modules/runtime-cache';
 import { ScheduledModule } from './modules/scheduled';
+import { VoicesModule } from './modules/voices';
 import { WalletModule } from './modules/wallet';
 import { WebhooksModule } from './modules/webhooks';
+import { WorkspacesModule } from './modules/workspaces';
 
 /**
  * Root HTTP module. Feature modules (spec §13.1: auth, workspaces, agents, prompting,
@@ -49,6 +53,10 @@ import { WebhooksModule } from './modules/webhooks';
     BillingModule,
     RuntimeCacheModule,
     CallsModule,
+    WorkspacesModule,
+    AgentsModule,
+    PromptingModule,
+    VoicesModule,
     WebhooksModule,
     ScheduledModule,
   ],

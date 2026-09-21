@@ -1,6 +1,7 @@
 import { Module, type OnModuleInit, Logger } from '@nestjs/common';
 import { JOBS, JobHandlerRegistry, QUEUES, SCHEDULED_JOBS, SCHEDULES } from '../jobs';
 import { RuntimeCacheModule } from '../runtime-cache';
+import { VoicesModule } from '../voices';
 import { WalletModule } from '../wallet';
 import { WebhooksModule } from '../webhooks';
 import { ScheduledJobsService } from './scheduled.service';
@@ -13,7 +14,7 @@ import { ScheduledJobsService } from './scheduled.service';
  * the unit test.
  */
 @Module({
-  imports: [RuntimeCacheModule, WebhooksModule, WalletModule],
+  imports: [RuntimeCacheModule, WebhooksModule, WalletModule, VoicesModule],
   providers: [ScheduledJobsService],
   exports: [ScheduledJobsService],
 })
@@ -29,7 +30,9 @@ export class ScheduledModule implements OnModuleInit {
     const live: Partial<Record<string, () => Promise<unknown>>> = {
       [SCHEDULED_JOBS.runtimeCacheRefresh]: () => this.jobs.runtimeCacheRefresh(),
       [SCHEDULED_JOBS.webhookSweeper]: () => this.jobs.webhookSweeper(),
+      [SCHEDULED_JOBS.jobSweeper]: () => this.jobs.jobSweeper(),
       [SCHEDULED_JOBS.creditExpiry]: () => this.jobs.creditExpiry(),
+      [SCHEDULED_JOBS.voiceCache]: () => this.jobs.voiceCache(),
     };
     for (const spec of SCHEDULES) {
       const handler = live[spec.name];

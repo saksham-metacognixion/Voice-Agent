@@ -68,7 +68,9 @@ Redis-down), 0004 EC2, ~~0005 Amplify~~,
 0006 tenancy (two DB roles, RLS, append-only), ~~0007 OpenAI~~, 0008 S3 + CloudFront (supersedes 0005),
 0009 Anthropic `claude-sonnet-5` (supersedes 0007), 0010 wallet ledger semantics + pricing config shape +
 Stripe webhook retries (D3; §5 amended by 0011), 0011 call runtime — `active:{ws}` reservations, the
-BullMQ hand-off for both providers, the recording proxy (D4). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+BullMQ hand-off for both providers, the recording proxy (D4), 0012 prompting pipeline and
+agent lifecycle — guardrails appended after zod, the version-immutability trigger, the
+publish lease, the `prompting` queue (D5). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -93,7 +95,13 @@ backend/                          → AWS EC2 (Docker Compose)
 shared/
   schemas/        @portal/schemas     zod request/response/SSE schemas, enums, error codes. Depends on zod only.
   config/         @portal/config      tsconfig bases, eslint, tailwind preset
-templates/                        *.json agent templates (receptionist, appointment, afterhours, lead_qual, ...)
+templates/                        *.json agent templates (receptionist, appointment, afterhours, lead_qual,
+                                  faq_support, restaurant, custom). The files are the source; `pnpm db:seed`
+                                  loads them into `templates`, the table wins at runtime when it has the row,
+                                  and both paths go through one loader — `templatesDir` / `readTemplateFiles` /
+                                  `templateRowFrom` / `templateFromRow` in `@portal/db` — so the seed and the
+                                  API cannot resolve different directories or accept different shapes. A file
+                                  that fails the zod schema fails the seed
 infra/                            Dockerfile (turbo prune), docker-compose.yml (local), docker-compose.prod.yml (EC2),
                                   auth0/, scripts/doctor.mjs (`pnpm doctor` — what is unset, what is reachable)
 docs/                             specs, decisions, runbooks, spec-extract, plan, tools
@@ -105,10 +113,15 @@ processors call the same services.
 Backend modules mirror §13.1: `auth, workspaces, agents, prompting, voices, knowledge, numbers, calls,
 wallet, billing, webhooks, notifications, events, jobs, admin`, plus `config` (pricing/flags/caps),
 `redis`, `retell`, `runtime-cache` (the Redis projection the inbound path reads) and `scheduled`.
+The D5 arrow runs one way: `prompting` → `agents` → `retell`. The agent stack (§9.3–§9.5
+configuration) lives in `agents` because publish needs it too, which is what saves both
+modules from a `forwardRef`.
 
-Jobs: `modules/jobs` owns the BullMQ plumbing only — three queues (`webhooks`, `calls`, `scheduled`),
-a handler registry every feature module registers into at module init, the worker runtime, and the
-§13.11 schedulers. The API registers every handler and starts no Worker; `src/worker.ts` starts them.
+Jobs: `modules/jobs` owns the BullMQ plumbing — four queues (`webhooks`, `calls`, `prompting`,
+`scheduled`), a handler registry every feature module registers into at module init, the worker
+runtime, the §13.11 schedulers (plus `job-sweeper`, which writes off `jobs` rows whose queue
+job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). `prompting` is separate because a job on it is an LLM round trip, and a slow model must never
+delay a `calls` write-behind or a webhook that moves credits (ADR 0012 §6). The API registers every handler and starts no Worker; `src/worker.ts` starts them.
 Job ids are deterministic, which is the queue side of exactly-once — but `Queue.add()` cannot tell
 a caller that an id was refused (BullMQ builds the returned Job locally), so `JobQueues.add(...,
 verify)` reads the stored job back. `enqueueWebhook` verifies: an id held by a job that already
@@ -212,6 +225,9 @@ job settles.
 - `credit_ledger`, `audit_log`, `staff_audit_log`. Enforced twice: `REVOKE UPDATE, DELETE` from the app
   role, **and** a `BEFORE UPDATE OR DELETE … RAISE EXCEPTION` trigger so even a BYPASSRLS connection
   cannot rewrite history. Reversals are new negative rows.
+- `agents` are soft-deleted the same way and for the same reason: `calls` reference them and calls
+  are billing history, so `DELETE /agents/:id` sets `deleted_at`, destroys the Retell objects, and
+  refuses while a phone number still points at the agent. Every customer read filters on it.
 - Consequence: a workspace with ledger history cannot be hard-deleted — the cascade hits the trigger.
   The §17 delete request is an anonymisation job, not a `DELETE`. `TRUNCATE` is deliberately not
   covered by the trigger, so a local `pnpm db:reset` still works.
@@ -233,14 +249,79 @@ job settles.
 
 **Prompts and versions (§9)**
 
-- Every generation or edit creates a new immutable `agent_versions` row. Nothing is edited in place.
-- Platform guardrails (§9.4) are appended to every prompt and cannot be removed by the customer.
-  Feedback that conflicts with a guardrail returns `changes: []` plus an explanation.
+- Every generation or edit creates a new immutable `agent_versions` row. Nothing is edited in place,
+  with one carve-out the spec asks for: the W2 autosave writes the brief into *the newest,
+  unpublished* version. Published, or overtaken by a newer version, and it is frozen — enforced by
+  the `agent_versions_immutable` trigger, not by the service, so a mistake fails loudly instead of
+  rewriting history. Only `published_at`, `retell_agent_version`, `lint_json` and `stack_version`
+  stay writable; rows are never deleted or renumbered (ADR 0012 §2).
+- Platform guardrails (§9.4) are appended **in code, after the zod parse**, by
+  `modules/prompting/guardrails.ts` — never asked of the model, never removable by a request.
+  `applyGuardrails` strips whatever block the submitted text contains and appends the canonical
+  one, and is idempotent, so publish re-applies it for free. There is no request shape through
+  which a customer can edit, replace or delete them. Feedback that conflicts with a guardrail
+  returns `changes: []` plus an explanation, and the *stored* prompt is the one they already had.
+- Nothing the model returns is trusted: `generatedPrompt` / `generatedPatch` in `@portal/schemas`
+  are the gate, and there is no path from provider output to `agent_versions` that skips it.
+  The provider sits behind `PromptProvider` (ADR 0009); `GENERATION_PROVIDER=scripted` answers
+  from canned text for tests and a keyless dev box, and is refused when `APP_ENV=prod`.
+- `POST /agents/:id/generate` and `/feedback` return `202 {job_id}` and never wait for the model.
+  One active job per (agent, type), enforced by a partial unique index on `jobs`.
+- **Generation latency is output length**, measured stage by stage on 21 Sep 2026 (ADR 0012,
+  "Measured again"): everything that is ours is ~60 ms, the model streams at ≈ 100 tokens/s,
+  thinking is 0 ms. The worker records `queue_latency_ms`, `context_ms`, `provider_ttft_ms`,
+  `provider_latency_ms`, `postprocess_ms`, `db_ms`, `sse_ms`, `retell_sync_ms`, `total_ms`,
+  `usage` and `output_chars` in `steps_json`; `bench:generation` (`--split`, `--thinking`,
+  `--out`) is how a change here is judged. Ask the model only for what the worker keeps
+  (analysis fields are *additions* — the template's are merged in code), publish the
+  `generated` frame before the Retell draft sync, and `generation_progress` at the first
+  token. p95 is 15.5 s against the 10 s exit check; the remaining options are the owner's.
+- Publishing takes the `agents.publishing_since` lease, re-reads the state under it, and is
+  idempotent; it does **not** un-pause a paused agent (ADR 0012 §3–§4). The lease is a
+  **token**: `claimLease()` returns the timestamp it wrote and `releaseLease()` clears the
+  column only if it still holds that value, so a publish that overran the two minutes
+  cannot clear the lease a later publisher legitimately took over.
+- **Tier, voice, languages, duration ceiling and recording travel with the version**
+  (`agent_versions.settings_json`, `agentSettings` in `@portal/schemas`). The columns on
+  `agents` (`tier`, `voice_id`, `max_call_duration_s`, …) are the **live** copy — the billing
+  rate (`calls.rate` derives from `agents.tier`), `num:{e164}` and the inbound checks read
+  them — and **only a publish writes them**, in the same transaction as
+  `published_version`, followed by `runtime-cache.refresh`. `PATCH /agents/:id/draft`
+  writes settings into the draft version (forking if it is frozen) and never onto the live
+  row; the one live field it touches is `name`, and that refreshes the cache too. A draft
+  Premium→Standard flip therefore changes nothing a caller or the wallet sees until it is
+  published. Generation and the Retell draft sync use the *version's* settings.
+- `GET /jobs/:id` returns an explicit whitelist (`jobProgress`), never `steps_json` or
+  `jobs.error`. Those name the provider, the model and the Retell sync and stay server-side;
+  the customer-facing failure text is `steps_json.customer_reason`, written by the worker.
+  `retell_agent_version` is not on any wire schema, and `DELETE /agents/:id` answers
+  `{deleted}` only — Retell cleanup errors are audited, not returned.
+- A paused workspace (`tenants.paused_at`) is refused by generate, feedback **and** publish,
+  and again by the worker for a job queued a moment before the pause. No provider round
+  trip happens for a paused tenant.
+- **Dead jobs are reconciled, never abandoned.** A `jobs` row left `queued`/`running` by a
+  process death would otherwise be joined forever through `jobs_one_active_per_target_idx`.
+  `JobRecordsService.reconcileStale()` (the `job-sweeper` schedule, every 60 s) and
+  `reconcileIfLost()` (the join path in `PromptingService`) ask BullMQ what holds the
+  deterministic id and write the row off — with `customer_reason` and a `generation_failed`
+  frame — **only** when the queue says `missing`, `failed` or `completed`. A job that is
+  `waiting`, `delayed` or `active` is left alone however old the row looks, and `unknown`
+  (Redis did not answer) is never treated as dead.
 - Numbers always run `latest_published`. Drafts are only reachable by passing an explicit
   `agent_version` to `create-web-call`.
 - Retell versions are immutable once published (`update-agent` → 422). Edit flow is
-  `create-agent-version(base)` → `update-agent` / `update-retell-llm` → `publish-agent-version`;
-  roll back = new version from the old base, then publish (ADR 0003 §7).
+  `create-agent-version(base)` → `update-retell-llm` → `update-agent` → `publish-agent-version`;
+  roll back = new version from the old base, then publish (ADR 0003 §7). **The branch comes
+  first**: the LLM is versioned with the agent, so while the latest version is published
+  `update-retell-llm` answers 400 `Cannot update published LLM`. Verified live, 17 Sep —
+  `pnpm --filter @portal/api verify:d5-retell`.
+- **`language: "multi"` means Retell's fixed ten, not the customer's languages**, and fr-CA
+  is not among them. The gateway sends the explicit locale array instead — §W3's text says
+  `multi`, and ADR 0003 §6 is the decision that overrides it (reviewed 21 Sep 2026; a
+  one-line flip in `AgentRetellService.agentSpec` if the spec owner rules otherwise). Agent
+  locales are `retellLanguage` in `@portal/schemas` (validated, not cast); there is no `en-CA`.
+- An unknown `voice_model` is **ignored silently** by Retell where every other stack id is a
+  400, so `tierStack.voice_model` is validated against the SDK union in code.
 
 **Configuration**
 
@@ -250,7 +331,16 @@ job settles.
   read it through `PlatformConfigService` (`modules/config`), which caches in Redis with a 60 s TTL.
   Version 1 comes from `pnpm db:seed` (`backend/db/prisma/seed-data/pricing-v1.ts`), only into an
   empty table.
-- Publishing invalidates `pricing:current`, `flags:*` and `caps:{ws}`; the portal re-reads within 60 s.
+- The agent stack is the same kind of data: `agent_stack_configs` holds tier → model/voice, the
+  §9.4 guardrail text, the §9.5 lint severities and the §9.3 prompts, read through
+  `AgentStackService` and cached at `stack:current` for 60 s. Guardrails, lint and prompts
+  degrade to a compiled-in default — an empty or malformed row must never mean "append no
+  guardrails" or "skip the lint". **The tier stack does not degrade**: there is no
+  compiled-in model, voice or plan ceiling. `AgentRetellService.syncDraft` requires a
+  `TierStack`; publish answers `503 NOT_CONFIGURED` and the worker records
+  `retell_sync: skipped` when the row is missing or its `tiers_json` fails `agentStackTiers`.
+- Publishing invalidates `pricing:current`, `stack:current`, `flags:*` and `caps:{ws}`; the portal
+  re-reads within 60 s.
   Kill switch keys: `reject_inbound`, `pause_web_tests`, `pause_purchases`, `pause_generation`.
 
 **Tenancy and staff access** (ADR 0006)
@@ -296,6 +386,7 @@ job settles.
 | `caps:{ws}`       | plan caps and grace, from the current pricing config plus tenant overrides |
 | `num:{e164}`      | number → workspace, agent, tier, **rate**, plan max, hours, transfer targets, paused flags |
 | `pricing:current` | current pricing config snapshot                                            |
+| `stack:current`   | current `agent_stack_configs` snapshot: tier stacks, §9.4 guardrails, §9.5 lint |
 | `flags:global`    | feature_flags + kill_switches rows                                         |
 | `flags:{ws}`      | `GET /flags` resolved for one workspace                                    |
 | `kill:reject_inbound` | the SA12 veto, `'1'`/`'0'`, for the hot path — outside `flags:` and its 60 s TTL |
@@ -312,7 +403,10 @@ throws and never waits past its budget (ADR 0010 §6).
   `GET /jobs/:id` every 3 s.
 - SSE topics: `wallet`, `agent:{id}`, `call:{id}`, `activation:{id}`. `GET /events` is an ordinary
   authenticated route (the client is `@microsoft/fetch-event-source`), narrowed with `?topics=`, and
-  only ever carries `ctx.workspaceId`'s own channel.
+  only ever carries `ctx.workspaceId`'s own channel. `agent:{id}` frame types are named once, in
+  `modules/agents/agent-events.ts`: `created`, `draft_updated`, `draft_selected`,
+  `generation_started`, `generation_progress`, `generated`, `generation_failed`, `patched`, `version_created`,
+  `published`, `paused`, `resumed`, `deleted`.
 - Recordings: `GET /calls/:id/recording` mints a signed one-hour link to
   `GET /calls/:id/recording/stream?token=`, which is `@Public()` and proxies the bytes. The Retell
   URL is never given to the browser (ADR 0011 §5).
@@ -343,7 +437,7 @@ Events in: `call_started`, `call_ended`, `call_analyzed`, `transfer_*`, plus the
 `checkout.session.async_payment_succeeded`, `checkout.session.expired`, off-session PaymentIntent for
 auto top-up, `charge.dispute.created`.
 
-**Auth0**: two tenants, both **Single Page Application** type. Post-User-Registration Action → `POST /webhooks/auth` (shared-secret header) → upsert `users`. Post-Login Action adds namespaced claims `https://portal/email_verified` and `https://portal/mfa`. Frontend uses `@auth0/auth0-spa-js` (Authorization Code + PKCE — no client secret in the browser, ADR 0008); Actions source lives in `infra/auth0/actions/`.
+**Auth0**: two tenants, both **Single Page Application** type. Post-User-Registration Action → `POST /webhooks/auth` (shared-secret header, `user.registered`) → upsert `users`. That trigger is fire-and-forget on Auth0's side, so there are two safety nets, both the same idempotent `UsersService.upsert` (module `auth`): the customer Post-Login Action posts `user.login` to the same route on every login (deduped to a 204 after the first), and `AuthGuard` provisions the row itself when a verified token has no row and carries `https://portal/email`. Only that namespaced claim is trusted for provisioning, never a bare `email` claim. Post-Login Actions add `https://portal/email_verified`, `https://portal/email`, `https://portal/name` (customer) and `https://portal/mfa` (staff). Frontend uses `@auth0/auth0-spa-js` (Authorization Code + PKCE — no client secret in the browser, ADR 0008). Both tenants are configured from `infra/auth0/tenant.customer.yaml` and `tenant.staff.yaml` with the Auth0 Deploy CLI (`pnpm auth0:validate|check|export|plan|deploy`, a dev dependency — nothing global to install), Actions source in `infra/auth0/actions/`, procedure in `docs/runbooks/auth0.md`. The deploy CLI matches objects by **name**, so a wrong name creates a second application instead of failing: export and diff before the first deploy. `pnpm --filter @portal/api verify:auth0` is the check against the real tenant — Actions deployed and bound, the shared secret, the access-token claims, and JIT provisioning.
 
 §21 is answered in `docs/decisions/0003-retell-findings.md` (15 Sep 2026), with fixtures. One Retell
 workspace per environment, never per tenant. Post-call analysis is a flat per-call charge, so
@@ -417,17 +511,25 @@ knowledge W4 → auto top-up → team and invites.
 
 - Environments `dev`, `staging`, `prod`. Retell test agents are prefixed `dev-`. One Retell API key and
   one webhook URL set per environment. Stripe test and live keys never mix.
-- Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths and
-  RLS cross-tenant isolation. Other areas are best-effort.
+- Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths,
+  RLS cross-tenant isolation, and — from D5 — guardrail tampering, version immutability, publish
+  idempotency and duplicate generation jobs. Other areas are best-effort.
 - The §13.9 latency SLO is asserted, not eyeballed: `pnpm --filter @portal/api load:setup` then
   `load:inbound` runs k6 with `p(95)<300` as a threshold, so the run exits non-zero if it regresses.
   `load:reset` frees the slots a previous run reserved; `load:teardown` pauses the number afterwards.
 - `pnpm test` is unit-only and needs nothing running. `pnpm test:e2e` needs Postgres **and Redis** and
   covers the parts that cannot be mocked: RLS isolation, the append-only triggers, the auth
-  boundaries, the wallet (FIFO, overdraft, idempotent call debit, `bal:{ws}` rebuild) and the Stripe
-  webhook path with real signatures (`backend/db/test/*`, `backend/api/test/*`). Start with
+  boundaries, the wallet (FIFO, overdraft, idempotent call debit, `bal:{ws}` rebuild), the Stripe
+  webhook path with real signatures, and the D5 lifecycle — workspace creation atomicity, invites
+  and ownership transfer, the generation pipeline through a real worker, guardrail tampering,
+  version immutability and the publish lease (`backend/db/test/*`, `backend/api/test/*`). Start with
   `pnpm infra:up && pnpm db:roles && pnpm db:deploy && pnpm db:seed`; `pnpm doctor` says what is
-  still missing.
+  still missing. The e2e files run **one at a time** (`fileParallelism: false`): they share the
+  global config tables and the `flags:*` cache, and a suite that flips a kill switch was
+  invalidating another suite's assertion once in every ten runs.
+- Retell and the LLM are the only two things a test substitutes, and both have a stand-in that
+  models the real behaviour rather than mocking it away: `FakeRetellGateway` (a published version
+  is immutable, so an edit branches) and `ScriptedPromptProvider` (`GENERATION_PROVIDER=scripted`).
 - Conventional commits. Reference the spec section in the body.
 - Update this file and add an ADR whenever a decision changes. Do not let CLAUDE.md drift from reality.
 - Prefer editing the spec-derived schema in `shared/schemas` first, then the API, then the UI.

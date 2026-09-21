@@ -15,6 +15,7 @@ export type {
   VoiceModel,
   Language,
   PostCallAnalysisField,
+  PostCallAnalysisModel,
 } from './retell.types';
 export {
   parseRetellWebhook,

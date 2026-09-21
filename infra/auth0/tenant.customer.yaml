@@ -1,0 +1,163 @@
+# Customer tenant — Auth0 Deploy CLI source of truth (ADR 0002).
+#
+#   pnpm auth0:export customer   # pull the live tenant into infra/auth0/export/customer/ and diff it against this file
+#   pnpm auth0:plan   customer   # render + a0deploy --dry-run: what would change, applying nothing
+#   pnpm auth0:deploy customer   # apply
+#
+# Names wrapped in double hashes (PORTAL_URL below is one) are substituted from .env by
+# infra/scripts/auth0.mjs before a0deploy sees the file. One that .env does not set is a
+# hard error, never an empty string in a callback URL or an action secret.
+#
+# Two things about this file that will cost an afternoon if they are missed:
+#
+#  * a0deploy matches a client BY NAME. A name here that does not exist in the tenant
+#    CREATES a second application with a new client_id, and AUTH0_CLIENT_ID in .env then
+#    points at the old one. Run `pnpm auth0:export customer` first and make the names below
+#    match what is really there (or rename the app in the dashboard to match this file).
+#  * `triggers:` is what binds an action so it actually runs. Deploying an action without
+#    it leaves it built and idle — the documented D1 time sink in docs/runbooks/auth0.md.
+#
+# Deliberately not managed here: social connection `options` (the Google/Microsoft client
+# keys live in the dashboard, and an empty `options` block in a deploy would wipe them),
+# and the M2M application this deploy authenticates as — a config that can rewrite its own
+# credentials is a config that can lock itself out.
+
+tenant:
+  friendly_name: Voice Agent Portal
+  enabled_locales:
+    - en
+    - fr-CA
+  # Auth0 defaults, stated rather than inherited: 7-day absolute, 3-day idle.
+  session_lifetime: 168
+  idle_session_lifetime: 72
+
+clients:
+  - name: Portal Web
+    description: Customer portal (frontend/web). Public client on Authorization Code + PKCE (ADR 0008).
+    app_type: spa
+    is_first_party: true
+    oidc_conformant: true
+    # No client_credentials, no implicit: a static export has no server to hold a secret.
+    grant_types:
+      - authorization_code
+      - refresh_token
+    token_endpoint_auth_method: none
+    # The app origin itself, not /auth/callback — a static export has no route handlers.
+    callbacks:
+      - '##PORTAL_URL##'
+    allowed_logout_urls:
+      - '##PORTAL_URL##'
+    web_origins:
+      - '##PORTAL_URL##'
+    allowed_origins:
+      - '##PORTAL_URL##'
+    cross_origin_authentication: false
+    # Refresh Token Rotation — without it a SPA cannot hold a session past the access token.
+    refresh_token:
+      rotation_type: rotating
+      expiration_type: expiring
+      leeway: 30
+      token_lifetime: 2592000
+      idle_token_lifetime: 1209600
+      infinite_token_lifetime: false
+      infinite_idle_token_lifetime: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 36000
+
+resourceServers:
+  - name: Portal API
+    # An API identifier cannot be edited after creation. Changing this value creates a
+    # second API and orphans every token minted for the first one.
+    identifier: '##AUTH0_CUSTOMER_AUDIENCE##'
+    signing_alg: RS256
+    token_lifetime: 86400
+    token_lifetime_for_web: 7200
+    skip_consent_for_verifiable_first_party_clients: true
+    # Refresh tokens for the SPA come from here, not from the client.
+    allow_offline_access: true
+    # Zero scopes on purpose: authorisation is `memberships.role` (§6.1), not a token claim.
+    enforce_policies: false
+    scopes: []
+
+databases:
+  - name: Username-Password-Authentication
+    strategy: auth0
+    enabled_clients:
+      - Portal Web
+    options:
+      requires_username: false
+      disable_signup: false
+      brute_force_protection: true
+      passwordPolicy: good
+      password_history:
+        enable: true
+        size: 5
+      password_no_personal_info:
+        enable: true
+
+connections:
+  # §6.2 — social sign-in. `options` (client keys) stay in the dashboard; see the header.
+  - name: google-oauth2
+    strategy: google-oauth2
+    enabled_clients:
+      - Portal Web
+
+attackProtection:
+  bruteForceProtection:
+    enabled: true
+    mode: count_per_identifier_and_ip
+    max_attempts: 10
+    shields:
+      - block
+  breachedPasswordDetection:
+    enabled: true
+    method: standard
+    shields:
+      - admin_notification
+  suspiciousIpThrottling:
+    enabled: true
+    shields:
+      - admin_notification
+      - block
+
+actions:
+  # §13.2 step 1 — the normal path into `users`.
+  - name: customer-post-registration
+    code: ./actions/customer-post-registration.js
+    dependencies: []
+    deployed: true
+    status: built
+    secrets:
+      - name: API_PUBLIC_URL
+        value: '##API_PUBLIC_URL##'
+      - name: ACTION_SECRET
+        value: '##AUTH0_CUSTOMER_ACTION_SECRET##'
+    supported_triggers:
+      - id: post-user-registration
+        version: v2
+
+  # Claims on the ACCESS token (the API verifies that one), plus the `user.login` safety
+  # net. Claim names are in lockstep with CLAIM_* in shared/schemas/src/enums.ts.
+  - name: customer-post-login
+    code: ./actions/customer-post-login.js
+    dependencies: []
+    deployed: true
+    status: built
+    secrets:
+      - name: API_PUBLIC_URL
+        value: '##API_PUBLIC_URL##'
+      - name: ACTION_SECRET
+        value: '##AUTH0_CUSTOMER_ACTION_SECRET##'
+    supported_triggers:
+      - id: post-login
+        version: v3
+
+# Built is not running. This is the binding.
+triggers:
+  post-user-registration:
+    - action_name: customer-post-registration
+      display_name: customer-post-registration
+  post-login:
+    - action_name: customer-post-login
+      display_name: customer-post-login

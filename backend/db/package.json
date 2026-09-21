@@ -33,7 +33,8 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.10.0"
+    "@prisma/client": "^6.10.0",
+    "@portal/schemas": "workspace:*"
   },
   "devDependencies": {
     "@portal/config": "workspace:*",
@@ -43,8 +44,7 @@
     "prisma": "^6.10.0",
     "typescript": "^5.8.0",
     "vitest": "^3.2.0",
-    "tsx": "^4.19.0",
-    "@portal/schemas": "workspace:*"
+    "tsx": "^4.19.0"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

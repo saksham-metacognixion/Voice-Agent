@@ -11,3 +11,6 @@ export * from './wallet.js';
 export * from './calls.js';
 export * from './events.js';
 export * from './business-hours.js';
+export * from './workspaces.js';
+export * from './agents.js';
+export * from './voices.js';

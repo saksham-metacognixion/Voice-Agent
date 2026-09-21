@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import { Body, Controller, HttpCode, Logger, Param, Post, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppError } from '../../common/errors/app-error';
-import { Public } from '../auth';
+import { Public, UsersService } from '../auth';
 import { StripeGateway } from '../billing';
 import { InboundAuthorizationService } from '../calls';
 import { JobQueues } from '../jobs';
@@ -38,6 +38,7 @@ export class WebhooksController {
     private readonly stripeGateway: StripeGateway,
     private readonly events: WebhookEventsService,
     private readonly inbound: InboundAuthorizationService,
+    private readonly users: UsersService,
     private readonly queues: JobQueues,
   ) {}
 
@@ -172,10 +173,29 @@ export class WebhooksController {
     void reply.code(200).send({ received: true });
   }
 
-  /** Auth0 Post-User-Registration Action (infra/auth0/actions/). Shared-secret header. */
+  /**
+   * Auth0 Post-User-Registration Action (§13.2, `infra/auth0/actions/`).
+   *
+   * Auth0 Actions cannot sign a request, so the credential is the shared secret the
+   * Action sends in `x-action-secret` (`AUTH0_CUSTOMER_ACTION_SECRET`), compared in
+   * constant time. Beyond that it is the same four steps as Retell and Stripe: validate →
+   * store in `webhook_events` → 204 on a duplicate → enqueue → 200. The `users` upsert
+   * itself runs in the worker, so an Action — which Auth0 gives a few seconds before it
+   * abandons the sign-up — never waits on our database.
+   *
+   * `external_id` is the Auth0 `sub`, and the dedupe key is `(auth, sub, event_type)`. The
+   * registration webhook is fire-and-forget on Auth0's side, so the Post-Login Action
+   * (`infra/auth0/actions/customer-post-login.js`) posts `user.login` here as the safety
+   * net for one that never arrived; the two are different event types and therefore
+   * different rows, and both run the same idempotent upsert. The last line of defence is
+   * not a webhook at all: `AuthGuard` provisions the row itself from the token's
+   * `https://portal/email` claim when a verified sign-in has no row yet, so a person is
+   * never locked out by a delivery we did not receive.
+   */
   @Post('auth')
   @HttpCode(200)
-  async auth(@Req() request: FastifyRequest, @Body() body: unknown): Promise<{ received: true }> {
+  async auth(@Req() request: FastifyRequest, @Body() body: unknown, @Res() reply: FastifyReply): Promise<void> {
+    const secretOk = verifyAuthSecret(request);
     await this.fixtures.capture({
       provider: 'auth',
       eventType: 'post_user_registration',
@@ -183,8 +203,31 @@ export class WebhooksController {
       headers: request.headers,
       raw: request.rawBody,
       body,
+      signatureValid: secretOk,
     });
-    return { received: true };
+    if (!secretOk) {
+      this.log.warn('POST /webhooks/auth without a valid shared secret; refusing');
+      throw new AppError('INVALID_SIGNATURE', 'That request is not from our identity provider.');
+    }
+
+    // Parsed before it is stored: a body we cannot read is not an event, and storing it
+    // would give the sweeper something to retry forever.
+    const event = this.users.parse(body);
+
+    const stored = await this.events.store({
+      provider: 'auth',
+      externalId: event.external_id,
+      eventType: event.event_type,
+      payload: event,
+    });
+    if (stored.kind === 'duplicate') {
+      void reply.code(204).send();
+      return;
+    }
+
+    const queued = await this.queues.enqueueWebhook(stored.id, 'auth');
+    if (queued === 'failed') this.log.error(`auth ${event.event_type} ${event.external_id}: stored but not queued; the sweeper will retry`);
+    void reply.code(200).send({ received: true });
   }
 
   /**
@@ -203,6 +246,25 @@ export class WebhooksController {
       response,
     });
   }
+}
+
+/**
+ * `AUTH0_CUSTOMER_ACTION_SECRET` in the `x-action-secret` header, compared in constant
+ * time. Both names come from the Action that shipped with D1
+ * (`infra/auth0/actions/customer-post-registration.js`).
+ *
+ * An unset secret is a refusal, not a pass: an environment that accepted unauthenticated
+ * registration events would let anyone mint a `users` row — the row every membership and
+ * every audit entry points at.
+ */
+function verifyAuthSecret(request: FastifyRequest): boolean {
+  const expected = process.env.AUTH0_CUSTOMER_ACTION_SECRET?.trim() ?? '';
+  if (!expected) return false;
+  const header = request.headers['x-action-secret'];
+  const provided = (Array.isArray(header) ? header[0] : header)?.trim() ?? '';
+  const left = Buffer.from(provided);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 function stringField(body: unknown, key: string): string | undefined {

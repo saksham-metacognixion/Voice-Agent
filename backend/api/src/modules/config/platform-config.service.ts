@@ -260,10 +260,18 @@ export class PlatformConfigService {
 
   // ------------------------------------------------------------------ invalidation
 
-  /** Admin §5.2 step 4: after any publish. */
+  /**
+   * Admin §5.2 step 4: after any publish.
+   *
+   * `stack:current` is dropped here as well as by `AgentStackService.invalidate()`. The
+   * agent stack is published from the same SA6 screens as pricing, and a §9.4 guardrail
+   * edit that stayed cached for a minute while the pricing beside it went live would be
+   * the kind of inconsistency nobody thinks to look for.
+   */
   async invalidateAll(): Promise<void> {
     await Promise.all([
       this.cache.del(redisKeys.pricingCurrent),
+      this.cache.del(redisKeys.agentStackCurrent),
       this.cache.delPattern(redisKeys.flagsPattern),
       this.cache.delPattern(redisKeys.capsPattern),
     ]);

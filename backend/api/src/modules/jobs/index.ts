@@ -1,6 +1,9 @@
 export { JobsModule } from './jobs.module';
-export { JobQueues, DEFAULT_JOB_OPTIONS, ENQUEUE_TIMEOUT_MS } from './job-queues.service';
-export type { EnqueueResult } from './job-queues.service';
+export { JobQueues, DEFAULT_JOB_OPTIONS, REPAIR_JOB_OPTIONS, ENQUEUE_TIMEOUT_MS, promptingBullId } from './job-queues.service';
+export { JobRecordsService, toJobResponse, STALE_JOB_AFTER_MS, JOIN_GRACE_MS, LOST_JOB_REASON } from './job-records.service';
+export type { LostJob } from './job-records.service';
+export { JobsController } from './jobs.controller';
+export type { EnqueueResult, QueueJobState } from './job-queues.service';
 export { JobHandlerRegistry, WorkerRuntime } from './job-handlers';
 export type { JobHandler } from './job-handlers';
 export { SchedulerRegistrar } from './schedulers';
@@ -14,4 +17,5 @@ export type {
   InboundDecisionJob,
   WarmWorkspaceJob,
   RefreshNumberJob,
+  PromptingJob,
 } from './jobs.constants';

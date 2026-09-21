@@ -1,13 +1,19 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from 'jose';
-import { CLAIM_EMAIL_VERIFIED, CLAIM_MFA } from '@portal/schemas';
+import { CLAIM_EMAIL, CLAIM_EMAIL_VERIFIED, CLAIM_MFA, CLAIM_NAME } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { AuthConfig } from './auth.config';
 import type { AuthNamespace } from './auth.types';
 
 export interface VerifiedToken {
   subject: string;
+  /**
+   * From `https://portal/email` — the claim *our* Post-Login Action stamps — or empty.
+   * Never from a bare `email` claim: an access token does not carry one by default, and
+   * only our own namespace is trusted enough to create a `users` row from (AuthGuard).
+   */
   email: string;
+  name: string | null;
   emailVerified: boolean;
   mfa: boolean;
   payload: JWTPayload;
@@ -51,7 +57,8 @@ export class JwtVerifier {
 
     return {
       subject: payload.sub,
-      email: typeof payload.email === 'string' ? payload.email : '',
+      email: typeof payload[CLAIM_EMAIL] === 'string' ? (payload[CLAIM_EMAIL] as string).trim().toLowerCase() : '',
+      name: typeof payload[CLAIM_NAME] === 'string' && (payload[CLAIM_NAME] as string).trim() ? (payload[CLAIM_NAME] as string).trim() : null,
       emailVerified: payload[CLAIM_EMAIL_VERIFIED] === true,
       mfa: payload[CLAIM_MFA] === true,
       payload,

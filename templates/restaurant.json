@@ -1,0 +1,102 @@
+{
+  "id": "restaurant",
+  "name": "Restaurant Reservations",
+  "tagline": "Tables and hours",
+  "best_for": "Restaurants and cafés",
+  "industry_tags": [
+    "restaurant"
+  ],
+  "brief_prefill": {
+    "business_hours": {
+      "days": {
+        "mon": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "tue": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "wed": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "thu": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "fri": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ]
+      },
+      "closed_dates": []
+    },
+    "services": [],
+    "faqs": [],
+    "handoff_rules": [],
+    "personality": {
+      "formality": 0.4,
+      "brevity": 0.6,
+      "energy": 0.6
+    },
+    "ai_disclosure": "if_asked",
+    "goal": "Take reservation requests, answer questions about hours, menu and parking, and hand off large parties.",
+    "agent_name": "Marie",
+    "never_do": "Never confirm availability as guaranteed — the restaurant confirms every booking."
+  },
+  "steps": [
+    "Greet the caller and name the restaurant",
+    "Ask whether this is a reservation or a question",
+    "For a reservation, collect party size, date, time, name and phone",
+    "For a large party, follow the hand-off rule instead of taking the booking",
+    "Confirm the details back to the caller",
+    "Close politely"
+  ],
+  "analysis_fields": [
+    {
+      "name": "party_size",
+      "type": "number",
+      "description": "How many people the reservation is for."
+    },
+    {
+      "name": "date_time",
+      "type": "text",
+      "description": "The requested date and time."
+    },
+    {
+      "name": "caller_name",
+      "type": "text",
+      "description": "The name the booking is under."
+    },
+    {
+      "name": "callback_number",
+      "type": "text",
+      "description": "The number to call back on."
+    },
+    {
+      "name": "special_requests",
+      "type": "text",
+      "description": "Allergies, occasions, accessibility needs."
+    }
+  ],
+  "rules": [
+    "Never confirm availability as guaranteed."
+  ],
+  "default_tier": "standard",
+  "sample_audio_url": "/samples/restaurant.mp3",
+  "example_texts": {
+    "restaurant": "We are a forty-seat bistro. Lunch and dinner, closed Mondays. Reservations for parties up to eight; larger groups are arranged with the manager."
+  },
+  "version": 1
+}

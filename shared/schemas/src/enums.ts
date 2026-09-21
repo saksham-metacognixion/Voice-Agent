@@ -102,3 +102,12 @@ export const WORKSPACE_HEADER = 'x-workspace-id';
 /** Namespaced Auth0 claims added by the Post-Login Action (ADR 0002). */
 export const CLAIM_EMAIL_VERIFIED = 'https://portal/email_verified';
 export const CLAIM_MFA = 'https://portal/mfa';
+/**
+ * The signed-in person's email and display name, stamped on the customer access token
+ * by the Post-Login Action. Auth0 access tokens carry neither by default, and the API
+ * needs both to provision a `users` row for a sign-in whose registration webhook never
+ * arrived (§13.2). Only these namespaced claims are trusted for that; a bare `email`
+ * claim is not, because our Action is the only thing that writes under this namespace.
+ */
+export const CLAIM_EMAIL = 'https://portal/email';
+export const CLAIM_NAME = 'https://portal/name';

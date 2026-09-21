@@ -6,7 +6,7 @@ export type WebhookProviderName = 'retell' | 'stripe' | 'auth';
 
 export interface StoreInput {
   provider: WebhookProviderName;
-  /** Stripe `event.id`; Retell `call_id` (with `event_type` distinguishing the lifecycle events). */
+  /** Stripe `event.id`; Retell `call_id`; Auth0 the `sub` of the user that was created. */
   externalId: string;
   eventType: string;
   payload: unknown;

@@ -18,9 +18,13 @@
     "load:setup": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts setup",
     "load:teardown": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts teardown",
     "load:inbound": "k6 run test/load/inbound.k6.js",
-    "load:reset": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts reset"
+    "load:reset": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts reset",
+    "bench:generation": "dotenv -e ../../.env -- tsx scripts/generation-bench.ts",
+    "verify:d5-retell": "dotenv -e ../../.env -- tsx scripts/d5-retell-verify.ts",
+    "verify:auth0": "dotenv -e ../../.env -- tsx scripts/auth0-verify.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
     "@nestjs/common": "^11.1.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.1.0",

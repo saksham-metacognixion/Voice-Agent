@@ -42,7 +42,13 @@ which is cost:
    from the brief — well-specified structured drafting, which the Sonnet tier does reliably. The one
    place model judgement still matters is the §9.6 feedback path (guardrail-conflicting feedback
    must come back as `changes: []` plus an explanation), and the §9.5 lint is the second guard there.
-2. **The D5 exit check is p95 ≤ 10 s, and Sonnet meets it without tuning.** Opus with adaptive
+2. **The D5 exit check is p95 ≤ 10 s, and Sonnet meets it without tuning.** _Amended 17 Sep 2026:
+   measured on 16 Sep, Sonnet's p95 is 17.4 s (ADR 0012, "Measured against the real model"). The
+   cost is output length, not thinking, and the miss is reported to the owner rather than tuned
+   away. The choice of Sonnet stands; this reason does not. 21 Sep 2026: the pipeline was
+   instrumented stage by stage and the envelope trimmed without dropping anything §9.3 asks
+   for — p95 15.5 s, and a measured two-call split reaches 10.6 s; see ADR 0012, "Measured
+   again, with the pipeline instrumented"._ Opus with adaptive
    thinking on a ~2.5k-token envelope needs `output_config.effort` tuned to stay inside that budget.
    A solo developer with an MVP on 2 Oct should not spend D5 tuning latency out of headroom the
    task does not use.
@@ -65,7 +71,11 @@ argument, and that is why it happens today rather than after the benchmark.
 - **Run the D2 benchmark first, then decide.** The right order in principle. Not possible without
   both keys, and the benchmark is still scheduled (see Consequences), so this decision is provisional
   in exactly the way ADR 0007's was.
-- **`claude-opus-5`.** More headroom at ~2.5× the price, and it needs effort tuning to stay under the
+- **`claude-opus-5`.** _Benchmarked 17 Sep 2026 and not adopted: 5/5 zod-valid, but p95 28.3 s
+  against Sonnet's 17.1 s and $0.067 a generation against $0.021. `claude-haiku-4-5` was
+  measured at the same time — p50 12.3 s, p95 19.7 s, $0.008 — and is thinner. No model meets
+  the 10 s target; see ADR 0012, "The model benchmark ADR 0009 left open"._ More headroom at
+  ~2.5× the price, and it needs effort tuning to stay under the
   10 s p95. The headroom goes unused because the guardrails are appended by code. Not chosen for
   now; the D2 benchmark runs both, and the env var makes the swap one line.
 - **Both providers, chosen per template**, and **Retell Conductor** — rejected in ADR 0007 for

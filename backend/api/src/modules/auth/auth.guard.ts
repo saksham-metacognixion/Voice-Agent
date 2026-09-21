@@ -5,7 +5,8 @@ import { adminDb } from '@portal/db';
 import type { StaffRole } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { IS_PUBLIC, REQUIRED_STAFF_ROLES, REQUIRE_EMAIL_VERIFIED } from './auth.decorators';
-import { JwtVerifier } from './jwt-verifier.service';
+import { JwtVerifier, type VerifiedToken } from './jwt-verifier.service';
+import { UsersService } from './users.service';
 import type { AuthNamespace } from './auth.types';
 
 /** Admin §2.1 — /admin/* is the staff namespace. Everything else is the customer one. */
@@ -35,6 +36,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly verifier: JwtVerifier,
+    private readonly users: UsersService,
   ) {}
 
   async canActivate(host: ExecutionContext): Promise<boolean> {
@@ -96,14 +98,17 @@ export class AuthGuard implements CanActivate {
   ): Promise<boolean> {
     // A staff route reached with a customer token dies at the JWKS check above; the
     // reverse — a staff token on a customer route — dies here, because the staff tenant
-    // issues no `users` row.
-    const user = await adminDb.user.findUnique({
-      where: { authProviderId: verified.subject },
-      select: { id: true, email: true },
-    });
+    // issues no `users` row and stamps no `https://portal/email` claim to make one from.
+    const user =
+      (await adminDb.user.findUnique({
+        where: { authProviderId: verified.subject },
+        select: { id: true, email: true },
+      })) ?? (await this.provision(verified));
 
     if (!user) {
-      // The Post-User-Registration Action (§13.2) has not landed yet, or never will.
+      // No row, and the token carries no email we trust to make one from: the
+      // Post-User-Registration Action (§13.2) has not landed and the Post-Login Action is
+      // an older build. Nothing to do but say so.
       throw new AppError('UNAUTHENTICATED', 'We have no account for this sign-in yet.');
     }
 
@@ -123,6 +128,32 @@ export class AuthGuard implements CanActivate {
       mfa: verified.mfa,
     };
     return true;
+  }
+
+  /**
+   * §13.2's last line of defence. The registration webhook is fire-and-forget on Auth0's
+   * side and the Post-Login webhook is best-effort too, so a verified token for a `sub`
+   * we have never heard of is a real customer, not an intruder: the signature, issuer and
+   * audience checks have already passed. If the token carries the email our Post-Login
+   * Action stamps, the row is made here — through the same idempotent upsert the webhooks
+   * use, so a burst of first requests racing through this guard produces one row.
+   *
+   * Only the namespaced claim is trusted. A standard `email` claim is not: nothing in our
+   * pipeline vouches for it, and a row is what every membership points at.
+   */
+  private async provision(verified: VerifiedToken): Promise<{ id: string; email: string } | null> {
+    if (!verified.email) return null;
+    const outcome = await this.users.upsert({
+      event_type: 'user.login',
+      external_id: verified.subject,
+      email: verified.email,
+      email_verified: verified.emailVerified,
+      name: verified.name,
+    });
+    if (outcome.outcome === 'created') {
+      this.logger.warn(`users row for ${verified.subject} provisioned from the access token — the registration webhook never arrived`);
+    }
+    return adminDb.user.findUnique({ where: { id: outcome.userId }, select: { id: true, email: true } });
   }
 }
 

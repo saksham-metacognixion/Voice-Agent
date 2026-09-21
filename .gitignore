@@ -39,6 +39,10 @@ docs/spec-extract/render/
 npm-debug.log*
 pnpm-debug.log*
 
+# auth0 tenant exports — a snapshot of the live tenant for diffing, with tenant-specific
+# ids and placeholder secrets in it. The source of truth is infra/auth0/tenant.*.yaml.
+infra/auth0/export/
+
 # prisma
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal

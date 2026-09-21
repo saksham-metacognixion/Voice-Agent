@@ -9,9 +9,9 @@
  * Nothing here prints a secret — only whether one is present.
  */
 import { createConnection } from 'node:net';
-import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { loadEnvFile } from './lib/env.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -31,6 +31,8 @@ const CHECKS = [
   { key: 'AUTH0_STAFF_AUDIENCE', phase: 'D1', required: true },
   { key: 'RETELL_API_KEY', phase: 'D2', required: true, secret: true },
   { key: 'API_PUBLIC_URL', phase: 'D2', required: true },
+  // D5 generates prompts with it. Still `required: false` so a machine running only the
+  // call path boots, but the D5 checklist below says loudly when it is missing.
   { key: 'ANTHROPIC_API_KEY', phase: 'D2', required: false, secret: true },
   { key: 'STRIPE_SECRET_KEY', phase: 'D3', required: true, secret: true },
   { key: 'STRIPE_WEBHOOK_SECRET', phase: 'D3', required: true, secret: true },
@@ -40,6 +42,14 @@ const CHECKS = [
   { key: 'RECORDING_SIGNING_SECRET', phase: 'D4', required: false, secret: true },
   { key: 'INBOUND_REDIS_DOWN_POLICY', phase: 'D4', required: false },
   { key: 'RESEND_API_KEY', phase: 'D5', required: false, secret: true },
+  // The Auth0 Deploy CLI and the portal's session revocation both authenticate as these.
+  // Not required to boot — nothing in the request path reads them — but without them the
+  // tenants can only be configured by hand, which is how the two Actions drift from
+  // infra/auth0/actions/*.js. `pnpm auth0:check` says whether they actually work.
+  { key: 'AUTH0_CUSTOMER_M2M_CLIENT_ID', phase: 'D5', required: false },
+  { key: 'AUTH0_CUSTOMER_M2M_CLIENT_SECRET', phase: 'D5', required: false, secret: true },
+  { key: 'AUTH0_STAFF_M2M_CLIENT_ID', phase: 'D5', required: false },
+  { key: 'AUTH0_STAFF_M2M_CLIENT_SECRET', phase: 'D5', required: false, secret: true },
   { key: 'SIP_CREDENTIALS_KMS_KEY_ID', phase: 'D8', required: false },
 ];
 
@@ -104,6 +114,23 @@ if (customer && staff) {
   }
 }
 
+// An id without a secret is worse than neither: `pnpm auth0:deploy` gets far enough to
+// authenticate and then fails on the tenant it half-configured.
+for (const tenant of ['CUSTOMER', 'STAFF']) {
+  const id = process.env[`AUTH0_${tenant}_M2M_CLIENT_ID`]?.trim();
+  const secret = process.env[`AUTH0_${tenant}_M2M_CLIENT_SECRET`]?.trim();
+  if (Boolean(id) !== Boolean(secret)) {
+    fatal += 1;
+    results.push([
+      'FAIL',
+      `auth0 ${tenant.toLowerCase()} m2m`,
+      `${id ? 'secret' : 'client id'} is missing — see docs/runbooks/auth0.md`,
+    ]);
+  } else if (id) {
+    results.push(['ok', `auth0 ${tenant.toLowerCase()} m2m`, 'set — run `pnpm auth0:check` to test the scopes']);
+  }
+}
+
 for (const [key, label] of [
   ['DATABASE_URL', 'postgres (app role)'],
   ['REDIS_URL', 'redis'],
@@ -133,25 +160,6 @@ console.log(
 process.exit(fatal === 0 ? 0 : 1);
 
 // ---------------------------------------------------------------------------
-
-function loadEnvFile(path) {
-  let contents;
-  try {
-    contents = readFileSync(path, 'utf8');
-  } catch {
-    return; // Deployed environments inject real environment variables instead.
-  }
-  for (const line of contents.split('\n')) {
-    const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
-    if (!match) continue;
-    const [, key, raw] = match;
-    if (process.env[key] !== undefined) continue;
-    // dotenv's rules for an unquoted value: everything up to an unquoted '#'. A value
-    // that is nothing but a comment — how .env.example documents an unset key — is empty.
-    const quoted = /^\s*(['"`])([\s\S]*?)\1\s*$/.exec(raw);
-    process.env[key] = quoted ? quoted[2] : raw.split('#')[0].trim();
-  }
-}
 
 /** Hosts and ports are fine to print; anything with credentials in it is not. */
 function summarise(value) {

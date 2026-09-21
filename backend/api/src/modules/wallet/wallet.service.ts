@@ -215,20 +215,69 @@ export class WalletService {
     return this.debit(workspaceId, { credits, reason: 'call', refType: 'call', refId: callId });
   }
 
+  /**
+   * Runs one wallet operation inside a transaction **the caller owns**.
+   *
+   * `withWallet` opens its own transaction, which is right for everything that is only a
+   * wallet movement. Workspace creation is not: §13.2 wants the tenant, the owner
+   * membership, the notification defaults, the audit row *and* the trial grant to be one
+   * atomic step, and nesting `adminDb.$transaction` inside another would take a second
+   * pooled connection and deadlock against the advisory lock the outer one may hold.
+   *
+   * So this is the same body with the transaction supplied: it takes the per-workspace
+   * wallet lock on the caller's `tx`, runs `fn`, and publishes `bal:{ws}` inside it, in
+   * commit order, exactly as `withWallet` does (ADR 0010 §3). What it cannot do is notify
+   * listeners — those must not fire before the caller commits — so it hands the writes
+   * back and the caller calls `notify()` afterwards.
+   *
+   * There is still exactly one place that writes `credit_ledger`: this class.
+   */
+  async withWalletTx<T>(tx: Tx, workspaceId: string, fn: (wallet: WalletTx) => Promise<T>): Promise<{ result: T; writes: LedgerWrite[] }> {
+    const writes: LedgerWrite[] = [];
+    await lockWallet(tx, workspaceId);
+    const result = await fn(new WalletTx(this, tx, workspaceId, writes));
+    const last = writes.filter((w) => !w.duplicate).at(-1);
+    if (last) await this.cacheBalance(workspaceId, last.balance_after);
+    return { result, writes };
+  }
+
+  /**
+   * Fires the ledger listeners for writes made through `withWalletTx`. Call it **after**
+   * the owning transaction commits: a `wallet` SSE frame for a balance that then rolled
+   * back is a number the customer can see and the database cannot.
+   */
+  async notify(workspaceId: string, writes: LedgerWrite[]): Promise<void> {
+    await this.notifyListeners(workspaceId, writes);
+  }
+
   /** §5.4 free trial. Expiry comes from the policy current now, recorded on the lot. */
   async grantTrial(workspaceId: string): Promise<LedgerWrite | null> {
     const { policy, configVersion } = await this.config.walletPolicy();
     if (policy.trial_credits <= 0) return null;
-    return this.withWallet(workspaceId, async (tx, wallet) => {
-      const already = await tx.creditLedger.findFirst({ where: { tenantId: workspaceId, reason: 'trial' }, select: { id: true } });
-      if (already) return null;
-      return wallet.grant({
-        credits: policy.trial_credits,
-        reason: 'trial',
-        expiresAt: addDays(new Date(), policy.trial_validity_days),
-        refType: 'trial',
-        policyVersion: configVersion,
-      });
+    return this.withWallet(workspaceId, (tx, wallet) => this.trialGrant(tx, wallet, workspaceId, policy.trial_credits, policy.trial_validity_days, configVersion));
+  }
+
+  /**
+   * The trial grant itself, idempotent on "this workspace already has a trial row".
+   * Shared by `grantTrial` and by workspace creation, which runs it inside its own
+   * transaction through `withWalletTx`.
+   */
+  async trialGrant(
+    tx: Tx,
+    wallet: WalletTx,
+    workspaceId: string,
+    credits: number,
+    validityDays: number,
+    configVersion: number,
+  ): Promise<LedgerWrite | null> {
+    const already = await tx.creditLedger.findFirst({ where: { tenantId: workspaceId, reason: 'trial' }, select: { id: true } });
+    if (already) return null;
+    return wallet.grant({
+      credits,
+      reason: 'trial',
+      expiresAt: addDays(new Date(), validityDays),
+      refType: 'trial',
+      policyVersion: configVersion,
     });
   }
 

@@ -3,6 +3,8 @@ export { AuthConfig } from './auth.config';
 export { JwtVerifier } from './jwt-verifier.service';
 export { AuthGuard, StaffRolesGuard, namespaceForPath, STAFF_PATH_PREFIX } from './auth.guard';
 export { WorkspaceGuard } from './workspace.guard';
+export { UsersService } from './users.service';
+export type { AuthUpsertOutcome } from './users.service';
 export {
   Public,
   NoWorkspace,

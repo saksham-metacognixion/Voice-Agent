@@ -150,9 +150,12 @@ export class RetellGateway {
       agent_name: this.config.objectName(spec.name),
       voice_id: spec.voiceId,
       voice_model: spec.voiceModel,
+      voice_speed: spec.voiceSpeed,
+      voice_temperature: spec.voiceTemperature,
       language: spec.language,
       max_call_duration_ms: spec.maxCallDurationMs,
       post_call_analysis_data: spec.postCallAnalysis,
+      post_call_analysis_model: spec.postCallAnalysisModel,  // typed by AgentSpec; see retell.types.ts
       denoising_mode: spec.denoisingMode,
       stt_mode: spec.sttMode,
       timezone: spec.timezone,

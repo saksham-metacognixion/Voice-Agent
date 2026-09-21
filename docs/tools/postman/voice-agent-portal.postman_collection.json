@@ -1,0 +1,2131 @@
+{
+  "info": {
+    "_postman_id": "ecb7792a-c671-42f5-8faf-24b37f1e8af0",
+    "name": "Voice Agent Portal API (D1–D5)",
+    "description": "Customer portal backend — NestJS/Fastify. Har workspace-scoped request par `Authorization: Bearer {{access_token}}` (Auth0 customer tenant access token) aur `X-Workspace-Id: {{workspace_id}}` jaata hai. Errors hamesha `{code, message, fields?[]}`. Long operations `202 {job_id}` dete hain — SSE ya `GET /jobs/:id` se follow karo.\n\nSetup: environment import karo → `base_url` aur `access_token` bharo → `POST /workspaces` chalao (workspace_id auto-set) → `GET /voices` (voice_id auto-set) → `POST /agents` (agent_id auto-set) → PATCH draft → generate (job_id auto-set) → GET /jobs/:id → publish.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{access_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Har response par: error envelope §16 shape ka hona chahiye",
+          "if (pm.response.code >= 400 && pm.response.headers.get('Content-Type')?.includes('json')) {",
+          "  const b = pm.response.json();",
+          "  pm.test('error envelope {code, message}', () => { pm.expect(b).to.have.property('code'); pm.expect(b).to.have.property('message'); });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "{{base_url}}"
+    }
+  ],
+  "item": [
+    {
+      "name": "0 · Health & Config",
+      "description": "Bina token ke chalne waale routes (health, pricing) aur workspace ka flags read.",
+      "item": [
+        {
+          "name": "GET /health — liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Server zinda hai ya nahi. Compose healthcheck aur load balancer isko hit karte hain. Koi token nahi chahiye.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /pricing — public price list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/pricing?region=ca",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "pricing"
+              ],
+              "query": [
+                {
+                  "key": "region",
+                  "value": "ca",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Packs (Starter/Growth/Scale/Pro), per-minute rates aur plan caps. Public route — pricing page bina login ke dikhti hai. `?region=ca` se region-restricted packs filter hote hain. Prices kabhi hard-code nahi hote, `pricing_configs` table se aate hain.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /flags — feature flags for this workspace",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/flags",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "flags"
+              ]
+            },
+            "description": "Is workspace ke liye resolved feature flags + kill switches (`flags:{ws}` cache, 60 s TTL). Portal isse decide karta hai kaunse buttons dikhane hain."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1 · Workspaces (A4, D6)",
+      "description": "Workspace = tenant = ek business. Sab billable cheez workspace ki hoti hai, user ki nahi.",
+      "item": [
+        {
+          "name": "POST /workspaces — create workspace (A4 Continue)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workspaces",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "workspaces"
+              ]
+            },
+            "description": "Signup ke baad pehla step. Ek transaction mein: tenants row (plan trial), owner membership, 20 trial credits (credit_ledger), default notification_settings, audit row. Same naam se double-click karo toh wahi workspace wapas milta hai (koi doosra trial grant nahi). `X-Workspace-Id` nahi chahiye — abhi workspace bana hi nahi. Verified email chahiye.\n\n**Test script `workspace_id` env mein save kar deta hai.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maple Dental\",\n  \"country\": \"CA\",\n  \"timezone\": \"America/Toronto\",\n  \"website\": \"https://maple.example\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201, 202]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined) pm.environment.set('workspace_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /workspaces — my workspaces (A7 switcher)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/workspaces",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "workspaces"
+              ]
+            },
+            "description": "Signed-in user jis-jis workspace ka member hai uski list, role ke saath. Workspace switcher ke liye. Agar registration webhook miss hua tha toh yeh pehli request `users` row bhi provision kar deti hai (token ke `https://portal/email` claim se)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /workspace — current workspace",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workspace",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "workspace"
+              ]
+            },
+            "description": "`X-Workspace-Id` header waale workspace ki detail, caller ke apne role ke saath."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /workspace — settings (owner/admin)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workspace",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "workspace"
+              ]
+            },
+            "description": "D6 Settings: naam, timezone, website, business hours, recording default, retention days, onboarding step. Plan/credits/ownership yahan se kabhi nahi badalte. Audit row likhta hai aur runtime cache refresh karta hai (business hours `num:{e164}` mein jaate hain).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Maple Dental Clinic\",\n  \"timezone\": \"America/Toronto\",\n  \"recording_default\": true,\n  \"retention_days\": 90\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /workspace/checklist — onboarding progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workspace/checklist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "workspace",
+                "checklist"
+              ]
+            },
+            "description": "Onboarding checklist DB se compute hoti hai (workspace_created, agent_created, agent_generated, agent_published, complete…), client se nahi."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /workspace/transfer-ownership — owner only",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/workspace/transfer-ownership",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "workspace",
+                "transfer-ownership"
+              ]
+            },
+            "description": "Ownership kisi existing member ko do. Demote + promote ek transaction mein, isliye kabhi do owner nahi hote (`memberships_one_owner_idx`).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"{{user_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 · Members & Invites (§6.1, A8)",
+      "description": "Roles: owner / admin / editor / viewer. Exactly ek owner.",
+      "item": [
+        {
+          "name": "GET /members — list",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/members",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "members"
+              ]
+            },
+            "description": "Workspace ke sab members role ke saath. Har role dekh sakta hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /members/:id — change role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/members/{{member_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "members",
+                "{{member_id}}"
+              ]
+            },
+            "description": "Member ka role badlo (admin/editor/viewer). Owner ka role yahan se nahi badal sakta — uske liye transfer-ownership.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"editor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /members/:id — remove",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/members/{{member_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "members",
+                "{{member_id}}"
+              ]
+            },
+            "description": "Member hatao. Owner ko hataana refuse hota hai — bina owner workspace unrecoverable hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /invites — pending invites",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invites",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invites"
+              ]
+            },
+            "description": "Abhi tak accept na hue invites. Owner/admin only."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /invites — invite someone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invites",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invites"
+              ]
+            },
+            "description": "Email + role. Token sirf **ek baar** response mein aata hai (DB mein sirf hash). Same email ko dobara invite karo toh purana token replace hota hai. Owner role invite se nahi diya ja sakta.\n\n**Test script `invite_id` aur `invite_token` save karta hai.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"colleague@example.com\",\n  \"role\": \"editor\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201, 202]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined) pm.environment.set('invite_id', body.id);",
+                  "if (body && body.token) pm.environment.set('invite_token', body.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /invites/:id — revoke",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/invites/{{invite_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invites",
+                "{{invite_id}}"
+              ]
+            },
+            "description": "Pending invite cancel karo."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /invites/:token/accept — join (A8)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/invites/{{invite_token}}/accept",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "invites",
+                "{{invite_token}}",
+                "accept"
+              ]
+            },
+            "description": "Invitee token se join karta hai. `X-Workspace-Id` nahi hota (abhi member nahi hai) — token hi authorisation hai, aur signed-in email invite ke email se match hona chahiye. Expired token refuse."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 · Templates & Agents (W1–W3, D3)",
+      "description": "Agent create, brief autosave, versions, publish, pause/resume, delete.",
+      "item": [
+        {
+          "name": "GET /templates — W1 catalogue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/templates",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "templates"
+              ]
+            },
+            "description": "§9.2 ke 7 templates (receptionist, appointment, afterhours, lead_qual, faq_support, restaurant, custom). `brief_prefill` yahan nahi aata — woh agent create par v1 mein jaata hai. Table row ho toh table, warna `templates/*.json` file."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents — create from template (W1)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents"
+              ]
+            },
+            "description": "Agent + uska v1 draft (template ke brief prefill aur default tier ke saath) + audit row, ek transaction mein. Retell ko abhi kuch nahi bhejte — Retell objects pehle generate par lazily bante hain.\n\n**Test script `agent_id` save karta hai.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"template_id\": \"receptionist\",\n  \"industry\": \"dental\",\n  \"name\": \"Front desk\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201, 202]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined) pm.environment.set('agent_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /agents — list (D3)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents?limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Workspace ke agents, cursor pagination (`?cursor=&limit=`), optional `?status=draft|live|paused`. Summary mein tier/voice/max_duration **live** values hain."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /agents/:id — detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}"
+              ]
+            },
+            "description": "Summary + `draft` version + `published` version. `draft.settings` = jo customer bana raha hai; top-level `tier`/`voice_id` = jo phone pe live hai aur bill hota hai. Dono alag ho sakte hain jab tak publish na ho."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /agents/:id/draft — autosave brief + settings (W2/W3)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/draft",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "draft"
+              ]
+            },
+            "description": "Wizard ka autosave (debounced 1.5 s) aur D3 Brief/Voice tabs. `brief` field-by-field merge hota hai — ek textarea bhejo toh baaki 12 fields blank nahi hote. `tier`, `voice_id`, `max_call_duration_s`, `languages` **draft version** mein jaate hain, live agent par nahi — billing rate publish tak nahi badalta. Draft frozen ho (published/overtaken) toh naya version fork hota hai. Sirf `name`/`industry` live update hote hain. Koi LLM call nahi.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"brief\": {\n    \"about_business\": \"A family dental clinic in Laval with two dentists and one hygienist.\",\n    \"goal\": \"Answer calls, share opening hours, and take detailed messages for the team.\",\n    \"services\": [\n      \"Check-ups\",\n      \"Cleanings\"\n    ],\n    \"agent_name\": \"Sophie\"\n  },\n  \"tier\": \"standard\",\n  \"voice_id\": \"{{voice_id}}\",\n  \"max_call_duration_s\": 600\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents/:id/draft/select — restore a version as draft (§13.5 Undo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/draft/select",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "draft",
+                "select"
+              ]
+            },
+            "description": "Sirf pointer move: `draft_version` ko purane version par point karo. Koi nayi row nahi, koi LLM nahi. Purana version phir bhi immutable rehta hai — agli edit fork karegi.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version_no\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /agents/:id/versions — history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/versions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "versions"
+              ]
+            },
+            "description": "Sab versions newest first, `is_draft`/`is_published` flags, source (generated/feedback/manual/regenerate), changes list."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /agents/:id/versions/:v — one version",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/versions/{{version_no}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "versions",
+                "{{version_no}}"
+              ]
+            },
+            "description": "Ek version ka pura detail: brief, `prompt_text` (guardrails ke saath, read-only), `editable_prompt` (guardrails hataake, Advanced editor ke liye), greeting/closing, brief_card, scenarios, lint, `settings`. Koi Retell identifier nahi."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /agents/:id/versions/:v/prompt — Advanced editor save",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/versions/{{version_no}}/prompt",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "versions",
+                "{{version_no}}",
+                "prompt"
+              ]
+            },
+            "description": "Manual prompt edit → **naya** version (source=manual), base version untouched. Body mein sirf editable prompt jaata hai; §9.4 platform guardrails server strip karke canonical block append karta hai — customer unhe hata/badal nahi sakta. Result lint hota hai.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prompt\": \"You are Camille, the receptionist for Maple Dental. Keep every answer short and warm, and take a message when unsure.\",\n  \"greeting\": \"Maple Dental, this is Camille.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents/:id/publish — go live (§13.6)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/publish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "publish"
+              ]
+            },
+            "description": "Synchronous. Lint (errors block, warnings pass) → publish lease claim → Retell LLM/agent sync + publish → `published_version` + version ki settings agents par copy (tier/voice/duration ab live + billable) → audit → runtime cache refresh → SSE. Idempotent (`already_published: true`). Paused agent paused hi rehta hai. Body khaali = draft publish; `version_no` de kar purana version rollback. Stack config missing ho toh `503 NOT_CONFIGURED`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents/:id/pause — take off the phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/pause",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "pause"
+              ]
+            },
+            "description": "Local state change + runtime cache refresh; Retell call nahi — Retell down ho toh bhi customer apna agent rok sakta hai. Idempotent. Owner/admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents/:id/resume — back on the phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/resume",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "resume"
+              ]
+            },
+            "description": "Sirf published agent resume ho sakta hai. Owner/admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201, 400]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201, 400]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /agents/:id — soft delete (§17)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}"
+              ]
+            },
+            "description": "`deleted_at` set hota hai (calls billing history hain, row nahi jaati), Retell objects destroy hote hain. Phone number attached ho ya call chal rahi ho toh `409 AGENT_IN_USE`. Response sirf `{deleted}` — Retell errors audit mein, wire par nahi."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 · Prompting & Jobs (§13.3, §13.5, §16)",
+      "description": "LLM waale routes 202 + job_id dete hain; kabhi model ka wait nahi karte.",
+      "item": [
+        {
+          "name": "POST /agents/:id/generate — brief → prompt (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/generate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "generate"
+              ]
+            },
+            "description": "W2 Generate. Brief complete hai ya nahi check (about_business/goal ≥ 20 chars), workspace paused nahi, `pause_generation` kill switch off — phir `jobs` row + BullMQ `prompting` queue → `202 {job_id}`. Worker: provider → zod → guardrails append → lint → immutable version → Retell draft sync → SSE `generated`. Double click = same job_id (one-active-job index). `mode: regenerate` purana feedback carry karta hai. Editor+ aur verified email.\n\n**Test script `job_id` save karta hai.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"generate\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.job_id !== undefined) pm.environment.set('job_id', body.job_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents/:id/feedback — plain-language patch (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/feedback",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "feedback"
+              ]
+            },
+            "description": "§9.6: 10–500 chars ka feedback → naya version (source=feedback) with `changes[]`. Guardrail se conflict kare toh `changes: []` + explanation, prompt wahi rehta hai. `base_version` optional (default draft).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Ask for the callback number before anything else.\",\n  \"base_version\": 2\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.job_id !== undefined) pm.environment.set('job_id', body.job_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /jobs/:id — poll fallback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/jobs/{{job_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{job_id}}"
+              ]
+            },
+            "description": "SSE na ho toh har 3 s poll. Response whitelisted `progress` (agent_id, mode, base_version, version_no, changes, refused, explanation, lint_findings) + `status` + customer-safe `error`. Internal `steps_json` (provider, model, Retell sync) kabhi nahi aata. Doosre workspace ka job = 404."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 · Voices (W3)",
+      "description": "Retell voice catalogue, `voices` table mein cached (daily job).",
+      "item": [
+        {
+          "name": "GET /voices — catalogue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/voices?lang=en",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "voices"
+              ],
+              "query": [
+                {
+                  "key": "lang",
+                  "value": "en",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Filters: `lang` (en, fr-CA…), `gender`, `tier`, `multilingual`. Yahi ids `voice_id` mein PATCH draft ko bhejte hain — unknown id `400` deta hai.\n\n**Test script pehli voice ka id `voice_id` mein save karta hai.**"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const b = pm.response.json(); const first = (b.items || b.voices || b)[0]; if (first && first.voice_id) pm.environment.set('voice_id', first.voice_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /voices/:id/preview — hear sample",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/voices/{{voice_id}}/preview",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "voices",
+                "{{voice_id}}",
+                "preview"
+              ]
+            },
+            "description": "Voice ka sample clip URL. Abhi `kind: sample` (provider ka fixed clip); `text` se synthesize Phase 2.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Thank you for calling Maple Dental. How can I help?\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 · Wallet & Billing (§5.4, §13.7)",
+      "description": "Prepaid credits. 1 credit = 1 min Standard; Premium 1.5×.",
+      "item": [
+        {
+          "name": "GET /wallet — balance summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet"
+              ]
+            },
+            "description": "Balance (2 dp), last pack, low-balance thresholds, auto top-up settings. Balance = Σ credit_ledger.delta, `bal:{ws}` cache se."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /wallet/lots — credit lots",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet/lots",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet",
+                "lots"
+              ]
+            },
+            "description": "Har purchase ka lot, expiry (12 months), remaining. FIFO consume hote hain."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /wallet/ledger — movements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet/ledger?limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Append-only ledger: trial, purchase, call debit, expiry, adjustment… `?reason=` filter, cursor pagination."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /wallet/checkout — buy a pack",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet/checkout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet",
+                "checkout"
+              ]
+            },
+            "description": "Stripe hosted Checkout URL return karta hai; credits Stripe webhook (`checkout.session.completed`, paid) par aate hain, response par nahi. `agent_id` do toh W7 par paid hote hi agent activate. Owner/admin + verified email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pack_id\": \"{{pack_id}}\",\n  \"auto_topup\": {\n    \"enabled\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 201]', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 · Calls & Stats (D1, D4)",
+      "description": "Call history, recordings, dashboard stats.",
+      "item": [
+        {
+          "name": "GET /calls — history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/calls?limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "calls"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Filters: status, channel, direction, agent_id, number_id, from/to, is_test. Declined inbound calls 'Missed' dikhte hain with decline_reason.\n\n**Test script pehli call ka id `call_id` save karta hai.**"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const b = pm.response.json(); if (b.items && b.items[0]) pm.environment.set('call_id', b.items[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /calls/:id — detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/calls/{{call_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}"
+              ]
+            },
+            "description": "Transcript, analysis fields, duration, credits charged, rate captured at call time."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /calls/:id — handled / note",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/calls/{{call_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}"
+              ]
+            },
+            "description": "Call ko handled mark karo ya note likho. Kam se kam ek field chahiye. Editor+.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"handled\": true,\n  \"note\": \"Called back, booked for Tuesday.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /calls/:id/recording — signed link",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/calls/{{call_id}}/recording",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}",
+                "recording"
+              ]
+            },
+            "description": "1-hour signed URL `…/recording/stream?token=` deta hai. Retell URL browser ko kabhi nahi milta. Owner/admin/editor (viewer ke liye §20 open).\n\n**Test script `recording_token` save karta hai.**"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const b = pm.response.json(); const m = /token=([^&]+)/.exec(b.url || ''); if (m) pm.environment.set('recording_token', m[1]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /calls/:id/recording/stream — audio proxy (public, token)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/calls/{{call_id}}/recording/stream?token={{recording_token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}",
+                "recording",
+                "stream"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{recording_token}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Audio bytes proxy karta hai (Range headers pass, seek chalta hai). Token hi credential hai — bearer nahi chahiye.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 206]', () => pm.expect(pm.response.code).to.be.oneOf([200, 206]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /stats — dashboard (D1 Home)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stats?range=7d",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "range",
+                  "value": "7d",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "`range=today|7d|30d|custom` (custom ke saath from/to). Calls, minutes, credits spent, missed…"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 · Events (SSE, §16)",
+      "description": "Postman mein stream sirf khulti hai; frames dekhne ke liye browser/curl better hai.",
+      "item": [
+        {
+          "name": "GET /events — SSE stream",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/events?topics=agent:{{agent_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "topics",
+                  "value": "agent:{{agent_id}}",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Workspace ke topics: `wallet`, `agent:{id}`, `call:{id}`, `activation:{id}`. `?topics=` se narrow karo. Ordinary authenticated route — `EventSource` headers nahi bhej sakta isliye client `@microsoft/fetch-event-source` use karta hai. Server replay nahi karta; frame miss ho toh resource re-read karo."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "9 · Webhooks (public, provider-signed)",
+      "description": "Retell/Stripe/Auth0 ke liye. Bearer nahi — signature/secret hi credential hai. Postman se sirf auth webhook realistically test hota hai (shared secret); Retell/Stripe ko raw body par HMAC chahiye.",
+      "item": [
+        {
+          "name": "POST /webhooks/auth — Auth0 Action (user.registered / user.login)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-action-secret",
+                "value": "{{auth_action_secret}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/auth",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "auth"
+              ]
+            },
+            "description": "Auth0 Post-User-Registration (`user.registered`) aur Post-Login (`user.login`) Actions yahan post karte hain, header `x-action-secret` = `AUTH0_CUSTOMER_ACTION_SECRET`. Store → 204 on duplicate → queue → 200; worker `users` upsert karta hai (idempotent on sub). Isse local user banao jab Auth0 nahi hai.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_type\": \"user.registered\",\n  \"external_id\": \"auth0|postman-user-1\",\n  \"email\": \"postman-user-1@example.test\",\n  \"email_verified\": true,\n  \"name\": \"Postman User\",\n  \"created_at\": \"2026-09-17T10:00:00.000Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 204]', () => pm.expect(pm.response.code).to.be.oneOf([200, 204]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /webhooks/retell — call lifecycle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/retell",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "`call_started` / `call_ended` / `call_analyzed`. `x-retell-signature` = HMAC-SHA256(raw body, API key). Sirf `call_ended` credits move karta hai. Postman se signature manually compute karni padegi (pre-request script mein CryptoJS use karo).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_ended\",\n  \"call\": {\n    \"call_id\": \"call_postman_1\",\n    \"agent_id\": \"agent_xxx\",\n    \"start_timestamp\": 1758100000000,\n    \"end_timestamp\": 1758100060000,\n    \"disconnection_reason\": \"user_hangup\",\n    \"metadata\": {\n      \"tenant_id\": \"{{workspace_id}}\"\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /webhooks/retell/inbound/:number_token — §13.9 hot path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/retell/inbound/{{number_token}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ]
+            },
+            "description": "Inbound call authorisation, Redis-only, p95 < 300 ms. Six checks (workspace paused, number paused, blocklist, balance, concurrency cap, hours). Allow = override agent + max_call_duration_ms; decline = `{call_inbound:{reject:true}}` (busy tone). Unknown number/bad signature = `200 {}` fail-open, kabhi 4xx nahi.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"call_inbound\",\n  \"call_inbound\": {\n    \"from_number\": \"+14385550123\",\n    \"to_number\": \"+14385550199\",\n    \"agent_id\": \"agent_xxx\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /webhooks/stripe — checkout events",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_signature}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/stripe",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "description": "`checkout.session.completed` (credit only when paid), `async_payment_succeeded/failed`, `expired`. `stripe-signature` header chahiye — Stripe CLI (`stripe listen --forward-to`) se test karo, Postman se realistic nahi.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_test\",\n  \"type\": \"checkout.session.completed\",\n  \"data\": {\n    \"object\": {}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "10 · Dev only",
+      "description": "Sirf `APP_ENV=dev` par register hota hai.",
+      "item": [
+        {
+          "name": "POST /dev/retell/web-call — browser test call token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/dev/retell/web-call",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "dev",
+                "retell",
+                "web-call"
+              ]
+            },
+            "description": "Retell web-call access token mint karta hai (agent_id + optional version). Staging/prod par 404. Draft test karne ke liye explicit `agent_version` do.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_id\": \"agent_xxx\",\n  \"agent_version\": 0,\n  \"max_call_duration_ms\": 300000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

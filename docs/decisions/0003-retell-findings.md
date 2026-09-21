@@ -129,6 +129,18 @@ environment (§14.3 caps must sum below the pool; see 8 and 10).
   fixed locales). **Decision:** always send the array; W3's "Main language + additional
   languages" maps to it directly, main language first (Retell falls back to the first entry
   when detection fails).
+  _Reviewed again 21 Sep 2026, against a request to follow §W3's literal text ("if ≥ 1
+  also-speaks → `language: multi`") while the spec owner was unavailable. Kept the array,
+  for three reasons that are measurements rather than taste: (1) `multi` is a fixed ten
+  locales — en-US, es-ES, fr-FR, de-DE, hi-IN, ru-RU, pt-PT, ja-JP, it-IT, nl-NL — and
+  **fr-CA is not among them**, so a Quebec customer choosing fr-CA + en-US would get an
+  agent that cannot speak its primary language (`test/fixtures/retell/api/d5-create-agent.json`
+  shows what Retell stores for the array: `["fr-CA","en-US"]`); (2) Retell marks `multi`
+  deprecated; (3) the array is what §W3's own copy promises the customer ("also speaks").
+  This ADR is the override CLAUDE.md's "spec wins unless a decision overrides it" refers
+  to. The literal reading is a one-line change in `AgentRetellService.agentSpec` guarded
+  by `agent-retell.test.ts` ("what W3 promises actually reaches Retell"); if the spec owner
+  wants it, flip the branch, the tests and this note together._
 - Exact locale list for the W3 select (63): `en-US en-IN en-GB en-AU en-NZ de-DE es-ES es-419
   hi-IN fr-FR fr-CA ja-JP pt-PT pt-BR zh-CN ru-RU it-IT ko-KR nl-NL nl-BE pl-PL tr-TR vi-VN
   ro-RO bg-BG ca-ES th-TH da-DK fi-FI el-GR hu-HU id-ID no-NO sk-SK sv-SE lt-LT lv-LV cs-CZ
@@ -172,6 +184,17 @@ number or tag the same way.
 - The §9.9 flow is: `create-agent-version(base = published)` → `update-agent` (draft) →
   `update-retell-llm` → `publish-agent-version`. The Retell LLM is versioned with the agent
   (`response_engine.version`), so the draft agent snapshots the LLM it was edited against.
+
+  **Amended 17 Sep 2026 — the order is enforced, not advisory.** While the latest agent
+  version is published, the LLM version it points at is published too, and
+  `update-retell-llm` answers **400 `Cannot update published LLM`**. `create-agent-version`
+  is what bumps `response_engine.version` (v0 → v1 on the same `llm_id`) and hands back an
+  editable LLM. Measured on a live agent: branch → `update-retell-llm` OK → `update-agent`
+  OK → publish OK, and the published v0 still reports `response_engine.version: 0`.
+  `AgentRetellService.syncDraft` had `update-retell-llm` first, which meant **every
+  republish of an already-published agent failed**; `FakeRetellGateway` models the agent's
+  immutability but not the LLM's, so no test caught it. Reproduce with
+  `pnpm --filter @portal/api verify:d5-retell`.
 - Roll back = publish an older version number again is **not** how Retell works (versions
   are immutable and publish targets a draft). Roll back = `create-agent-version(base = old)`
   → publish. Same outcome, one extra call; `agents.published_version` records our version_no.

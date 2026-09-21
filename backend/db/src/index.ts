@@ -58,6 +58,8 @@ export {
   type WithWorkspaceOptions,
 } from './workspace.js';
 export { assertRlsEnforced, assertIssuersDiffer } from './assertions.js';
+export { templatesDir, readTemplateFiles, templateRowFrom, templateFromRow } from './templates.js';
+export type { TemplateFileResult, TemplateRowShape } from './templates.js';
 export {
   APPEND_ONLY_VIOLATION,
   CALL_DEBIT_ONCE_CONSTRAINT,

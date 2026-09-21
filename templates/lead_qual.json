@@ -1,0 +1,122 @@
+{
+  "id": "lead_qual",
+  "name": "Lead Qualification",
+  "tagline": "Scores leads",
+  "best_for": "Real estate, agencies, B2B services",
+  "industry_tags": [
+    "real_estate",
+    "legal",
+    "generic"
+  ],
+  "brief_prefill": {
+    "business_hours": {
+      "days": {
+        "mon": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "tue": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "wed": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "thu": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "fri": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ]
+      },
+      "closed_dates": []
+    },
+    "services": [],
+    "faqs": [],
+    "handoff_rules": [],
+    "personality": {
+      "formality": 0.6,
+      "brevity": 0.5,
+      "energy": 0.6
+    },
+    "ai_disclosure": "if_asked",
+    "goal": "Qualify inbound leads and capture their contact details so the team can follow up on the good ones.",
+    "agent_name": "Alex",
+    "never_do": "Never quote final pricing. Do not push if the caller is not interested."
+  },
+  "steps": [
+    "Greet the caller and name the business",
+    "Ask what they are looking for",
+    "Ask three to five qualifying questions from the brief: budget, timeline, location, decision-maker",
+    "Collect name, phone and email",
+    "Promise a specific next step",
+    "Close politely"
+  ],
+  "analysis_fields": [
+    {
+      "name": "caller_name",
+      "type": "text",
+      "description": "The name the caller gave."
+    },
+    {
+      "name": "callback_number",
+      "type": "text",
+      "description": "The number to call back on."
+    },
+    {
+      "name": "email",
+      "type": "text",
+      "description": "The email address the caller gave."
+    },
+    {
+      "name": "need",
+      "type": "text",
+      "description": "What the caller is looking for."
+    },
+    {
+      "name": "budget",
+      "type": "text",
+      "description": "The budget the caller described."
+    },
+    {
+      "name": "timeline",
+      "type": "text",
+      "description": "When the caller wants to act."
+    },
+    {
+      "name": "qualified",
+      "type": "boolean",
+      "description": "True when the lead met the qualifying criteria."
+    },
+    {
+      "name": "score",
+      "type": "number",
+      "description": "Lead quality from 1 (poor) to 5 (excellent)."
+    }
+  ],
+  "rules": [
+    "Never quote final pricing.",
+    "Do not push a caller who says they are not interested."
+  ],
+  "default_tier": "premium",
+  "sample_audio_url": "/samples/lead_qual.mp3",
+  "example_texts": {
+    "real_estate": "We are a residential real estate team covering the South Shore. Listings, buyer representation and free home evaluations.",
+    "legal": "We are a two-lawyer family law practice downtown. Divorce, custody and mediation. First consultation is thirty minutes and is paid.",
+    "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
+  },
+  "version": 1
+}

@@ -6,6 +6,7 @@ import {
   type InboundDecisionJob,
   JOBS,
   type ProcessWebhookJob,
+  type PromptingJob,
   QUEUES,
   type QueueName,
   type RefreshNumberJob,
@@ -14,6 +15,33 @@ import {
 
 /** `requeued` = the id was held by a job that had exhausted its attempts; it was dropped and added again. */
 export type EnqueueResult = 'queued' | 'exists' | 'requeued' | 'failed';
+
+/**
+ * Where a job id stands in its queue. BullMQ's own states, plus `missing` (no job holds
+ * the id) and `unknown` (Redis did not answer in time — never treated as either).
+ */
+export type QueueJobState =
+  | 'missing'
+  | 'unknown'
+  | 'completed'
+  | 'failed'
+  | 'delayed'
+  | 'active'
+  | 'waiting'
+  | 'waiting-children'
+  | 'prioritized';
+
+/**
+ * The BullMQ id of a prompting job, from the `jobs` row's type and id — `gen-<id>` for a
+ * generation, `patch-<id>` for a feedback patch. One function, used by the enqueue and by
+ * the sweeper that later asks the queue what became of it, so the two cannot drift.
+ * Null for a type that does not run on the prompting queue.
+ */
+export function promptingBullId(type: string, jobId: string): string | null {
+  if (type === JOBS.generateAgent) return `gen-${safeId(jobId)}`;
+  if (type === JOBS.patchAgent) return `patch-${safeId(jobId)}`;
+  return null;
+}
 
 /**
  * Retries are ours, not the provider's (architecture §11): eight attempts with
@@ -158,12 +186,66 @@ export class JobQueues implements OnApplicationShutdown {
     return this.add<InboundDecisionJob>(QUEUES.calls, JOBS.inboundDecision, job, { jobId: `inbound-${safeId(job.callId)}` }, 250);
   }
 
+  /**
+   * §13.3 / §13.5. The BullMQ id is derived from the `jobs` row, which is what makes a
+   * duplicate submission a no-op: the service reuses an in-flight row rather than
+   * creating a second one, so the second POST enqueues the same id and BullMQ refuses it.
+   * `verify` is on for the same reason `enqueueWebhook` has it — an id held by a job that
+   * failed for good would otherwise swallow every later attempt, and the customer would
+   * watch a spinner forever.
+   */
+  enqueuePrompting(job: PromptingJob): Promise<EnqueueResult> {
+    const name = job.mode === 'feedback' ? JOBS.patchAgent : JOBS.generateAgent;
+    return this.add<PromptingJob>(
+      QUEUES.prompting,
+      name,
+      job,
+      {
+        jobId: promptingBullId(name, job.jobId)!,
+        // Three, not eight: a generation the customer is watching is worth about a minute
+        // of retrying, not ten. After that the job row carries the reason and W2 offers
+        // "try again", which is a better answer than a version appearing five minutes later.
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 2_000 },
+      },
+      ENQUEUE_TIMEOUT_MS,
+      true,
+    );
+  }
+
   enqueueWarmWorkspace(workspaceId: string): Promise<EnqueueResult> {
     return this.add<WarmWorkspaceJob>(QUEUES.calls, JOBS.warmWorkspace, { workspaceId }, { ...REPAIR_JOB_OPTIONS, jobId: `warm-${workspaceId}` }, 250);
   }
 
   enqueueRefreshNumber(e164: string): Promise<EnqueueResult> {
     return this.add<RefreshNumberJob>(QUEUES.calls, JOBS.refreshNumber, { e164 }, { ...REPAIR_JOB_OPTIONS, jobId: `refresh-number-${safeId(e164)}` }, 250);
+  }
+
+  /**
+   * What the queue currently holds for an id. Never throws: a Redis that does not answer
+   * within the budget is `unknown`, which every caller treats as "leave it alone" — the
+   * job sweeper must never write a row off because Redis blinked.
+   */
+  async stateOf(queueName: QueueName, jobId: string, timeoutMs = ENQUEUE_TIMEOUT_MS): Promise<QueueJobState> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        (async (): Promise<QueueJobState> => {
+          const job = await this.queue(queueName).getJob(jobId);
+          if (!job) return 'missing';
+          const state = await job.getState();
+          return state === 'unknown' ? 'unknown' : (state as QueueJobState);
+        })(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`getState timed out after ${timeoutMs} ms`)), timeoutMs);
+        }),
+      ]);
+    } catch (error) {
+      this.log.warn(`stateOf ${queueName}/${jobId}: ${error instanceof Error ? error.message : String(error)}`);
+      return 'unknown';
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   /** A fresh id for rows that have no natural one (a declined call whose webhook carried no call_id). */

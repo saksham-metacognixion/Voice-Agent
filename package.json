@@ -2,7 +2,7 @@
   "name": "voice-agent-portal",
   "private": true,
   "version": "0.0.1",
-  "description": "Voice Agent Self-Service Portal \u2014 customer portal, admin console, API and worker",
+  "description": "Voice Agent Self-Service Portal — customer portal, admin console, API and worker",
   "packageManager": "pnpm@10.28.2",
   "engines": {
     "node": ">=22"
@@ -26,9 +26,16 @@
     "db:seed": "pnpm --filter @portal/db seed",
     "db:reset": "pnpm --filter @portal/db reset",
     "db:studio": "pnpm --filter @portal/db studio",
-    "doctor": "node infra/scripts/doctor.mjs"
+    "doctor": "node infra/scripts/doctor.mjs",
+    "auth0:validate": "node infra/scripts/auth0.mjs validate",
+    "auth0:check": "node infra/scripts/auth0.mjs check",
+    "auth0:export": "node infra/scripts/auth0.mjs export",
+    "auth0:plan": "node infra/scripts/auth0.mjs plan",
+    "auth0:deploy": "node infra/scripts/auth0.mjs deploy",
+    "verify:auth0": "pnpm --filter @portal/api verify:auth0"
   },
   "devDependencies": {
+    "auth0-deploy-cli": "^9.0.0",
     "prettier": "^3.6.0",
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"

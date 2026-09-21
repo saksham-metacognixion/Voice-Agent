@@ -32,8 +32,13 @@ export class JobHandlerRegistry {
   }
 }
 
-/** Per-queue concurrency. Scheduled jobs run one at a time on purpose: they sweep tables. */
-const CONCURRENCY: Record<QueueName, number> = { webhooks: 8, calls: 8, scheduled: 1 };
+/**
+ * Per-queue concurrency. Scheduled jobs run one at a time on purpose: they sweep tables.
+ * `prompting` is held at four because each job is an LLM round trip against a provider
+ * rate limit — more workers would turn a 429 into eight 429s and spend the ≤ 10 s p95 on
+ * backoff rather than on generation.
+ */
+const CONCURRENCY: Record<QueueName, number> = { webhooks: 8, calls: 8, prompting: 4, scheduled: 1 };
 
 /**
  * One BullMQ Worker per queue, dispatching by job name through the registry. A job whose

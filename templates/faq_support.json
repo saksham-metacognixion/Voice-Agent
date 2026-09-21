@@ -1,0 +1,97 @@
+{
+  "id": "faq_support",
+  "name": "FAQ / Support",
+  "tagline": "Answers from your documents",
+  "best_for": "Product and support lines",
+  "industry_tags": [
+    "generic"
+  ],
+  "brief_prefill": {
+    "business_hours": {
+      "days": {
+        "mon": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "tue": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "wed": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "thu": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "fri": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ]
+      },
+      "closed_dates": []
+    },
+    "services": [],
+    "faqs": [],
+    "handoff_rules": [],
+    "personality": {
+      "formality": 0.5,
+      "brevity": 0.6,
+      "energy": 0.5
+    },
+    "ai_disclosure": "if_asked",
+    "goal": "Answer questions from what the agent knows, and escalate anything it cannot answer.",
+    "agent_name": "Sam",
+    "never_do": "Never invent answers. If you do not know, say \"I do not have that information\"."
+  },
+  "steps": [
+    "Greet the caller and name the business",
+    "Ask what their question is",
+    "Answer from what you know, and say where the answer came from when it helps",
+    "If the answer is unknown, offer to take a message or transfer",
+    "Close politely"
+  ],
+  "analysis_fields": [
+    {
+      "name": "topic",
+      "type": "text",
+      "description": "What the question was about."
+    },
+    {
+      "name": "resolved",
+      "type": "boolean",
+      "description": "True when the caller got their answer."
+    },
+    {
+      "name": "follow_up_required",
+      "type": "boolean",
+      "description": "True when a person still needs to act."
+    },
+    {
+      "name": "callback_number",
+      "type": "text",
+      "description": "The number to call back on."
+    }
+  ],
+  "rules": [
+    "Never invent answers.",
+    "Say \"I do not have that information\" rather than guessing."
+  ],
+  "default_tier": "standard",
+  "sample_audio_url": "/samples/faq_support.mp3",
+  "example_texts": {
+    "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
+  },
+  "version": 1
+}

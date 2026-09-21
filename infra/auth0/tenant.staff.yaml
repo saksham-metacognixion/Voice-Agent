@@ -1,0 +1,135 @@
+# Staff tenant — Auth0 Deploy CLI source of truth (ADR 0002, admin §2.1).
+#
+#   pnpm auth0:export staff / pnpm auth0:plan staff / pnpm auth0:deploy staff
+#
+# A separate tenant, not a second application: the API asserts at boot that the two
+# issuers differ, because one tenant would make a customer token verify on /admin/*.
+#
+# Read the header of tenant.customer.yaml first — the name-matching and `triggers:`
+# warnings apply here identically.
+
+tenant:
+  friendly_name: Voice Agent Staff Console
+  enabled_locales:
+    - en
+  # admin §2.1 — an 8-hour session, absolute and idle.
+  session_lifetime: 8
+  idle_session_lifetime: 8
+
+clients:
+  - name: Admin Console
+    description: Staff console (frontend/admin). Public client on Authorization Code + PKCE (ADR 0008).
+    app_type: spa
+    is_first_party: true
+    oidc_conformant: true
+    grant_types:
+      - authorization_code
+      - refresh_token
+    token_endpoint_auth_method: none
+    callbacks:
+      - '##ADMIN_URL##'
+    allowed_logout_urls:
+      - '##ADMIN_URL##'
+    web_origins:
+      - '##ADMIN_URL##'
+    allowed_origins:
+      - '##ADMIN_URL##'
+    cross_origin_authentication: false
+    refresh_token:
+      rotation_type: rotating
+      expiration_type: expiring
+      leeway: 30
+      # Shorter than the customer app: a staff refresh token outliving the 8-hour session
+      # would make the session limit decorative.
+      token_lifetime: 28800
+      idle_token_lifetime: 28800
+      infinite_token_lifetime: false
+      infinite_idle_token_lifetime: false
+    jwt_configuration:
+      alg: RS256
+      lifetime_in_seconds: 28800
+
+resourceServers:
+  - name: Staff API
+    identifier: '##AUTH0_STAFF_AUDIENCE##'
+    signing_alg: RS256
+    # Staff tokens are short-lived by design; the console refreshes silently.
+    token_lifetime: 28800
+    token_lifetime_for_web: 28800
+    skip_consent_for_verifiable_first_party_clients: true
+    allow_offline_access: true
+    enforce_policies: false
+    # Staff limits live in `staff_role_limits` (admin §2.2), tunable without a deploy.
+    scopes: []
+
+databases:
+  # Declared with no enabled clients on purpose: staff have no password path, only the
+  # Workspace Google connection. Leaving this out would let a dashboard click re-enable it.
+  - name: Username-Password-Authentication
+    strategy: auth0
+    enabled_clients: []
+    options:
+      disable_signup: true
+      brute_force_protection: true
+
+connections:
+  - name: google-oauth2
+    strategy: google-oauth2
+    enabled_clients:
+      - Admin Console
+
+# admin §2.1 — MFA on every login. staff-post-login.js only *records* whether MFA
+# happened; without this policy the claim is always false and AuthGuard rejects every
+# staff token. The policy is the half that actually challenges.
+guardianPolicies:
+  policies:
+    - all-applications
+
+guardianFactors:
+  - name: otp
+    enabled: true
+  - name: webauthn-platform
+    enabled: true
+  - name: webauthn-roaming
+    enabled: true
+  - name: sms
+    enabled: false
+  - name: email
+    enabled: false
+  - name: push-notification
+    enabled: false
+  - name: duo
+    enabled: false
+  - name: recovery-code
+    enabled: true
+
+attackProtection:
+  bruteForceProtection:
+    enabled: true
+    mode: count_per_identifier_and_ip
+    max_attempts: 10
+    shields:
+      - block
+  suspiciousIpThrottling:
+    enabled: true
+    shields:
+      - admin_notification
+      - block
+
+actions:
+  - name: staff-post-login
+    code: ./actions/staff-post-login.js
+    dependencies: []
+    deployed: true
+    status: built
+    secrets:
+      - name: ALLOWED_EMAIL_DOMAIN
+        value: '##STAFF_ALLOWED_EMAIL_DOMAIN##'
+    supported_triggers:
+      - id: post-login
+        version: v3
+
+triggers:
+  post-login:
+    - action_name: staff-post-login
+      display_name: staff-post-login

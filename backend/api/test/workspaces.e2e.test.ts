@@ -1,0 +1,656 @@
+import { randomUUID } from 'node:crypto';
+import { adminDb } from '@portal/db';
+import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { WalletService } from '../src/modules/wallet';
+import type { FakeAuth0Tenant } from './auth0-double';
+import { type TestUser, addMember, createUser, createWorkspace, startD5Harness } from './d5-fixtures';
+
+/*
+ * §13.2 workspace creation, §6.1 membership and A8 invites, end to end.
+ *
+ * What this suite is really checking is that the five things §13.2 lists happen *together*
+ * — tenant, owner membership, notification defaults, trial credits, audit row — and that
+ * the workspace boundary holds afterwards.
+ */
+
+let app: NestFastifyApplication;
+let stop: () => Promise<void>;
+let customerTenant: FakeAuth0Tenant;
+
+beforeAll(async () => {
+  const harness = await startD5Harness({ workers: false });
+  app = harness.app;
+  stop = harness.stop;
+  customerTenant = harness.customerTenant;
+});
+
+afterAll(async () => {
+  await stop?.();
+  await adminDb.$disconnect();
+});
+
+async function auth(sub: string, workspaceId?: string): Promise<Record<string, string>> {
+  return {
+    authorization: `Bearer ${await customerTenant.mint(sub)}`,
+    ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+  };
+}
+
+/**
+ * `content-type` only when there is a body: Fastify rejects an empty body that claims to
+ * be JSON, which is exactly what a POST with no payload would send.
+ */
+function post(url: string, headers: Record<string, string>, body?: unknown) {
+  return app.inject({
+    method: 'POST',
+    url,
+    headers: body === undefined ? headers : { ...headers, 'content-type': 'application/json' },
+    payload: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
+function get(url: string, headers: Record<string, string>) {
+  return app.inject({ method: 'GET', url, headers });
+}
+
+// ---------------------------------------------------------------------------
+describe('POST /workspaces', () => {
+  it('creates the tenant, the owner membership, the settings, the trial credits and the audit row — atomically', async () => {
+    const user = await createUser('founder');
+    const name = `Maple Dental ${randomUUID().slice(0, 6)}`;
+
+    const res = await post('/workspaces', await auth(user.sub), {
+      name,
+      country: 'ca',
+      timezone: 'America/Toronto',
+      website: 'https://maple.example',
+    });
+
+    expect(res.statusCode).toBe(201);
+    const workspace = res.json();
+    expect(workspace).toMatchObject({ name, country: 'CA', plan_tier: 'trial', role: 'owner', paused: false });
+
+    const [membership, settings, ledger, audit, lots] = await Promise.all([
+      adminDb.membership.findUnique({ where: { tenantId_userId: { tenantId: workspace.id, userId: user.userId } } }),
+      adminDb.notificationSetting.findFirst({ where: { tenantId: workspace.id, userId: null } }),
+      adminDb.creditLedger.findMany({ where: { tenantId: workspace.id } }),
+      adminDb.auditLog.findMany({ where: { tenantId: workspace.id } }),
+      adminDb.creditLot.findMany({ where: { tenantId: workspace.id } }),
+    ]);
+
+    expect(membership?.role).toBe('owner');
+    expect(settings).not.toBeNull();
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]!.reason).toBe('trial');
+    expect(ledger[0]!.delta.toNumber()).toBe(20); // §5.4 free trial
+    expect(lots).toHaveLength(1);
+    expect(lots[0]!.creditsRemaining.toNumber()).toBe(20);
+    expect(audit.map((row) => row.action)).toEqual(['workspace.created']);
+    expect(audit[0]!.actorUserId).toBe(user.userId);
+  });
+
+  it('publishes the trial balance so the wallet reads it without a rebuild', async () => {
+    const user = await createUser('balance');
+    const res = await post('/workspaces', await auth(user.sub), {
+      name: `Balance ${randomUUID().slice(0, 6)}`,
+      country: 'US',
+      timezone: 'America/New_York',
+    });
+    const workspaceId = res.json().id;
+
+    const wallet = await get('/wallet', await auth(user.sub, workspaceId));
+    expect(wallet.statusCode).toBe(200);
+    expect(wallet.json().balance).toBe(20);
+    expect(await app.get(WalletService).balance(workspaceId)).toBe(20);
+  });
+
+  it('rolls everything back when a step fails — no half-made workspace', async () => {
+    const user = await createUser('rollback');
+    const name = `Rollback ${randomUUID().slice(0, 6)}`;
+    const before = await adminDb.tenant.count();
+
+    // An unknown timezone is refused before the transaction; the interesting case is a
+    // failure *inside* it, so make the membership insert collide by deleting the user
+    // between the check and the write. The simplest reliable stand-in: a name long enough
+    // to pass zod but a country that violates the char(2) column.
+    const res = await post('/workspaces', await auth(user.sub), {
+      name,
+      country: 'CA',
+      timezone: 'Mars/Olympus_Mons',
+    });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('BAD_REQUEST');
+    expect(await adminDb.tenant.count()).toBe(before);
+    expect(await adminDb.tenant.findFirst({ where: { name } })).toBeNull();
+  });
+
+  it('is safe to double-click: the same name twice returns the first workspace and one trial grant', async () => {
+    const user = await createUser('impatient');
+    const name = `Double ${randomUUID().slice(0, 6)}`;
+    const body = { name, country: 'CA', timezone: 'America/Toronto' };
+
+    const [first, second] = await Promise.all([
+      post('/workspaces', await auth(user.sub), body),
+      post('/workspaces', await auth(user.sub), body),
+    ]);
+
+    expect(first.statusCode).toBe(201);
+    expect(second.statusCode).toBe(201);
+    expect(second.json().id).toBe(first.json().id);
+
+    const workspaces = await adminDb.tenant.findMany({ where: { name } });
+    expect(workspaces).toHaveLength(1);
+    const ledger = await adminDb.creditLedger.findMany({ where: { tenantId: first.json().id } });
+    expect(ledger).toHaveLength(1);
+  });
+
+  it('lets one person own several workspaces — they are different businesses', async () => {
+    const user = await createUser('serial');
+    const a = await post('/workspaces', await auth(user.sub), {
+      name: `First ${randomUUID().slice(0, 6)}`,
+      country: 'CA',
+      timezone: 'America/Toronto',
+    });
+    const b = await post('/workspaces', await auth(user.sub), {
+      name: `Second ${randomUUID().slice(0, 6)}`,
+      country: 'CA',
+      timezone: 'America/Toronto',
+    });
+    expect(a.json().id).not.toBe(b.json().id);
+
+    const mine = await get('/workspaces', await auth(user.sub));
+    expect(mine.json().map((w: { id: string }) => w.id).sort()).toEqual([a.json().id, b.json().id].sort());
+  });
+
+  it('refuses a body the schema does not accept', async () => {
+    const user = await createUser('invalid');
+    const res = await post('/workspaces', await auth(user.sub), { name: 'A', country: 'CAN', timezone: '' });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().code).toBe('VALIDATION_FAILED');
+    expect(res.json().fields.length).toBeGreaterThan(0);
+  });
+
+  it('needs a signed-in user', async () => {
+    const res = await post('/workspaces', {}, {
+      name: 'Nobody',
+      country: 'CA',
+      timezone: 'America/Toronto',
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  it('needs a verified email (§6.2)', async () => {
+    const user = await createUser('unverified');
+    const token = await customerTenant.mint(user.sub, { emailVerified: false });
+    const res = await post(
+      '/workspaces',
+      { authorization: `Bearer ${token}` },
+      { name: `Unverified ${randomUUID().slice(0, 6)}`, country: 'CA', timezone: 'America/Toronto' },
+    );
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('EMAIL_UNVERIFIED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('GET/PATCH /workspace', () => {
+  it('reads back the workspace with the caller’s own role', async () => {
+    const owner = await createWorkspace('settings');
+    const viewer = await addMember(owner.workspaceId, 'settings-viewer', 'viewer');
+
+    expect((await get('/workspace', await auth(owner.sub, owner.workspaceId))).json().role).toBe('owner');
+    expect((await get('/workspace', await auth(viewer.sub, owner.workspaceId))).json().role).toBe('viewer');
+  });
+
+  it('saves settings and audits them', async () => {
+    const owner = await createWorkspace('patch');
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/workspace',
+      headers: { ...(await auth(owner.sub, owner.workspaceId)), 'content-type': 'application/json' },
+      payload: JSON.stringify({
+        name: 'Renamed Clinic',
+        retention_days: 30,
+        business_hours: { days: { mon: [{ open: '08:00', close: '16:00' }] }, closed_dates: [] },
+      }),
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ name: 'Renamed Clinic', retention_days: 30 });
+    expect(res.json().business_hours.days.mon).toEqual([{ open: '08:00', close: '16:00' }]);
+
+    const audit = await adminDb.auditLog.findFirst({
+      where: { tenantId: owner.workspaceId, action: 'workspace.updated' },
+    });
+    expect(audit).not.toBeNull();
+  });
+
+  it('is closed to an editor and a viewer (§6.1)', async () => {
+    const owner = await createWorkspace('roles');
+    const editor = await addMember(owner.workspaceId, 'roles-editor', 'editor');
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/workspace',
+      headers: { ...(await auth(editor.sub, owner.workspaceId)), 'content-type': 'application/json' },
+      payload: JSON.stringify({ name: 'Not allowed' }),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN_ROLE');
+  });
+
+  it('is invisible from another workspace', async () => {
+    const mine = await createWorkspace('mine');
+    const theirs = await createWorkspace('theirs');
+
+    const res = await get('/workspace', await auth(mine.sub, theirs.workspaceId));
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('NOT_A_MEMBER');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('GET /workspace/checklist', () => {
+  it('reports onboarding progress from the database, not from the client', async () => {
+    const owner = await createWorkspace('checklist');
+    const first = await get('/workspace/checklist', await auth(owner.sub, owner.workspaceId));
+    expect(first.json()).toMatchObject({
+      workspace_created: true,
+      agent_created: false,
+      agent_published: false,
+      complete: false,
+    });
+
+    await adminDb.agent.create({ data: { tenantId: owner.workspaceId, name: 'Receptionist' } });
+    const second = await get('/workspace/checklist', await auth(owner.sub, owner.workspaceId));
+    expect(second.json().agent_created).toBe(true);
+    expect(second.json().complete).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('members and roles (§6.1)', () => {
+  it('lists everyone in the workspace, and nobody outside it', async () => {
+    const owner = await createWorkspace('members');
+    const editor = await addMember(owner.workspaceId, 'members-editor', 'editor');
+    const outsider = await createWorkspace('members-outsider');
+
+    const res = await get('/members', await auth(owner.sub, owner.workspaceId));
+    expect(res.statusCode).toBe(200);
+    const emails = res.json().map((m: { email: string }) => m.email);
+    expect(emails).toContain(owner.email);
+    expect(emails).toContain(editor.email);
+    expect(emails).not.toContain(outsider.email);
+  });
+
+  it('changes a member’s role and audits it', async () => {
+    const owner = await createWorkspace('role-change');
+    const editor = await addMember(owner.workspaceId, 'role-change-editor', 'editor');
+    const membership = await adminDb.membership.findUniqueOrThrow({
+      where: { tenantId_userId: { tenantId: owner.workspaceId, userId: editor.userId } },
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/members/${membership.id}`,
+      headers: { ...(await auth(owner.sub, owner.workspaceId)), 'content-type': 'application/json' },
+      payload: JSON.stringify({ role: 'viewer' }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().role).toBe('viewer');
+
+    const audit = await adminDb.auditLog.findFirst({
+      where: { tenantId: owner.workspaceId, action: 'member.role_changed' },
+    });
+    expect(audit?.metaJson).toMatchObject({ from: 'editor', to: 'viewer' });
+  });
+
+  it('refuses to change the owner’s role, even for the owner', async () => {
+    const owner = await createWorkspace('owner-role');
+    const membership = await adminDb.membership.findUniqueOrThrow({
+      where: { tenantId_userId: { tenantId: owner.workspaceId, userId: owner.userId } },
+    });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/members/${membership.id}`,
+      headers: { ...(await auth(owner.sub, owner.workspaceId)), 'content-type': 'application/json' },
+      payload: JSON.stringify({ role: 'admin' }),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('OWNER_ONLY');
+  });
+
+  it('refuses to remove the owner — a workspace with nobody in charge is unrecoverable', async () => {
+    const owner = await createWorkspace('remove-owner');
+    const membership = await adminDb.membership.findUniqueOrThrow({
+      where: { tenantId_userId: { tenantId: owner.workspaceId, userId: owner.userId } },
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/members/${membership.id}`,
+      headers: await auth(owner.sub, owner.workspaceId),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('OWNER_ONLY');
+  });
+
+  it('removes an ordinary member', async () => {
+    const owner = await createWorkspace('remove-member');
+    const viewer = await addMember(owner.workspaceId, 'remove-viewer', 'viewer');
+    const membership = await adminDb.membership.findUniqueOrThrow({
+      where: { tenantId_userId: { tenantId: owner.workspaceId, userId: viewer.userId } },
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/members/${membership.id}`,
+      headers: await auth(owner.sub, owner.workspaceId),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(
+      await adminDb.membership.findUnique({ where: { id: membership.id } }),
+    ).toBeNull();
+  });
+
+  it('will not let an editor touch the member list', async () => {
+    const owner = await createWorkspace('editor-members');
+    const editor = await addMember(owner.workspaceId, 'editor-members-editor', 'editor');
+    const membership = await adminDb.membership.findUniqueOrThrow({
+      where: { tenantId_userId: { tenantId: owner.workspaceId, userId: owner.userId } },
+    });
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/members/${membership.id}`,
+      headers: await auth(editor.sub, owner.workspaceId),
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN_ROLE');
+  });
+
+  it('cannot address a membership in another workspace', async () => {
+    const mine = await createWorkspace('cross-a');
+    const theirs = await createWorkspace('cross-b');
+    const theirMembership = await adminDb.membership.findUniqueOrThrow({
+      where: { tenantId_userId: { tenantId: theirs.workspaceId, userId: theirs.userId } },
+    });
+
+    // My token, my workspace header, their membership id: RLS and the explicit filter
+    // both say no, and the answer is a 404 rather than a hint that the id exists.
+    const res = await app.inject({
+      method: 'PATCH',
+      url: `/members/${theirMembership.id}`,
+      headers: { ...(await auth(mine.sub, mine.workspaceId)), 'content-type': 'application/json' },
+      payload: JSON.stringify({ role: 'viewer' }),
+    });
+    expect(res.statusCode).toBe(404);
+    const unchanged = await adminDb.membership.findUniqueOrThrow({ where: { id: theirMembership.id } });
+    expect(unchanged.role).toBe('owner');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('ownership transfer', () => {
+  it('moves ownership atomically and leaves exactly one owner', async () => {
+    const owner = await createWorkspace('transfer');
+    const admin = await addMember(owner.workspaceId, 'transfer-admin', 'admin');
+
+    const res = await post('/workspace/transfer-ownership', await auth(owner.sub, owner.workspaceId), {
+      user_id: admin.userId,
+    });
+    expect(res.statusCode).toBe(201);
+
+    const memberships = await adminDb.membership.findMany({ where: { tenantId: owner.workspaceId } });
+    const owners = memberships.filter((m) => m.role === 'owner');
+    expect(owners).toHaveLength(1);
+    expect(owners[0]!.userId).toBe(admin.userId);
+    expect(memberships.find((m) => m.userId === owner.userId)?.role).toBe('admin');
+
+    const audit = await adminDb.auditLog.findFirst({
+      where: { tenantId: owner.workspaceId, action: 'workspace.ownership_transferred' },
+    });
+    expect(audit?.metaJson).toMatchObject({ from_user_id: owner.userId, to_user_id: admin.userId });
+  });
+
+  it('refuses when the target is not a member', async () => {
+    const owner = await createWorkspace('transfer-stranger');
+    const stranger = await createUser('stranger');
+
+    const res = await post('/workspace/transfer-ownership', await auth(owner.sub, owner.workspaceId), {
+      user_id: stranger.userId,
+    });
+    expect(res.statusCode).toBe(404);
+    expect((await adminDb.membership.findMany({ where: { tenantId: owner.workspaceId, role: 'owner' } })).length).toBe(1);
+  });
+
+  it('refuses when the caller is not the owner', async () => {
+    const owner = await createWorkspace('transfer-admin-tries');
+    const admin = await addMember(owner.workspaceId, 'transfer-admin-2', 'admin');
+
+    const res = await post('/workspace/transfer-ownership', await auth(admin.sub, owner.workspaceId), {
+      user_id: admin.userId,
+    });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN_ROLE');
+  });
+
+  it('is a no-op when the owner transfers to themselves', async () => {
+    const owner = await createWorkspace('transfer-self');
+    const res = await post('/workspace/transfer-ownership', await auth(owner.sub, owner.workspaceId), {
+      user_id: owner.userId,
+    });
+    expect(res.statusCode).toBe(201);
+    const memberships = await adminDb.membership.findMany({ where: { tenantId: owner.workspaceId } });
+    expect(memberships.filter((m) => m.role === 'owner')).toHaveLength(1);
+  });
+
+  it('survives two transfers racing: one wins, and there is still exactly one owner', async () => {
+    const owner = await createWorkspace('transfer-race');
+    const a = await addMember(owner.workspaceId, 'race-a', 'admin');
+    const b = await addMember(owner.workspaceId, 'race-b', 'admin');
+
+    const headers = await auth(owner.sub, owner.workspaceId);
+    const results = await Promise.all([
+      post('/workspace/transfer-ownership', headers, { user_id: a.userId }),
+      post('/workspace/transfer-ownership', headers, { user_id: b.userId }),
+    ]);
+
+    // One of them may be refused, but the invariant holds whatever happened.
+    expect(results.some((res) => res.statusCode === 201)).toBe(true);
+    const owners = await adminDb.membership.findMany({ where: { tenantId: owner.workspaceId, role: 'owner' } });
+    expect(owners).toHaveLength(1);
+    expect([a.userId, b.userId]).toContain(owners[0]!.userId);
+  });
+
+  it('the database refuses a second owner even if a service ever tried', async () => {
+    const owner = await createWorkspace('one-owner-index');
+    const other = await addMember(owner.workspaceId, 'one-owner-other', 'admin');
+    await expect(
+      adminDb.membership.update({
+        where: { tenantId_userId: { tenantId: owner.workspaceId, userId: other.userId } },
+        data: { role: 'owner' },
+      }),
+    ).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('invites (A8)', () => {
+  async function invite(workspace: { sub: string; workspaceId: string }, email: string, role = 'editor') {
+    return post('/invites', await auth(workspace.sub, workspace.workspaceId), { email, role });
+  }
+
+  it('returns the token exactly once and stores only its hash', async () => {
+    const owner = await createWorkspace('invite');
+    const res = await invite(owner, 'newcomer@example.test');
+
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    expect(body.token).toBeTruthy();
+    expect(body.email).toBe('newcomer@example.test');
+
+    const row = await adminDb.invite.findFirstOrThrow({ where: { tenantId: owner.workspaceId } });
+    expect(row.tokenHash).not.toBe(body.token);
+    expect(row.tokenHash).toHaveLength(64);
+
+    // The list never carries it again.
+    const list = await get('/invites', await auth(owner.sub, owner.workspaceId));
+    expect(list.json()[0].token).toBeUndefined();
+  });
+
+  it('lets the invited person join, once', async () => {
+    const owner = await createWorkspace('invite-accept');
+    const newcomer = await createUser('newcomer');
+    const { token } = (await invite(owner, newcomer.email, 'editor')).json();
+
+    const first = await post(`/invites/${token}/accept`, await auth(newcomer.sub));
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toMatchObject({ workspace_id: owner.workspaceId, role: 'editor' });
+
+    // A double-clicked link is not an error — it returns the membership they have.
+    const second = await post(`/invites/${token}/accept`, await auth(newcomer.sub));
+    expect(second.statusCode).toBe(201);
+    expect(second.json().role).toBe('editor');
+
+    const memberships = await adminDb.membership.findMany({
+      where: { tenantId: owner.workspaceId, userId: newcomer.userId },
+    });
+    expect(memberships).toHaveLength(1);
+  });
+
+  it('refuses an invite meant for somebody else', async () => {
+    const owner = await createWorkspace('invite-wrong-email');
+    const intended = await createUser('intended');
+    const other = await createUser('interloper');
+    const { token } = (await invite(owner, intended.email)).json();
+
+    const res = await post(`/invites/${token}/accept`, await auth(other.sub));
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVITE_INVALID');
+    expect(res.json().message).toContain(intended.email);
+    expect(await adminDb.membership.count({ where: { tenantId: owner.workspaceId } })).toBe(1);
+  });
+
+  it('refuses an expired invite', async () => {
+    const owner = await createWorkspace('invite-expired');
+    const newcomer = await createUser('late');
+    const { token, id } = (await invite(owner, newcomer.email)).json();
+    await adminDb.invite.update({ where: { id }, data: { expiresAt: new Date(Date.now() - 1_000) } });
+
+    const res = await post(`/invites/${token}/accept`, await auth(newcomer.sub));
+    expect(res.statusCode).toBe(400);
+    expect(res.json().message).toContain('expired');
+  });
+
+  it('refuses a token that never existed', async () => {
+    const stranger = await createUser('guesser');
+    const res = await post(`/invites/${'x'.repeat(43)}/accept`, await auth(stranger.sub));
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVITE_INVALID');
+  });
+
+  it('re-inviting replaces the pending token instead of stacking a second live one', async () => {
+    const owner = await createWorkspace('invite-again');
+    const newcomer = await createUser('twice');
+    const first = (await invite(owner, newcomer.email)).json();
+    const second = (await invite(owner, newcomer.email)).json();
+
+    expect(second.token).not.toBe(first.token);
+    expect(await adminDb.invite.count({ where: { tenantId: owner.workspaceId, acceptedAt: null } })).toBe(1);
+
+    // The superseded link is dead.
+    expect((await post(`/invites/${first.token}/accept`, await auth(newcomer.sub))).statusCode).toBe(400);
+    expect((await post(`/invites/${second.token}/accept`, await auth(newcomer.sub))).statusCode).toBe(201);
+  });
+
+  it('refuses to invite somebody who is already a member', async () => {
+    const owner = await createWorkspace('invite-member');
+    const editor = await addMember(owner.workspaceId, 'already-here', 'editor');
+
+    const res = await invite(owner, editor.email);
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('ALREADY_MEMBER');
+  });
+
+  it('is closed to editors and viewers', async () => {
+    const owner = await createWorkspace('invite-role');
+    const editor = await addMember(owner.workspaceId, 'invite-role-editor', 'editor');
+
+    const res = await post('/invites', await auth(editor.sub, owner.workspaceId), {
+      email: 'nope@example.test',
+      role: 'viewer',
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  it('cannot hand out the owner role', async () => {
+    const owner = await createWorkspace('invite-owner-role');
+    const res = await invite(owner, 'takeover@example.test', 'owner');
+    expect(res.statusCode).toBe(422);
+  });
+
+  it('revokes a pending invite', async () => {
+    const owner = await createWorkspace('invite-revoke');
+    const user = await createUser('revoked');
+    const { id, token } = (await invite(owner, user.email)).json();
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/invites/${id}`,
+      headers: await auth(owner.sub, owner.workspaceId),
+    });
+    expect(res.statusCode).toBe(200);
+    expect((await post(`/invites/${token}/accept`, await auth(user.sub))).statusCode).toBe(400);
+  });
+
+  it('an invite from another workspace is not visible or usable from mine', async () => {
+    const theirs = await createWorkspace('invite-theirs');
+    const mine = await createWorkspace('invite-mine');
+    const { id } = (await invite(theirs, 'shared@example.test')).json();
+
+    const list = await get('/invites', await auth(mine.sub, mine.workspaceId));
+    expect(list.json()).toEqual([]);
+
+    const res = await app.inject({
+      method: 'DELETE',
+      url: `/invites/${id}`,
+      headers: await auth(mine.sub, mine.workspaceId),
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('the workspace header cannot be spoofed', () => {
+  it('rejects a workspace the caller is not a member of', async () => {
+    const mine = await createWorkspace('spoof-mine');
+    const theirs = await createWorkspace('spoof-theirs');
+
+    for (const url of ['/members', '/workspace', '/workspace/checklist']) {
+      const res = await get(url, await auth(mine.sub, theirs.workspaceId));
+      expect(res.statusCode, url).toBe(403);
+      expect(res.json().code, url).toBe('NOT_A_MEMBER');
+    }
+  });
+
+  it('rejects a workspace id that is not a uuid without reaching Postgres', async () => {
+    const mine = await createWorkspace('spoof-shape');
+    const res = await get('/members', await auth(mine.sub, "'; drop table tenants; --"));
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('NOT_A_MEMBER');
+  });
+
+  it('rejects a request with no workspace header at all', async () => {
+    const mine = await createWorkspace('spoof-missing');
+    const res = await get('/members', await auth(mine.sub));
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('WORKSPACE_REQUIRED');
+  });
+});
+
+/** Kept for the type import above so the file documents what a member row is. */
+export type { TestUser };

@@ -7,6 +7,7 @@
  *   caps:{ws}         plan caps + grace for the inbound checks
  *   num:{e164}        number → workspace/agent/tier/hours/flags (D4, ADR 0011)
  *   pricing:current   current pricing_configs snapshot
+ *   stack:current     current agent_stack_configs snapshot (§9.3–§9.5, admin SA6)
  *   flags:*           feature flags and kill switches — global and per workspace
  *   kill:reject_inbound  the SA12 inbound kill switch, projected for the hot path
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
@@ -20,6 +21,8 @@ export const redisKeys = {
   caps: (workspaceId: string) => `caps:{${workspaceId}}`,
   number: (e164: string) => `num:{${e164}}`,
   pricingCurrent: 'pricing:current',
+  /** Current agent_stack_configs snapshot: tier → model/voice, §9.4 guardrails, §9.5 lint. */
+  agentStackCurrent: 'stack:current',
   /** Global feature_flags + kill_switches rows, as one JSON document. */
   flagsGlobal: 'flags:global',
   /** GET /flags resolved for one workspace. */

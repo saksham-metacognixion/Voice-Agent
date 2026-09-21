@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthConfig } from './auth.config';
 import { AuthGuard, StaffRolesGuard } from './auth.guard';
 import { JwtVerifier } from './jwt-verifier.service';
+import { UsersService } from './users.service';
 import { WorkspaceGuard } from './workspace.guard';
 
 /**
@@ -21,10 +22,13 @@ import { WorkspaceGuard } from './workspace.guard';
     // unit-tested against one, and Nest must not try to inject that.
     { provide: AuthConfig, useFactory: () => new AuthConfig(process.env) },
     JwtVerifier,
+    // The `users` mirror. Here rather than in `workspaces` because AuthGuard provisions a
+    // row for a verified sign-in whose registration webhook never arrived (§13.2).
+    UsersService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: WorkspaceGuard },
     { provide: APP_GUARD, useClass: StaffRolesGuard },
   ],
-  exports: [AuthConfig, JwtVerifier],
+  exports: [AuthConfig, JwtVerifier, UsersService],
 })
 export class AuthModule {}

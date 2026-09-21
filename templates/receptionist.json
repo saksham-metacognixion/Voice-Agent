@@ -1,0 +1,124 @@
+{
+  "id": "receptionist",
+  "name": "AI Receptionist",
+  "tagline": "Answers calls, takes messages",
+  "best_for": "Any service business",
+  "industry_tags": [
+    "dental",
+    "plumbing",
+    "legal",
+    "salon",
+    "auto",
+    "generic"
+  ],
+  "brief_prefill": {
+    "business_hours": {
+      "days": {
+        "mon": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "tue": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "wed": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "thu": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ],
+        "fri": [
+          {
+            "open": "09:00",
+            "close": "17:00"
+          }
+        ]
+      },
+      "closed_dates": []
+    },
+    "services": [],
+    "faqs": [],
+    "handoff_rules": [
+      {
+        "condition": "The caller says it is urgent or an emergency",
+        "action": "take_message"
+      }
+    ],
+    "personality": {
+      "formality": 0.5,
+      "brevity": 0.6,
+      "energy": 0.5
+    },
+    "ai_disclosure": "if_asked",
+    "goal": "Answer calls, share hours, location and services, take detailed messages, and transfer urgent calls to a person.",
+    "agent_name": "Sophie",
+    "never_do": "Never quote prices unless they are in the brief. Never promise a callback time. Say \"I am an AI assistant\" if asked."
+  },
+  "steps": [
+    "Greet the caller and name the business",
+    "Identify what the caller needs in one question",
+    "Answer from the business facts and FAQ",
+    "If you cannot answer, take a message: name, callback number, reason",
+    "Confirm the captured details back to the caller",
+    "Close politely"
+  ],
+  "analysis_fields": [
+    {
+      "name": "caller_name",
+      "type": "text",
+      "description": "The name the caller gave."
+    },
+    {
+      "name": "callback_number",
+      "type": "text",
+      "description": "The number to call back on."
+    },
+    {
+      "name": "reason",
+      "type": "text",
+      "description": "Why the caller rang, in one sentence."
+    },
+    {
+      "name": "urgency",
+      "type": "enum",
+      "description": "How urgent the caller made it sound.",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    {
+      "name": "message_taken",
+      "type": "boolean",
+      "description": "True when a message was captured for the team."
+    }
+  ],
+  "rules": [
+    "Never quote prices unless they appear in the business facts.",
+    "Never promise a specific callback time.",
+    "Say \"I am an AI assistant\" if the caller asks whether they are talking to a person."
+  ],
+  "default_tier": "standard",
+  "sample_audio_url": "/samples/receptionist.mp3",
+  "example_texts": {
+    "dental": "We are a family dental clinic in Laval. We do check-ups, cleanings, fillings, crowns and emergency toothache appointments. Two dentists, one hygienist, open six days a week.",
+    "plumbing": "We are a residential plumbing company covering the West Island. Drain cleaning, burst pipes, water heaters and bathroom renovations. We run a 24-hour emergency line.",
+    "legal": "We are a two-lawyer family law practice downtown. Divorce, custody and mediation. First consultation is thirty minutes and is paid.",
+    "salon": "We are a hair salon with four stylists. Cuts, colour, balayage and blowouts. Walk-ins when we can, but almost everything is by appointment.",
+    "auto": "We are an independent garage doing maintenance, brakes, tyres and pre-purchase inspections on most makes. Courtesy car by arrangement.",
+    "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
+  },
+  "version": 1
+}

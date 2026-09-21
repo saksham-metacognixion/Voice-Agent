@@ -24,6 +24,11 @@ keys per environment, and a different webhook secret for each.
 Two **separate tenants**, not two applications in one. The API asserts at boot that the
 issuers differ; collapsing them would make a customer token verify on `/admin/*`.
 
+The tenants are configured from `infra/auth0/tenant.*.yaml` with the Auth0 Deploy CLI, not
+by hand: **`docs/runbooks/auth0.md`** is the procedure, including the M2M application the
+scripts authenticate with and how to reconcile a tenant that was set up by hand first. What
+follows is what each tenant has to contain.
+
 **Customer tenant**
 
 - **Single Page Application** for `frontend/web` → `AUTH0_CLIENT_ID`. No client secret: the app is a
@@ -53,7 +58,9 @@ issuers differ; collapsing them would make a customer token verify on `/admin/*`
 Set `AUTH0_CUSTOMER_DOMAIN` and `AUTH0_STAFF_DOMAIN` to the bare tenant domains
 (`example.us.auth0.com`). The API turns them into `https://<domain>/` issuers itself.
 
-**What cost time the first time round** (dev, 14 Sep) — all of it fails silently:
+**What cost time the first time round** (dev, 14 Sep) — all of it fails silently, and all
+of it is now either deployed from `infra/auth0/tenant.*.yaml` or checked by
+`pnpm auth0:validate` / `verify:auth0`; the longer list is in `docs/runbooks/auth0.md` §5:
 
 - **One tenant per Auth0 account on the free plan.** The second tenant needs a second account, so
   sign up with a shared alias (`auth0@<domain>`), never a personal address.

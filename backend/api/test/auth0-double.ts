@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { SignJWT, exportJWK, generateKeyPair, type CryptoKey, type JWK } from 'jose';
-import { CLAIM_EMAIL_VERIFIED, CLAIM_MFA } from '@portal/schemas';
+import { CLAIM_EMAIL, CLAIM_EMAIL_VERIFIED, CLAIM_MFA, CLAIM_NAME } from '@portal/schemas';
 
 /**
  * A stand-in Auth0 tenant: an RS256 key pair and a JWKS endpoint on localhost.
@@ -60,14 +60,22 @@ export class FakeAuth0Tenant {
     await new Promise<void>((resolve) => this.server?.close(() => resolve()));
   }
 
+  /**
+   * `email` / `name` set the namespaced claims the customer Post-Login Action stamps
+   * (`https://portal/email`, `https://portal/name`). Left out, the token carries only a
+   * bare `email` claim — which the API deliberately does not trust — so the older tests
+   * that expect an unknown subject to be refused keep meaning what they meant.
+   */
   async mint(
     subject: string,
-    claims: { emailVerified?: boolean; mfa?: boolean; audience?: string; expired?: boolean } = {},
+    claims: { emailVerified?: boolean; mfa?: boolean; audience?: string; expired?: boolean; email?: string; name?: string } = {},
   ): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     return new SignJWT({
       [CLAIM_EMAIL_VERIFIED]: claims.emailVerified ?? true,
       [CLAIM_MFA]: claims.mfa ?? false,
+      ...(claims.email ? { [CLAIM_EMAIL]: claims.email } : {}),
+      ...(claims.name ? { [CLAIM_NAME]: claims.name } : {}),
       email: `${subject.replace(/[^a-z0-9]/gi, '')}@example.test`,
     })
       .setProtectedHeader({ alg: 'RS256', kid: this.jwk.kid })

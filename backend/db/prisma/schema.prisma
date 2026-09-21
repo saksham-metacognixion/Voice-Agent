@@ -478,6 +478,13 @@ model Agent {
   maxCallDurationS Int         @default(600) @map("max_call_duration_s")
   recordingEnabled Boolean     @default(true) @map("recording_enabled")
   addonsJson       Json?       @map("addons_json")
+  /// Soft delete (§17, D5). An agent with calls is billing history and never leaves the
+  /// table; the Retell objects are destroyed, so a deleted agent cannot answer.
+  deletedAt        DateTime?   @map("deleted_at")
+  /// Publish lease (§13.6). Publishing spans four Retell calls and cannot hold a
+  /// transaction open, so exclusion lives here: claimed by a conditional UPDATE, cleared
+  /// in a finally, and expiring after two minutes so a dead worker unblocks itself.
+  publishingSince  DateTime?   @map("publishing_since")
   createdAt        DateTime    @default(now()) @map("created_at")
 
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -509,9 +516,14 @@ model AgentVersion {
   changesJson        Json?         @map("changes_json")
   feedbackText       String?       @map("feedback_text")
   lintJson           Json?         @map("lint_json")
+  /// Tier, voice, languages, duration ceiling, recording (`agentSettings` in
+  /// @portal/schemas). Part of the immutable content; a publish copies it onto `agents`,
+  /// which is the live copy the billing rate and the runtime cache read.
+  settingsJson       Json?         @map("settings_json")
   retellAgentVersion Int?          @map("retell_agent_version")
   /// admin §8 — which agent_stack_configs.version generated this row.
   stackVersion       Int?          @map("stack_version")
+  /// Who made it. Bookkeeping, not content: the FK sets it NULL when the user is deleted.
   createdBy          String?       @map("created_by") @db.Uuid
   publishedAt        DateTime?     @map("published_at")
   createdAt          DateTime      @default(now()) @map("created_at")

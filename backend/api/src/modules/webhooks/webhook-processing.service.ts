@@ -3,6 +3,7 @@ import { adminDb } from '@portal/db';
 import type Stripe from 'stripe';
 import { StripeEventHandler } from '../billing';
 import { JobQueues } from '../jobs';
+import { UsersService } from '../auth';
 import { RetellEventHandler } from './retell-events.handler';
 import { WebhookEventsService } from './webhook-events.service';
 
@@ -27,6 +28,7 @@ export class WebhookProcessingService {
     private readonly events: WebhookEventsService,
     private readonly retell: RetellEventHandler,
     private readonly stripe: StripeEventHandler,
+    private readonly users: UsersService,
     private readonly queues: JobQueues,
   ) {}
 
@@ -49,6 +51,11 @@ export class WebhookProcessingService {
           return this.retell.handle(row.payloadJson);
         case 'stripe':
           return this.stripe.handle(row.payloadJson as unknown as Pick<Stripe.Event, 'id' | 'type' | 'data'>);
+        case 'auth':
+          // §13.2 step 1. The upsert is idempotent on the Auth0 `sub`, so a replay — from
+          // the provider, from the sweeper, or from SA12 — mirrors the same user again
+          // rather than creating a second one.
+          return this.users.upsert(this.users.parse(row.payloadJson));
         default:
           return { outcome: 'ignored' as const, reason: `no handler for provider ${row.provider}` };
       }
@@ -73,7 +80,7 @@ export class WebhookProcessingService {
     });
     let queued = 0;
     for (const row of rows) {
-      if (row.provider !== 'retell' && row.provider !== 'stripe') continue;
+      if (row.provider !== 'retell' && row.provider !== 'stripe' && row.provider !== 'auth') continue;
       if ((await this.queues.enqueueWebhook(row.id, row.provider)) !== 'failed') queued += 1;
     }
     if (rows.length) this.log.warn(`webhook sweeper: ${rows.length} unprocessed, ${queued} re-enqueued`);
