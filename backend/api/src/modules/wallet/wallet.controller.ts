@@ -19,7 +19,9 @@ import { WalletService } from './wallet.service';
  * D5 Wallet (§16): balance, lots, ledger, and the way in — Stripe Checkout.
  *
  * Every role may look; only an owner or admin may buy (§6.1). Auto top-up, invoices and
- * the Stripe Customer Portal session land with the rest of D5's screen work.
+ * the Stripe Customer Portal session are the same `/wallet` prefix served from the billing
+ * module (`BillingController`), so this file does not import billing's D6 services and the
+ * wallet ↔ billing import cycle stays where it was in D3.
  */
 @Controller('wallet')
 export class WalletController {

@@ -220,6 +220,11 @@ uses one.**
 KB quota of §5.2 (0/1/3/5 per plan) is the customer's; the platform's shared "10 free" pool
 is a COGS input in `retell_cost_inputs`, not a customer-facing limit. One KB per agent.
 
+**D6 addendum (21 Sep 2026, real run):** `create-knowledge-base` answers `400 knowledge base
+name too long` above 40 characters. Our deterministic names are therefore `kb-<20 hex of the
+agent id>` and `num-<20 hex of the number id>` — 27 and 28 characters with the `dev-` prefix,
+still unique, still the retry's lookup key (ADR 0013 §2).
+
 ### 9. TTS preview for "Hear my greeting"
 
 **There is no text-to-speech preview endpoint** in the API, the SDK or the docs; the dashboard

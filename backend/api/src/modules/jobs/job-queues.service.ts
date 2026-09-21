@@ -3,10 +3,13 @@ import { type Job, type JobsOptions, Queue } from 'bullmq';
 import { randomUUID } from 'node:crypto';
 import { bullConnection, bullPrefix } from './jobs.connection';
 import {
+  type ActivationJob,
   type InboundDecisionJob,
   JOBS,
+  type KnowledgeSyncJob,
   type ProcessWebhookJob,
   type PromptingJob,
+  type ProvisionNumberJob,
   QUEUES,
   type QueueName,
   type RefreshNumberJob,
@@ -41,6 +44,36 @@ export function promptingBullId(type: string, jobId: string): string | null {
   if (type === JOBS.generateAgent) return `gen-${safeId(jobId)}`;
   if (type === JOBS.patchAgent) return `patch-${safeId(jobId)}`;
   return null;
+}
+
+/** The BullMQ id of a §13.8 activation job, from its `jobs` row id. */
+export function activationBullId(jobId: string): string {
+  return `activate-${safeId(jobId)}`;
+}
+
+/** Which queue a `jobs.type` runs on, for the sweeper. Null for types that are not queue-backed. */
+export function queueOfJobType(type: string): { queue: QueueName; bullId: (jobId: string) => string } | null {
+  if (type === JOBS.generateAgent || type === JOBS.patchAgent) return { queue: QUEUES.prompting, bullId: (id) => promptingBullId(type, id)! };
+  if (type === JOBS.activateAgent) return { queue: QUEUES.provisioning, bullId: activationBullId };
+  return null;
+}
+
+/**
+ * D6 activation: three attempts, exponential from 5 s. The worker classifies what is
+ * worth a retry. `ACTIVATION_BACKOFF_MS` exists for the e2e suite, which cannot wait
+ * fifteen seconds per retried scenario; it is not a production knob.
+ */
+export const ACTIVATION_JOB_OPTIONS: JobsOptions = {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 5_000 },
+  removeOnComplete: { age: 3_600, count: 5_000 },
+  removeOnFail: { age: 7 * 86_400 },
+};
+
+/** Read at enqueue time, not import time: the e2e harness sets the override after the module graph has loaded. */
+function activationJobOptions(): JobsOptions {
+  const override = Number(process.env.ACTIVATION_BACKOFF_MS);
+  return Number.isFinite(override) && override > 0 ? { ...ACTIVATION_JOB_OPTIONS, backoff: { type: 'exponential', delay: Math.max(50, override) } } : ACTIVATION_JOB_OPTIONS;
 }
 
 /**
@@ -208,6 +241,48 @@ export class JobQueues implements OnApplicationShutdown {
         attempts: 3,
         backoff: { type: 'exponential', delay: 2_000 },
       },
+      ENQUEUE_TIMEOUT_MS,
+      true,
+    );
+  }
+
+  /**
+   * D6 W4. One job per source; a poll re-enqueue carries `-p<n>` so it does not collide
+   * with the id of the run that scheduled it. `verify` for the same reason as prompting.
+   */
+  enqueueKnowledgeSync(job: KnowledgeSyncJob, options: { delayMs?: number } = {}): Promise<EnqueueResult> {
+    // A completed job keeps its id for an hour (DEFAULT_JOB_OPTIONS), so the delete of a
+    // source that synced fine must not reuse the sync's id — it would be refused silently.
+    const suffix = job.poll ? `-p${job.poll}` : job.purpose === 'delete' ? '-del' : '';
+    return this.add<KnowledgeSyncJob>(
+      QUEUES.provisioning,
+      JOBS.knowledgeSync,
+      job,
+      { jobId: `ksync-${safeId(job.sourceId)}${suffix}`, attempts: 4, backoff: activationJobOptions().backoff, delay: options.delayMs },
+      ENQUEUE_TIMEOUT_MS,
+      true,
+    );
+  }
+
+  /** D6 §11: buy/import outside the wizard. Deterministic on the row, so a double click is one purchase. */
+  enqueueProvisionNumber(job: ProvisionNumberJob): Promise<EnqueueResult> {
+    return this.add<ProvisionNumberJob>(
+      QUEUES.provisioning,
+      JOBS.provisionNumber,
+      job,
+      { ...activationJobOptions(), jobId: `provnum-${safeId(job.numberId)}` },
+      ENQUEUE_TIMEOUT_MS,
+      true,
+    );
+  }
+
+  /** D6 §13.8. Same shape as prompting: the id is the `jobs` row, so a join enqueues a no-op. */
+  enqueueActivation(job: ActivationJob): Promise<EnqueueResult> {
+    return this.add<ActivationJob>(
+      QUEUES.provisioning,
+      JOBS.activateAgent,
+      job,
+      { ...activationJobOptions(), jobId: activationBullId(job.jobId) },
       ENQUEUE_TIMEOUT_MS,
       true,
     );

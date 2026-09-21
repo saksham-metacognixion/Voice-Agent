@@ -72,7 +72,10 @@ export class RuntimeCacheService {
     let removed = 0;
     let written = 0;
     for (const number of numbers) {
-      if (number.status === 'released' || number.status === 'releasing') {
+      // D6: a bought number has no e164 until the platform answers; there is nothing to
+      // key on yet and the inbound path cannot be asked about it.
+      if (!number.e164) continue;
+      if (number.status === 'released' || number.status === 'releasing' || number.status === 'failed') {
         removed += await this.cache.del(redisKeys.number(number.e164));
         continue;
       }
@@ -112,7 +115,7 @@ export class RuntimeCacheService {
 
   /** After a `num:{e164}` miss on the hot path: find the number's workspace and refresh it. */
   async refreshNumber(e164: string): Promise<RefreshSummary | null> {
-    const number = await adminDb.phoneNumber.findUnique({ where: { e164 }, select: { tenantId: true } });
+    const number = await adminDb.phoneNumber.findFirst({ where: { e164 }, select: { tenantId: true } });
     if (!number) {
       this.log.warn(`refreshNumber(${e164}): no such number; the inbound webhook for it was not ours`);
       return null;

@@ -51,6 +51,48 @@ export interface CheckoutSessionFacts {
   currency: string | null;
 }
 
+/** Metadata on an auto top-up PaymentIntent (§5.4). `kind` is what tells it apart from a Checkout PI. */
+export interface TopupMetadata extends Record<string, string> {
+  kind: 'auto_topup';
+  workspace_id: string;
+  purchase_id: string;
+  pack_id: string;
+  env: string;
+}
+
+/** The fields of a payment_intent the wallet reads, from a webhook or a retrieve. */
+export interface PaymentIntentFacts {
+  id: string;
+  status: string;
+  amount: number;
+  currency: string;
+  customer: string | null;
+  payment_method: string | null;
+  metadata: Partial<TopupMetadata> & Record<string, string>;
+  /** Stripe's decline / failure code when the last attempt failed. */
+  failure_code: string | null;
+  failure_message: string | null;
+}
+
+/** The fields of an invoice we mirror (D5 "Invoices", SA9). */
+export interface InvoiceFacts {
+  id: string;
+  customer: string | null;
+  status: string | null;
+  number: string | null;
+  amount_due: number;
+  amount_paid: number;
+  currency: string;
+  hosted_invoice_url: string | null;
+  invoice_pdf: string | null;
+  payment_intent: string | null;
+  metadata: Record<string, string>;
+  created: number;
+  finalized_at: number | null;
+  paid_at: number | null;
+  voided_at: number | null;
+}
+
 /**
  * The only file that imports the Stripe SDK. Owns the Checkout Session shape (§13.7),
  * webhook signature verification over the raw body, and the two reads fulfilment needs.
@@ -187,6 +229,94 @@ export class StripeGateway {
   async createPortalSession(customerId: string, returnUrl: string): Promise<string> {
     const session = await this.client.billingPortal.sessions.create({ customer: customerId, return_url: returnUrl });
     return session.url;
+  }
+
+  /**
+   * §5.4 auto top-up: an off-session PaymentIntent against the saved card, confirmed
+   * immediately. The idempotency key is the purchase id, so a retry after a timeout
+   * returns the same PaymentIntent rather than charging twice.
+   *
+   * A card that needs authentication or is declined does not throw out of here: Stripe
+   * raises a `StripeCardError` carrying the PaymentIntent, and that intent's status
+   * (`requires_action`, `requires_payment_method`) is the answer the caller needs.
+   */
+  async createOffSessionPaymentIntent(input: {
+    purchaseId: string;
+    workspaceId: string;
+    packId: string;
+    customerId: string;
+    paymentMethodId: string;
+    amountCents: number;
+    currency: string;
+    description: string;
+  }): Promise<PaymentIntentFacts> {
+    const metadata: TopupMetadata = { kind: 'auto_topup', workspace_id: input.workspaceId, purchase_id: input.purchaseId, pack_id: input.packId, env: this.config.env };
+    try {
+      const intent = await this.client.paymentIntents.create(
+        {
+          amount: input.amountCents,
+          currency: input.currency.toLowerCase(),
+          customer: input.customerId,
+          payment_method: input.paymentMethodId,
+          off_session: true,
+          confirm: true,
+          description: input.description,
+          metadata,
+        },
+        { idempotencyKey: `topup-${input.purchaseId}` },
+      );
+      return StripeGateway.paymentIntentFacts(intent);
+    } catch (error) {
+      const intent = (error as { payment_intent?: Stripe.PaymentIntent; raw?: { payment_intent?: Stripe.PaymentIntent } }).payment_intent
+        ?? (error as { raw?: { payment_intent?: Stripe.PaymentIntent } }).raw?.payment_intent;
+      if (intent && typeof intent === 'object' && typeof intent.id === 'string') {
+        const facts = StripeGateway.paymentIntentFacts(intent);
+        const code = (error as { code?: string; decline_code?: string }).decline_code ?? (error as { code?: string }).code ?? facts.failure_code;
+        return { ...facts, failure_code: code ?? null, failure_message: (error as Error).message ?? facts.failure_message };
+      }
+      throw error;
+    }
+  }
+
+  async retrievePaymentIntent(id: string): Promise<PaymentIntentFacts> {
+    return StripeGateway.paymentIntentFacts(await this.client.paymentIntents.retrieve(id));
+  }
+
+  static paymentIntentFacts(object: unknown): PaymentIntentFacts {
+    const pi = object as Stripe.PaymentIntent;
+    return {
+      id: pi.id,
+      status: pi.status,
+      amount: pi.amount,
+      currency: pi.currency,
+      customer: typeof pi.customer === 'string' ? pi.customer : (pi.customer?.id ?? null),
+      payment_method: typeof pi.payment_method === 'string' ? pi.payment_method : (pi.payment_method?.id ?? null),
+      metadata: (pi.metadata ?? {}) as PaymentIntentFacts['metadata'],
+      failure_code: pi.last_payment_error?.decline_code ?? pi.last_payment_error?.code ?? null,
+      failure_message: pi.last_payment_error?.message ?? null,
+    };
+  }
+
+  static invoiceFacts(object: unknown): InvoiceFacts {
+    const inv = object as Stripe.Invoice & { payment_intent?: string | { id: string } | null };
+    const transitions = inv.status_transitions ?? {};
+    return {
+      id: inv.id,
+      customer: typeof inv.customer === 'string' ? inv.customer : (inv.customer?.id ?? null),
+      status: inv.status ?? null,
+      number: inv.number ?? null,
+      amount_due: inv.amount_due ?? 0,
+      amount_paid: inv.amount_paid ?? 0,
+      currency: inv.currency,
+      hosted_invoice_url: inv.hosted_invoice_url ?? null,
+      invoice_pdf: inv.invoice_pdf ?? null,
+      payment_intent: typeof inv.payment_intent === 'string' ? inv.payment_intent : (inv.payment_intent?.id ?? null),
+      metadata: (inv.metadata ?? {}) as Record<string, string>,
+      created: inv.created,
+      finalized_at: transitions.finalized_at ?? null,
+      paid_at: transitions.paid_at ?? null,
+      voided_at: transitions.voided_at ?? null,
+    };
   }
 
   static isCurrency(value: string | null): value is CurrencyCode {

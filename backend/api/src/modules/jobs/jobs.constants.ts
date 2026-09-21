@@ -13,12 +13,17 @@ import type { AgentTier, DeclineReason } from '@portal/schemas';
  *              a slow model must never delay a `calls` write-behind or a webhook that
  *              moves credits. Concurrency is low for the same reason the timeout is
  *              tight: the ≤ 10 s p95 is measured from enqueue, so queue depth is latency.
+ *   provisioning  D6: knowledge ingestion, number purchase/import and the §13.8
+ *              activation workflow. Every job here is several voice-platform round trips
+ *              (a KB ingest is ~12 s, a number purchase a few seconds) and must not sit
+ *              in front of a `calls` write-behind, nor behind a slow LLM on `prompting`.
  *   scheduled  the §13.11 Job Schedulers, one process at a time
  */
 export const QUEUES = {
   webhooks: 'webhooks',
   calls: 'calls',
   prompting: 'prompting',
+  provisioning: 'provisioning',
   scheduled: 'scheduled',
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
@@ -36,6 +41,12 @@ export const JOBS = {
   generateAgent: 'generate-agent',
   /** §13.5 feedback patch. `jobId = patch-<jobs.id>`. */
   patchAgent: 'patch-agent',
+  /** D6 W4: push one knowledge source to the platform and wait for ingestion. `jobId = ksync-<source id>[-<n>]`. */
+  knowledgeSync: 'knowledge-sync',
+  /** D6 §11: buy or import one number outside the wizard. `jobId = provnum-<number id>`. */
+  provisionNumber: 'provision-number',
+  /** D6 §13.8: publish → provision → bind → mark live → notify. `jobId = activate-<jobs.id>`. */
+  activateAgent: 'activate-agent',
 } as const;
 
 /** §13.11 Job Schedulers. Registered idempotently on worker boot (architecture §12). */
@@ -73,7 +84,7 @@ export const SCHEDULES: readonly ScheduleSpec[] = [
   { name: SCHEDULED_JOBS.creditExpiry, pattern: '15 3 * * *', status: 'live' },
   { name: SCHEDULED_JOBS.numberRental, pattern: '0 4 * * *', status: 'skeleton' },
   { name: SCHEDULED_JOBS.lowBalanceAlerts, every: 15 * 60_000, status: 'skeleton' },
-  { name: SCHEDULED_JOBS.autoTopup, every: 15 * 60_000, status: 'skeleton' },
+  { name: SCHEDULED_JOBS.autoTopup, every: 15 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.reconcileCalls, pattern: '30 2 * * *', status: 'skeleton' },
   { name: SCHEDULED_JOBS.voiceCache, pattern: '0 5 * * *', status: 'live' },
   { name: SCHEDULED_JOBS.concurrencyMonitor, every: 60_000, status: 'skeleton' },
@@ -133,4 +144,35 @@ export interface PromptingJob {
   /** §9.6 only: the free text and the version it was written against. */
   feedbackText?: string;
   baseVersionNo?: number;
+}
+
+/** D6 W4. The row carries everything; the payload only names it. */
+export interface KnowledgeSyncJob {
+  sourceId: string;
+  workspaceId: string;
+  agentId: string;
+  /** How many times the ingest poll re-enqueued itself; bounded by the worker. */
+  poll?: number;
+  /** `delete` removes the platform copy and the row; default is a sync. */
+  purpose?: 'sync' | 'delete';
+}
+
+/** D6 §11: provision one `phone_numbers` row outside the activation workflow. */
+export interface ProvisionNumberJob {
+  numberId: string;
+  workspaceId: string;
+  /** Who asked, for the audit row. */
+  userId: string | null;
+}
+
+/**
+ * D6 §13.8. Like the prompting jobs, the `jobs` row is the state; the payload identifies
+ * the work. `userId` and `role` rebuild the `WorkspaceContext` the publish step needs.
+ */
+export interface ActivationJob {
+  jobId: string;
+  workspaceId: string;
+  agentId: string;
+  userId: string | null;
+  versionNo?: number;
 }

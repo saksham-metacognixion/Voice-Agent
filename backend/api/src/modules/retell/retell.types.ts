@@ -149,3 +149,19 @@ export interface AllowOptions {
   /** min(planMax, remainingCredits/rate × 60 000), computed by the caller. */
   maxCallDurationMs?: number;
 }
+
+/** What W4 sends to a knowledge base: any mix of the three source kinds. The gateway converts files with the SDK. */
+export interface KnowledgeSourcesInput {
+  texts?: Array<{ title: string; text: string }>;
+  urls?: string[];
+  files?: Array<{ bytes: Buffer; filename: string; contentType: string }>;
+}
+
+/** The fields of Retell's phone number object the numbers module reads back. */
+export type PhoneNumberFacts = Pick<
+  Retell.PhoneNumberResponse,
+  'phone_number' | 'phone_number_type' | 'phone_number_pretty' | 'nickname' | 'inbound_agents' | 'inbound_webhook_url' | 'area_code'
+> & { country_code?: string; toll_free?: boolean };
+
+/** A knowledge base as read back: status and the sources it holds. */
+export type KnowledgeBaseFacts = Pick<Retell.KnowledgeBaseResponse, 'knowledge_base_id' | 'knowledge_base_name' | 'status' | 'knowledge_base_sources'>;

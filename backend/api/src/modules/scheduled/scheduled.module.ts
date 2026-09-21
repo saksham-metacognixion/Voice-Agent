@@ -1,5 +1,6 @@
 import { Module, type OnModuleInit, Logger } from '@nestjs/common';
 import { JOBS, JobHandlerRegistry, QUEUES, SCHEDULED_JOBS, SCHEDULES } from '../jobs';
+import { BillingModule } from '../billing';
 import { RuntimeCacheModule } from '../runtime-cache';
 import { VoicesModule } from '../voices';
 import { WalletModule } from '../wallet';
@@ -14,7 +15,7 @@ import { ScheduledJobsService } from './scheduled.service';
  * the unit test.
  */
 @Module({
-  imports: [RuntimeCacheModule, WebhooksModule, WalletModule, VoicesModule],
+  imports: [RuntimeCacheModule, WebhooksModule, WalletModule, VoicesModule, BillingModule],
   providers: [ScheduledJobsService],
   exports: [ScheduledJobsService],
 })
@@ -32,6 +33,7 @@ export class ScheduledModule implements OnModuleInit {
       [SCHEDULED_JOBS.webhookSweeper]: () => this.jobs.webhookSweeper(),
       [SCHEDULED_JOBS.jobSweeper]: () => this.jobs.jobSweeper(),
       [SCHEDULED_JOBS.creditExpiry]: () => this.jobs.creditExpiry(),
+      [SCHEDULED_JOBS.autoTopup]: () => this.jobs.autoTopup(),
       [SCHEDULED_JOBS.voiceCache]: () => this.jobs.voiceCache(),
     };
     for (const spec of SCHEDULES) {

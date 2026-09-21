@@ -5,7 +5,12 @@ import { CallsModule } from './modules/calls';
 import { PlatformConfigModule } from './modules/config';
 import { EventsModule } from './modules/events';
 import { JobsModule } from './modules/jobs';
+import { ActivationModule } from './modules/activation';
 import { AgentsModule } from './modules/agents';
+import { AlertsModule } from './modules/alerts';
+import { CryptoModule } from './modules/crypto';
+import { KnowledgeModule } from './modules/knowledge';
+import { NumbersModule } from './modules/numbers';
 import { PromptingModule } from './modules/prompting';
 import { RedisModule } from './modules/redis';
 import { RetellModule } from './modules/retell';
@@ -29,6 +34,8 @@ import { WorkspacesModule } from './modules/workspaces';
   imports: [
     ConfigModule.forRoot({ isGlobal: true, envFilePath: ['.env', '../../.env'] }),
     RedisModule,
+    AlertsModule,
+    CryptoModule,
     PlatformConfigModule,
     JobsModule,
     EventsModule,
@@ -40,6 +47,9 @@ import { WorkspacesModule } from './modules/workspaces';
     WorkspacesModule,
     AgentsModule,
     PromptingModule,
+    KnowledgeModule,
+    NumbersModule,
+    ActivationModule,
     VoicesModule,
     WebhooksModule,
     ScheduledModule,

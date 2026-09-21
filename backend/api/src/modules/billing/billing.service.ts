@@ -9,6 +9,9 @@ import { type CheckoutSessionFacts, StripeGateway } from './stripe.gateway';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Fired after a purchase is credited and the transaction has committed. D6: the activation hook. */
+export type PurchaseCreditedListener = (event: { workspaceId: string; purchaseId: string; agentId: string | null; isAutoTopup: boolean }) => void | Promise<void>;
+
 export type FulfilmentOutcome =
   | { outcome: 'credited'; purchaseId: string; credits: number; balance: number }
   | { outcome: 'already_paid'; purchaseId: string }
@@ -27,12 +30,28 @@ export type FulfilmentOutcome =
 @Injectable()
 export class BillingService {
   private readonly log = new Logger(BillingService.name);
+  private readonly creditedListeners: PurchaseCreditedListener[] = [];
 
   constructor(
     private readonly stripe: StripeGateway,
     private readonly config: PlatformConfigService,
     @Inject(forwardRef(() => WalletService)) private readonly wallet: WalletService,
   ) {}
+
+  /** §13.8: the activation module starts the go-live job from here when W7's session carried `agent_id`. */
+  onPurchaseCredited(listener: PurchaseCreditedListener): void {
+    this.creditedListeners.push(listener);
+  }
+
+  private async announceCredited(event: Parameters<PurchaseCreditedListener>[0]): Promise<void> {
+    for (const listener of this.creditedListeners) {
+      try {
+        await listener(event);
+      } catch (error) {
+        this.log.error(`purchase-credited listener failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
 
   // ------------------------------------------------------------------ checkout (customer)
 
@@ -119,6 +138,22 @@ export class BillingService {
     return { checkout_url: session.url, purchase_id: purchase.id };
   }
 
+  /**
+   * POST /wallet/portal-session. The customer id is read from *this* workspace's row and
+   * nowhere else — the request carries no customer id, so there is nothing to spoof. A
+   * workspace that has never paid has no Stripe customer and is told so.
+   */
+  async createPortalSession(ctx: WorkspaceContext, returnPath?: string): Promise<{ url: string }> {
+    const tenant = await withWorkspace(ctx, (db) => db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { stripeCustomerId: true } }));
+    if (!tenant.stripeCustomerId) throw new AppError('NO_PAYMENT_METHOD', 'Buy a pack first — your billing account is created with the first purchase.');
+    const returnUrl = `${this.stripe.config.portalUrl}${returnPath ?? '/app/wallet'}`;
+    const url = await this.stripe.createPortalSession(tenant.stripeCustomerId, returnUrl);
+    await withWorkspace(ctx, (db) =>
+      db.auditLog.create({ data: { tenantId: ctx.workspaceId, actorUserId: ctx.userId, action: 'billing.portal_session', targetType: 'workspace', targetId: ctx.workspaceId } }),
+    ).catch(() => undefined);
+    return { url };
+  }
+
   // ------------------------------------------------------------------ fulfilment (webhook)
 
   /**
@@ -193,11 +228,10 @@ export class BillingService {
     await this.config.refreshCaps(workspaceId).catch((e) => this.log.warn(`refreshCaps failed: ${String(e)}`));
     await this.recordAutoTopup(workspaceId, session, pricing.config).catch((e) => this.log.warn(`auto top-up card not saved: ${String(e)}`));
     await this.recordInvoice(purchaseId, session).catch((e) => this.log.warn(`invoice url not saved: ${String(e)}`));
-    if (session.metadata.agent_id) {
-      // §13.8 activation job — D8. The purchase is credited either way.
-      this.log.log(`purchase ${purchaseId} asks to activate agent ${session.metadata.agent_id}; activation job lands D8`);
-    }
     this.log.log(`purchase ${purchaseId} credited ${result.credits} to ${workspaceId} (balance ${result.balance})`);
+    // §13.8: after the commit, never inside it. The activation module listens and starts
+    // the go-live job when the session named an agent. The purchase is credited either way.
+    await this.announceCredited({ workspaceId, purchaseId, agentId: UUID_RE.test(session.metadata.agent_id ?? '') ? session.metadata.agent_id! : null, isAutoTopup: false });
     return result;
   }
 

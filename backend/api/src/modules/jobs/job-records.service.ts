@@ -3,8 +3,7 @@ import { Prisma, adminDb, isUniqueViolation, withWorkspace } from '@portal/db';
 import { type JobProgress, type JobResponse, jobProgress as jobProgressSchema } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
-import { JobQueues, type QueueJobState, promptingBullId } from './job-queues.service';
-import { QUEUES } from './jobs.constants';
+import { JobQueues, type QueueJobState, queueOfJobType } from './job-queues.service';
 
 /**
  * A queued or running row untouched for this long is checked against the queue. Long
@@ -257,10 +256,11 @@ export class JobRecordsService {
   }
 
   private async reconcileRow(row: { id: string; tenantId: string | null; type: string; stepsJson: unknown }): Promise<LostJob | null> {
-    const bullId = promptingBullId(row.type, row.id);
-    if (!bullId) return null; // not a queue-backed job type we know how to check
+    const backing = queueOfJobType(row.type);
+    if (!backing) return null; // not a queue-backed job type we know how to check
+    const bullId = backing.bullId(row.id);
 
-    const state = await this.queues.stateOf(QUEUES.prompting, bullId);
+    const state = await this.queues.stateOf(backing.queue, bullId);
     if (!LOST_STATES.has(state)) return null;
 
     const steps = (row.stepsJson ?? {}) as Record<string, unknown>;
@@ -324,6 +324,11 @@ export function toJobResponse(row: {
     refused: typeof steps.refused === 'boolean' ? steps.refused : null,
     explanation: typeof steps.explanation === 'string' ? steps.explanation.slice(0, 600) : null,
     lint_findings: intOrNull(steps.lint_findings),
+    // D6 §13.8 — the activation worker writes these under stable names (ActivationWorker).
+    activation_status: enumOrNull(steps.activation_status, ['pending', 'publishing', 'provisioning', 'binding', 'marking_live', 'live', 'failed']),
+    activation_step: enumOrNull(steps.activation_step, ['publish', 'provision', 'bind', 'mark_live', 'notify']),
+    number_id: uuidOrNull(steps.number_id),
+    e164: typeof steps.e164 === 'string' && /^\+\d{7,15}$/.test(steps.e164) ? steps.e164 : null,
   });
   const customerReason = typeof steps.customer_reason === 'string' ? steps.customer_reason : null;
   return {
@@ -341,6 +346,10 @@ const GENERIC_FAILURE = 'Something went wrong. Your brief is saved — try again
 
 function intOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isInteger(value) ? value : null;
+}
+
+function enumOrNull<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : null;
 }
 
 function uuidOrNull(value: unknown): string | null {

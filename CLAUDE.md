@@ -70,7 +70,9 @@ Redis-down), 0004 EC2, ~~0005 Amplify~~,
 Stripe webhook retries (D3; §5 amended by 0011), 0011 call runtime — `active:{ws}` reservations, the
 BullMQ hand-off for both providers, the recording proxy (D4), 0012 prompting pipeline and
 agent lifecycle — guardrails appended after zod, the version-immutability trigger, the
-publish lease, the `prompting` queue (D5). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+publish lease, the `prompting` queue (D5), 0013 knowledge, numbers, activation and billing —
+the `jobs`-row step machine, look-before-you-buy idempotency, the `provisioning` queue, SIP
+envelope encryption, auto top-up credited only from Stripe's confirmation (D6). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -112,16 +114,21 @@ processors call the same services.
 
 Backend modules mirror §13.1: `auth, workspaces, agents, prompting, voices, knowledge, numbers, calls,
 wallet, billing, webhooks, notifications, events, jobs, admin`, plus `config` (pricing/flags/caps),
-`redis`, `retell`, `runtime-cache` (the Redis projection the inbound path reads) and `scheduled`.
-The D5 arrow runs one way: `prompting` → `agents` → `retell`. The agent stack (§9.3–§9.5
-configuration) lives in `agents` because publish needs it too, which is what saves both
-modules from a `forwardRef`.
+`redis`, `retell`, `runtime-cache` (the Redis projection the inbound path reads), `scheduled`,
+and since D6 `activation` (§13.8), `crypto` (envelope encryption, global) and `alerts` (ops
+alerts, global). The arrows run one way: `prompting` → `agents` → `retell`;
+`activation` → `agents` + `numbers` + `billing`; nothing depends on `activation`. Billing does
+not import activation — `BillingService.onPurchaseCredited` announces and the activation
+module listens. The agent stack (§9.3–§9.5 configuration) lives in `agents` because publish
+needs it too, which is what saves both modules from a `forwardRef`.
 
-Jobs: `modules/jobs` owns the BullMQ plumbing — four queues (`webhooks`, `calls`, `prompting`,
-`scheduled`), a handler registry every feature module registers into at module init, the worker
+Jobs: `modules/jobs` owns the BullMQ plumbing — five queues (`webhooks`, `calls`, `prompting`,
+`provisioning`, `scheduled`), a handler registry every feature module registers into at module init, the worker
 runtime, the §13.11 schedulers (plus `job-sweeper`, which writes off `jobs` rows whose queue
 job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). `prompting` is separate because a job on it is an LLM round trip, and a slow model must never
-delay a `calls` write-behind or a webhook that moves credits (ADR 0012 §6). The API registers every handler and starts no Worker; `src/worker.ts` starts them.
+delay a `calls` write-behind or a webhook that moves credits (ADR 0012 §6). `provisioning`
+carries `knowledge-sync`, `provision-number` and `activate-agent` — several voice-platform
+round trips each — for the same reason (ADR 0013 §4). The API registers every handler and starts no Worker; `src/worker.ts` starts them.
 Job ids are deterministic, which is the queue side of exactly-once — but `Queue.add()` cannot tell
 a caller that an id was refused (BullMQ builds the returned Job locally), so `JobQueues.add(...,
 verify)` reads the stored job back. `enqueueWebhook` verifies: an id held by a job that already
@@ -323,6 +330,57 @@ job settles.
 - An unknown `voice_model` is **ignored silently** by Retell where every other stack id is a
   400, so `tierStack.voice_model` is validated against the SDK union in code.
 
+**Knowledge, numbers and activation (§11, §13.8, W4 — ADR 0013)**
+
+- **Activation is a step machine on the `jobs` row** (`type = activate-agent`,
+  `steps_json.steps.{publish,provision,bind,mark_live,notify}`), never one transaction:
+  `publish → provision → bind → mark_live → notify`. The worker resumes at the first step
+  not `completed`/`skipped` and persists each outcome before the next call. **Only
+  `mark_live` writes `agents.status`, and only after `bind` completed.** A republish of an
+  agent that already has an active number skips `provision` and `bind`. Three attempts, and
+  only for `classifyError()` retryable failures (platform 5xx/429/408/409, network, Postgres);
+  a 4xx, a lint failure, no plan, no paid purchase or a plan limit ends on attempt one. The
+  final failure marks the number row `failed`, sends one `activation:{id}` `failed` frame and
+  one `activation_failed` ops alert. The state → view mapping is pure (`activation-state.ts`).
+- **Look before you buy.** The platform has no idempotency keys, so every retry looks up what
+  a dead run may have created: a bought number by its nickname `num-<20 hex of its id>`, a SIP
+  import by its E.164, a knowledge base by its name `kb-<20 hex of the agent id>` (Retell caps
+  names at 40 chars; plus a Redis lock per
+  agent around the create), a source by the row id embedded in its title/filename or by URL.
+  The platform's answer is persisted before the next call. The row for a resource is created
+  *before* the provider call (`phone_numbers.plan_id` is unique — one number per plan).
+- `phone_numbers.e164` is **nullable** until the platform answers; anything keyed on it
+  (`num:{e164}`) skips a row without one. `NumberProvisioningService.{provision,bind,release}`
+  are the only code that changes a platform number, and `bind` is read-compare-update.
+  DELETE releases on the platform **first** and keeps the row as `released` (calls reference
+  it). PATCH edits routing and labels only; provider identity is not on the request shape.
+- Option B (forwarding) is a bought number plus `forwarding_status = waiting_for_customer`
+  until the customer confirms; the agent is live on the new number regardless. Option D
+  (porting) is refused (P3).
+- **SIP passwords are envelope-encrypted** (`modules/crypto`): fresh AES-256-GCM data key per
+  secret, wrapped by KMS (`SIP_CREDENTIALS_KMS_KEY_ID`) in staging/prod or a local key
+  (`SIP_CREDENTIALS_LOCAL_KEY`, refused in prod) in dev/test; the plan id is the AAD. Two call
+  sites only: `PhonePlansService`/`NumbersService.import` seal, `importSip` opens on the stack
+  immediately before `import-phone-number`. Nothing returns, logs or audits the plaintext;
+  responses carry `has_password`.
+- Knowledge: one platform KB per agent (`agents.retell_kb_id`), `knowledge_sources.status ∈
+  {pending, syncing, ready, failed, deleting}`, file/text bytes held in `payload` only until
+  ingested. Gated by `knowledge_base` and `caps.kb_allowance` (one KB per agent counts), ≤ 20
+  sources per agent, files ≤ 20 MB, private hosts refused. A source that synced is deleted on
+  the platform **before** its row (`deleting` + the `-del` job id). A KB added after publish
+  reaches the LLM at the next publish (the LLM is versioned with the agent, ADR 0003 §7).
+- **Auto top-up (§5.4) credits nothing on the create call.** `AutoTopupService.evaluate`
+  (every debit + the 15-minute `auto-topup` schedule) creates the pending purchase under the
+  wallet lock (no second charge while one is pending for 30 min, none for 6 h after a decline),
+  creates the off-session PaymentIntent with `idempotencyKey = topup-<purchase id>`, and
+  grants only in `fulfilPaymentIntent` — from `payment_intent.succeeded` or from the schedule
+  retrieving the intent — under the lock, when the purchase is still `pending` and the amount
+  matches. Checkout PaymentIntents (no `kind: auto_topup`) are ignored there. `invoices` mirror
+  Stripe with a monotonic status; `POST /wallet/portal-session` reads the customer id from the
+  workspace row only.
+- Ops alerts go through `OpsAlertService` (log line always, `OPS_ALERT_WEBHOOK_URL` when set);
+  every field is redacted for secret-looking names and values.
+
 **Configuration**
 
 - Pricing, feature flags, kill switches, templates and the agent stack live in versioned tables and are
@@ -406,7 +464,17 @@ throws and never waits past its budget (ADR 0010 §6).
   only ever carries `ctx.workspaceId`'s own channel. `agent:{id}` frame types are named once, in
   `modules/agents/agent-events.ts`: `created`, `draft_updated`, `draft_selected`,
   `generation_started`, `generation_progress`, `generated`, `generation_failed`, `patched`, `version_created`,
-  `published`, `paused`, `resumed`, `deleted`.
+  `published`, `paused`, `resumed`, `deleted`, plus `activated` (D6). `activation:{job_id}` frames
+  (`ActivationEvents` in `@portal/schemas`): `started`, `progress`, `live`, `failed`, each carrying
+  the `activationView` — status, step, progress %, attempt, number id/e164, one customer-safe
+  error sentence; never a provider id or a stack trace.
+- D6 routes: `POST/GET /agents/:id/knowledge`, `DELETE /agents/:id/knowledge/:sourceId` (and
+  the same resource at `/knowledge`); `PUT/GET /agents/:id/phone-plan`; `GET /numbers`,
+  `POST /numbers/buy`, `POST /numbers/import`, `GET/PATCH/DELETE /numbers/:id`,
+  `GET /numbers/forwarding-guide`; `POST /agents/:id/activate` (202), `GET /agents/:id/activation`,
+  `GET /activations/:id`; `PUT /wallet/auto-topup`, `GET /wallet/invoices`, `POST /wallet/portal-session`.
+  Buying, importing, releasing, activating and billing routes are owner/admin; knowledge and
+  routing edits are editor and above.
 - Recordings: `GET /calls/:id/recording` mints a signed one-hour link to
   `GET /calls/:id/recording/stream?token=`, which is `@Public()` and proxies the bytes. The Retell
   URL is never given to the browser (ADR 0011 §5).
@@ -435,7 +503,9 @@ Events in: `call_started`, `call_ended`, `call_analyzed`, `transfer_*`, plus the
 
 **Stripe**: Checkout Session, Customer Portal, `checkout.session.completed`,
 `checkout.session.async_payment_succeeded`, `checkout.session.expired`, off-session PaymentIntent for
-auto top-up, `charge.dispute.created`.
+auto top-up (`payment_intent.succeeded | payment_failed | canceled`), `invoice.created | finalized |
+paid | payment_failed | voided | marked_uncollectible`, `charge.dispute.created`. The full list is
+`StripeEventHandler.HANDLED`; subscribe the dashboard endpoint to exactly that.
 
 **Auth0**: two tenants, both **Single Page Application** type. Post-User-Registration Action → `POST /webhooks/auth` (shared-secret header, `user.registered`) → upsert `users`. That trigger is fire-and-forget on Auth0's side, so there are two safety nets, both the same idempotent `UsersService.upsert` (module `auth`): the customer Post-Login Action posts `user.login` to the same route on every login (deduped to a 204 after the first), and `AuthGuard` provisions the row itself when a verified token has no row and carries `https://portal/email`. Only that namespaced claim is trusted for provisioning, never a bare `email` claim. Post-Login Actions add `https://portal/email_verified`, `https://portal/email`, `https://portal/name` (customer) and `https://portal/mfa` (staff). Frontend uses `@auth0/auth0-spa-js` (Authorization Code + PKCE — no client secret in the browser, ADR 0008). Both tenants are configured from `infra/auth0/tenant.customer.yaml` and `tenant.staff.yaml` with the Auth0 Deploy CLI (`pnpm auth0:validate|check|export|plan|deploy`, a dev dependency — nothing global to install), Actions source in `infra/auth0/actions/`, procedure in `docs/runbooks/auth0.md`. The deploy CLI matches objects by **name**, so a wrong name creates a second application instead of failing: export and diff before the first deploy. `pnpm --filter @portal/api verify:auth0` is the check against the real tenant — Actions deployed and bound, the shared secret, the access-token claims, and JIT provisioning.
 
@@ -513,7 +583,10 @@ knowledge W4 → auto top-up → team and invites.
   one webhook URL set per environment. Stripe test and live keys never mix.
 - Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths,
   RLS cross-tenant isolation, and — from D5 — guardrail tampering, version immutability, publish
-  idempotency and duplicate generation jobs. Other areas are best-effort.
+  idempotency and duplicate generation jobs; from D6 — SIP credentials encrypted at rest, activation
+  step order and retry limit, one purchase per retried activation, top-up credited once, invoice
+  idempotency, and workspace isolation on knowledge/numbers/activations (`test/d6-*.e2e.test.ts`).
+  Other areas are best-effort.
 - The §13.9 latency SLO is asserted, not eyeballed: `pnpm --filter @portal/api load:setup` then
   `load:inbound` runs k6 with `p(95)<300` as a threshold, so the run exits non-zero if it regresses.
   `load:reset` frees the slots a previous run reserved; `load:teardown` pauses the number afterwards.

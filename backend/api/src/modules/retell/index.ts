@@ -1,5 +1,5 @@
 export { RetellModule } from './retell.module';
-export { RetellGateway, clampDuration } from './retell.gateway';
+export { RetellGateway, clampDuration, retellErrorStatus, isRetellNotFound } from './retell.gateway';
 export { RetellConfig } from './retell.config';
 export { stackFor, tierStack, agentStackTiers } from './retell.types';
 export type {
@@ -16,6 +16,9 @@ export type {
   Language,
   PostCallAnalysisField,
   PostCallAnalysisModel,
+  KnowledgeSourcesInput,
+  PhoneNumberFacts,
+  KnowledgeBaseFacts,
 } from './retell.types';
 export {
   parseRetellWebhook,

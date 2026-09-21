@@ -50,7 +50,11 @@ const CHECKS = [
   { key: 'AUTH0_CUSTOMER_M2M_CLIENT_SECRET', phase: 'D5', required: false, secret: true },
   { key: 'AUTH0_STAFF_M2M_CLIENT_ID', phase: 'D5', required: false },
   { key: 'AUTH0_STAFF_M2M_CLIENT_SECRET', phase: 'D5', required: false, secret: true },
-  { key: 'SIP_CREDENTIALS_KMS_KEY_ID', phase: 'D8', required: false },
+  // D6: one of the two masters must be set for Option C (SIP import). Neither is required
+  // to boot — the route answers NOT_CONFIGURED — but staging without KMS is a finding.
+  { key: 'SIP_CREDENTIALS_KMS_KEY_ID', phase: 'D6', required: false },
+  { key: 'SIP_CREDENTIALS_LOCAL_KEY', phase: 'D6', required: false, secret: true },
+  { key: 'OPS_ALERT_WEBHOOK_URL', phase: 'D6', required: false, secret: true },
 ];
 
 const results = [];

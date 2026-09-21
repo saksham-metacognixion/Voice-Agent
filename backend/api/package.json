@@ -21,10 +21,14 @@
     "load:reset": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts reset",
     "bench:generation": "dotenv -e ../../.env -- tsx scripts/generation-bench.ts",
     "verify:d5-retell": "dotenv -e ../../.env -- tsx scripts/d5-retell-verify.ts",
-    "verify:auth0": "dotenv -e ../../.env -- tsx scripts/auth0-verify.ts"
+    "verify:auth0": "dotenv -e ../../.env -- tsx scripts/auth0-verify.ts",
+    "verify:d6": "tsc -p tsconfig.scripts.json && dotenv -e ../../.env -- node dist-scripts/scripts/d6-staging-verify.js",
+    "dev:link-user": "dotenv -e ../../.env -- tsx scripts/dev-link-user.ts",
+    "dev:seed-workspace": "dotenv -e ../../.env -- tsx scripts/dev-seed-workspace.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
+    "@aws-sdk/client-kms": "^3.1136.0",
     "@nestjs/common": "^11.1.0",
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.1.0",

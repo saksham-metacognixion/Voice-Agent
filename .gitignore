@@ -47,6 +47,8 @@ infra/auth0/export/
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal
 .retell-spike.json
+.d6-verify.json
+backend/api/dist-scripts/
 
 # raw webhook captures (FixtureWriter names them <event>-<ISO timestamp>.json).
 # Curated fixtures are named by behaviour and have no timestamp, so they stay tracked.

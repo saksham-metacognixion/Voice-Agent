@@ -588,6 +588,11 @@ export const jobProgress = z.object({
   /** §9.6: the model's explanation when it refused. Meant for the customer. */
   explanation: z.string().nullable(),
   lint_findings: z.number().int().nullable(),
+  /** §13.8 activation jobs only: where the workflow stands. Null on every other job type. */
+  activation_status: z.enum(['pending', 'publishing', 'provisioning', 'binding', 'marking_live', 'live', 'failed']).nullable().default(null),
+  activation_step: z.enum(['publish', 'provision', 'bind', 'mark_live', 'notify']).nullable().default(null),
+  number_id: uuid.nullable().default(null),
+  e164: z.string().nullable().default(null),
 });
 export type JobProgress = z.infer<typeof jobProgress>;
 

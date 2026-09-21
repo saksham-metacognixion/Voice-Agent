@@ -50,6 +50,10 @@ describe('toJobResponse', () => {
       refused: true,
       explanation: "I can't make the agent claim to be human.",
       lint_findings: 1,
+      activation_status: null,
+      activation_step: null,
+      number_id: null,
+      e164: null,
     });
     expect(out).not.toHaveProperty('steps');
   });
@@ -93,6 +97,10 @@ describe('toJobResponse', () => {
       refused: null,
       explanation: null,
       lint_findings: null,
+      activation_status: null,
+      activation_step: null,
+      number_id: null,
+      e164: null,
     });
     expect(out.error).toBeNull();
   });

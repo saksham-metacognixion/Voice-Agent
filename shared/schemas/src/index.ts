@@ -14,3 +14,6 @@ export * from './business-hours.js';
 export * from './workspaces.js';
 export * from './agents.js';
 export * from './voices.js';
+export * from './knowledge.js';
+export * from './numbers.js';
+export * from './activation.js';

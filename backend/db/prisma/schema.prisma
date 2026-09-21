@@ -85,10 +85,14 @@ enum KnowledgeType {
   @@map("knowledge_type")
 }
 
+/// D6. The API creates `pending`; the `knowledge-sync` job moves it through `syncing` to
+/// `ready` or `failed`; a delete parks it in `deleting` until the platform copy is gone.
 enum KnowledgeStatus {
-  processing
+  pending
+  syncing
   ready
   failed
+  deleting
 
   @@map("knowledge_status")
 }
@@ -124,8 +128,31 @@ enum PhoneNumberStatus {
   paused
   releasing
   released
+  /// D6: provisioning gave up (activation FAILED). The row stays so the reason is readable.
+  failed
 
   @@map("phone_number_status")
+}
+
+/// D6, §11.2 Option B: the customer must switch carrier forwarding on themselves.
+enum ForwardingStatus {
+  waiting_for_customer
+  ready
+  failed
+
+  @@map("forwarding_status")
+}
+
+/// D6. Stripe's invoice lifecycle as we mirror it (`uncollectible` = marked_uncollectible).
+enum InvoiceStatus {
+  draft
+  open
+  paid
+  payment_failed
+  void
+  uncollectible
+
+  @@map("invoice_status")
 }
 
 /// Spec §13.9 / §11. `always` = 24/7, `business` = follow business hours.
@@ -333,9 +360,11 @@ model Tenant {
   auditLog             AuditLog[]
   notificationSettings NotificationSetting[]
   agents               Agent[]
+  knowledgeSources     KnowledgeSource[]
   phonePlans           PhonePlan[]
   phoneNumbers         PhoneNumber[]
   calls                Call[]
+  invoices             Invoice[]
   creditLots           CreditLot[]
   creditLedger         CreditLedger[]
   purchases            Purchase[]
@@ -553,19 +582,36 @@ model Voice {
   @@map("voices")
 }
 
+/// W4 "what your agent knows" (§15). One knowledge base per agent on the voice platform
+/// (`agents.retell_kb_id`, ADR 0003 §8); each row is one source in it.
 model KnowledgeSource {
   id             String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// D6: the RLS anchor, denormalised from the agent so the standard tenant policy applies.
+  tenantId       String          @map("tenant_id") @db.Uuid
   agentId        String          @map("agent_id") @db.Uuid
   type           KnowledgeType
   name           String
+  /// type = url
+  url            String?
+  /// type = file: the MIME type the customer declared.
+  contentType    String?         @map("content_type")
+  /// type = file | text: the bytes, held only until the platform has ingested them, then NULL.
+  payload        Bytes?
   retellSourceId String?         @map("retell_source_id")
-  status         KnowledgeStatus @default(processing)
+  status         KnowledgeStatus @default(pending)
   sizeBytes      Int?            @map("size_bytes")
+  /// Customer-safe, one sentence. The diagnostic detail lives in sync_json.
   error          String?
+  /// Internal sync ledger: attempts, platform status, timings, the raw error. Never on the wire.
+  syncJson       Json?           @map("sync_json")
+  syncedAt       DateTime?       @map("synced_at")
   createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @default(now()) @updatedAt @map("updated_at")
 
-  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
 
+  @@index([tenantId])
   @@index([agentId])
   @@map("knowledge_sources")
 }
@@ -584,18 +630,26 @@ model PhonePlan {
   areaCode            String?         @map("area_code")
   tollFree            Boolean         @default(false) @map("toll_free")
   existingNumber      String?         @map("existing_number")
-  /// Envelope-encrypted with an AWS KMS data key, AES-256-GCM (§17). Never logged.
+  /// D6, Option B: which carrier's forwarding guide the customer was shown.
+  carrier             String?
+  /// Option C. `{number, host, username, password: <envelope>}` — the password is
+  /// envelope-encrypted (a KMS-wrapped data key, AES-256-GCM, §17) and never logged.
   sipJson             Json?           @map("sip_json")
   hoursMode           HoursMode       @default(always) @map("hours_mode")
+  hoursOverrideJson   Json?           @map("hours_override_json")
   transferTargetsJson Json?           @map("transfer_targets_json")
   allowedCountries    String[]        @default([]) @map("allowed_countries")
+  nickname            String?
   status              PhonePlanStatus @default(pending)
   createdAt           DateTime        @default(now()) @map("created_at")
+  updatedAt           DateTime        @default(now()) @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  agent  Agent  @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  Agent        @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  number PhoneNumber?
 
   @@index([tenantId])
+  @@index([agentId, status])
   @@map("phone_plans")
 }
 
@@ -604,7 +658,10 @@ model PhoneNumber {
   id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId            String            @map("tenant_id") @db.Uuid
   agentId             String?           @map("agent_id") @db.Uuid
-  e164                String            @unique
+  /// D6: NULL while a bought number is still being provisioned — the platform picks it.
+  e164                String?           @unique
+  /// D6: the W6 plan this number executes. One number per plan (§13.8).
+  planId              String?           @unique @map("plan_id") @db.Uuid
   nickname            String?
   type                PhoneNumberType
   country             String?           @db.Char(2)
@@ -621,11 +678,20 @@ model PhoneNumber {
   nextRentalAt        DateTime?         @map("next_rental_at")
   status              PhoneNumberStatus @default(provisioning)
   pausedAt            DateTime?         @map("paused_at")
+  /// D6, Option B: the customer's existing line and whether they confirmed the forwarding.
+  forwardingFrom      String?           @map("forwarding_from")
+  forwardingStatus    ForwardingStatus? @map("forwarding_status")
+  carrier             String?
+  /// Customer-safe reason when status = failed.
+  error               String?
+  releasedAt          DateTime?         @map("released_at")
   retellMetaJson      Json?             @map("retell_meta_json")
   createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  agent  Agent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent  Agent?     @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  plan   PhonePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
   calls  Call[]
 
   @@index([tenantId, status])
@@ -750,20 +816,62 @@ model Purchase {
   currency            String         @default("USD") @db.Char(3)
   credits             Int
   stripeSessionId     String?        @unique @map("stripe_session_id")
-  stripePaymentIntent String?        @map("stripe_payment_intent")
+  /// D6: unique — one purchase per PaymentIntent is what makes a replayed
+  /// `payment_intent.succeeded` find the same row.
+  stripePaymentIntent String?        @unique @map("stripe_payment_intent")
   invoiceUrl          String?        @map("invoice_url")
   status              PurchaseStatus @default(pending)
   isAutoTopup         Boolean        @default(false) @map("is_auto_topup")
+  /// D6, auto top-up: why a pending top-up ended without credits (`failed`, `requires_action`, `canceled`, `mismatch`).
+  failureReason       String?        @map("failure_reason")
   promoCode           String?        @map("promo_code")
   createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @default(now()) @updatedAt @map("updated_at")
 
-  tenant  Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  pack    Pack?       @relation(fields: [packId], references: [id])
-  lots    CreditLot[]
-  refunds Refund[]
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  pack     Pack?       @relation(fields: [packId], references: [id])
+  lots     CreditLot[]
+  refunds  Refund[]
+  invoices Invoice[]
 
   @@index([tenantId, createdAt(sort: Desc)])
+  @@index([tenantId, isAutoTopup, status])
   @@map("purchases")
+}
+
+/// D6 — a mirror of Stripe's invoice objects for D5 "Invoices" and SA9 reconciliation.
+/// Written only by the `invoice.*` webhook handlers, keyed on the Stripe invoice id, with
+/// `last_event_created` guarding against out-of-order delivery. tenant_id is NULL for an
+/// invoice whose customer we cannot map — kept for reconciliation, invisible to customers.
+model Invoice {
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String?       @map("tenant_id") @db.Uuid
+  purchaseId       String?       @map("purchase_id") @db.Uuid
+  stripeInvoiceId  String        @unique @map("stripe_invoice_id")
+  stripeCustomerId String?       @map("stripe_customer_id")
+  stripePaymentIntent String?    @map("stripe_payment_intent")
+  number           String?
+  amountCents      Int           @map("amount_cents")
+  amountPaidCents  Int           @default(0) @map("amount_paid_cents")
+  currency         String        @db.Char(3)
+  status           InvoiceStatus
+  hostedUrl        String?       @map("hosted_url")
+  pdfUrl           String?       @map("pdf_url")
+  /// Stripe event id and `created` of the last event applied — the idempotency trail.
+  lastEventId      String?       @map("last_event_id")
+  lastEventCreated Int?          @map("last_event_created")
+  finalizedAt      DateTime?     @map("finalized_at")
+  paidAt           DateTime?     @map("paid_at")
+  voidedAt         DateTime?     @map("voided_at")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @default(now()) @updatedAt @map("updated_at")
+
+  tenant   Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchase Purchase? @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt(sort: Desc)])
+  @@index([stripeCustomerId])
+  @@map("invoices")
 }
 
 // ---------------------------------------------------------------------------

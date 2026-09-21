@@ -19,6 +19,8 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0009](0009-llm-provider-anthropic.md)       | LLM for prompt generation: back to Anthropic, `claude-sonnet-5` (supersedes 0007)| accepted                  |
 | [0010](0010-wallet-ledger-and-pricing-config.md) | Wallet ledger semantics, pricing config shape, Stripe webhook retries       | accepted (§5 amended by 0011) |
 | [0011](0011-call-runtime-and-queues.md)      | Call runtime: credit reservations, the queue hand-off, the recording proxy      | accepted                  |
+| [0012](0012-prompting-pipeline-and-agent-lifecycle.md) | The prompting pipeline and the agent lifecycle (D5)                  | accepted                  |
+| [0013](0013-provisioning-activation-and-billing.md) | Knowledge, numbers, activation and billing (D6)                         | accepted                  |
 
 Template:
 

@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "ecb7792a-c671-42f5-8faf-24b37f1e8af0",
-    "name": "Voice Agent Portal API (D1–D5)",
-    "description": "Customer portal backend — NestJS/Fastify. Har workspace-scoped request par `Authorization: Bearer {{access_token}}` (Auth0 customer tenant access token) aur `X-Workspace-Id: {{workspace_id}}` jaata hai. Errors hamesha `{code, message, fields?[]}`. Long operations `202 {job_id}` dete hain — SSE ya `GET /jobs/:id` se follow karo.\n\nSetup: environment import karo → `base_url` aur `access_token` bharo → `POST /workspaces` chalao (workspace_id auto-set) → `GET /voices` (voice_id auto-set) → `POST /agents` (agent_id auto-set) → PATCH draft → generate (job_id auto-set) → GET /jobs/:id → publish.",
+    "name": "Voice Agent Portal API (D1–D6)",
+    "description": "Customer portal backend — NestJS/Fastify. Har workspace-scoped request par `Authorization: Bearer {{access_token}}` (Auth0 customer tenant access token) aur `X-Workspace-Id: {{workspace_id}}` jaata hai. Errors hamesha `{code, message, fields?[]}`. Long operations `202 {job_id}` dete hain — SSE ya `GET /jobs/:id` se follow karo.\n\nSetup: environment import karo → `base_url` aur `access_token` bharo → `POST /workspaces` chalao (workspace_id auto-set) → `GET /voices` (voice_id auto-set) → `POST /agents` (agent_id auto-set) → PATCH draft → generate (job_id auto-set) → GET /jobs/:id → publish.\n\n**D6 (knowledge, numbers, activation, billing) ka pura raasta:**\n1. `POST /agents/:id/knowledge` (folder 6) — source add, `status` `ready` hone tak poll.\n2. `PUT /agents/:id/phone-plan` (folder 7) — Option A/B/C choose.\n3. `POST /wallet/checkout` (folder 9) — pack kharido; `agent_id` doge toh paid webhook khud activation shuru kar dega.\n4. `POST /agents/:id/activate` (folder 8) — ya khud trigger karo; `activation_id` auto-set.\n5. `GET /agents/:id/activation` poll ya `curl -N /events?topics=activation:<id>` — `live` tak.\n6. `GET /numbers` — number `active`, `e164` mil gaya. Ab us number par call aa sakti hai.\n\nActivation ke saare guards asli hain: paid purchase nahi toh number nahi (§5.4), plan ka `max_numbers`, lint errors, paused workspace.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -1450,8 +1450,1144 @@
       ]
     },
     {
-      "name": "6 · Wallet & Billing (§5.4, §13.7)",
-      "description": "Prepaid credits. 1 credit = 1 min Standard; Premium 1.5×.",
+      "name": "6 · Knowledge — what your agent knows (W4, §13.1)",
+      "description": "W4 \"aapka agent kya jaanta hai\". Teen tarah ke source: **url**, **file** (base64 JSON me), **text**.\n\nRoute sirf row banata hai (`status: pending`) aur `provisioning` queue par `knowledge-sync` job daalta hai → **202**. Worker voice platform par ek knowledge base per agent banata/dhoondta hai, source add karta hai, ingestion poll karta hai (~12 s), phir `ready` ya `failed`. File/text ke bytes DB me `payload` column me sirf ingest hone tak rehte hain, uske baad NULL.\n\nGates: plan me `knowledge_base` feature chahiye + `caps.kb_allowance` (ek agent = ek KB ginta hai). Limits: 20 source per agent, file ≤ 20 MB, private/loopback URL refuse. Writes Editor+; read sabko.\n\nDono shapes same resource hain: `/agents/:id/knowledge` (spec §16) aur `/knowledge` (body me `agent_id`).",
+      "item": [
+        {
+          "name": "POST /agents/:id/knowledge — text source (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge"
+              ]
+            },
+            "description": "Sabse seedha source: plain text. `name` mandatory, `text` 1–200 000 chars.\n\nKya hota hai: row `pending` → job queue → platform KB me ek `text` source (title me row id ke pehle 8 hex daale jaate hain, taaki retry ke waqt wahi source dobara dhoondha ja sake, duplicate na bane) → ingest complete → `ready`, `synced_at` set, `payload` NULL.\n\n**Response me platform ka koi id nahi** — `retell_source_id` server-side rehta hai.\n\n**Test script `source_id` save karta hai.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"text\",\n  \"name\": \"Opening hours\",\n  \"text\": \"Maple Dental is open Monday to Friday from 9am to 5pm. Free parking behind the building. We accept new patients.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined && body.id !== null) pm.environment.set('source_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents/:id/knowledge — URL source (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge"
+              ]
+            },
+            "description": "URL source. `name` optional — na do toh hostname+path se ban jaata hai (`example.com/faq`).\n\nValidation: sirf http(s); `localhost`, `127.*`, `10.*`, `192.168.*`, `169.254.*` (AWS metadata), `*.internal`, credentials waale URL (`https://user:pw@…`) **400** — platform apne network se page fetch karta hai, isliye SSRF ka rasta band.\n\nPlatform ek page crawl karta hai (deep crawl nahi). Idempotency key yahan URL khud hai: retry pe same URL mil gaya toh dobara add nahi hota.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"url\",\n  \"url\": \"https://example.com/faq\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined && body.id !== null) pm.environment.set('source_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /agents/:id/knowledge — file source (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge"
+              ]
+            },
+            "description": "File source. Portal static export hai (apna upload service nahi), isliye bytes **base64** me JSON body me aate hain.\n\n`content_type` allowed list se: pdf, plain, markdown, csv, doc, docx — aur kuch bhi **422** (zod). Decode ke baad size check: khaali file ya > 20 MB **400**. Platform par filename `<row id ke 8 hex>-<name>.<ext>` jaata hai — wahi retry ka lookup key hai.\n\n`size_bytes` decode ke baad ka real size hota hai, base64 ka nahi.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"file\",\n  \"name\": \"Price list.pdf\",\n  \"content_type\": \"application/pdf\",\n  \"content_base64\": \"TWFwbGUgRGVudGFsIHByaWNlIGxpc3QKQ2hlY2stdXAgOTUgQ0FECkNsZWFuaW5nIDEyMCBDQUQKV2hpdGVuaW5nIDM1MCBDQUQK\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined && body.id !== null) pm.environment.set('source_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /agents/:id/knowledge — is agent ke sources",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge"
+              ]
+            },
+            "description": "Is agent ke saare sources, purane se naye. Har row: `type`, `name`, `url`, `status`, `size_bytes`, `synced_at`, aur `error` (sirf jab `status = failed`, aur wo ek customer-safe line hoti hai — platform ka error text `sync_json` me server-side rehta hai).\n\nDoosre workspace ka agent id → **404** (RLS + explicit tenant filter)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const body = pm.response.json();",
+                  "if (body && (body[0] && body[0].id) !== undefined && (body[0] && body[0].id) !== null) pm.environment.set('source_id', (body[0] && body[0].id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /knowledge?agent_id= — workspace-wide",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/knowledge?agent_id={{agent_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "knowledge"
+              ],
+              "query": [
+                {
+                  "key": "agent_id",
+                  "value": "{{agent_id}}"
+                }
+              ]
+            },
+            "description": "Wahi list, workspace-level route se. `agent_id` hata do toh poore workspace ke saare sources aate hain (D3 Knowledge tab ke liye)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /knowledge/:id — ek source",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/knowledge/{{source_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "knowledge",
+                "{{source_id}}"
+              ]
+            },
+            "description": "Ek source ka detail. Polling ke liye yahi route hai — W4 isko tab tak poll karta hai jab tak `status` `ready`/`failed` na ho jaaye."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /knowledge — agent_id body me (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/knowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "knowledge"
+              ]
+            },
+            "description": "Same create, lekin agent path me nahi body me. Dono routes ek hi service call karte hain — jo UI ke liye convenient ho wo use karo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_id\": \"{{agent_id}}\",\n  \"type\": \"text\",\n  \"name\": \"Parking\",\n  \"text\": \"Free parking is available behind the building.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined && body.id !== null) pm.environment.set('source_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /agents/:id/knowledge/:sourceId — hatao",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/knowledge/{{source_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge",
+                "{{source_id}}"
+              ]
+            },
+            "description": "Do raaste, response batata hai kaunsa chala:\n\n- Source platform tak pahuncha hi nahi tha → row seedhe delete → `{deleted: true, pending: false}`.\n- Source platform par hai → row `deleting` me park + job → **pehle** platform copy delete, **phir** row → `{deleted: false, pending: true}`.\n\nOrder jaan-boojh kar ye hai: row pehle delete karte toh customer ko lagta \"hata diya\" jabki agent abhi bhi us knowledge se jawab de raha hota."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /knowledge/:id — workspace route se",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/knowledge/{{source_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "knowledge",
+                "{{source_id}}"
+              ]
+            },
+            "description": "Wahi delete, agent path ke bina."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 404]', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 · Phone plan & Numbers (W6, §11, §13.8)",
+      "description": "W6 par customer number ka **option** chunta hai (plan), aur payment ke baad activation job usko **execute** karta hai.\n\n- **A `new`** — hum naya number kharidte hain (US/CA only).\n- **B `forward`** — hum naya number kharidte hain, customer apni purani line usme forward karta hai (carrier codes hum dete hain).\n- **C `sip`** — customer apna SIP trunk laata hai; password envelope-encrypted hota hai.\n- **D `port`** — abhi refuse (P3).\n\nEk agent par ek hi `pending` plan (partial unique index) — dobara PUT karoge toh wahi row update hoti hai.\n\nWizard ke bahar (D4 \"Add number\") seedhe `POST /numbers/buy` / `/import` hai — wo apna `phone_numbers` row banake `provision-number` job queue karta hai.",
+      "item": [
+        {
+          "name": "PUT /agents/:id/phone-plan — Option A (buy new)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/phone-plan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "phone-plan"
+              ]
+            },
+            "description": "Option A. `country` US/CA (ADR 0003 §4 — platform sirf yahi bechta hai), `area_code` optional 3 digit, `toll_free` optional.\n\nRouting bhi yahin baithti hai: `hours_mode` (`always` | `business` = workspace hours | `custom` = apna schedule), `transfer_targets` (max 5), `allowed_countries` (inbound country whitelist).\n\nYahan **koi paisa nahi** lagta aur platform ko kuch nahi jaata — ye sirf \"customer ne kya choose kiya\" ka record hai. Paid purchase ka check activation ke `provision` step par hota hai, kyunki W6 wizard me W7 (payment) se pehle aata hai.\n\n**Test script `plan_id` save karta hai.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"option\": \"new\",\n  \"country\": \"CA\",\n  \"area_code\": \"450\",\n  \"toll_free\": false,\n  \"nickname\": \"Main line\",\n  \"hours_mode\": \"business\",\n  \"transfer_targets\": [\n    {\n      \"label\": \"Front desk\",\n      \"number\": \"+15145550100\"\n    }\n  ],\n  \"allowed_countries\": [\n    \"CA\",\n    \"US\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined && body.id !== null) pm.environment.set('plan_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /agents/:id/phone-plan — Option B (carrier forwarding)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/phone-plan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "phone-plan"
+              ]
+            },
+            "description": "Option B. Number phir bhi hum hi kharidte hain; farak ye hai ki customer apni **purani** line (`existing_number`) us naye number par forward karega, aur `carrier` batata hai ki hum kaunsi dial-code guide dikhaayein.\n\nImportant: hum carrier forwarding **provision nahi kar sakte** — wo customer ke haath me hai. Isliye number active hone ke baad bhi `forwarding.status = waiting_for_customer` rehta hai jab tak customer `PATCH /numbers/:id {forwarding_confirmed: true}` na kare. Agent naye number par live hota hai — forwarding uske upar ka step hai.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"option\": \"forward\",\n  \"country\": \"CA\",\n  \"existing_number\": \"+15145550199\",\n  \"carrier\": \"bell\",\n  \"hours_mode\": \"always\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.id !== undefined && body.id !== null) pm.environment.set('plan_id', body.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /agents/:id/phone-plan — Option C (SIP import)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/phone-plan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "phone-plan"
+              ]
+            },
+            "description": "Option C. `sip.number` (E.164), `sip.host` (termination URI, `sip.example.com` ya `sip:pbx.example.com:5060`), optional username/password.\n\n**Password kabhi plain store nahi hota** (§17): har secret ke liye naya AES-256-GCM data key banta hai, wo key KMS se wrap hoti hai (staging/prod) ya local master se (dev/test), aur plan id AAD hai — matlab envelope ko dusri row me copy karoge toh decrypt hi nahi hoga.\n\nResponse me sirf `{number, host, username, has_password}` — envelope bhi nahi. Decrypt sirf ek jagah hota hai: platform ko `import-phone-number` bhejne se theek pehle, stack par, aur wahin khatam.\n\nGate: plan me `sip_import` chahiye (Scale+) warna **400 PLAN_LIMIT**. Server par KMS/local key configured na ho toh **503 NOT_CONFIGURED**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"option\": \"sip\",\n  \"nickname\": \"PBX trunk\",\n  \"sip\": {\n    \"number\": \"+14505559876\",\n    \"host\": \"sip:pbx.example.com:5060\",\n    \"username\": \"trunk\",\n    \"password\": \"replace-me\"\n  },\n  \"hours_mode\": \"always\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 400, 503]', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 503]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /agents/:id/phone-plan — abhi kya chuna hua hai",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/phone-plan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "phone-plan"
+              ]
+            },
+            "description": "Pending plan (ya agar koi pending nahi toh last executed). `number_id` tab bharta hai jab activation ne is plan se number bana diya ho. SIP password yahan bhi nahi aata — `sip.has_password` bas boolean."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /numbers — workspace ke saare numbers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers"
+              ]
+            },
+            "description": "D4 Numbers list. Har row: `e164` (provisioning ke dauraan `null` — platform hi number chunta hai), `kind` (`bought` | `sip`; telephony vendor ka naam kabhi nahi), `status` (`provisioning|active|paused|releasing|released|failed`), `paused`, routing, `forwarding` (Option B), `rental_credits` + `next_rental_at` (§5.3 15 credits/month), aur `error` sirf `failed` par."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));",
+                  "const body = pm.response.json();",
+                  "if (body && (body[0] && body[0].id) !== undefined && (body[0] && body[0].id) !== null) pm.environment.set('number_id', (body[0] && body[0].id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /numbers/forwarding-guide?carrier= — Option B steps",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers/forwarding-guide?carrier=bell&destination={{forward_destination}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers",
+                "forwarding-guide"
+              ],
+              "query": [
+                {
+                  "key": "carrier",
+                  "value": "bell"
+                },
+                {
+                  "key": "destination",
+                  "value": "{{forward_destination}}"
+                }
+              ]
+            },
+            "description": "Option B ke liye dial codes. `carrier`: bell | rogers | telus | videotron | att | verizon | tmobile | other. `destination` (optional) naya number — steps me `{destination}` uski jagah bhar jaata hai; na do toh \"your new number\" likha aata hai.\n\nZyadatar North American carriers: on `*72` + number, off `*73`; T-Mobile `**21*<number>#` / `##21#`. Ye content hai, code nahi — carrier code badle toh ek line ka edit hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /numbers/buy — wizard ke bahar naya number (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers/buy",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers",
+                "buy"
+              ]
+            },
+            "description": "D4 \"Add number\" (Option A/B). Pehle refuse karta hai agar: koi paid purchase nahi (**402 NO_CREDITS**, §5.4 \"pehli purchase se pehle koi number nahi\"), balance ≤ 0, ya plan ke `max_numbers` se upar (**400 PLAN_LIMIT**).\n\nPhir `phone_numbers` row `provisioning` me banti hai aur `provision-number` job queue hota hai → **202 {number, job_id}** (`job_id` = row id). Worker: pehle platform par `num-<row id ke 20 hex>` nickname dhoondta hai (taaki timeout ke baad dobara na kharide), na mile toh kharidta hai, `e164` turant save, phir bind (agent → `latest_published` + hamara inbound webhook) → `active` → runtime cache refresh.\n\n`forward_from` + `carrier` do toh yahi Option B ban jaata hai. Owner/admin + verified email.\n\n**Test script `number_id` save karta hai.**",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_id\": \"{{agent_id}}\",\n  \"country\": \"CA\",\n  \"area_code\": \"450\",\n  \"toll_free\": false,\n  \"nickname\": \"Main line\",\n  \"hours_mode\": \"always\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.number && body.number.id !== undefined && body.number && body.number.id !== null) pm.environment.set('number_id', body.number && body.number.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /numbers/import — SIP import (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers/import",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers",
+                "import"
+              ]
+            },
+            "description": "Option C wizard ke bahar. `sip_import` gate + KMS/local key zaroori. Password yahin seal hota hai (plan row banti hai `executed` status me, kyunki ye W6 ka choice nahi, is import ka record hai), phir `phone_numbers` row `provisioning`, phir job.\n\nWorker: pehle `get-phone-number(e164)` — agar pehle se import ho chuka hai toh usse adopt kar leta hai (double import nahi), warna `import-phone-number` with decrypted password. SIP numbers ka `rental_credits = 0` (§5.3 — BYO SIP free).\n\nWahi number kisi aur active number ke roop me maujood ho toh **409 NUMBER_IN_USE**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_id\": \"{{agent_id}}\",\n  \"nickname\": \"PBX trunk\",\n  \"sip\": {\n    \"number\": \"+14505559876\",\n    \"host\": \"sip:pbx.example.com:5060\",\n    \"username\": \"trunk\",\n    \"password\": \"replace-me\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202, 400, 503]', () => pm.expect(pm.response.code).to.be.oneOf([202, 400, 503]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.number && body.number.id !== undefined && body.number && body.number.id !== null) pm.environment.set('number_id', body.number && body.number.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /numbers/:id — ek number",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers/{{number_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "Ek number ka detail. Provisioning ke dauraan poll karne ke liye — `status` `provisioning` → `active` (ya `failed` + `error`)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /numbers/:id — routing, pause, re-point",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers/{{number_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "Sirf wahi fields mutable hain jo mutable honi chahiye: `nickname`, `hours_mode`/`hours_override`, `transfer_targets`, `allowed_countries`, `blocklist`, `paused`, `forwarding_confirmed`, aur `agent_id`.\n\n`e164`, number ka type, inbound token — request shape me hain hi nahi, isliye unhe bheja toh **422** (\"nothing to update\").\n\n`agent_id` badla toh: naya agent published hona chahiye (warna **400**), local row update hoti hai, aur platform par binding bhi re-point hoti hai (ek call, transaction ke bahar). Har edit ke baad `num:{e164}` runtime cache refresh hota hai — warna hot path purane hours/blocklist se decide karta rehta.\n\n`paused: true` = number turant answer karna band (cache me `number_paused`), platform ko chhua bhi nahi jaata — isliye platform down ho tab bhi customer apna number chup kara sakta hai.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickname\": \"Reception\",\n  \"hours_mode\": \"custom\",\n  \"hours_override\": {\n    \"days\": {\n      \"mon\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"17:00\"\n        }\n      ],\n      \"tue\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"17:00\"\n        }\n      ]\n    },\n    \"closed_dates\": [\n      \"2026-12-25\"\n    ]\n  },\n  \"transfer_targets\": [\n    {\n      \"label\": \"Owner\",\n      \"number\": \"+15145550001\"\n    }\n  ],\n  \"blocklist\": [\n    \"+15145550666\"\n  ],\n  \"paused\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /numbers/:id — Option B forwarding confirm",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers/{{number_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "Customer ne carrier par `*72` dial kar diya → ye bhejo. `forwarding.status` `waiting_for_customer` → `ready`.\n\nJis number par `forwarding_from` hai hi nahi, uspar bhejoge toh **400**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"forwarding_confirmed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 400]', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE /numbers/:id — release",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/numbers/{{number_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "Order maayne rakhta hai: row `releasing` → cache refresh (turant answer karna band) → **platform par number release** → row `released` + `released_at`, agent detach. Row delete nahi hoti kyunki `calls` usko reference karte hain aur calls billing history hai (§17).\n\nLive call chal raha ho toh **409 NUMBER_IN_USE**. Dobara DELETE = `{released: false}` (idempotent). Platform pehle hi 404 de de toh usko \"already gone\" maan kar aage badhta hai.\n\nUlta order (row pehle) jaan-boojh kar nahi kiya — warna paid number platform par chhoot jaata aur bill aata rehta."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 409]', () => pm.expect(pm.response.code).to.be.oneOf([200, 409]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 · Activation — go live (W7, §13.8)",
+      "description": "Payment ke baad ka poora flow, ek durable step machine ki tarah:\n\n```\npublish → provision → bind → mark_live → notify\n```\n\nYe ek `jobs` row hai (`type = activate-agent`) jiska `steps_json` har step ka outcome store karta hai **agla step shuru hone se pehle**. Worker mar jaaye toh wo pehle aise step se resume karta hai jo `completed`/`skipped` nahi hai — isliye number kharid ke crash hua toh dobara **nahi** kharidta, seedhe bind karta hai.\n\n**Agent `live` sirf `mark_live` par hota hai, aur wo `bind` ke baad hi aata hai** — kabhi aisa nahi ho sakta ki agent live dikhe aur number usable na ho.\n\nRetry: 3 attempts. Retryable = platform 5xx/429/408/409, network, Postgres. Permanent (pehle hi attempt par fail) = lint error, plan nahi, paid purchase nahi, plan limit, platform 4xx. Teenon attempt fail → workflow `FAILED` + number row `failed` + ek `failed` SSE frame + ek ops alert (secrets redacted).\n\nDo entry points: ye route, ya W7 ka paid `checkout.session.completed` jisme `agent_id` tha (billing announce karta hai, activation sunta hai).",
+      "item": [
+        {
+          "name": "POST /agents/:id/activate — go live (202)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/activate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "activate"
+              ]
+            },
+            "description": "Owner/admin + verified email. Workspace paused ho toh **403**; agent ke paas koi version hi na ho toh **400 BRIEF_INCOMPLETE**.\n\n`version_no` optional — na do toh draft publish hota hai.\n\nResponse **202 {job_id}** — yahi `activation_id` bhi hai. Dubara click = wahi job_id (one-active-job-per-agent partial index). Agar purana job worker ke marne se atak gaya tha toh wo write-off hokar naya job milta hai.\n\nSteps detail:\n1. **publish** — wahi `AgentPublishService` jo `POST /publish` use karta hai: lease, lint, Retell version publish, live columns copy. Pehle se published ho toh `already_published` — kuch nahi badalta.\n2. **provision** — pending plan dhoondo (ya already active number ho toh ye aur bind dono `skipped`), billing check (paid purchase + balance + max_numbers), row banao, number kharido/import karo.\n3. **bind** — platform par number → agent `latest_published` + hamara inbound webhook. Pehle padho, match kare toh update hi nahi.\n4. **mark_live** — ek transaction me: `agents.status = live` (paused ho toh paused hi rehta hai), plan `executed`, `onboarding_completed_at`, audit row. Phir `num:{e164}` refresh.\n5. **notify** — `agent:{id}` par `activated` frame.\n\n**Test script `activation_id` save karta hai.**\n\nBody khaali `{}` bhej sakte ho (draft publish hoga). Specific version chahiye toh `{\"version_no\": 3}`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [202]', () => pm.expect(pm.response.code).to.be.oneOf([202]));",
+                  "const body = pm.response.json();",
+                  "if (body && body.job_id !== undefined && body.job_id !== null) pm.environment.set('activation_id', body.job_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /agents/:id/activation — latest activation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/agents/{{agent_id}}/activation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "activation"
+              ]
+            },
+            "description": "Is agent ka sabse naya activation, customer-safe shape me:\n\n`{activation_id, agent_id, status, step, progress, attempt, max_attempts, steps[], number_id, e164, forwarding, error, timestamps}`\n\n`status`: `pending | publishing | provisioning | binding | marking_live | live | failed`. `progress` whole steps ka % (0/20/40/60/80/100).\n\nJo **nahi** aata: platform ke ids, `last_error`, `requested_by`, stack trace. `error` sirf fail hone par, aur wo ek line hai jo customer kuch kar sake (\"Choose a phone number option…\", \"This version cannot go live yet.\")."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 404]', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /activations/:id — job id se",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/activations/{{activation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "activations",
+                "{{activation_id}}"
+              ]
+            },
+            "description": "Wahi view, activation (job) id se. Doosre workspace ka id = **404**."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 404]', () => pm.expect(pm.response.code).to.be.oneOf([200, 404]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /jobs/:id — polling fallback",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/jobs/{{activation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "jobs",
+                "{{activation_id}}"
+              ]
+            },
+            "description": "SSE na chal rahi ho toh har 3 s. `progress` me D6 ke liye char field aur hain: `activation_status`, `activation_step`, `number_id`, `e164`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /events?topics=activation:{{activation_id}} — SSE",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/events?topics=activation:{{activation_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "topics",
+                  "value": "activation:{{activation_id}}"
+                }
+              ]
+            },
+            "description": "Live progress. Frames: `started` → `progress` (har step par ek) → `live` ya `failed`. Har frame ka `data` wahi `activationView` hai.\n\nPostman SSE ko stream nahi karta (response buffer karta hai) — isliye isko cancel karke bhejo, ya `curl -N` use karo:\n\n```sh\ncurl -N \"$BASE/events?topics=activation:$ACTIVATION_ID\" \\\n  -H \"Authorization: Bearer $TOKEN\" -H \"X-Workspace-Id: $WS\"\n```\n\n`EventSource` deliberately use nahi hota — wo `Authorization`/`X-Workspace-Id` bhej hi nahi sakta (isliye frontend par `@microsoft/fetch-event-source`)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9 · Wallet & Billing (§5.4, §13.7, D6 top-up/invoices/portal)",
+      "description": "Prepaid credits. 1 credit = 1 min Standard; Premium 1.5×.\n\nD6: auto top-up (off-session PaymentIntent), invoices mirror aur Stripe Customer Portal session bhi yahin hain.",
       "item": [
         {
           "name": "GET /wallet — balance summary",
@@ -1611,11 +2747,196 @@
               }
             }
           ]
+        },
+        {
+          "name": "PUT /wallet/auto-topup — enable (§5.4)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet/auto-topup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet",
+                "auto-topup"
+              ]
+            },
+            "description": "Auto top-up on karo. Zaroori: `auto_topup` gate (pack ke saath aata hai) **aur** ek saved card — card tabhi save hota hai jab Checkout \"keep my card\" ke saath hua ho (`setup_future_usage=off_session`). Card na ho toh **400 NO_PAYMENT_METHOD**.\n\n`threshold` credits me (min 10); na do toh pack ke `auto_topup_threshold_pct` (10%) se calculate ho jaata hai.\n\nChalega aise: har **debit** par (call bill hote hi) aur har 15 min ke schedule par balance check hota hai. Threshold se neeche gaya toh wallet lock ke andar pending purchase banti hai (guards: ek top-up already pending ho toh 30 min tak dobara nahi; card decline hua ho toh 6 ghante cooldown), phir off-session PaymentIntent banta hai `idempotencyKey = topup-<purchase id>` ke saath.\n\n**Credits sirf tab milte hain jab Stripe confirm kare** — `payment_intent.succeeded` webhook par (ya schedule Stripe se intent retrieve karke), amount/currency match karke, wallet lock ke andar. PaymentIntent bana dene se koi credit nahi milta.\n\nResponse me `payment_method_id` aata hai par PAN kabhi nahi — sirf `card_last4`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": true,\n  \"pack_id\": \"{{pack_id}}\",\n  \"threshold\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200, 400]', () => pm.expect(pm.response.code).to.be.oneOf([200, 400]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT /wallet/auto-topup — disable",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet/auto-topup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet",
+                "auto-topup"
+              ]
+            },
+            "description": "Band. Card aur pack yaad rehte hain (dobara on karna ek click ho), bas `enabled: false`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"enabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /wallet/invoices — D5 Invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet/invoices?limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet",
+                "invoices"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Stripe invoices ka mirror, cursor-paginated. Har row: `number`, `amount_cents`, `currency`, `status`, `hosted_url`, `pdf_url`, `finalized_at`, `paid_at`.\n\n`status`: `draft | open | paid | payment_failed | void | uncollectible`. `payment_failed` Stripe ka invoice status nahi hai (invoice `open` hi rehti hai) — wo event ka matlab hai, jo customer ke liye zyada sach hai.\n\nRows sirf `invoice.*` webhooks likhte hain, `stripe_invoice_id` par keyed. Out-of-order delivery se bachne ke liye status rank hai: `paid`/`void` ke baad `open` wapas nahi aata. Jis customer ka workspace map nahi hota wo row `tenant_id NULL` ke saath store hoti hai (reconciliation ke liye) aur kisi customer ko dikhti nahi.\n\nNote: off-session auto top-up **invoice nahi** banata (Checkout banata hai), isliye top-up ke baad yahan nayi row zaroori nahi."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [200]', () => pm.expect(pm.response.code).to.be.oneOf([200]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /wallet/portal-session — Stripe Customer Portal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/wallet/portal-session",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "wallet",
+                "portal-session"
+              ]
+            },
+            "description": "D5 \"Payment methods\". Owner/admin. Stripe customer **is workspace ki row se** padha jaata hai — request me customer id lene ka koi field hai hi nahi, isliye doosre workspace ka portal kholne ka rasta nahi.\n\n`return_path` optional, sirf apne origin ka path (`/app/wallet…`); poora URL bhejoge toh **422** (schema regex). Kabhi kuch khareeda hi na ho toh Stripe customer hi nahi hota → **400 NO_PAYMENT_METHOD**.\n\nResponse `{url}` — us par redirect karo; card add/remove, receipts sab wahin.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"return_path\": \"/app/wallet\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status [201, 400]', () => pm.expect(pm.response.code).to.be.oneOf([201, 400]));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "7 · Calls & Stats (D1, D4)",
+      "name": "10 · Calls & Stats (D1, D4)",
       "description": "Call history, recordings, dashboard stats.",
       "item": [
         {
@@ -1866,7 +3187,7 @@
       ]
     },
     {
-      "name": "8 · Events (SSE, §16)",
+      "name": "11 · Events (SSE, §16)",
       "description": "Postman mein stream sirf khulti hai; frames dekhne ke liye browser/curl better hai.",
       "item": [
         {
@@ -1906,8 +3227,8 @@
       ]
     },
     {
-      "name": "9 · Webhooks (public, provider-signed)",
-      "description": "Retell/Stripe/Auth0 ke liye. Bearer nahi — signature/secret hi credential hai. Postman se sirf auth webhook realistically test hota hai (shared secret); Retell/Stripe ko raw body par HMAC chahiye.",
+      "name": "12 · Webhooks (public, provider-signed)",
+      "description": "Retell/Stripe/Auth0 ke liye. Bearer nahi — signature/secret hi credential hai. Postman se sirf auth webhook realistically test hota hai (shared secret); Retell/Stripe ko raw body par HMAC chahiye.\n\n**D6:** Stripe endpoint ab `payment_intent.succeeded|payment_failed|canceled` (auto top-up) aur `invoice.created|finalized|paid|payment_failed|voided|marked_uncollectible` bhi handle karta hai. Dashboard endpoint ko bilkul `StripeEventHandler.HANDLED` waali list par subscribe karo — usme jo nahi hai wo store hokar ignore ho jaata hai.",
       "item": [
         {
           "name": "POST /webhooks/auth — Auth0 Action (user.registered / user.login)",
@@ -2026,7 +3347,7 @@
                 "{{number_token}}"
               ]
             },
-            "description": "Inbound call authorisation, Redis-only, p95 < 300 ms. Six checks (workspace paused, number paused, blocklist, balance, concurrency cap, hours). Allow = override agent + max_call_duration_ms; decline = `{call_inbound:{reject:true}}` (busy tone). Unknown number/bad signature = `200 {}` fail-open, kabhi 4xx nahi.",
+            "description": "Inbound call authorisation, Redis-only, p95 < 300 ms. Six checks (workspace paused, number paused, blocklist, balance, concurrency cap, hours). Allow = override agent + max_call_duration_ms; decline = `{call_inbound:{reject:true}}` (busy tone). Unknown number/bad signature = `200 {}` fail-open, kabhi 4xx nahi.\n\n**D6:** `number_token` ab `POST /numbers/buy` / activation se banta hai (`phone_numbers.inbound_token`, `tok_<40 hex>`), aur platform par number ka `inbound_webhook_url` bind step me isi token par point kiya jaata hai.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"event\": \"call_inbound\",\n  \"call_inbound\": {\n    \"from_number\": \"+14385550123\",\n    \"to_number\": \"+14385550199\",\n    \"agent_id\": \"agent_xxx\"\n  }\n}",
@@ -2081,11 +3402,113 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "POST /webhooks/stripe — payment_intent.succeeded (auto top-up)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/stripe",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Auto top-up ka **credit dene wala** event. Flow: verify signature (raw bytes) → `webhook_events` me store (`provider+external_id+event_type` unique) → **200 fast** → `webhooks` queue.\n\nHandler: `metadata.kind = auto_topup` na ho toh ignore (Checkout ka PaymentIntent `checkout.session.completed` ka kaam hai). Purchase dhoondo (`metadata.purchase_id`, warna `stripe_payment_intent` unique index se), `pending` ho, amount+currency match kare — tab wallet lock ke andar `paid` + `topup` ledger row. Replay = `already_paid`, kuch nahi badalta.\n\nIsko Postman se mat bhejo — signature asli chahiye. `stripe listen --forward-to localhost:4000/webhooks/stripe` chalao aur `stripe trigger payment_intent.succeeded`, ya `test/d6-billing.e2e.test.ts` dekho jo `signForTest()` se sign karta hai.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_test_replace_me\",\n  \"object\": \"event\",\n  \"type\": \"payment_intent.succeeded\",\n  \"created\": 1789450017,\n  \"livemode\": false,\n  \"data\": {\n    \"object\": {\n      \"id\": \"pi_test_replace_me\",\n      \"object\": \"payment_intent\",\n      \"status\": \"succeeded\",\n      \"amount\": 14900,\n      \"currency\": \"usd\",\n      \"customer\": \"cus_test\",\n      \"payment_method\": \"pm_test\",\n      \"metadata\": {\n        \"kind\": \"auto_topup\",\n        \"workspace_id\": \"{{workspace_id}}\",\n        \"purchase_id\": \"<pending purchase id>\",\n        \"pack_id\": \"growth\",\n        \"env\": \"dev\"\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 (stored+queued) ya 204 (duplicate) ya 401 (bad signature)', () => pm.expect(pm.response.code).to.be.oneOf([200, 204, 401]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /webhooks/stripe — invoice.paid (mirror)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/webhooks/stripe",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "`invoices` table ka mirror. Idempotency do layer me: `webhook_events` (ek event id = ek baar process) aur `stripe_invoice_id` par upsert with `last_event_created` + status rank — isliye `invoice.finalized` `invoice.paid` ke **baad** aaye toh invoice `paid` hi rehti hai, `open` par wapas nahi jaati.\n\nWorkspace resolve: `metadata.workspace_id` (agar hamara hai) → warna `tenants.stripe_customer_id`. Na mile toh row `tenant_id NULL` ke saath rakh li jaati hai (SA9 reconciliation), customer ko dikhti nahi.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_test_replace_me\",\n  \"object\": \"event\",\n  \"type\": \"invoice.paid\",\n  \"created\": 1789450017,\n  \"livemode\": false,\n  \"data\": {\n    \"object\": {\n      \"id\": \"in_test_replace_me\",\n      \"object\": \"invoice\",\n      \"customer\": \"cus_test\",\n      \"status\": \"paid\",\n      \"number\": \"INV-0001\",\n      \"amount_due\": 14900,\n      \"amount_paid\": 14900,\n      \"currency\": \"usd\",\n      \"hosted_invoice_url\": \"https://invoice.stripe.com/i/test\",\n      \"invoice_pdf\": \"https://pay.stripe.com/test.pdf\",\n      \"metadata\": {\n        \"workspace_id\": \"{{workspace_id}}\"\n      },\n      \"created\": 1789450000,\n      \"status_transitions\": {\n        \"finalized_at\": 1789450010,\n        \"paid_at\": 1789450017\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 / 204 / 401', () => pm.expect(pm.response.code).to.be.oneOf([200, 204, 401]));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
     {
-      "name": "10 · Dev only",
+      "name": "13 · Dev only",
       "description": "Sirf `APP_ENV=dev` par register hota hai.",
       "item": [
         {

@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import Retell from 'retell-sdk';
+import Retell, { toFile } from 'retell-sdk';
 import { RetellConfig } from './retell.config';
-import type { AgentSpec, AllowOptions, InboundAllow, InboundDecline, LlmSpec } from './retell.types';
+import type { AgentSpec, AllowOptions, InboundAllow, InboundDecline, KnowledgeSourcesInput, LlmSpec } from './retell.types';
 
 /**
  * The version tag every phone number is bound to (§9.9, ADR 0003 §7). Retell resolves it
@@ -315,24 +315,43 @@ export class RetellGateway {
 
   // ---------------------------------------------------------------- knowledge (W4)
 
-  createKnowledgeBase(input: {
-    name: string;
-    texts?: Array<{ title: string; text: string }>;
-    urls?: string[];
-    files?: Retell.KnowledgeBaseCreateParams['knowledge_base_files'];
-    autoRefresh?: boolean;
-  }) {
+  /**
+   * One knowledge base per agent (ADR 0003 §8). `name` is the caller's deterministic
+   * name; the environment prefix is added here, so `findKnowledgeBaseByName` must be
+   * given the same bare name.
+   */
+  async createKnowledgeBase(input: KnowledgeSourcesInput & { name: string; autoRefresh?: boolean }) {
     return this.client.knowledgeBase.create({
       knowledge_base_name: this.config.objectName(input.name),
-      knowledge_base_texts: input.texts,
-      knowledge_base_urls: input.urls,
-      knowledge_base_files: input.files,
       enable_auto_refresh: input.autoRefresh,
+      ...(await this.knowledgeSourceParams(input)),
     });
   }
 
-  addKnowledgeSources(kbId: string, input: Retell.KnowledgeBaseAddSourcesParams) {
-    return this.client.knowledgeBase.addSources(kbId, input);
+  async addKnowledgeSources(kbId: string, input: KnowledgeSourcesInput) {
+    return this.client.knowledgeBase.addSources(kbId, await this.knowledgeSourceParams(input));
+  }
+
+  listKnowledgeBases() {
+    return this.client.knowledgeBase.list();
+  }
+
+  /** The idempotency lookup: a KB created by a run that died before persisting its id. */
+  async findKnowledgeBaseByName(name: string) {
+    const wanted = this.config.objectName(name);
+    const all = await this.listKnowledgeBases();
+    return all.find((kb) => kb.knowledge_base_name === wanted) ?? null;
+  }
+
+  private async knowledgeSourceParams(input: KnowledgeSourcesInput): Promise<Retell.KnowledgeBaseAddSourcesParams> {
+    const files = input.files?.length
+      ? await Promise.all(input.files.map((f) => toFile(f.bytes, f.filename, { type: f.contentType })))
+      : undefined;
+    return {
+      knowledge_base_texts: input.texts?.length ? input.texts : undefined,
+      knowledge_base_urls: input.urls?.length ? input.urls : undefined,
+      knowledge_base_files: files,
+    };
   }
 
   deleteKnowledgeSource(kbId: string, sourceId: string) {
@@ -412,6 +431,21 @@ export class RetellGateway {
   static inboundDecline(): InboundDecline {
     return { call_inbound: { reject: true } };
   }
+}
+
+/**
+ * The HTTP status behind a failed gateway call, or undefined for a network/timeout error.
+ * The only place the SDK's error class is named; every other module classifies on the
+ * number (4xx is the request's fault and permanent, the rest is worth a retry).
+ */
+export function retellErrorStatus(error: unknown): number | undefined {
+  if (error instanceof Retell.APIError) return typeof error.status === 'number' ? error.status : undefined;
+  return undefined;
+}
+
+/** True for a Retell answer that means "no such object" — a delete that already happened. */
+export function isRetellNotFound(error: unknown): boolean {
+  return retellErrorStatus(error) === 404;
 }
 
 /** Retell rejects values outside [60 s, 2 h]; clamping keeps a tiny balance callable. */

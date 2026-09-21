@@ -399,7 +399,7 @@ there is silence, ask another question. Speak English only.`,
       console.log(`ingest ${current.status} in ${Math.round((Date.now() - started) / 1000)}s; sources:`, current.knowledge_base_sources?.map((s) => `${s.type}:${s.status ?? '?'}`));
 
       const added = await gw.addKnowledgeSources(kb.knowledge_base_id, {
-        knowledge_base_texts: [{ title: 'Parking', text: 'Free parking is available behind the building.' }],
+        texts: [{ title: 'Parking', text: 'Free parking is available behind the building.' }],
       });
       await fixture('add-knowledge-base-sources', added);
       console.log(`after add: status=${added.status} sources=${added.knowledge_base_sources?.length}`);

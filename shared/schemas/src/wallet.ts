@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { planTier } from './enums.js';
-import { paginationQuery } from './common.js';
+import { paginationQuery, uuid } from './common.js';
 
 /** `credit_ledger.reason` (§15). Every movement of credits is exactly one of these. */
 export const ledgerReason = z.enum([
@@ -92,3 +92,53 @@ export const checkoutResponse = z.object({
   purchase_id: z.string().uuid(),
 });
 export type CheckoutResponse = z.infer<typeof checkoutResponse>;
+
+// ---------------------------------------------------------------------------
+// D5 Wallet — auto top-up, invoices, payment methods (§5.4, §13.7, §16)
+// ---------------------------------------------------------------------------
+
+/**
+ * PUT /wallet/auto-topup. The saved card comes from a Checkout that opted in
+ * (`setup_future_usage`), so enabling needs a purchase to have saved one; the route says
+ * so with `NO_PAYMENT_METHOD` rather than accepting a switch that could never fire.
+ */
+export const autoTopupRequest = z.object({
+  enabled: z.boolean(),
+  pack_id: z.string().min(1).optional(),
+  /** Credits. D5 requires ≥ 10 when enabling. */
+  threshold: z.number().min(10).optional(),
+});
+export type AutoTopupRequest = z.infer<typeof autoTopupRequest>;
+
+/** Stripe's invoice lifecycle, as we store it. `uncollectible` is Stripe's `marked_uncollectible`. */
+export const invoiceStatus = z.enum(['draft', 'open', 'paid', 'payment_failed', 'void', 'uncollectible']);
+export type InvoiceStatus = z.infer<typeof invoiceStatus>;
+
+/** GET /wallet/invoices — one row per Stripe invoice the workspace's customer received. */
+export const invoiceResponse = z.object({
+  id: uuid,
+  purchase_id: uuid.nullable(),
+  number: z.string().nullable(),
+  amount_cents: z.number().int(),
+  currency: z.string(),
+  status: invoiceStatus,
+  /** Stripe-hosted page and PDF. Both are Stripe URLs, safe to hand to the browser. */
+  hosted_url: z.string().nullable(),
+  pdf_url: z.string().nullable(),
+  finalized_at: z.string().nullable(),
+  paid_at: z.string().nullable(),
+  created_at: z.string(),
+});
+export type InvoiceResponse = z.infer<typeof invoiceResponse>;
+
+export const invoicesQuery = paginationQuery;
+
+/** POST /wallet/portal-session — the Stripe Customer Portal for cards and receipts. */
+export const portalSessionRequest = z.object({
+  /** Where Stripe sends the customer back. Must be on the portal origin; the API checks. */
+  return_path: z.string().regex(/^\/[A-Za-z0-9/_\-?=&.]*$/).max(200).optional(),
+});
+export type PortalSessionRequest = z.infer<typeof portalSessionRequest>;
+
+export const portalSessionResponse = z.object({ url: z.string().url() });
+export type PortalSessionResponse = z.infer<typeof portalSessionResponse>;

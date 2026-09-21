@@ -5,8 +5,8 @@ import { bullConnection, bullPrefix } from './jobs.connection';
 import { JOBS, QUEUES, SCHEDULED_JOBS, SCHEDULES } from './jobs.constants';
 
 describe('queue and job names', () => {
-  it('names four queues and keeps every job on one of them', () => {
-    expect(Object.values(QUEUES)).toEqual(['webhooks', 'calls', 'prompting', 'scheduled']);
+  it('names five queues and keeps every job on one of them', () => {
+    expect(Object.values(QUEUES)).toEqual(['webhooks', 'calls', 'prompting', 'provisioning', 'scheduled']);
     expect(new Set(Object.values(JOBS)).size).toBe(Object.values(JOBS).length);
   });
 
@@ -23,7 +23,7 @@ describe('queue and job names', () => {
 
   it('marks which schedules actually do something today, so a skeleton is never mistaken for live', () => {
     const live = SCHEDULES.filter((s) => s.status === 'live').map((s) => s.name);
-    expect(live).toEqual(['runtime-cache-refresh', 'webhook-sweeper', 'job-sweeper', 'credit-expiry', 'voice-cache']);
+    expect(live).toEqual(['runtime-cache-refresh', 'webhook-sweeper', 'job-sweeper', 'credit-expiry', 'auto-topup', 'voice-cache']);
   });
 });
 

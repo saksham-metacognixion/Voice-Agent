@@ -4,10 +4,16 @@ import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { Test } from '@nestjs/testing';
 import { ZodValidationPipe } from 'nestjs-zod';
+import Retell from 'retell-sdk';
 import { adminDb } from '@portal/db';
 import { AllExceptionsFilter } from '../src/common/errors/all-exceptions.filter';
+import { ActivationModule } from '../src/modules/activation';
 import { AgentsModule } from '../src/modules/agents';
+import { AlertsModule, OpsAlertService, type OpsAlert } from '../src/modules/alerts';
 import { AuthModule } from '../src/modules/auth';
+import { CryptoModule } from '../src/modules/crypto';
+import { KnowledgeModule } from '../src/modules/knowledge';
+import { NumbersModule } from '../src/modules/numbers';
 import { BillingModule } from '../src/modules/billing';
 import { CallsModule } from '../src/modules/calls';
 import { PlatformConfigModule } from '../src/modules/config';
@@ -53,7 +59,13 @@ process.env.RECORDING_SIGNING_SECRET ||= 'e2e-recording-secret-long-enough-to-us
 process.env.AUTH0_CUSTOMER_ACTION_SECRET ||= 'e2e-auth0-shared-secret-long-enough';
 /** The whole point: no network, no key, deterministic answers. */
 process.env.GENERATION_PROVIDER = 'scripted';
+/** D6: SIP credentials are envelope-encrypted under a local master in tests (KMS in staging/prod). */
+process.env.SIP_CREDENTIALS_LOCAL_KEY ||= '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+delete process.env.SIP_CREDENTIALS_KMS_KEY_ID;
+delete process.env.OPS_ALERT_WEBHOOK_URL;
 process.env.BULLMQ_PREFIX = `portal:d5-${randomUUID().slice(0, 8)}`;
+/** D6: retried activation scenarios would otherwise wait 5 s + 10 s per test. */
+process.env.ACTIVATION_BACKOFF_MS ||= '150';
 
 /** What the Retell double was asked to do, in order. */
 export interface RetellCall {
@@ -79,10 +91,19 @@ export class FakeRetellGateway {
   /** Method name → how long it should hang before answering. */
   private readonly delays = new Map<string, number>();
 
+  /** e164 → the platform's number object. */
+  readonly phoneNumbers = new Map<string, FakePhoneNumber>();
+  /** knowledge_base_id → the platform's KB object. */
+  readonly knowledgeBases = new Map<string, FakeKnowledgeBase>();
+  /** How many `getKnowledgeBase` reads a KB stays `in_progress` after a create or add. */
+  kbIngestPolls = 1;
+
   readonly config = {
     configured: true,
     missing: [] as string[],
+    env: 'dev',
     objectName: (name: string) => `dev-${name}`,
+    inboundWebhookUrl: (token: string) => `${process.env.API_PUBLIC_URL ?? 'http://localhost:4000'}/webhooks/retell/inbound/${token}`,
   };
 
   /** Makes the next `times` calls to `method` throw. */
@@ -101,6 +122,9 @@ export class FakeRetellGateway {
     this.deleted.clear();
     this.failures.clear();
     this.delays.clear();
+    this.phoneNumbers.clear();
+    this.knowledgeBases.clear();
+    this.kbIngestPolls = 1;
   }
 
   countOf(method: string): number {
@@ -233,6 +257,168 @@ export class FakeRetellGateway {
     return Promise.resolve(true);
   }
 
+  // ---------------------------------------------------------------- numbers (D6, §11)
+
+  createPhoneNumber(input: { numberToken: string; agentId: string; country: 'US' | 'CA'; areaCode?: number; tollFree?: boolean; nickname: string; allowedInboundCountries?: string[] }) {
+    return this.record('createPhoneNumber', [input], () => {
+      const area = input.areaCode ?? (input.country === 'CA' ? 450 : 620);
+      const e164 = `+1${area}${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+      const number: FakePhoneNumber = {
+        phone_number: e164,
+        phone_number_type: 'retell-twilio',
+        phone_number_pretty: e164,
+        nickname: this.config.objectName(input.nickname),
+        area_code: area,
+        toll_free: input.tollFree ?? false,
+        country_code: input.country,
+        inbound_agents: [{ agent_id: input.agentId, agent_version: 'latest_published', weight: 1 }],
+        inbound_webhook_url: this.config.inboundWebhookUrl(input.numberToken),
+      };
+      this.phoneNumbers.set(e164, number);
+      return { ...number };
+    });
+  }
+
+  importPhoneNumber(input: { numberToken: string; agentId: string; e164: string; terminationUri: string; sipUsername?: string; sipPassword?: string; nickname: string }) {
+    return this.record('importPhoneNumber', [redactSip(input)], () => {
+      if (this.phoneNumbers.has(input.e164)) throw notFoundLike(400, `phone number ${input.e164} already exists`);
+      const number: FakePhoneNumber = {
+        phone_number: input.e164,
+        phone_number_type: 'custom',
+        phone_number_pretty: input.e164,
+        nickname: this.config.objectName(input.nickname),
+        inbound_agents: [{ agent_id: input.agentId, agent_version: 'latest_published', weight: 1 }],
+        inbound_webhook_url: this.config.inboundWebhookUrl(input.numberToken),
+        sip: { termination_uri: input.terminationUri, username: input.sipUsername ?? null, password_seen: Boolean(input.sipPassword) },
+      };
+      this.phoneNumbers.set(input.e164, number);
+      return { ...number };
+    });
+  }
+
+  updatePhoneNumber(e164: string, input: { agentId?: string; numberToken?: string; nickname?: string }) {
+    return this.record('updatePhoneNumber', [e164, input], () => {
+      const number = this.phoneNumbers.get(e164);
+      if (!number) throw notFoundLike(404, `phone number ${e164} not found`);
+      if (input.agentId) number.inbound_agents = [{ agent_id: input.agentId, agent_version: 'latest_published', weight: 1 }];
+      if (input.numberToken) number.inbound_webhook_url = this.config.inboundWebhookUrl(input.numberToken);
+      if (input.nickname) number.nickname = this.config.objectName(input.nickname);
+      return { ...number };
+    });
+  }
+
+  getPhoneNumber(e164: string) {
+    return this.record('getPhoneNumber', [e164], () => {
+      const number = this.phoneNumbers.get(e164);
+      if (!number) throw notFoundLike(404, `phone number ${e164} not found`);
+      return { ...number };
+    });
+  }
+
+  listPhoneNumbers() {
+    return this.record('listPhoneNumbers', [], () => ({ has_more: false, items: [...this.phoneNumbers.values()].map((n) => ({ ...n })) }));
+  }
+
+  deletePhoneNumber(e164: string) {
+    return this.record('deletePhoneNumber', [e164], () => {
+      if (!this.phoneNumbers.delete(e164)) throw notFoundLike(404, `phone number ${e164} not found`);
+      this.deleted.add(e164);
+      return undefined;
+    });
+  }
+
+  // ---------------------------------------------------------------- knowledge (D6, W4)
+
+  createKnowledgeBase(input: { name: string; autoRefresh?: boolean; texts?: Array<{ title: string; text: string }>; urls?: string[]; files?: Array<{ filename: string; contentType: string; bytes: Buffer }> }) {
+    return this.record('createKnowledgeBase', [{ ...input, files: input.files?.map((f) => ({ filename: f.filename, size: f.bytes.length })) }], () => {
+      const kb: FakeKnowledgeBase = {
+        knowledge_base_id: `knowledge_base_${randomUUID().replace(/-/g, '').slice(0, 16)}`,
+        knowledge_base_name: this.config.objectName(input.name),
+        status: 'in_progress',
+        knowledge_base_sources: [],
+        pollsLeft: this.kbIngestPolls,
+      };
+      this.knowledgeBases.set(kb.knowledge_base_id, kb);
+      this.addSourcesTo(kb, input);
+      return this.kbView(kb);
+    });
+  }
+
+  addKnowledgeSources(kbId: string, input: { texts?: Array<{ title: string; text: string }>; urls?: string[]; files?: Array<{ filename: string; contentType: string; bytes: Buffer }> }) {
+    return this.record('addKnowledgeSources', [kbId, { ...input, files: input.files?.map((f) => ({ filename: f.filename, size: f.bytes.length })) }], () => {
+      const kb = this.kbOrThrow(kbId);
+      this.addSourcesTo(kb, input);
+      kb.status = 'refreshing_in_progress';
+      kb.pollsLeft = this.kbIngestPolls;
+      return this.kbView(kb);
+    });
+  }
+
+  deleteKnowledgeSource(kbId: string, sourceId: string) {
+    return this.record('deleteKnowledgeSource', [kbId, sourceId], () => {
+      const kb = this.kbOrThrow(kbId);
+      const before = kb.knowledge_base_sources.length;
+      kb.knowledge_base_sources = kb.knowledge_base_sources.filter((s) => s.source_id !== sourceId);
+      if (kb.knowledge_base_sources.length === before) throw notFoundLike(404, `source ${sourceId} not found`);
+      return this.kbView(kb);
+    });
+  }
+
+  getKnowledgeBase(kbId: string) {
+    return this.record('getKnowledgeBase', [kbId], () => {
+      const kb = this.kbOrThrow(kbId);
+      if (kb.status === 'in_progress' || kb.status === 'refreshing_in_progress') {
+        if (kb.pollsLeft <= 0) kb.status = kb.failNextIngest ? 'error' : 'complete';
+        kb.pollsLeft -= 1;
+      }
+      return this.kbView(kb);
+    });
+  }
+
+  listKnowledgeBases() {
+    return this.record('listKnowledgeBases', [], () => [...this.knowledgeBases.values()].map((kb) => this.kbView(kb)));
+  }
+
+  async findKnowledgeBaseByName(name: string) {
+    const wanted = this.config.objectName(name);
+    const all = await this.listKnowledgeBases();
+    return all.find((kb) => kb.knowledge_base_name === wanted) ?? null;
+  }
+
+  deleteKnowledgeBase(kbId: string) {
+    return this.record('deleteKnowledgeBase', [kbId], () => {
+      this.knowledgeBases.delete(kbId);
+      return undefined;
+    });
+  }
+
+  /** Makes the next ingest end in `error` instead of `complete`. */
+  failNextIngest(kbId?: string): void {
+    for (const kb of this.knowledgeBases.values()) if (!kbId || kb.knowledge_base_id === kbId) kb.failNextIngest = true;
+    this.pendingIngestFailure = true;
+  }
+  private pendingIngestFailure = false;
+
+  private addSourcesTo(kb: FakeKnowledgeBase, input: { texts?: Array<{ title: string; text: string }>; urls?: string[]; files?: Array<{ filename: string }> }): void {
+    if (this.pendingIngestFailure) {
+      kb.failNextIngest = true;
+      this.pendingIngestFailure = false;
+    }
+    for (const text of input.texts ?? []) kb.knowledge_base_sources.push({ type: 'text', source_id: `source_${randomUUID().slice(0, 12)}`, title: text.title, content_url: 'https://example.test/text' });
+    for (const url of input.urls ?? []) kb.knowledge_base_sources.push({ type: 'url', source_id: `source_${randomUUID().slice(0, 12)}`, url });
+    for (const file of input.files ?? []) kb.knowledge_base_sources.push({ type: 'document', source_id: `source_${randomUUID().slice(0, 12)}`, filename: file.filename, file_url: 'https://example.test/file', file_size: 1 });
+  }
+
+  private kbOrThrow(kbId: string): FakeKnowledgeBase {
+    const kb = this.knowledgeBases.get(kbId);
+    if (!kb) throw notFoundLike(404, `knowledge base ${kbId} not found`);
+    return kb;
+  }
+
+  private kbView(kb: FakeKnowledgeBase) {
+    return { knowledge_base_id: kb.knowledge_base_id, knowledge_base_name: kb.knowledge_base_name, status: kb.status, knowledge_base_sources: kb.knowledge_base_sources.map((s) => ({ ...s })) };
+  }
+
   private versionsOf(agentId: string) {
     const versions = this.agents.get(agentId);
     if (!versions) throw new Error(`agent ${agentId} does not exist on Retell`);
@@ -247,10 +433,55 @@ export class FakeRetellGateway {
   }
 }
 
+interface FakePhoneNumber {
+  phone_number: string;
+  phone_number_type: 'retell-twilio' | 'retell-telnyx' | 'custom';
+  phone_number_pretty: string;
+  nickname: string;
+  area_code?: number;
+  toll_free?: boolean;
+  country_code?: string;
+  inbound_agents: Array<{ agent_id: string; agent_version: string | number; weight: number }>;
+  inbound_webhook_url: string;
+  sip?: { termination_uri: string; username: string | null; password_seen: boolean };
+}
+
+type FakeKbSource =
+  | { type: 'text'; source_id: string; title: string; content_url: string }
+  | { type: 'url'; source_id: string; url: string }
+  | { type: 'document'; source_id: string; filename: string; file_url: string; file_size: number };
+
+interface FakeKnowledgeBase {
+  knowledge_base_id: string;
+  knowledge_base_name: string;
+  status: 'in_progress' | 'complete' | 'error' | 'refreshing_in_progress';
+  knowledge_base_sources: FakeKbSource[];
+  pollsLeft: number;
+  failNextIngest?: boolean;
+}
+
+/** The SDK's own error class, so `retellErrorStatus()` classifies it exactly as it would a real answer. */
+function notFoundLike(status: number, message: string): Error {
+  return Retell.APIError.generate(status, { message }, message, new Headers());
+}
+
+function redactSip<T extends { sipPassword?: string }>(input: T): Omit<T, 'sipPassword'> & { sipPassword?: string } {
+  const { sipPassword, ...rest } = input;
+  return { ...rest, ...(sipPassword ? { sipPassword: '[redacted]' } : {}) };
+}
+
+/** Captures ops alerts instead of posting them anywhere. */
+export class CapturingAlerts {
+  readonly alerts: OpsAlert[] = [];
+  readonly service = new OpsAlertService({ name: 'capture', deliver: async (alert) => void this.alerts.push(alert) });
+}
+
 @Module({
   imports: [
     AuthModule,
     RedisModule,
+    AlertsModule,
+    CryptoModule,
     PlatformConfigModule,
     JobsModule,
     EventsModule,
@@ -262,6 +493,9 @@ export class FakeRetellGateway {
     WorkspacesModule,
     AgentsModule,
     PromptingModule,
+    KnowledgeModule,
+    NumbersModule,
+    ActivationModule,
     VoicesModule,
     WebhooksModule,
     ScheduledModule,
@@ -278,6 +512,8 @@ export interface D5Harness {
   customerTenant: FakeAuth0Tenant;
   retell: FakeRetellGateway;
   provider: ScriptedPromptProvider;
+  /** D6: every ops alert the app raised, in order. */
+  alerts: CapturingAlerts;
   stop: () => Promise<void>;
 }
 
@@ -293,12 +529,15 @@ export async function startD5Harness(options: { listen?: boolean; workers?: bool
 
   const retell = new FakeRetellGateway();
   const provider = new ScriptedPromptProvider();
+  const alerts = new CapturingAlerts();
 
   const moduleRef = await Test.createTestingModule({ imports: [D5TestModule] })
     .overrideProvider(RetellGateway)
     .useValue(retell)
     .overrideProvider(PROMPT_PROVIDER)
     .useValue(provider)
+    .overrideProvider(OpsAlertService)
+    .useValue(alerts.service)
     .compile();
 
   const app = moduleRef.createNestApplication<NestFastifyApplication>(new FastifyAdapter());
@@ -313,6 +552,7 @@ export async function startD5Harness(options: { listen?: boolean; workers?: bool
     customerTenant,
     retell,
     provider,
+    alerts,
     stop: async () => {
       await app.close();
       await customerTenant.stop();

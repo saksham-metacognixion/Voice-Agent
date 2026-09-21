@@ -65,3 +65,12 @@ billing e2e suite asserts (`test/billing.e2e.test.ts`) is built from the same sh
 `config-v1.json` — a `pricing_configs.config_json` document for the unit and e2e tests (the §5.2
 catalogue plus a CAD-only pack and a hidden partner pack to exercise region and visibility filters).
 It is test data; the seed in `backend/db/prisma/seed-data/pricing-v1.ts` is what an empty database gets.
+
+## `retell/api/d6-*.json` and `.d6-verify.json` — D6, 21 Sep 2026
+
+`pnpm --filter @portal/api verify:d6` (`scripts/d6-staging-verify.ts`) runs the whole D6 flow
+against the real Retell dev workspace and Stripe test mode through the ngrok tunnel: knowledge
+base, number purchase, activation on SSE, a real inbound call from the D2 spike number, an
+off-session auto top-up on a saved test card. It writes every provider id and the activation
+progression to `backend/api/.d6-verify.json` (gitignored, never a secret) and releases the number
+unless `--keep`. The webhooks it receives are captured here like any other run.

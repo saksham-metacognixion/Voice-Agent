@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { adminDb } from '@portal/db';
 import { AgentEvents } from '../agents';
+import { AutoTopupService } from '../billing';
 import { EventsService } from '../events';
 import { JobRecordsService, LOST_JOB_REASON, type LostJob } from '../jobs';
 import { RuntimeCacheService } from '../runtime-cache';
@@ -28,7 +29,13 @@ export class ScheduledJobsService {
     private readonly voices: VoicesService,
     private readonly jobs: JobRecordsService,
     private readonly events: EventsService,
+    private readonly topups: AutoTopupService,
   ) {}
+
+  /** §13.11 `auto-topup` (D6): reconcile pending top-ups with Stripe, then evaluate every enabled workspace. */
+  autoTopup(): Promise<{ reconciled: number; evaluated: number; charged: number }> {
+    return this.topups.sweep();
+  }
 
   /** Periodic full refresh — the backstop for any mutating path that forgot to refresh (architecture §8). */
   runtimeCacheRefresh(): Promise<{ workspaces: number; numbers: number }> {

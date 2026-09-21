@@ -38,7 +38,7 @@ export class JobHandlerRegistry {
  * rate limit — more workers would turn a 429 into eight 429s and spend the ≤ 10 s p95 on
  * backoff rather than on generation.
  */
-const CONCURRENCY: Record<QueueName, number> = { webhooks: 8, calls: 8, prompting: 4, scheduled: 1 };
+const CONCURRENCY: Record<QueueName, number> = { webhooks: 8, calls: 8, prompting: 4, provisioning: 4, scheduled: 1 };
 
 /**
  * One BullMQ Worker per queue, dispatching by job name through the registry. A job whose
