@@ -46,22 +46,22 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 
 ## Tech stack
 
-| Layer          | Choice                                                                                                                                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                                          |
-| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, fr-CA), PostHog, `retell-client-js-sdk`                                               |
-| SSE client     | `@microsoft/fetch-event-source` — `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                                                                      |
-| API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                                                                    |
-| Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                                                                          |
-| Database       | Postgres on Neon (7-day PITR, §17) + Prisma. RLS on `workspace_id`; two DB roles; append-only ledger                                                                                                                                 |
-| Cache / queue  | Redis 7 as a Docker service on the backend EC2 instance (TCP, compose-internal). BullMQ, runtime cache, config cache, SSE pub/sub. **Not Upstash** — HTTP Redis cannot run BullMQ                                                    |
-| Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                                                                           |
-| Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                                                                |
-| Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                                                                      |
-| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**. ADR 0009                                                                                                                                    |
-| Hosting        | **S3 (private) + CloudFront (OAC) + ACM** ×2 (portal, admin; Next.js static export, ADR 0008) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + Neon Postgres. Webhooks and SSE hit `api.<domain>` directly. ADR 0004 |
-| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack alerts                                                                                                                                                                                  |
-| Storage        | Cloudflare R2 for exports. Recordings stay on Retell URLs, proxied with signed 1-hour URLs                                                                                                                                           |
+| Layer          | Choice                                                                                                                                                                                                                                                                          |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                                                                                     |
+| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, fr-CA), PostHog, `retell-client-js-sdk`                                                                                          |
+| SSE client     | `@microsoft/fetch-event-source` — `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                                                                                                                 |
+| API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                                                                                                               |
+| Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                                                                                                                     |
+| Database       | Postgres on **Amazon RDS**, private in the VPC (7-day PITR, §17, ADR 0016) + Prisma. RLS on `workspace_id`; two DB roles; append-only ledger                                                                                                                                    |
+| Cache / queue  | Redis 7 as a Docker service on the backend EC2 instance (TCP, compose-internal). BullMQ, runtime cache, config cache, SSE pub/sub. **Not Upstash** — HTTP Redis cannot run BullMQ                                                                                               |
+| Auth           | **Auth0, two separate tenants**: customers, and staff (Google Workspace domain + mandatory TOTP). ADR 0002                                                                                                                                                                      |
+| Payments       | Stripe Checkout (hosted) + Customer Portal + webhooks                                                                                                                                                                                                                           |
+| Voice          | Retell Node SDK behind a single `RetellGateway`                                                                                                                                                                                                                                 |
+| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output. Brief → prompt only, **never in the call path**. ADR 0009                                                                                                                                                                  |
+| Hosting        | **S3 (private) + CloudFront (OAC) + ACM** ×2 (portal, admin; Next.js static export, ADR 0008) + **AWS EC2** running api, worker, redis and Caddy via Docker Compose + private RDS Postgres in the same stack (ADR 0016). Webhooks and SSE hit `api.<domain>` directly. ADR 0004 |
+| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack alerts                                                                                                                                                                                                                             |
+| Storage        | Cloudflare R2 for exports. Recordings stay on Retell URLs, proxied with signed 1-hour URLs                                                                                                                                                                                      |
 
 Decisions live in `docs/decisions/`: 0001 tech stack, 0002 Auth0, 0003 Retell findings (§21 +
 Redis-down), 0004 EC2, ~~0005 Amplify~~,
@@ -72,7 +72,13 @@ BullMQ hand-off for both providers, the recording proxy (D4), 0012 prompting pip
 agent lifecycle — guardrails appended after zod, the version-immutability trigger, the
 publish lease, the `prompting` queue (D5), 0013 knowledge, numbers, activation and billing —
 the `jobs`-row step machine, look-before-you-buy idempotency, the `provisioning` queue, SIP
-envelope encryption, auto top-up credited only from Stripe's confirmation (D6). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+envelope encryption, auto top-up credited only from Stripe's confirmation (D6), 0014 recurring
+operations — schedule locks, rental as a ledger row per period, keyed alert state, the
+notifications outbox, the hourly per-timezone digest, reconciliation runs, the manifest-driven
+OpenAPI contract and the EC2 compose stack with the worker CPU cap (D7), 0015 the domain
+(oraly.ai) and the AWS backend stack as one CloudFormation template — secrets reach SSM only
+through `infra/scripts/ssm-put-env.sh` from a file outside the repo, no SSH, Session Manager
+and Run Command only. Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -90,8 +96,9 @@ frontend/                         → S3 + CloudFront (static export, ADR 0008)
 backend/                          → AWS EC2 (Docker Compose)
   api/            @portal/api         NestJS + Fastify. Two entrypoints: src/main.ts (HTTP, api.<domain>)
                                       and src/worker.ts (BullMQ processors + schedulers). One image, two compose services.
-                                      src/common/* (error envelope, cursor pagination) and src/modules/auth
-                                      are global and every feature module inherits them.
+                                      src/common/* (error envelope, cursor pagination, withTimeout — the one
+                                      bounded-await used by RedisCache, the readiness probes and the email
+                                      sender) and src/modules/auth are global and every feature module inherits them.
   db/             @portal/db          Prisma schema, the two role-scoped clients, withWorkspace(),
                                       migrations incl. hand-written RLS/grants/triggers, seed
 shared/
@@ -105,7 +112,9 @@ templates/                        *.json agent templates (receptionist, appointm
                                   API cannot resolve different directories or accept different shapes. A file
                                   that fails the zod schema fails the seed
 infra/                            Dockerfile (turbo prune), docker-compose.yml (local), docker-compose.prod.yml (EC2),
-                                  auth0/, scripts/doctor.mjs (`pnpm doctor` — what is unset, what is reachable)
+                                  aws/staging-stack.yaml (the per-environment AWS stack, ADR 0015), auth0/,
+                                  scripts/doctor.mjs (`pnpm doctor` — what is unset, what is reachable),
+                                  scripts/{deploy,instance-bootstrap,ssm-put-env,db-env-roles}.sh
 docs/                             specs, decisions, runbooks, spec-extract, plan, tools
 ```
 
@@ -116,7 +125,9 @@ Backend modules mirror §13.1: `auth, workspaces, agents, prompting, voices, kno
 wallet, billing, webhooks, notifications, events, jobs, admin`, plus `config` (pricing/flags/caps),
 `redis`, `retell`, `runtime-cache` (the Redis projection the inbound path reads), `scheduled`,
 and since D6 `activation` (§13.8), `crypto` (envelope encryption, global) and `alerts` (ops
-alerts, global). The arrows run one way: `prompting` → `agents` → `retell`;
+alerts, global); since D7 `notifications` (§13.1: the outbox, the email sender, the customer
+alert state in `alerts`, low-balance alerts, the daily digest, `GET /alerts/active`) and
+`openapi` (the route manifest and the generator — not a Nest module). The arrows run one way: `prompting` → `agents` → `retell`;
 `activation` → `agents` + `numbers` + `billing`; nothing depends on `activation`. Billing does
 not import activation — `BillingService.onPurchaseCredited` announces and the activation
 module listens. The agent stack (§9.3–§9.5 configuration) lives in `agents` because publish
@@ -125,7 +136,14 @@ needs it too, which is what saves both modules from a `forwardRef`.
 Jobs: `modules/jobs` owns the BullMQ plumbing — five queues (`webhooks`, `calls`, `prompting`,
 `provisioning`, `scheduled`), a handler registry every feature module registers into at module init, the worker
 runtime, the §13.11 schedulers (plus `job-sweeper`, which writes off `jobs` rows whose queue
-job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). `prompting` is separate because a job on it is an LLM round trip, and a slow model must never
+job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). Twelve
+of the thirteen schedules are live since D7 (`kb-sync` is the skeleton); each is upserted by
+id on worker boot, strangers are removed, and **every tick runs under
+`lock:schedule:{name}`** — a tick that outlives its interval is skipped on the second worker,
+not run twice (ADR 0014 §1). The lock waits 2 s for Redis, and the third consecutive skip
+of one schedule (held lock or Redis silent) raises a `schedule_skipped` ops alert: BullMQ
+records a skip as a successful job, so nothing else would notice every §13.11 job quietly
+doing nothing. Bodies live with the module that owns the data; `scheduled` is dispatch. `prompting` is separate because a job on it is an LLM round trip, and a slow model must never
 delay a `calls` write-behind or a webhook that moves credits (ADR 0012 §6). `provisioning`
 carries `knowledge-sync`, `provision-number` and `activate-agent` — several voice-platform
 round trips each — for the same reason (ADR 0013 §4). The API registers every handler and starts no Worker; `src/worker.ts` starts them.
@@ -152,7 +170,7 @@ job settles.
 
 - Verify signature on the **raw body** (parser scoped to `/webhooks/*` only) → upsert `webhook_events`
   with unique `(provider, external_id, event_type)` → return 2xx fast → process in the queue.
-- Duplicate of a *processed* event returns 204. Never return 5xx to a provider after the event is
+- Duplicate of a _processed_ event returns 204. Never return 5xx to a provider after the event is
   stored; retries are BullMQ's, eight attempts with exponential backoff (ADR 0011 §3). Both providers
   follow this rule since D4 — the D3 Stripe exception is gone. `WebhookEventsService.store()` still
   returns `retry` (not `duplicate`) for a stored but unprocessed event, and the `webhook-sweeper` job
@@ -257,8 +275,8 @@ job settles.
 **Prompts and versions (§9)**
 
 - Every generation or edit creates a new immutable `agent_versions` row. Nothing is edited in place,
-  with one carve-out the spec asks for: the W2 autosave writes the brief into *the newest,
-  unpublished* version. Published, or overtaken by a newer version, and it is frozen — enforced by
+  with one carve-out the spec asks for: the W2 autosave writes the brief into _the newest,
+  unpublished_ version. Published, or overtaken by a newer version, and it is frozen — enforced by
   the `agent_versions_immutable` trigger, not by the service, so a mistake fails loudly instead of
   rewriting history. Only `published_at`, `retell_agent_version`, `lint_json` and `stack_version`
   stay writable; rows are never deleted or renumbered (ADR 0012 §2).
@@ -267,7 +285,7 @@ job settles.
   `applyGuardrails` strips whatever block the submitted text contains and appends the canonical
   one, and is idempotent, so publish re-applies it for free. There is no request shape through
   which a customer can edit, replace or delete them. Feedback that conflicts with a guardrail
-  returns `changes: []` plus an explanation, and the *stored* prompt is the one they already had.
+  returns `changes: []` plus an explanation, and the _stored_ prompt is the one they already had.
 - Nothing the model returns is trusted: `generatedPrompt` / `generatedPatch` in `@portal/schemas`
   are the gate, and there is no path from provider output to `agent_versions` that skips it.
   The provider sits behind `PromptProvider` (ADR 0009); `GENERATION_PROVIDER=scripted` answers
@@ -280,7 +298,7 @@ job settles.
   `provider_latency_ms`, `postprocess_ms`, `db_ms`, `sse_ms`, `retell_sync_ms`, `total_ms`,
   `usage` and `output_chars` in `steps_json`; `bench:generation` (`--split`, `--thinking`,
   `--out`) is how a change here is judged. Ask the model only for what the worker keeps
-  (analysis fields are *additions* — the template's are merged in code), publish the
+  (analysis fields are _additions_ — the template's are merged in code), publish the
   `generated` frame before the Retell draft sync, and `generation_progress` at the first
   token. p95 is 15.5 s against the 10 s exit check; the remaining options are the owner's.
 - Publishing takes the `agents.publishing_since` lease, re-reads the state under it, and is
@@ -297,7 +315,7 @@ job settles.
   writes settings into the draft version (forking if it is frozen) and never onto the live
   row; the one live field it touches is `name`, and that refreshes the cache too. A draft
   Premium→Standard flip therefore changes nothing a caller or the wallet sees until it is
-  published. Generation and the Retell draft sync use the *version's* settings.
+  published. Generation and the Retell draft sync use the _version's_ settings.
 - `GET /jobs/:id` returns an explicit whitelist (`jobProgress`), never `steps_json` or
   `jobs.error`. Those name the provider, the model and the Retell sync and stay server-side;
   the customer-facing failure text is `steps_json.customer_reason`, written by the worker.
@@ -348,7 +366,7 @@ job settles.
   names at 40 chars; plus a Redis lock per
   agent around the create), a source by the row id embedded in its title/filename or by URL.
   The platform's answer is persisted before the next call. The row for a resource is created
-  *before* the provider call (`phone_numbers.plan_id` is unique — one number per plan).
+  _before_ the provider call (`phone_numbers.plan_id` is unique — one number per plan).
 - `phone_numbers.e164` is **nullable** until the platform answers; anything keyed on it
   (`num:{e164}`) skips a row without one. `NumberProvisioningService.{provision,bind,release}`
   are the only code that changes a platform number, and `bind` is read-compare-update.
@@ -364,7 +382,7 @@ job settles.
   immediately before `import-phone-number`. Nothing returns, logs or audits the plaintext;
   responses carry `has_password`.
 - Knowledge: one platform KB per agent (`agents.retell_kb_id`), `knowledge_sources.status ∈
-  {pending, syncing, ready, failed, deleting}`, file/text bytes held in `payload` only until
+{pending, syncing, ready, failed, deleting}`, file/text bytes held in `payload` only until
   ingested. Gated by `knowledge_base` and `caps.kb_allowance` (one KB per agent counts), ≤ 20
   sources per agent, files ≤ 20 MB, private hosts refused. A source that synced is deleted on
   the platform **before** its row (`deleting` + the `-del` job id). A KB added after publish
@@ -380,6 +398,82 @@ job settles.
   workspace row only.
 - Ops alerts go through `OpsAlertService` (log line always, `OPS_ALERT_WEBHOOK_URL` when set);
   every field is redacted for secret-looking names and values.
+- **`PORTAL_URL` is read in one place**, `portalUrl()` in `src/common/env` (normalised, no
+  trailing slash). Every customer link and Stripe return URL comes from it; the localhost
+  fallback exists for dev, ci and tests only, and `assertPortalUrl()` refuses to boot the
+  API or the worker in staging/prod without a public origin. No `process.env.PORTAL_URL ??`
+  anywhere else.
+
+**Recurring operations and notifications (§5.3, §5.4, §13.11, §14.2, §14.3 — ADR 0014)**
+
+- **Number rental is a ledger row per (number, period)**: `reason = rental`,
+  `ref_type = number_rental`, `ref_id = <number id>:<next_rental_at ISO>`, under the partial
+  unique index `credit_ledger_rental_debit_once_idx` — the same shape as the call debit. The
+  debit and the advance of `next_rental_at` happen in one wallet transaction under the
+  workspace lock, with the row re-read under it. A `DuplicateRentalDebit` (two runs racing
+  past the pre-check) is handled **outside** that transaction — the unique violation has
+  already aborted it, so nothing after it can run — and reported as already charged. The amount is
+  `pricing.recurring.number_rental_credits` from the published config, never the column
+  default; `custom_sip` numbers are never charged (the type is the rule). A due rental the
+  wallet cannot cover past the grace sets `rental_overdue_since` and leaves the period owed
+  (`decideRental()`); warnings open at `rental_warning_days`; `number-release` releases after
+  `release_after_days_at_zero_balance`, platform first, and a platform failure leaves the row
+  `releasing`, never `released`.
+- **Alert state is a keyed `alerts` row**: `alerts_open_key_idx` on `(tenant_id, key) WHERE
+resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule that finds the
+  condition still true opens nothing; `resolve()` closes it when the condition clears and the
+  next crossing opens a fresh row. Keys: `low_balance:<pct>`, `concurrency`,
+  `rental_overdue:<number id>:<day>`, `number_released:<number id>`, `auto_topup_failed`
+  (opened by the notifications module listening to `AutoTopupService.onAbandoned`, resolved
+  on `onCredited` — billing announces, it never writes `alerts`). Dismissal hides, never
+  resolves. Only `WorkspaceAlertsService` writes `alerts`.
+- **Every customer message is an outbox row** (`notifications`, `dedupe_key` unique): the
+  INSERT is the claim and carries the body (`payload_json.text`/`html`) from the start, the
+  inserter sends, and a `failed`/`pending` row — including one a crash left between the
+  INSERT and the send — is re-sent by `retryFailed()` from what it stored. Nothing else calls the email sender. Bodies carry no
+  token, key or secret; the log sender logs recipient (masked) and subject only.
+- Low-balance thresholds are `low_balance_thresholds_pct` of the last paid pack (the trial
+  size before a purchase), crossed at or below (`decideLowBalance()`), evaluated on every
+  ledger write and by the 15-minute sweep. **One evaluation sends at most one email, for
+  the lowest threshold it crossed**: a debit through 20 %, 5 % and 0 opens three alerts
+  and sends the "run out" email once. The sweep evaluates only workspaces with an open
+  low-balance alert or a ledger row in the last 45 minutes (`credit_ledger_created_at_idx`);
+  it never aggregates the append-only ledger whole. Emails go to owners and admins whose
+  effective `low_balance_email` is true (own `notification_settings` row, else the
+  workspace default).
+- **The daily digest is hourly and per timezone.** Each tick asks each workspace whether it is
+  past `DIGEST_LOCAL_HOUR` in `tenants.timezone` and whether its _previous local day_ went out
+  (`local-day.ts`: two local midnights, so DST days are 23 or 25 h). Never one UTC midnight
+  run. Recipients: members whose effective `new_message` is `daily`.
+- Concurrency: `decideConcurrency()` reaches the threshold at `ceil(cap × CONCURRENCY_ALERT_PCT
+/ 100)` live entries of `active:{ws}` (expired ones ignored), from the caps the inbound
+  path uses; Redis unreachable decides nothing. `RedisCache.scanKeys()` answers `null` on
+  an outage and `complete: false` at its cap, and the monitor resolves nothing from the
+  _absence_ of a hash in either case — an empty scan read as "no live calls" would close
+  every open alert and re-page ops on the next tick.
+- Reconciliation: one `reconciliation_runs` row per UTC day window, upserted on rerun; the ops
+  alert is gated by `alerted_at` with a conditional update (once per window, whoever runs it);
+  a provider error is `provider_error`, a truncated page list is `partial` — neither is drift.
+  Threshold `RECONCILE_DRIFT_THRESHOLD_PCT`. Provider facts come only from
+  `RetellGateway.listCallsInWindow()`, which reads retell-sdk 6's page shape
+  `{has_more, items, pagination_key}` through `callListPage()` — anything else is a thrown
+  provider error, never "zero calls" (a bare-array read once made every night's run report
+  every row in `calls` as drift; `retell.list-calls.test.ts` pins the SDK type).
+- Auto top-up credits a `pending` **or `abandoned`** purchase when `payment_intent.succeeded`
+  arrives with a matching amount: Stripe may deliver an earlier attempt's failure after the
+  success, and Stripe has the money either way.
+- **The API contract is `src/openapi/manifest.ts` joined with the controllers' decorator
+  metadata.** Adding or changing a route means editing the manifest and running
+  `pnpm --filter @portal/api openapi:generate`; `openapi:check` fails CI on a route in one and
+  not the other, a role mismatch, or stale `docs/api/openapi.json` /
+  `frontend/api-client/src/generated/endpoints.ts`. Small ack bodies have names in
+  `shared/schemas/src/responses.ts`; a `{deleted: true}` literal is not a contract.
+- `GET /health/ready` reports Postgres, Redis and the worker heartbeat (`worker:heartbeat`,
+  refreshed every 30 s by `WorkerHeartbeat`, plus a file for the compose healthcheck) and
+  answers 503 when Postgres or Redis is down. `/health` stays a liveness probe.
+- **The worker is capped at 1 CPU and 1 GB in `infra/docker-compose.prod.yml`; the API is
+  not.** The API owns the §13.9 hot path; a worker job must never starve it. Do not add a CPU
+  limit to `api`.
 
 **Configuration**
 
@@ -436,18 +530,21 @@ job settles.
 
 ## Redis keys
 
-| Key               | Contents                                                                   |
-| ----------------- | -------------------------------------------------------------------------- |
-| `bal:{ws}`        | cached credit balance, 1-hour TTL                                          |
-| `active:{ws}`     | **hash** of live calls: `call_id → "<reserved credits>\|<expires at ms>"`, key TTL = max duration + 5 min (ADR 0011 §1) |
-| `events:{ws}`     | pub/sub channel carrying that workspace's SSE frames (PUBLISH only, never a key) |
-| `caps:{ws}`       | plan caps and grace, from the current pricing config plus tenant overrides |
-| `num:{e164}`      | number → workspace, agent, tier, **rate**, plan max, hours, transfer targets, paused flags |
-| `pricing:current` | current pricing config snapshot                                            |
-| `stack:current`   | current `agent_stack_configs` snapshot: tier stacks, §9.4 guardrails, §9.5 lint |
-| `flags:global`    | feature_flags + kill_switches rows                                         |
-| `flags:{ws}`      | `GET /flags` resolved for one workspace                                    |
-| `kill:reject_inbound` | the SA12 veto, `'1'`/`'0'`, for the hot path — outside `flags:` and its 60 s TTL |
+| Key                          | Contents                                                                                                                |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `bal:{ws}`                   | cached credit balance, 1-hour TTL                                                                                       |
+| `active:{ws}`                | **hash** of live calls: `call_id → "<reserved credits>\|<expires at ms>"`, key TTL = max duration + 5 min (ADR 0011 §1) |
+| `events:{ws}`                | pub/sub channel carrying that workspace's SSE frames (PUBLISH only, never a key)                                        |
+| `caps:{ws}`                  | plan caps and grace, from the current pricing config plus tenant overrides                                              |
+| `num:{e164}`                 | number → workspace, agent, tier, **rate**, plan max, hours, transfer targets, paused flags                              |
+| `pricing:current`            | current pricing config snapshot                                                                                         |
+| `stack:current`              | current `agent_stack_configs` snapshot: tier stacks, §9.4 guardrails, §9.5 lint                                         |
+| `flags:global`               | feature_flags + kill_switches rows                                                                                      |
+| `flags:{ws}`                 | `GET /flags` resolved for one workspace                                                                                 |
+| `kill:reject_inbound`        | the SA12 veto, `'1'`/`'0'`, for the hot path — outside `flags:` and its 60 s TTL                                        |
+| `lock:schedule:{name}`       | one worker per running §13.11 tick, `SET NX`, TTL 2× the interval (D7)                                                  |
+| `worker:heartbeat`           | the worker's liveness beacon, refreshed every 30 s, read by `GET /health/ready` (D7)                                    |
+| `alert:platform_concurrency` | the open platform-wide concurrency incident, so ops is paged once per incident; held a day at most (D7)                 |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
 throws and never waits past its budget (ADR 0010 §6).
@@ -459,7 +556,8 @@ throws and never waits past its budget (ADR 0010 §6).
 - Pagination: `?cursor=&limit=`.
 - Long operations return `202 {job_id}`; the client subscribes to SSE and falls back to
   `GET /jobs/:id` every 3 s.
-- SSE topics: `wallet`, `agent:{id}`, `call:{id}`, `activation:{id}`. `GET /events` is an ordinary
+- SSE topics: `wallet`, `alerts` (D7: `opened` / `resolved` / `dismissed`), `agent:{id}`,
+  `call:{id}`, `activation:{id}`. `GET /events` is an ordinary
   authenticated route (the client is `@microsoft/fetch-event-source`), narrowed with `?topics=`, and
   only ever carries `ctx.workspaceId`'s own channel. `agent:{id}` frame types are named once, in
   `modules/agents/agent-events.ts`: `created`, `draft_updated`, `draft_selected`,
@@ -475,6 +573,10 @@ throws and never waits past its budget (ADR 0010 §6).
   `GET /activations/:id`; `PUT /wallet/auto-topup`, `GET /wallet/invoices`, `POST /wallet/portal-session`.
   Buying, importing, releasing, activating and billing routes are owner/admin; knowledge and
   routing edits are editor and above.
+- D7 routes: `GET /alerts/active`, `POST /alerts/:id/dismiss`,
+  `GET|PATCH /workspace/notification-settings` (any member; a member edits only their own
+  preferences), `GET /health/ready`. The full contract with every code and role is
+  `docs/api/openapi.json`.
 - Recordings: `GET /calls/:id/recording` mints a signed one-hour link to
   `GET /calls/:id/recording/stream?token=`, which is `@Public()` and proxies the bytes. The Retell
   URL is never given to the browser (ADR 0011 §5).
@@ -485,7 +587,8 @@ throws and never waits past its budget (ADR 0010 §6).
 
 Portal (§15): `users, tenants, memberships, invites, audit_log, notification_settings, templates,
 agents, agent_versions, voices, knowledge_sources, phone_plans, phone_numbers, calls, credit_lots,
-credit_ledger, purchases, packs, webhook_events, jobs, alerts`.
+credit_ledger, purchases, packs, webhook_events, jobs, alerts`, plus since D7 `notifications`
+(the outbox) and `reconciliation_runs` (global, staff-only).
 
 Admin (§8): `staff_users, staff_role_limits, pricing_drafts, pricing_configs, stripe_price_map,
 promo_codes, custom_deals, tenant_overrides, agent_stack_configs, retell_cost_inputs,
@@ -539,13 +642,16 @@ pnpm db:roles          # local portal_app / portal_admin login roles (dev only)
 pnpm db:deploy         # migrations, incl. RLS, grants and the append-only triggers
 pnpm db:seed           # staff_role_limits (admin §2.2), packs (§5.2)
 pnpm doctor            # which env vars are unset, what is reachable
+pnpm --filter @portal/api openapi:generate   # after any route change: docs/api/openapi.json + the typed client
 ```
 
-External accounts and staging infrastructure: `docs/runbooks/provisioning.md`.
+External accounts and staging infrastructure: `docs/runbooks/provisioning.md`; the EC2 stack,
+deploy and verification: `docs/runbooks/staging.md`.
 
 ## Open decisions (§20, §5.5, admin)
 
-1. Working name and domain.
+1. ~~Working name and domain~~ — resolved 22 Sep 2026: **oraly.ai** (Namecheap, BasicDNS). Hosts
+   `api` / `app` / `admin.oraly.ai`, staging with a `-staging` suffix (ADR 0015).
 2. USD vs CAD; merchant of record (Metacognixion Canada vs Gritbyte India).
 3. Standard-tier LLM: GPT-5 mini vs GPT-4.1 mini, after the P0 benchmark.
 4. Launch countries for numbers: US + CA only, or include India.
@@ -580,12 +686,22 @@ knowledge W4 → auto top-up → team and invites.
 ## Working agreements
 
 - Environments `dev`, `staging`, `prod`. Retell test agents are prefixed `dev-`. One Retell API key and
-  one webhook URL set per environment. Stripe test and live keys never mix.
+  one webhook URL set per environment. Stripe test and live keys never mix. Staging and prod run
+  `infra/docker-compose.prod.yml` on EC2; configuration is written on the box from SSM by
+  `infra/scripts/deploy.sh` (which refuses to deploy without `PORTAL_URL`, or with one that
+  points at localhost, and exits non-zero when `/health/ready` is not 200 — a degraded box is
+  a failed deploy, not a printed status), and CI publishes the image to GHCR and deploys `develop` to staging
+  over SSM Run Command (`docs/runbooks/staging.md`).
 - Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths,
   RLS cross-tenant isolation, and — from D5 — guardrail tampering, version immutability, publish
   idempotency and duplicate generation jobs; from D6 — SIP credentials encrypted at rest, activation
   step order and retry limit, one purchase per retried activation, top-up credited once, invoice
-  idempotency, and workspace isolation on knowledge/numbers/activations (`test/d6-*.e2e.test.ts`).
+  idempotency, and workspace isolation on knowledge/numbers/activations (`test/d6-*.e2e.test.ts`);
+  from D7 — scheduler registration across restarts and the tick lock, rental idempotency and
+  the overdue → release path, expiry idempotency, low-balance alert state, digest per
+  timezone (DST included), reconciliation once-per-window alerting, concurrency alert
+  hysteresis, webhook ordering / replay / decline for both providers, and the RLS matrix over
+  every D6/D7 table (`test/d7-*.e2e.test.ts`, `backend/db/test/rls.e2e.test.ts`).
   Other areas are best-effort.
 - The §13.9 latency SLO is asserted, not eyeballed: `pnpm --filter @portal/api load:setup` then
   `load:inbound` runs k6 with `p(95)<300` as a threshold, so the run exits non-zero if it regresses.

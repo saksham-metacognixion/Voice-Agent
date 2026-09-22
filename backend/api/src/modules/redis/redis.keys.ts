@@ -10,6 +10,9 @@
  *   stack:current     current agent_stack_configs snapshot (§9.3–§9.5, admin SA6)
  *   flags:*           feature flags and kill switches — global and per workspace
  *   kill:reject_inbound  the SA12 inbound kill switch, projected for the hot path
+ *   lock:schedule:{name} one worker per running schedule tick (D7)
+ *   worker:heartbeat  the worker's liveness beacon (D7)
+ *   alert:platform_concurrency  the open platform-wide concurrency incident (D7)
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
  *
  * `{ws}` is the workspace (tenant) id. Braces are literal, so a Redis Cluster would hash
@@ -41,6 +44,28 @@ export const redisKeys = {
    */
   rejectInbound: 'kill:reject_inbound',
   capsPattern: 'caps:*',
+  /** SCAN pattern for every workspace's live-call hash — the D7 concurrency monitor. */
+  activeCallsPattern: 'active:*',
+  /**
+   * D7: one lock per §13.11 schedule, `SET NX` for the run's duration. BullMQ never runs
+   * the *same* tick twice, but a tick that outlives its interval meets the next one on
+   * another worker; the lock turns that into a logged skip instead of two sweeps racing.
+   */
+  scheduleLock: (name: string) => `lock:schedule:${name}`,
+  /** D7: the worker's liveness beacon, refreshed every 30 s; read by GET /health/ready. */
+  workerHeartbeat: 'worker:heartbeat',
+  /**
+   * D7: the platform-wide concurrency incident the `concurrency-monitor` schedule has
+   * open, so ops is paged once per incident and not once per tick. Held for a day at
+   * most, so a lost DEL cannot silence the monitor forever.
+   */
+  platformConcurrencyAlert: 'alert:platform_concurrency',
   /** Pub/sub channel carrying one workspace's SSE frames (§16 GET /events). */
   eventsChannel: (workspaceId: string) => `events:{${workspaceId}}`,
 } as const;
+
+/** The workspace id inside an `active:{ws}` key, or null for anything else. */
+export function workspaceOfActiveKey(key: string): string | null {
+  const match = /^active:\{([0-9a-f-]{36})\}$/.exec(key);
+  return match?.[1] ?? null;
+}

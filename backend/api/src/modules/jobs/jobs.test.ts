@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { JobHandlerRegistry } from './job-handlers';
 import { DEFAULT_JOB_OPTIONS, JobQueues, REPAIR_JOB_OPTIONS, isSpent } from './job-queues.service';
 import { bullConnection, bullPrefix } from './jobs.connection';
-import { JOBS, QUEUES, SCHEDULED_JOBS, SCHEDULES } from './jobs.constants';
+import { JOBS, QUEUES, SCHEDULED_JOBS, SCHEDULES, scheduleLockTtlS } from './jobs.constants';
 
 describe('queue and job names', () => {
   it('names five queues and keeps every job on one of them', () => {
@@ -23,7 +23,31 @@ describe('queue and job names', () => {
 
   it('marks which schedules actually do something today, so a skeleton is never mistaken for live', () => {
     const live = SCHEDULES.filter((s) => s.status === 'live').map((s) => s.name);
-    expect(live).toEqual(['runtime-cache-refresh', 'webhook-sweeper', 'job-sweeper', 'credit-expiry', 'auto-topup', 'voice-cache']);
+    expect(live).toEqual([
+      'runtime-cache-refresh',
+      'webhook-sweeper',
+      'job-sweeper',
+      'credit-expiry',
+      'number-rental',
+      'low-balance-alerts',
+      'auto-topup',
+      'reconcile-calls',
+      'voice-cache',
+      'concurrency-monitor',
+      'number-release',
+      'daily-digest',
+    ]);
+    // D7: the digest is hourly and timezone-aware, never one UTC midnight run.
+    expect(SCHEDULES.find((s) => s.name === 'daily-digest')?.pattern).toMatch(/^\d+ \* \* \* \*$/);
+  });
+
+  it('gives every schedule a lock TTL that outlives one tick but not the next hour', () => {
+    for (const spec of SCHEDULES) {
+      const ttl = scheduleLockTtlS(spec);
+      expect(ttl, spec.name).toBeGreaterThanOrEqual(60);
+      expect(ttl, spec.name).toBeLessThanOrEqual(3_600);
+      if (spec.every) expect(ttl * 1000, spec.name).toBeGreaterThanOrEqual(spec.every);
+    }
   });
 });
 

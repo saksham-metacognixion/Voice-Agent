@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, adminDb, isDuplicateCallDebit, withWorkspace, type LedgerReason } from '@portal/db';
+import { Prisma, adminDb, isDuplicateCallDebit, isDuplicateRentalDebit, withWorkspace, type LedgerReason } from '@portal/db';
 import type {
   AutoTopup,
   CreditLotResponse,
@@ -436,6 +436,15 @@ export class WalletTx {
       const existing = await this.tx.creditLedger.findFirst({ where: { tenantId: this.workspaceId, reason: 'call', refId: input.refId } });
       if (existing) return this.record(existing, true);
     }
+    // D7 §5.3: a rental period is debited once, keyed `<number id>:<period>`. Same shape as
+    // the call guarantee — pre-check for the common replay, `credit_ledger_rental_debit_once_idx`
+    // for the race.
+    const rentalPeriod = input.reason === 'rental' && input.refType === RENTAL_REF_TYPE;
+    if (rentalPeriod) {
+      if (!input.refId) throw new Error('a rental debit needs <number id>:<period> as ref_id');
+      const existing = await this.tx.creditLedger.findFirst({ where: { tenantId: this.workspaceId, reason: 'rental', refType: RENTAL_REF_TYPE, refId: input.refId } });
+      if (existing) return this.record(existing, true);
+    }
 
     // FIFO below only sees lots that are still live, so anything already lapsed has to be
     // written off first — otherwise this debit overdraws past it and the credit-expiry job
@@ -480,6 +489,9 @@ export class WalletTx {
       // now aborted, so the lot decrements above roll back with it.
       if (input.reason === 'call' && isDuplicateCallDebit(error)) {
         throw new DuplicateCallDebit(input.refId ?? '');
+      }
+      if (rentalPeriod && isDuplicateRentalDebit(error)) {
+        throw new DuplicateRentalDebit(input.refId ?? '');
       }
       throw error;
     }
@@ -547,6 +559,16 @@ export class WalletTx {
 export class DuplicateCallDebit extends Error {
   constructor(readonly callId: string) {
     super(`call ${callId} is already debited`);
+  }
+}
+
+/** `ref_type` of a §5.3 monthly rental debit; `ref_id` is `<number id>:<period ISO>`. */
+export const RENTAL_REF_TYPE = 'number_rental';
+
+/** Two number-rental runs racing on one period; the loser treats it as already charged. */
+export class DuplicateRentalDebit extends Error {
+  constructor(readonly refId: string) {
+    super(`rental ${refId} is already debited`);
   }
 }
 

@@ -40,15 +40,15 @@ on every minute of talk time burns credits. There is no subscription and no invo
 
 Three properties fall out of that sentence and they drive nearly every decision below.
 
-**It is prepaid.** Money moves *before* service, not after. That makes the credit ledger the most
+**It is prepaid.** Money moves _before_ service, not after. That makes the credit ledger the most
 correctness-critical thing in the system — more than the voice quality, more than the UI. A
-double-charge is a refund and a support ticket; a double-*credit* is free money walking out the
+double-charge is a refund and a support ticket; a double-_credit_ is free money walking out the
 door. Hence: append-only ledger, idempotency keyed on the Retell `call_id`, one module that owns
 every write, and tests that are mandatory rather than best-effort.
 
 **It is multi-tenant with real money per tenant.** A cross-workspace read is not a privacy
 embarrassment, it is a billing incident. Hence: RLS as a second guard underneath the application
-one, and a default failure mode of *see nothing* rather than *see everything*.
+one, and a default failure mode of _see nothing_ rather than _see everything_.
 
 **Retell is invisible.** The customer is buying "an AI receptionist", not a Retell account. If
 Retell is ever named in the UI, the product becomes a reseller and the margin argument collapses.
@@ -93,7 +93,7 @@ flowchart TB
         RD[("Redis 7")]
     end
 
-    NEON[("Neon Postgres<br/>7-day PITR")]
+    NEON[("RDS Postgres<br/>private, 7-day PITR")]
 
     subgraph External
         RT["Retell"]
@@ -131,7 +131,7 @@ BullMQ worker, and must accept webhooks on a stable hostname. A CDN over a priva
 first, EC2 gives the second ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md),
 [ADR 0004](decisions/0004-backend-hosting-aws-ec2.md)).
 
-**Why webhooks and SSE bypass the CDN.** A signature must be verified on the *raw* body, and a CDN
+**Why webhooks and SSE bypass the CDN.** A signature must be verified on the _raw_ body, and a CDN
 that re-encodes or buffers breaks both that and a long-lived SSE stream. Retell and Stripe point at
 `api.<domain>` directly; CloudFront never sees them.
 
@@ -140,9 +140,13 @@ that re-encodes or buffers breaks both that and a long-lived SSE stream. Retell 
 queue at all. A compose-internal Redis on the same instance also puts the inbound-authorisation
 path — the one with a p95 budget of 300 ms — on a loopback hop rather than a network round trip.
 
-**Why Neon and not RDS.** Branch-per-environment and 7-day PITR out of the box (§17), with no
-instance to patch. The trade is that Postgres is off-box, so every request pays a network hop —
-which is exactly why the inbound hot path never touches Postgres synchronously (§9 below).
+**Why RDS and not Neon.** RDS gives the same 7-day point-in-time recovery §17 asks for, in the
+account and the VPC we already run, with no public endpoint and no second vendor: the database
+is created by the environment's own stack and is reachable only from the backend instance's
+security group ([ADR 0016](decisions/0016-postgres-on-rds.md)). Neon's branching is the one
+thing we give up, and nothing in this repo uses it. The trade that remains is the same either
+way — Postgres is off-box, so every request pays a network hop, which is exactly why the
+inbound hot path never touches Postgres synchronously (§9 below).
 
 ---
 
@@ -166,7 +170,7 @@ else, so pulling it into the browser costs nothing.
 
 **One image, two entrypoints.** `backend/api` builds once and runs as two compose services:
 `src/main.ts` binds HTTP, `src/worker.ts` registers BullMQ processors and schedulers. They import
-*the same* `modules/*/service.ts` files. A controller and a job processor calling different code
+_the same_ `modules/*/service.ts` files. A controller and a job processor calling different code
 paths to do the same thing is how metering bugs are born, so they don't.
 
 ```mermaid
@@ -188,7 +192,7 @@ module graph twice.
 
 **Why Prisma rather than Drizzle.** Also the spec. Drizzle's SQL-first migrations would honestly
 have suited the hand-written RLS policies, grants and triggers better; the compromise is that those
-live as hand-written SQL *inside* Prisma migrations
+live as hand-written SQL _inside_ Prisma migrations
 (`20260914044100_rls_roles_append_only`), which works fine and keeps one migration runner.
 
 ---
@@ -228,7 +232,7 @@ sequenceDiagram
 
 **Why the namespace is chosen by the route path and never by the token.** There are two Auth0
 tenants ([ADR 0002](decisions/0002-auth-provider-auth0.md)): customers, and staff (Google Workspace
-domain + mandatory TOTP). `/admin/*` is verified against the *staff* JWKS only. A customer token
+domain + mandatory TOTP). `/admin/*` is verified against the _staff_ JWKS only. A customer token
 presented to a staff route fails on `iss` before any handler runs — there is no code path where a
 customer token can be "upgraded" by claims, because the claims are never consulted to pick the
 verifier. On boot the API asserts the two issuers differ, so a misconfiguration that collapses them
@@ -238,7 +242,7 @@ into one tenant fails to start rather than silently granting staff access.
 tenant with a domain restriction and mandatory MFA is a boundary that survives a mistake in the
 role table. Staff access to customer data is the highest-blast-radius thing in the product.
 
-**Why `workspace` in HTTP and `tenant_id` in the database.** The product word is *workspace*; the
+**Why `workspace` in HTTP and `tenant_id` in the database.** The product word is _workspace_; the
 spec's schema (§15) says `tenant_id` and so does every foreign key. Renaming either one would mean
 fighting a source of truth. The translation happens in exactly one place, `WorkspaceGuard`, and
 nowhere else — `ctx.workspaceId` goes in, `app.tenant_id` comes out.
@@ -275,7 +279,7 @@ flowchart TB
 ```
 
 **Why `SET LOCAL` and not a session variable.** `withWorkspace` sets `app.tenant_id` as a
-*transaction-local* GUC (`set_config(..., true)`), inside `$transaction`. The setting dies with the
+_transaction-local_ GUC (`set_config(..., true)`), inside `$transaction`. The setting dies with the
 transaction. With a connection pool, a session-scoped setting would let workspace A's context leak
 onto workspace B's next request through a recycled connection — a bug that would be intermittent,
 production-only, and catastrophic. Transaction scope makes it impossible by construction.
@@ -288,7 +292,7 @@ development — loud enough to notice immediately, and safe if it ever escapes. 
 cross-tenant in prod.
 
 **Why `adminDb` exists at all.** Three cases genuinely cannot know the workspace in advance:
-a webhook (the workspace is only discoverable *after* the payload is parsed and verified), a
+a webhook (the workspace is only discoverable _after_ the payload is parsed and verified), a
 scheduled job that sweeps every workspace, and workspace creation itself. Pretending otherwise
 would mean either disabling RLS or inventing a fake tenant context — both worse than one named,
 auditable second role.
@@ -301,7 +305,7 @@ superuser nor a table owner, and refuses to start otherwise. A refusal to boot i
 possible failure for this class of mistake.
 
 **Why history is append-only, enforced twice.** `credit_ledger`, `audit_log` and `staff_audit_log`
-carry both a `REVOKE UPDATE, DELETE` from the app role *and* a
+carry both a `REVOKE UPDATE, DELETE` from the app role _and_ a
 `BEFORE UPDATE OR DELETE ... RAISE EXCEPTION` trigger. The grant stops the application; the trigger
 stops everything, including a `BYPASSRLS` connection and including me at 2am with psql open.
 Reversals are new negative rows.
@@ -309,9 +313,9 @@ Reversals are new negative rows.
 Two consequences, both deliberate:
 
 - A workspace with ledger history **cannot be hard-deleted** — the cascade hits the trigger. The §17
-  delete request is therefore an *anonymisation* job, not a `DELETE`. This is the correct outcome:
+  delete request is therefore an _anonymisation_ job, not a `DELETE`. This is the correct outcome:
   financial history must outlive the account.
-- `TRUNCATE` is deliberately *not* covered by the trigger, so `pnpm db:reset` still works locally.
+- `TRUNCATE` is deliberately _not_ covered by the trigger, so `pnpm db:reset` still works locally.
 
 ---
 
@@ -503,7 +507,7 @@ erDiagram
 
 `memberships` is the many-to-many that makes a user's identity independent of any workspace, and it
 carries the §6.1 role. Exactly one `owner` per workspace is a rule the `workspaces` service enforces,
-not a constraint — a partial unique index would block the ownership *transfer* that the spec requires.
+not a constraint — a partial unique index would block the ownership _transfer_ that the spec requires.
 
 `tenants.custom_deal_id` pointing at `custom_deals`, which itself has a `tenant_id`, looks circular
 and is not: the deal is authored against a workspace by staff (admin §8), then attached once agreed.
@@ -595,7 +599,7 @@ erDiagram
 The shape worth noticing: **`credit_adjustments` does not hold an amount.** It points at the
 `credit_ledger` row it caused. Staff cannot move credits except by making a ledger entry, and the
 adjustment table exists only to attach a reason code and an author to it. The same applies to
-`refunds` → `purchases`. This is the §14 rule — *every ledger write goes through the wallet module* —
+`refunds` → `purchases`. This is the §14 rule — _every ledger write goes through the wallet module_ —
 expressed in the schema rather than trusted to reviewers.
 
 `impersonation_sessions` links into `staff_audit_log` so that every write made while impersonating a
@@ -607,22 +611,22 @@ after an incident.
 Seventeen tables carry no `tenant_id` and no relations. They are global, versioned, and read through
 the cached config endpoints — never joined to a customer row at query time.
 
-| Table | Read as | Why it has no FK |
-| --- | --- | --- |
-| `packs` | `GET /pricing` | The catalogue (§5.2). A purchase copies the numbers it needs, so changing a pack never re-prices history |
-| `pricing_drafts`, `pricing_configs` | `pricing:current` | Versioned. `calls.config_version` and `credit_lots.policy_version` point *back* at a version, never forward |
-| `stripe_price_map` | Checkout | The only one with a relation — to `pricing_configs`, by version |
-| `agent_stack_configs` | `RetellGateway` | Tier → model/voice mapping. `agent_versions.stack_version` records which one generated a prompt |
-| `retell_cost_inputs` | COGS reporting | What Retell charges us, by period |
-| `templates`, `voices` | Wizard W1, W3 | `voices` is a read-only cache refreshed from `list-voices` by a job |
-| `promo_codes` | Checkout | Applied at purchase; the discount lands in `purchases`, not in a join |
-| `feature_flags`, `kill_switches` | `flags:*` | Toggled without a deploy; the portal re-reads within 60 s |
-| `blocklists` | Inbound path | Denormalised into `num:{e164}` in Redis — the 300 ms path never reads this table |
-| `staff_role_limits` | Admin guards | Per-role limits as data (admin §2.2), seeded by `pnpm db:seed` |
-| `canned_responses`, `email_templates`, `announcements` | Support, email | Content, not customer data |
+| Table                                                  | Read as           | Why it has no FK                                                                                            |
+| ------------------------------------------------------ | ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| `packs`                                                | `GET /pricing`    | The catalogue (§5.2). A purchase copies the numbers it needs, so changing a pack never re-prices history    |
+| `pricing_drafts`, `pricing_configs`                    | `pricing:current` | Versioned. `calls.config_version` and `credit_lots.policy_version` point _back_ at a version, never forward |
+| `stripe_price_map`                                     | Checkout          | The only one with a relation — to `pricing_configs`, by version                                             |
+| `agent_stack_configs`                                  | `RetellGateway`   | Tier → model/voice mapping. `agent_versions.stack_version` records which one generated a prompt             |
+| `retell_cost_inputs`                                   | COGS reporting    | What Retell charges us, by period                                                                           |
+| `templates`, `voices`                                  | Wizard W1, W3     | `voices` is a read-only cache refreshed from `list-voices` by a job                                         |
+| `promo_codes`                                          | Checkout          | Applied at purchase; the discount lands in `purchases`, not in a join                                       |
+| `feature_flags`, `kill_switches`                       | `flags:*`         | Toggled without a deploy; the portal re-reads within 60 s                                                   |
+| `blocklists`                                           | Inbound path      | Denormalised into `num:{e164}` in Redis — the 300 ms path never reads this table                            |
+| `staff_role_limits`                                    | Admin guards      | Per-role limits as data (admin §2.2), seeded by `pnpm db:seed`                                              |
+| `canned_responses`, `email_templates`, `announcements` | Support, email    | Content, not customer data                                                                                  |
 
-**The rule this encodes:** anything that can change price, behaviour or capability is a *versioned
-row*, and anything that consumed it stores the version it saw. That is what makes "why was this call
+**The rule this encodes:** anything that can change price, behaviour or capability is a _versioned
+row_, and anything that consumed it stores the version it saw. That is what makes "why was this call
 billed at that rate?" answerable a year later.
 
 ## 7. Agent lifecycle and prompt generation
@@ -778,7 +782,7 @@ flowchart TD
     D6 --> ENQ2
 ```
 
-**Why this path never touches Postgres.** Neon is off-box. A single round trip plus a query is a
+**Why this path never touches Postgres.** Postgres is off-box. A single round trip plus a query is a
 meaningful fraction of a 300 ms budget, and six ordered checks would be several. Everything the six
 checks need is denormalised into Redis — `num:{e164}`, `bal:{ws}`, `active:{ws}`, `caps:{ws}` — on
 loopback. The cost of that choice is cache-freshness discipline, which is paid by
@@ -791,8 +795,8 @@ check-and-reserve script, all inside one 150 ms budget.
 **Why `active:{ws}` is a hash and not a counter** ([ADR 0011 §1](decisions/0011-call-runtime-and-queues.md)).
 One field per live call, `call_id → "<reserved credits>|<expires at ms>"`. A counter cannot be made
 idempotent — an authorisation, a `call_started` and a missing `call_ended` all drift it — and it
-cannot answer the question check 4 actually asks: the balance *minus what the other live calls may
-still spend*. Without that, five simultaneous calls on a six-credit balance are each authorised for
+cannot answer the question check 4 actually asks: the balance _minus what the other live calls may
+still spend_. Without that, five simultaneous calls on a six-credit balance are each authorised for
 six credits of talking.
 
 **Why both outcomes write the `calls` row via an enqueued job, never inline.** A synchronous insert
@@ -810,7 +814,7 @@ most actionable reason should win.
 **Why `max_call_duration_ms` is computed here.** `min(planMax, remainingCredits/rate × 60000)`.
 Retell enforces it, so a customer with 3 credits left gets a call that ends cleanly at three
 minutes instead of one that runs up an overdraft. Combined with the 10-credit grace overdraft, the
-result is that a call is never cut mid-sentence *and* never runs away.
+result is that a call is never cut mid-sentence _and_ never runs away.
 
 **Redis down: fail open, fast and bounded** ([ADR 0003 §12](decisions/0003-retell-findings.md)).
 The spike showed what each answer buys: a hung webhook is ~30 s of ringing and a missed call, a
@@ -941,16 +945,23 @@ an event is normal operation, and logging it as a failure trains you to ignore t
 BullMQ on the same Redis. Processors and Job Schedulers are registered **idempotently on boot**, so
 a redeploy or a second worker does not double-register a schedule.
 
-| Kind | Examples | Why it is a job |
-| --- | --- | --- |
-| Long, user-visible | `generate-agent`, number provisioning, knowledge ingestion, export | Wizard must stay responsive — `202 {job_id}` + SSE |
-| Webhook processing | Retell + Stripe event handlers | Retries under our control, not the provider's |
-| Write-behind | the `calls` row from the inbound path, runtime-cache warm-ups | Keeps Postgres off a 300 ms hot path |
-| Scheduled | number rental (15 cr/month on the purchase anniversary), extra-KB charges, lot expiry, low-balance alerts, `voice-cache` refresh, periodic runtime-cache refresh | Nobody is holding a request open |
+| Kind               | Examples                                                                                                                                                         | Why it is a job                                    |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Long, user-visible | `generate-agent`, number provisioning, knowledge ingestion, export                                                                                               | Wizard must stay responsive — `202 {job_id}` + SSE |
+| Webhook processing | Retell + Stripe event handlers                                                                                                                                   | Retries under our control, not the provider's      |
+| Write-behind       | the `calls` row from the inbound path, runtime-cache warm-ups                                                                                                    | Keeps Postgres off a 300 ms hot path               |
+| Scheduled          | number rental (15 cr/month on the purchase anniversary), extra-KB charges, lot expiry, low-balance alerts, `voice-cache` refresh, periodic runtime-cache refresh | Nobody is holding a request open                   |
 
 Jobs use `adminDb` — they sweep across workspaces by design — or `withWorkspace(workspaceId, ...)`
 when they are operating on exactly one, which is preferred wherever it applies because it keeps RLS
 in play.
+
+Since D7 every §13.11 tick runs under a per-schedule Redis lock, so a slow tick meeting the next one
+on a second worker is a logged skip rather than two sweeps racing; the money-moving schedules are
+idempotent below that as well (a rental is a ledger row per number-period under a unique index, an
+alert is a keyed row that cannot open twice, a digest is an outbox row per workspace-day). The daily
+digest is hourly and asks each workspace whether it is past the digest hour _in its own timezone_
+([ADR 0014](decisions/0014-recurring-operations-and-staging.md)).
 
 ---
 
@@ -1029,24 +1040,24 @@ are silent, expensive, and discovered by customers rather than by us.
 
 ## 16. Decision log — the why, in one table
 
-| Decision | Chosen | Why | Rejected, and why | ADR |
-| --- | --- | --- | --- | --- |
-| Backend framework | NestJS on Fastify | Spec names it; DI graph boots identically in both entrypoints | Plain Fastify (less ceremony, but module graph duplicated); FastAPI (would fork the shared zod layer) | [0001](decisions/0001-tech-stack.md) |
-| ORM | Prisma | Spec names it; one migration runner for hand-written RLS SQL | Drizzle (better SQL-first migrations, but off-spec) | [0001](decisions/0001-tech-stack.md) |
-| API surface | Nest, not Next route handlers | Route handlers break SSE and cannot host BullMQ | Next-only backend | [0001](decisions/0001-tech-stack.md) |
-| Auth | Auth0, two tenants; `@auth0/auth0-spa-js` (PKCE) in the browser | Staff boundary survives a mistake in a role table; MFA and domain restriction are tenant-level. PKCE keeps every secret out of the frontend | One tenant with roles; Clerk (superseded); `@auth0/nextjs-auth0` server sessions (needs a server we no longer run) | [0002](decisions/0002-auth-provider-auth0.md), [0008](decisions/0008-frontend-hosting-s3-cloudfront.md) |
-| Backend hosting | AWS EC2 + Docker Compose | Long-lived worker, TCP Redis, stable webhook hostname | Railway (superseded); serverless (no BullMQ, no SSE) | [0004](decisions/0004-backend-hosting-aws-ec2.md) |
-| Frontend hosting | S3 (private) + CloudFront (OAC) + ACM, static export | Every screen is behind a login, so SSR buys nothing; no server means no client secret in the frontend and no AWS role for the build | Amplify (largest third-party grant, two extra IAM roles, adapter lag); Next on the EC2 box (contends with the 300 ms inbound path); OpenNext on Lambda; Vercel | [0008](decisions/0008-frontend-hosting-s3-cloudfront.md) |
-| Redis | Redis 7 container on the backend box | BullMQ needs blocking TCP; loopback keeps the 300 ms inbound budget | Upstash — HTTP Redis cannot run BullMQ at all | [0001](decisions/0001-tech-stack.md) |
-| Database | Neon Postgres | Branch-per-environment, 7-day PITR, no instance to patch | RDS (more ops for no gain at this size) | [0001](decisions/0001-tech-stack.md) |
-| Tenancy | Two roles + RLS + append-only triggers | Second guard under the app; failure mode is "see nothing"; history survives even a BYPASSRLS connection | App-level `where tenant_id` only (silently cross-tenant in prod); schema-per-tenant (migration cost) | [0006](decisions/0006-tenancy-rls-and-append-only.md) |
-| Generation LLM | Anthropic `claude-sonnet-5`, structured output | Key in hand; the family-alignment case for OpenAI was unmeasured and weak; Sonnet tier because the §9.4 guardrails are appended by code and Sonnet meets the 10 s p95 without tuning; behind a provider interface so it is one file to reverse — as the 0007 → 0009 reversal showed | Anthropic `claude-opus-5` (unused headroom, needs latency tuning; D2 benchmarks it); OpenAI `gpt-5` (ADR 0007 — no evidence against, key not in hand); both per template (ambiguous `stack_version`); **Retell Conductor** (dashboard-only, 200 msg/org/day, requires human approval) | [0009](decisions/0009-llm-provider-anthropic.md) |
-| Voice platform | Retell behind `RetellGateway` | Single import site bounds the blast radius and concentrates the P0 findings | Direct SDK use across modules | [0001](decisions/0001-tech-stack.md) |
-| Ledger idempotency | Partial unique index on `(ref_id) WHERE reason='call'` | A database constraint survives a race; application logic does not | Application-level "check then insert" | [0006](decisions/0006-tenancy-rls-and-append-only.md) |
-| Inbound authorisation | Redis-only, six ordered checks | 300 ms p95 against a 10 s Retell timeout; Neon is off-box | Synchronous Postgres reads | §13.9 |
-| Long operations | `202 {job_id}` + SSE, `GET /jobs/:id` fallback | One pattern for generation, provisioning, ingestion, exports | Blocking requests; polling only | §16 |
-| SSE client | `@microsoft/fetch-event-source` | `EventSource` cannot send `Authorization` or `X-Workspace-Id` | Native `EventSource`; WebSockets (more infrastructure than one-way progress needs) | [0001](decisions/0001-tech-stack.md) |
-| Recordings | Proxied from Retell, signed 1-hour URLs | Avoids becoming custodian of customer call audio | Copying to R2 | §17 |
+| Decision              | Chosen                                                          | Why                                                                                                                                                                                                                                                                                 | Rejected, and why                                                                                                                                                                                                                                                                     | ADR                                                                                                     |
+| --------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Backend framework     | NestJS on Fastify                                               | Spec names it; DI graph boots identically in both entrypoints                                                                                                                                                                                                                       | Plain Fastify (less ceremony, but module graph duplicated); FastAPI (would fork the shared zod layer)                                                                                                                                                                                 | [0001](decisions/0001-tech-stack.md)                                                                    |
+| ORM                   | Prisma                                                          | Spec names it; one migration runner for hand-written RLS SQL                                                                                                                                                                                                                        | Drizzle (better SQL-first migrations, but off-spec)                                                                                                                                                                                                                                   | [0001](decisions/0001-tech-stack.md)                                                                    |
+| API surface           | Nest, not Next route handlers                                   | Route handlers break SSE and cannot host BullMQ                                                                                                                                                                                                                                     | Next-only backend                                                                                                                                                                                                                                                                     | [0001](decisions/0001-tech-stack.md)                                                                    |
+| Auth                  | Auth0, two tenants; `@auth0/auth0-spa-js` (PKCE) in the browser | Staff boundary survives a mistake in a role table; MFA and domain restriction are tenant-level. PKCE keeps every secret out of the frontend                                                                                                                                         | One tenant with roles; Clerk (superseded); `@auth0/nextjs-auth0` server sessions (needs a server we no longer run)                                                                                                                                                                    | [0002](decisions/0002-auth-provider-auth0.md), [0008](decisions/0008-frontend-hosting-s3-cloudfront.md) |
+| Backend hosting       | AWS EC2 + Docker Compose                                        | Long-lived worker, TCP Redis, stable webhook hostname                                                                                                                                                                                                                               | Railway (superseded); serverless (no BullMQ, no SSE)                                                                                                                                                                                                                                  | [0004](decisions/0004-backend-hosting-aws-ec2.md)                                                       |
+| Frontend hosting      | S3 (private) + CloudFront (OAC) + ACM, static export            | Every screen is behind a login, so SSR buys nothing; no server means no client secret in the frontend and no AWS role for the build                                                                                                                                                 | Amplify (largest third-party grant, two extra IAM roles, adapter lag); Next on the EC2 box (contends with the 300 ms inbound path); OpenNext on Lambda; Vercel                                                                                                                        | [0008](decisions/0008-frontend-hosting-s3-cloudfront.md)                                                |
+| Redis                 | Redis 7 container on the backend box                            | BullMQ needs blocking TCP; loopback keeps the 300 ms inbound budget                                                                                                                                                                                                                 | Upstash — HTTP Redis cannot run BullMQ at all                                                                                                                                                                                                                                         | [0001](decisions/0001-tech-stack.md)                                                                    |
+| Database              | RDS Postgres, private                                           | 7-day PITR for §17, one AWS account, no public endpoint, in the environment stack                                                                                                                                                                                                   | Neon (another vendor, public endpoint, and its 7-day retention plan costs the same)                                                                                                                                                                                                   | [0016](decisions/0016-postgres-on-rds.md)                                                               |
+| Tenancy               | Two roles + RLS + append-only triggers                          | Second guard under the app; failure mode is "see nothing"; history survives even a BYPASSRLS connection                                                                                                                                                                             | App-level `where tenant_id` only (silently cross-tenant in prod); schema-per-tenant (migration cost)                                                                                                                                                                                  | [0006](decisions/0006-tenancy-rls-and-append-only.md)                                                   |
+| Generation LLM        | Anthropic `claude-sonnet-5`, structured output                  | Key in hand; the family-alignment case for OpenAI was unmeasured and weak; Sonnet tier because the §9.4 guardrails are appended by code and Sonnet meets the 10 s p95 without tuning; behind a provider interface so it is one file to reverse — as the 0007 → 0009 reversal showed | Anthropic `claude-opus-5` (unused headroom, needs latency tuning; D2 benchmarks it); OpenAI `gpt-5` (ADR 0007 — no evidence against, key not in hand); both per template (ambiguous `stack_version`); **Retell Conductor** (dashboard-only, 200 msg/org/day, requires human approval) | [0009](decisions/0009-llm-provider-anthropic.md)                                                        |
+| Voice platform        | Retell behind `RetellGateway`                                   | Single import site bounds the blast radius and concentrates the P0 findings                                                                                                                                                                                                         | Direct SDK use across modules                                                                                                                                                                                                                                                         | [0001](decisions/0001-tech-stack.md)                                                                    |
+| Ledger idempotency    | Partial unique index on `(ref_id) WHERE reason='call'`          | A database constraint survives a race; application logic does not                                                                                                                                                                                                                   | Application-level "check then insert"                                                                                                                                                                                                                                                 | [0006](decisions/0006-tenancy-rls-and-append-only.md)                                                   |
+| Inbound authorisation | Redis-only, six ordered checks                                  | 300 ms p95 against a 10 s Retell timeout; Postgres is off-box                                                                                                                                                                                                                       | Synchronous Postgres reads                                                                                                                                                                                                                                                            | §13.9                                                                                                   |
+| Long operations       | `202 {job_id}` + SSE, `GET /jobs/:id` fallback                  | One pattern for generation, provisioning, ingestion, exports                                                                                                                                                                                                                        | Blocking requests; polling only                                                                                                                                                                                                                                                       | §16                                                                                                     |
+| SSE client            | `@microsoft/fetch-event-source`                                 | `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                                                                                                                                                       | Native `EventSource`; WebSockets (more infrastructure than one-way progress needs)                                                                                                                                                                                                    | [0001](decisions/0001-tech-stack.md)                                                                    |
+| Recordings            | Proxied from Retell, signed 1-hour URLs                         | Avoids becoming custodian of customer call audio                                                                                                                                                                                                                                    | Copying to R2                                                                                                                                                                                                                                                                         | §17                                                                                                     |
 
 ---
 
@@ -1063,12 +1074,12 @@ This is the one section expected to change weekly until MVP; fix it when somethi
 Four things, in the order they unblock work. Everything else in this section either already exists or
 can wait.
 
-| Ask | Why we need it | Why now | Blocked without it |
-| --- | --- | --- | --- |
-| ~~**OpenAI API key**~~ → **Anthropic API key** with billing — available 15 Sep 2026, needs to land in `.env` and SSM | The only LLM we call ourselves: brief → prompt (§9.3) and feedback patches (§9.6). The in-call model is Retell's ([ADR 0009](decisions/0009-llm-provider-anthropic.md)) | D5 is prompt generation | `POST /agents/:id/generate` returns nothing; W2 is a dead end; the D2 quality benchmark cannot run |
-| **Neon project** — one I can create branches and roles in | The only Postgres we run. 7-day PITR is the §17 recovery requirement; branch-per-environment gives staging its own data with no second server ([ADR 0006](decisions/0006-tenancy-rls-and-append-only.md)) | Migrations, RLS, triggers and seed are done and green locally. Nothing on AWS is worth creating before the database it talks to exists | No staging environment at all |
-| **AWS — scoped access, not admin** (see below) | Runs the backend: the long-lived process BullMQ, SSE and a stable webhook hostname all require ([ADR 0004](decisions/0004-backend-hosting-aws-ec2.md)), plus S3 + CloudFront for the two apps ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)) | D7–D8. Setting up IAM, SSM and the instance is a day of work that should not land on deploy day | Nothing deploys anywhere |
-| **Domain** — registrar login or a delegated zone | `app.`, `admin.` and `api.` all hang off it | It costs nothing to decide and unblocks four other things | Webhooks stay on a `trycloudflare` URL that changes on restart; no Auth0 production callbacks; no ACM certificate; Caddy cannot issue TLS |
+| Ask                                                                                                                                                                               | Why we need it                                                                                                                                                                                                                                               | Why now                                                                                         | Blocked without it                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| ~~**OpenAI API key**~~ → **Anthropic API key** with billing — available 15 Sep 2026, needs to land in `.env` and SSM                                                              | The only LLM we call ourselves: brief → prompt (§9.3) and feedback patches (§9.6). The in-call model is Retell's ([ADR 0009](decisions/0009-llm-provider-anthropic.md))                                                                                      | D5 is prompt generation                                                                         | `POST /agents/:id/generate` returns nothing; W2 is a dead end; the D2 quality benchmark cannot run |
+| ~~**Neon project**~~ — **resolved 22 Sep 2026**: Postgres is a private RDS instance inside the environment's CloudFormation stack ([ADR 0016](decisions/0016-postgres-on-rds.md)) | The only Postgres we run. 7-day PITR is the §17 recovery requirement ([ADR 0006](decisions/0006-tenancy-rls-and-append-only.md))                                                                                                                             | Created with the rest of the stack, so it is no longer a separate ask                           | —                                                                                                  |
+| **AWS — scoped access, not admin** (see below)                                                                                                                                    | Runs the backend: the long-lived process BullMQ, SSE and a stable webhook hostname all require ([ADR 0004](decisions/0004-backend-hosting-aws-ec2.md)), plus S3 + CloudFront for the two apps ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)) | D7–D8. Setting up IAM, SSM and the instance is a day of work that should not land on deploy day | Nothing deploys anywhere                                                                           |
+| ~~**Domain**~~ — **resolved 22 Sep 2026**: `oraly.ai` at Namecheap, BasicDNS ([ADR 0015](decisions/0015-domain-and-aws-account-bootstrap.md))                                     | `app.`, `admin.` and `api.` all hang off it                                                                                                                                                                                                                  | Done. `api-staging.oraly.ai` is the first record                                                | —                                                                                                  |
 
 **On AWS access.** `AdministratorAccess` is not available to us, and it is not actually required —
 it was only ever the fastest path. Two workable alternatives, in order of preference:
@@ -1089,19 +1100,19 @@ state is well under that, so the alert is a mistake detector, not a cost control
 
 ### AWS
 
-| Service | What it does for us | Access it needs | Why this, and not the alternative | Status |
-| --- | --- | --- | --- | --- |
-| **EC2** — `t3.small` staging, `t3.medium` prod | Runs `api`, `worker`, `redis`, `caddy` via Docker Compose ([ADR 0004](decisions/0004-backend-hosting-aws-ec2.md)) | Instance role: `ssm:GetParameters` on `/voice-agent/<env>/*`, `kms:Decrypt` on the SIP key, `ssmmessages:*` for Session Manager. Security group: inbound **443 only**, no SSH port | BullMQ needs a process that never sleeps, SSE a connection that stays open, webhooks a hostname that does not change. Serverless fails all three. One box beats ECS at this scale — one compose file, and the deploy is `docker compose up -d` | **Not started** — `docker-compose.prod.yml` lands D7 |
-| **Elastic IP** ×2 | Stable address for `api.<domain>` | Attached to the instance, nothing else | Retell and Stripe webhook URLs are configured once and must survive an instance replacement | **Not started** |
-| **S3** ×4 (web/admin × staging/prod) | Holds the compiled Next.js static export. Bucket **private** — *Block all public access* ON ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)) | CI user: `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` on these buckets only. CloudFront reads via OAC; no public principal, ever | A static export needs a file store, not a server. Private + OAC means the only way in is through the CDN — no second, uncached, unlogged path to the app | **Not started** — D8 |
-| **CloudFront** ×2 | CDN and HTTPS for `app.<domain>` and `admin.<domain>`; reads S3 through **OAC** | CI user: `cloudfront:CreateInvalidation` on these two distributions. OAC grants the distribution `s3:GetObject` on its own bucket, conditioned on the distribution ARN | Hitting the S3 URL directly gives `Access Denied` — that is OAC working. Custom error responses map **403 and 404** → `/index.html` 200; a private bucket returns 403, not 404, which is the classic thing to get wrong | **Not started** — D8 |
-| **ACM** — 1 certificate | TLS for both distributions | DNS validation on the domain's zone | **Must be requested in `us-east-1`** even though the rest of the account is `ca-central-1` — CloudFront reads certificates only from N. Virginia. Caddy on EC2 is unaffected; it keeps issuing its own Let's Encrypt certificate for `api.<domain>` | **Blocked** on the domain |
-| **SSM Parameter Store** | The only home for secrets: `SecureString` under `/voice-agent/<env>/*` (§17) | CI user: `ssm:PutParameter` on that prefix. Instance role: `ssm:GetParameters`. The frontend build needs none — a static export has no server-side secrets. Nobody gets `/voice-agent/*` unscoped | Free at our volume, IAM-scoped per environment prefix, KMS-encrypted at rest. Secrets Manager adds rotation and cost we do not need yet | **Not started** — local `.env` only |
-| **SSM Session Manager** | Deploys and shell access with no SSH key and no open port 22 | Instance role `ssmmessages:*`; CI user `ssm:SendCommand` scoped by instance tag | A leaked SSH key is a permanent credential; a Session Manager session is IAM-authenticated, logged and revocable | **Not started** |
-| **KMS** — one customer-managed key | Wraps the data key for SIP credentials (AES-256-GCM envelope) → `SIP_CREDENTIALS_KMS_KEY_ID` | `kms:GenerateDataKey` + `kms:Decrypt` for the `api` role **only**; the worker never decrypts SIP secrets | SIP credentials let someone place calls billed to our customer. Envelope encryption means the database holds nothing usable even under a full dump. Everything else in SSM is already KMS-encrypted with the AWS-managed key | **Placeholder** — `.env` holds a dummy id; `pnpm doctor` marks it optional until D8 |
-| **IAM** — 1 user, 1 role | `ci` user (GitHub Actions): `ssm:PutParameter`, `ssm:SendCommand`, S3 write on the four buckets, `cloudfront:CreateInvalidation`. `ec2-api` instance role. That is the whole account | Least privilege, scoped by `/voice-agent/<env>/` prefix and by instance tag; no `*` resources | The CI credential is the one that lives in a third party. It must be able to deploy and nothing else | **Not started** |
-| **Route 53** *(optional)* | DNS for `<domain>` | Hosted zone; CloudFront needs an alias record and Caddy an A record | Only if the domain is registered with AWS. If DNS stays at Cloudflare — where the tunnel and R2 already are — skip it | **Blocked** on the domain |
-| **CloudWatch** *(minimal)* | EC2 status-check alarm → Slack | Default instance metrics; one alarm | Application telemetry goes to Grafana Cloud over OTel. CloudWatch is only for "the box is gone" | **Not started** |
+| Service                                        | What it does for us                                                                                                                                                                  | Access it needs                                                                                                                                                                                   | Why this, and not the alternative                                                                                                                                                                                                                   | Status                                                                              |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| **EC2** — `t3.small` staging, `t3.medium` prod | Runs `api`, `worker`, `redis`, `caddy` via Docker Compose ([ADR 0004](decisions/0004-backend-hosting-aws-ec2.md))                                                                    | Instance role: `ssm:GetParameters` on `/voice-agent/<env>/*`, `kms:Decrypt` on the SIP key, `ssmmessages:*` for Session Manager. Security group: inbound **443 only**, no SSH port                | BullMQ needs a process that never sleeps, SSE a connection that stays open, webhooks a hostname that does not change. Serverless fails all three. One box beats ECS at this scale — one compose file, and the deploy is `docker compose up -d`      | **Not started** — `docker-compose.prod.yml` lands D7                                |
+| **Elastic IP** ×2                              | Stable address for `api.<domain>`                                                                                                                                                    | Attached to the instance, nothing else                                                                                                                                                            | Retell and Stripe webhook URLs are configured once and must survive an instance replacement                                                                                                                                                         | **Not started**                                                                     |
+| **S3** ×4 (web/admin × staging/prod)           | Holds the compiled Next.js static export. Bucket **private** — _Block all public access_ ON ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md))                           | CI user: `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` on these buckets only. CloudFront reads via OAC; no public principal, ever                                                            | A static export needs a file store, not a server. Private + OAC means the only way in is through the CDN — no second, uncached, unlogged path to the app                                                                                            | **Not started** — D8                                                                |
+| **CloudFront** ×2                              | CDN and HTTPS for `app.<domain>` and `admin.<domain>`; reads S3 through **OAC**                                                                                                      | CI user: `cloudfront:CreateInvalidation` on these two distributions. OAC grants the distribution `s3:GetObject` on its own bucket, conditioned on the distribution ARN                            | Hitting the S3 URL directly gives `Access Denied` — that is OAC working. Custom error responses map **403 and 404** → `/index.html` 200; a private bucket returns 403, not 404, which is the classic thing to get wrong                             | **Not started** — D8                                                                |
+| **ACM** — 1 certificate                        | TLS for both distributions                                                                                                                                                           | DNS validation on the domain's zone                                                                                                                                                               | **Must be requested in `us-east-1`** even though the rest of the account is `ca-central-1` — CloudFront reads certificates only from N. Virginia. Caddy on EC2 is unaffected; it keeps issuing its own Let's Encrypt certificate for `api.<domain>` | **Blocked** on the domain                                                           |
+| **SSM Parameter Store**                        | The only home for secrets: `SecureString` under `/voice-agent/<env>/*` (§17)                                                                                                         | CI user: `ssm:PutParameter` on that prefix. Instance role: `ssm:GetParameters`. The frontend build needs none — a static export has no server-side secrets. Nobody gets `/voice-agent/*` unscoped | Free at our volume, IAM-scoped per environment prefix, KMS-encrypted at rest. Secrets Manager adds rotation and cost we do not need yet                                                                                                             | **Not started** — local `.env` only                                                 |
+| **SSM Session Manager**                        | Deploys and shell access with no SSH key and no open port 22                                                                                                                         | Instance role `ssmmessages:*`; CI user `ssm:SendCommand` scoped by instance tag                                                                                                                   | A leaked SSH key is a permanent credential; a Session Manager session is IAM-authenticated, logged and revocable                                                                                                                                    | **Not started**                                                                     |
+| **KMS** — one customer-managed key             | Wraps the data key for SIP credentials (AES-256-GCM envelope) → `SIP_CREDENTIALS_KMS_KEY_ID`                                                                                         | `kms:GenerateDataKey` + `kms:Decrypt` for the `api` role **only**; the worker never decrypts SIP secrets                                                                                          | SIP credentials let someone place calls billed to our customer. Envelope encryption means the database holds nothing usable even under a full dump. Everything else in SSM is already KMS-encrypted with the AWS-managed key                        | **Placeholder** — `.env` holds a dummy id; `pnpm doctor` marks it optional until D8 |
+| **IAM** — 1 user, 1 role                       | `ci` user (GitHub Actions): `ssm:PutParameter`, `ssm:SendCommand`, S3 write on the four buckets, `cloudfront:CreateInvalidation`. `ec2-api` instance role. That is the whole account | Least privilege, scoped by `/voice-agent/<env>/` prefix and by instance tag; no `*` resources                                                                                                     | The CI credential is the one that lives in a third party. It must be able to deploy and nothing else                                                                                                                                                | **Not started**                                                                     |
+| **Route 53** _(optional)_                      | DNS for `<domain>`                                                                                                                                                                   | Hosted zone; CloudFront needs an alias record and Caddy an A record                                                                                                                               | Only if the domain is registered with AWS. If DNS stays at Cloudflare — where the tunnel and R2 already are — skip it                                                                                                                               | **Blocked** on the domain                                                           |
+| **CloudWatch** _(minimal)_                     | EC2 status-check alarm → Slack                                                                                                                                                       | Default instance metrics; one alarm                                                                                                                                                               | Application telemetry goes to Grafana Cloud over OTel. CloudWatch is only for "the box is gone"                                                                                                                                                     | **Not started**                                                                     |
 
 ```mermaid
 flowchart LR
@@ -1134,31 +1145,31 @@ build needs no AWS role at all, because a static export has no server-side secre
 
 **What we deliberately do not use from AWS**
 
-| Not used | We use instead | Reason |
-| --- | --- | --- |
-| RDS | **Neon Postgres** | Branch-per-environment and 7-day PITR out of the box; no instance to patch (§17) |
-| S3 *for exports* | Cloudflare R2 | Zero egress, and exports are pure egress. S3 *is* used for the frontend — a CDN-fronted static site is cached at the edge, so egress never hits the bucket |
-| ECR | GitHub Container Registry | The image is built by GitHub Actions; pushing to GHCR needs no AWS credential in the build |
-| ElastiCache | Redis 7 container on the EC2 box | The inbound path has a 300 ms p95 budget; loopback beats a network hop, and ElastiCache costs more than the instance |
-| Cognito | Auth0 ×2 | Two-tenant staff/customer split, Google Workspace connection, mandatory TOTP — Cognito makes each harder ([ADR 0002](decisions/0002-auth-provider-auth0.md)) |
-| Lambda / API Gateway | NestJS on EC2 | No BullMQ, no SSE, cold starts on the webhook path |
-| Amplify Hosting | S3 + CloudFront | Superseded on 14 Sep — the SSR premise was circular. Full reasoning in [ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md) |
-| ACM *for the API* | Caddy on EC2 | Caddy issues and renews its own Let's Encrypt certificate for `api.<domain>`. ACM serves CloudFront only, and only from us-east-1 |
+| Not used             | We use instead                   | Reason                                                                                                                                                       |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Neon                 | **RDS Postgres**                 | Same 7-day PITR (§17) with no second vendor, no public endpoint, and the instance created by the environment stack (ADR 0016)                                |
+| S3 _for exports_     | Cloudflare R2                    | Zero egress, and exports are pure egress. S3 _is_ used for the frontend — a CDN-fronted static site is cached at the edge, so egress never hits the bucket   |
+| ECR                  | GitHub Container Registry        | The image is built by GitHub Actions; pushing to GHCR needs no AWS credential in the build                                                                   |
+| ElastiCache          | Redis 7 container on the EC2 box | The inbound path has a 300 ms p95 budget; loopback beats a network hop, and ElastiCache costs more than the instance                                         |
+| Cognito              | Auth0 ×2                         | Two-tenant staff/customer split, Google Workspace connection, mandatory TOTP — Cognito makes each harder ([ADR 0002](decisions/0002-auth-provider-auth0.md)) |
+| Lambda / API Gateway | NestJS on EC2                    | No BullMQ, no SSE, cold starts on the webhook path                                                                                                           |
+| Amplify Hosting      | S3 + CloudFront                  | Superseded on 14 Sep — the SSR premise was circular. Full reasoning in [ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)                          |
+| ACM _for the API_    | Caddy on EC2                     | Caddy issues and renews its own Let's Encrypt certificate for `api.<domain>`. ACM serves CloudFront only, and only from us-east-1                            |
 
 ### Everything that is not AWS
 
-| Vendor | What it does for us | Access it needs | Status |
-| --- | --- | --- | --- |
-| **Neon** | Postgres, 7-day PITR, one branch per environment | Owner string → `DIRECT_DATABASE_URL`; two login roles → `DATABASE_URL`, `ADMIN_DATABASE_URL` ([ADR 0006](decisions/0006-tenancy-rls-and-append-only.md)) | **Done, 14 Sep 2026.** Project `Voice Agent`, AWS us-east-2, Postgres 18.6. All three migrations, the two login roles (created in SQL, not the console, so neither inherits `neon_superuser`/BYPASSRLS) and the seed are applied; `pnpm test:e2e` passes 53/53 against it. Daily work and CI stay on local Docker Postgres 16 — the suite takes 0.7 s there against 100 s over the network. Still on the Free plan, whose history retention is under the 7 days §17 needs; Launch ($19/mo) is required before launch |
-| **Retell AI** | Voice platform behind `RetellGateway`: agents, LLM objects, numbers, knowledge bases, web and phone calls, webhooks | One API key per environment; webhook secret; webhook URL → `api.<domain>/webhooks/retell` | **Live (dev).** Workspace on pay-as-you-go, key and webhook secret set, a test agent and a number exist. Webhooks currently reach a `trycloudflare` tunnel |
-| **Stripe** | Checkout, Customer Portal, `checkout.session.*` webhooks, off-session PaymentIntent for auto top-up, disputes | Test-mode account, restricted key, webhook endpoint → `/webhooks/stripe`. Live keys live in a separate SSM path and never in `.env` | **Live (test mode).** Secret, publishable and webhook secret all set. The live account waits on the merchant-of-record decision and is not needed before the first real purchase |
-| **Auth0** — two tenants ([ADR 0002](decisions/0002-auth-provider-auth0.md)) | Customer login (database, Google, Microsoft); staff login (Google Workspace + mandatory TOTP); Post-Registration and Post-Login Actions | Per tenant: a **Single Page Application** ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)), an API audience, an M2M app for the Management API | **Live (dev).** `pnpm doctor` confirms two distinct issuers, both audiences and the action secret. Still to do: switch both apps from Regular Web App to SPA, and verify the Actions are deployed from `infra/auth0/actions/` |
-| **Anthropic** | Brief → prompt generation only ([ADR 0009](decisions/0009-llm-provider-anthropic.md)) | API key | **Key available, 15 Sep 2026.** Set `ANTHROPIC_API_KEY` in `.env` and SSM, `GENERATION_MODEL=claude-sonnet-5`; drop the stale `OPENAI_*` values. Unblocks the D2 benchmark and D5 |
-| **GitHub** | Repo, Actions CI, GHCR image registry | Actions secrets: the AWS `ci` user keys only. GHCR uses `GITHUB_TOKEN` | **Live.** `saksham-metacognixion/Voice-Agent`, CI workflow present |
-| **Cloudflare** | Tunnel for local webhook delivery today; **R2** bucket for CSV and audio exports later | Tunnel: none. R2: bucket + scoped API token, worker only | **Tunnel in use** (`API_PUBLIC_URL`). R2 not started — exports are D14 |
-| **Resend** | Verification email, low-balance alerts, invites | Verified sending domain, API key | **Not started.** Needed by D5, blocked on the domain |
-| **PostHog · Sentry · Grafana Cloud · Slack** | Product analytics, exceptions, traces, alerts | Project key · DSN · OTLP endpoint · incoming webhook | **Not started.** Free tiers cover MVP volume; wanted before staging exists so the first deploy is observed rather than guessed at |
-| **Domain** | Everything under `app.`, `admin.`, `api.` | Registrar or delegated zone | **Blocked.** Nothing above that says `<domain>` can be finished without it |
+| Vendor                                                                      | What it does for us                                                                                                                     | Access it needs                                                                                                                                                                                       | Status                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ~~**Neon**~~ → **RDS PostgreSQL**                                           | Postgres, 7-day PITR                                                                                                                    | Master password in Secrets Manager; two login roles → `DATABASE_URL`, `ADMIN_DATABASE_URL` ([ADR 0006](decisions/0006-tenancy-rls-and-append-only.md), [ADR 0016](decisions/0016-postgres-on-rds.md)) | **Moved to RDS, 22 Sep 2026.** A Neon project `Voice Agent` (AWS us-east-2, Postgres 18.6) was created on 14 Sep and proved the schema end to end — migrations, the two login roles created in SQL so neither inherits `neon_superuser`/BYPASSRLS, the seed, and `pnpm test:e2e` 53/53. It stayed on the Free plan, whose history retention is under the 7 days §17 needs, and Launch is $19/mo — about what the RDS instance costs. With the AWS account available, Postgres moved into the environment's own stack: private, no second vendor, no public endpoint. **Decommission the Neon project once staging is verified.** Daily work and CI stay on local Docker Postgres 16 — the suite takes 0.7 s there against 100 s over a network. |
+| **Retell AI**                                                               | Voice platform behind `RetellGateway`: agents, LLM objects, numbers, knowledge bases, web and phone calls, webhooks                     | One API key per environment; webhook secret; webhook URL → `api.<domain>/webhooks/retell`                                                                                                             | **Live (dev).** Workspace on pay-as-you-go, key and webhook secret set, a test agent and a number exist. Webhooks currently reach a `trycloudflare` tunnel                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Stripe**                                                                  | Checkout, Customer Portal, `checkout.session.*` webhooks, off-session PaymentIntent for auto top-up, disputes                           | Test-mode account, restricted key, webhook endpoint → `/webhooks/stripe`. Live keys live in a separate SSM path and never in `.env`                                                                   | **Live (test mode).** Secret, publishable and webhook secret all set. The live account waits on the merchant-of-record decision and is not needed before the first real purchase                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| **Auth0** — two tenants ([ADR 0002](decisions/0002-auth-provider-auth0.md)) | Customer login (database, Google, Microsoft); staff login (Google Workspace + mandatory TOTP); Post-Registration and Post-Login Actions | Per tenant: a **Single Page Application** ([ADR 0008](decisions/0008-frontend-hosting-s3-cloudfront.md)), an API audience, an M2M app for the Management API                                          | **Live (dev).** `pnpm doctor` confirms two distinct issuers, both audiences and the action secret. Still to do: switch both apps from Regular Web App to SPA, and verify the Actions are deployed from `infra/auth0/actions/`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Anthropic**                                                               | Brief → prompt generation only ([ADR 0009](decisions/0009-llm-provider-anthropic.md))                                                   | API key                                                                                                                                                                                               | **Key available, 15 Sep 2026.** Set `ANTHROPIC_API_KEY` in `.env` and SSM, `GENERATION_MODEL=claude-sonnet-5`; drop the stale `OPENAI_*` values. Unblocks the D2 benchmark and D5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **GitHub**                                                                  | Repo, Actions CI, GHCR image registry                                                                                                   | Actions secrets: the AWS `ci` user keys only. GHCR uses `GITHUB_TOKEN`                                                                                                                                | **Live.** `saksham-metacognixion/Voice-Agent`, CI workflow present                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Cloudflare**                                                              | Tunnel for local webhook delivery today; **R2** bucket for CSV and audio exports later                                                  | Tunnel: none. R2: bucket + scoped API token, worker only                                                                                                                                              | **Tunnel in use** (`API_PUBLIC_URL`). R2 not started — exports are D14                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Resend**                                                                  | Verification email, low-balance alerts, invites                                                                                         | Verified sending domain, API key                                                                                                                                                                      | **Not started.** Needed by D5, blocked on the domain                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **PostHog · Sentry · Grafana Cloud · Slack**                                | Product analytics, exceptions, traces, alerts                                                                                           | Project key · DSN · OTLP endpoint · incoming webhook                                                                                                                                                  | **Not started.** Free tiers cover MVP volume; wanted before staging exists so the first deploy is observed rather than guessed at                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| **Domain**                                                                  | Everything under `app.`, `admin.`, `api.`                                                                                               | Registrar or delegated zone                                                                                                                                                                           | **Blocked.** Nothing above that says `<domain>` can be finished without it                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
 ### Where we stand
 
@@ -1179,7 +1190,7 @@ flowchart LR
         P3["Cloudflare tunnel, no R2"]
     end
     subgraph todo["Not started"]
-        T1["Neon"]
+        T1["RDS Postgres<br/>(with the AWS stack)"]
         T2["All AWS: EC2, SSM, KMS,<br/>S3 + CloudFront, IAM"]
         T3["Resend, PostHog, Sentry,<br/>Grafana, Slack"]
     end
@@ -1192,6 +1203,6 @@ flowchart LR
     end
 ```
 
-The critical path to the 15 Sep P0 exit is **Anthropic key → Neon**. AWS is a D7–D8 job and is not on
+The critical path to the 15 Sep P0 exit was **Anthropic key → Postgres**. AWS is a D7–D8 job and is not on
 this week's critical path, which is fortunate given the access question above. The domain blocks five
 things and costs nothing to decide.

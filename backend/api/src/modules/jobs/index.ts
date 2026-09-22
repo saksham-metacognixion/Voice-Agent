@@ -6,9 +6,12 @@ export { JobsController } from './jobs.controller';
 export type { EnqueueResult, QueueJobState } from './job-queues.service';
 export { JobHandlerRegistry, WorkerRuntime } from './job-handlers';
 export type { JobHandler } from './job-handlers';
-export { SchedulerRegistrar } from './schedulers';
+export { SchedulerRegistrar, describe as describeSchedule } from './schedulers';
+export type { SchedulerRegistration } from './schedulers';
+export { WorkerHeartbeat, HEARTBEAT_INTERVAL_MS, HEARTBEAT_TTL_S, DEFAULT_HEARTBEAT_FILE } from './worker-heartbeat';
+export type { WorkerHeartbeatRecord } from './worker-heartbeat';
 export { bullConnection, bullPrefix } from './jobs.connection';
-export { QUEUES, JOBS, SCHEDULED_JOBS, SCHEDULES } from './jobs.constants';
+export { QUEUES, JOBS, SCHEDULED_JOBS, SCHEDULES, scheduleLockTtlS } from './jobs.constants';
 export type {
   QueueName,
   ScheduledJobName,

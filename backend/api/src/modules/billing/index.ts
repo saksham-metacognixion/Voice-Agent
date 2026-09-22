@@ -5,7 +5,7 @@ export type { FulfilmentOutcome, PurchaseCreditedListener } from './billing.serv
 export { StripeGateway } from './stripe.gateway';
 export type { CheckoutSessionFacts, CheckoutMetadata, CreateCheckoutInput, PaymentIntentFacts, InvoiceFacts, TopupMetadata } from './stripe.gateway';
 export { AutoTopupService, decideTopup, TOPUP_IN_FLIGHT_MS, TOPUP_FAILURE_COOLDOWN_MS } from './auto-topup.service';
-export type { TopupDecision, TopupAttemptOutcome, TopupSkipReason } from './auto-topup.service';
+export type { TopupDecision, TopupAttemptOutcome, TopupSkipReason, TopupAbandonedListener, TopupCreditedListener } from './auto-topup.service';
 export { InvoicesService, invoiceStatusOf, STATUS_RANK } from './invoices.service';
 export { StripeConfig } from './stripe.config';
 export { StripeEventHandler } from './stripe-events.handler';

@@ -1,0 +1,553 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Voice Agent backend stack for one environment (ADR 0004, ADR 0015, ADR 0016): the EC2
+  instance that runs api + worker + redis + caddy under Docker Compose, its Elastic IP,
+  security group, instance role, the private RDS PostgreSQL database, the KMS key that wraps
+  SIP credentials, the CI user that may only run the deploy over SSM, and an operator policy
+  for pushing configuration. Secrets are NOT in this
+  template: they go to SSM Parameter Store with infra/scripts/ssm-put-env.sh after the stack
+  exists. Deploy once per environment with CAPABILITY_NAMED_IAM (docs/runbooks/staging.md).
+
+Parameters:
+  EnvName:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, prod]
+    Description: Environment. Selects the SSM path /voice-agent/<EnvName>/ and names everything.
+  ApiDomain:
+    Type: String
+    Default: api-staging.oraly.ai
+    Description: Public hostname Caddy terminates TLS for (an A record to the Elastic IP output).
+  InstanceType:
+    Type: String
+    Default: t3.small
+    AllowedValues: [t3.small, t3.medium, t3.large]
+    Description: t3.small for staging, t3.medium for prod (ADR 0004).
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The VPC for the security group (the default VPC is fine).
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: A public subnet in that VPC (needs a route to an internet gateway).
+  RootVolumeGb:
+    Type: Number
+    Default: 30
+    MinValue: 20
+    Description: Root EBS volume. Holds the Docker images, Redis AOF and Caddy certificates.
+  AmiId:
+    Type: String
+    Default: ''
+    AllowedPattern: '^(ami-[0-9a-f]{8,17})?$'
+    Description: >-
+      Leave empty: the stack takes the current Ubuntu 24.04 AMI for this region from Canonical's
+      public SSM parameter. Set an ami-… only if reading that parameter is refused.
+  DbSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: >-
+      Two or more subnets of the SAME VPC, in different availability zones — RDS requires that
+      even for a single-AZ instance. In the default VPC, pick all of them.
+  DbInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    AllowedValues: [db.t4g.micro, db.t4g.small, db.t4g.medium]
+    Description: db.t4g.micro for staging. Postgres sizes by memory, so move up if pg_stat shows pressure.
+  DbAllocatedGb:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    Description: Initial storage. Autoscales to five times this before it ever runs out.
+  DbEngineVersion:
+    Type: String
+    Default: '16'
+    Description: PostgreSQL major version. 16 matches infra/docker-compose.yml and CI; set a minor (16.8) if the major alone is refused.
+  DbMultiAz:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['false', 'true']
+    Description: Single AZ for staging. Prod turns this on, which doubles the instance cost.
+  PermissionsBoundaryArn:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional. The permissions boundary every identity this stack creates must carry, e.g.
+      arn:aws:iam::<account>:policy/voice-agent-boundary. Required when the deployer holds
+      operator-bootstrap-policy-strict.json; leave empty otherwise.
+  OperatorIamUser:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional. An existing IAM user name (the developer) that gets the operator policy:
+      SSM parameters under the path, Session Manager to the instance, manual deploys. Leave
+      empty to attach nothing and grant it by hand later.
+
+Conditions:
+  HasOperator: !Not [!Equals [!Ref OperatorIamUser, '']]
+  HasAmi: !Not [!Equals [!Ref AmiId, '']]
+  HasBoundary: !Not [!Equals [!Ref PermissionsBoundaryArn, '']]
+  IsProd: !Equals [!Ref EnvName, prod]
+
+Resources:
+  # ------------------------------------------------------------------ KMS: the SIP credential master (D6, §17)
+  SipCredentialsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub voice-agent ${EnvName} — wraps the AES-256-GCM data key of each SIP trunk password
+      EnableKeyRotation: true
+      PendingWindowInDays: 30
+      KeyPolicy:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: AccountAdministration
+            Effect: Allow
+            Principal:
+              AWS: !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: BackendEnvelopeEncryption
+            Effect: Allow
+            Principal:
+              AWS: !GetAtt InstanceRole.Arn
+            Action: [kms:GenerateDataKey, kms:Decrypt, kms:DescribeKey]
+            Resource: '*'
+      Tags:
+        - { Key: project, Value: voice-agent }
+        - Key: env
+          Value: !Ref EnvName
+  SipCredentialsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/voice-agent-${EnvName}-sip
+      TargetKeyId: !Ref SipCredentialsKey
+
+  # ------------------------------------------------------------------ the instance role: SSM agent, config path, KMS
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub voice-agent-${EnvName}-instance
+      Description: The EC2 instance. Session Manager, its own SSM parameter path, the SIP key. Nothing wider.
+      PermissionsBoundary: !If [HasBoundary, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue']
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Session Manager + Run Command (the deploy) — no SSH key, port 22 stays closed.
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: read-own-configuration
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Sid: ReadEnvParameters
+                Effect: Allow
+                Action: [ssm:GetParametersByPath, ssm:GetParameters, ssm:GetParameter]
+                Resource:
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/voice-agent/${EnvName}
+                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/voice-agent/${EnvName}/*
+              - Sid: DecryptSecureStringsThroughSsm
+                Effect: Allow
+                Action: kms:Decrypt
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    'kms:ViaService': !Sub 'ssm.${AWS::Region}.amazonaws.com'
+      Tags:
+        - { Key: project, Value: voice-agent }
+        - Key: env
+          Value: !Ref EnvName
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub voice-agent-${EnvName}-instance
+      Roles: [!Ref InstanceRole]
+
+  # ------------------------------------------------------------------ network: 80 (ACME + redirect) and 443 only
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub voice-agent-${EnvName}
+      GroupDescription: Caddy on 80/443. No SSH (Session Manager), Redis is compose-internal.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - {
+            IpProtocol: tcp,
+            FromPort: 80,
+            ToPort: 80,
+            CidrIp: 0.0.0.0/0,
+            Description: ACME challenge + redirect,
+          }
+        - {
+            IpProtocol: tcp,
+            FromPort: 80,
+            ToPort: 80,
+            CidrIpv6: '::/0',
+            Description: ACME challenge + redirect,
+          }
+        - {
+            IpProtocol: tcp,
+            FromPort: 443,
+            ToPort: 443,
+            CidrIp: 0.0.0.0/0,
+            Description: API + webhooks + SSE,
+          }
+        - {
+            IpProtocol: tcp,
+            FromPort: 443,
+            ToPort: 443,
+            CidrIpv6: '::/0',
+            Description: API + webhooks + SSE,
+          }
+      SecurityGroupEgress:
+        - {
+            IpProtocol: '-1',
+            CidrIp: 0.0.0.0/0,
+            Description: Neon / Retell / Stripe / Auth0 / GHCR / apt,
+          }
+      Tags:
+        - Key: Name
+          Value: !Sub voice-agent-${EnvName}
+        - { Key: project, Value: voice-agent }
+        - Key: env
+          Value: !Ref EnvName
+  # ------------------------------------------------------------------ Postgres (ADR 0016)
+  # Private: no public address, reachable only from the instance's security group. The app
+  # connects as portal_app_staging / portal_admin_staging (RLS, ADR 0006) — never as the
+  # master user, which exists to run migrations and to create those two roles.
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub voice-agent-${EnvName}-db
+      GroupDescription: PostgreSQL, reachable only from the voice-agent instance.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref SecurityGroup
+          Description: api + worker on the backend instance
+      Tags:
+        - Key: Name
+          Value: !Sub voice-agent-${EnvName}-db
+        - { Key: project, Value: voice-agent }
+        - { Key: env, Value: !Ref EnvName }
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub voice-agent-${EnvName}
+      DBSubnetGroupDescription: !Sub Subnets for the voice-agent ${EnvName} database
+      SubnetIds: !Ref DbSubnetIds
+      Tags:
+        - { Key: project, Value: voice-agent }
+        - { Key: env, Value: !Ref EnvName }
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    # A stack delete keeps the data as a final snapshot instead of destroying it; the same on
+    # any update that would replace the instance. Restoring one is a console action.
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub voice-agent-${EnvName}
+      DBName: portal
+      Engine: postgres
+      EngineVersion: !Ref DbEngineVersion
+      DBInstanceClass: !Ref DbInstanceClass
+      # The master password is generated and held by Secrets Manager, so it is in neither this
+      # template nor SSM. It is used by a human for migrations, never by the running app.
+      MasterUsername: portal
+      ManageMasterUserPassword: true
+      AllocatedStorage: !Ref DbAllocatedGb
+      MaxAllocatedStorage: !If [IsProd, 500, 100]
+      StorageType: gp3
+      StorageEncrypted: true
+      PubliclyAccessible: false
+      MultiAZ: !Ref DbMultiAz
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      VPCSecurityGroups: [!GetAtt DbSecurityGroup.GroupId]
+      # §17 wants 7-day point-in-time recovery; RDS does it from these backups.
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: '07:00-08:00'
+      PreferredMaintenanceWindow: 'sun:08:30-sun:09:30'
+      AutoMinorVersionUpgrade: true
+      CopyTagsToSnapshot: true
+      # Prod refuses an accidental console delete; staging stays disposable.
+      DeletionProtection: !If [IsProd, true, false]
+      EnablePerformanceInsights: false
+      Tags:
+        - { Key: project, Value: voice-agent }
+        - { Key: env, Value: !Ref EnvName }
+
+  # ------------------------------------------------------------------ the instance
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub voice-agent-${EnvName}
+      LaunchTemplateData:
+        # Ubuntu 24.04 LTS. Canonical's public SSM parameter, resolved when the stack runs; the
+        # AmiId parameter overrides it if the caller may not read public SSM parameters.
+        ImageId: !If
+          - HasAmi
+          - !Ref AmiId
+          - '{{resolve:ssm:/aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id}}'
+        InstanceType: !Ref InstanceType
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        # IMDSv2 only. deploy.sh fetches a token before it asks for the region.
+        MetadataOptions: { HttpTokens: required, HttpEndpoint: enabled, HttpPutResponseHopLimit: 2 }
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref SubnetId
+            Groups: [!Ref SecurityGroup]
+            AssociatePublicIpAddress: true
+        BlockDeviceMappings:
+          - DeviceName: /dev/sda1
+            Ebs:
+              VolumeType: gp3
+              VolumeSize: !Ref RootVolumeGb
+              Encrypted: true
+              DeleteOnTermination: true
+        Monitoring: { Enabled: false }
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub voice-agent-${EnvName}
+              - { Key: project, Value: voice-agent }
+              - Key: env
+                Value: !Ref EnvName
+          - ResourceType: volume
+            Tags:
+              - Key: Name
+                Value: !Sub voice-agent-${EnvName}
+              - { Key: project, Value: voice-agent }
+        # Same steps as infra/scripts/instance-bootstrap.sh (kept for a box built by hand):
+        # Docker + Compose, AWS CLI, git, unattended security updates, the app directory.
+        # The repo is private, so the clone and the registry login stay with the operator
+        # (docs/runbooks/staging.md, "On the instance") — no token belongs in a template.
+        UserData:
+          Fn::Base64: |
+            #!/usr/bin/env bash
+            set -euxo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y
+            apt-get install -y ca-certificates curl gnupg git unattended-upgrades
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+            echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list
+            apt-get update -y
+            apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+            snap install aws-cli --classic
+            systemctl enable --now docker unattended-upgrades
+            # Session Manager + Run Command come with the Ubuntu AMI's snap; make sure it is on.
+            snap start --enable amazon-ssm-agent || true
+            # 2 GB of swap on a 2 GB instance. api + worker + redis + caddy sit around 1.3 GB, so
+            # this is insurance for a worker spike (knowledge ingestion, exports) rather than
+            # working memory: swappiness 10 keeps it idle. `free -m` showing swap in use is the
+            # signal to move this environment to t3.medium, not something to tune away.
+            if [ ! -f /swapfile ]; then
+              fallocate -l 2G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=2048
+              chmod 600 /swapfile
+              mkswap /swapfile
+              swapon /swapfile
+              echo '/swapfile none swap sw 0 0' >> /etc/fstab
+              sysctl -w vm.swappiness=10
+              echo 'vm.swappiness=10' > /etc/sysctl.d/99-voice-agent.conf
+            fi
+            mkdir -p /opt/voice-agent/caddy
+            git config --system credential.helper 'store --file /root/.git-credentials'
+            echo 'voice-agent bootstrap done' > /var/log/voice-agent-bootstrap.done
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      Tags:
+        - Key: Name
+          Value: !Sub voice-agent-${EnvName}
+        - { Key: project, Value: voice-agent }
+        - Key: env
+          Value: !Ref EnvName
+        - Key: api_domain
+          Value: !Ref ApiDomain
+  ElasticIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub voice-agent-${EnvName}
+        - { Key: project, Value: voice-agent }
+        - Key: env
+          Value: !Ref EnvName
+  ElasticIpAssociation:
+    Type: AWS::EC2::EIPAssociation
+    Properties:
+      AllocationId: !GetAtt ElasticIp.AllocationId
+      InstanceId: !Ref Instance
+
+  # ------------------------------------------------------------------ CI: may run the deploy on this instance and nothing else
+  CiUser:
+    Type: AWS::IAM::User
+    Properties:
+      UserName: !Sub voice-agent-ci-${EnvName}
+      PermissionsBoundary: !If [HasBoundary, !Ref PermissionsBoundaryArn, !Ref 'AWS::NoValue']
+      Tags:
+        - { Key: project, Value: voice-agent }
+        - Key: env
+          Value: !Ref EnvName
+  CiPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub voice-agent-ci-${EnvName}
+      Description: GitHub Actions deploy-staging job. SendCommand (RunShellScript) on the one instance, then read the result.
+      Users: [!Ref CiUser]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RunTheDeployOnThisInstance
+            Effect: Allow
+            Action: ssm:SendCommand
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+              - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+          - Sid: ReadTheResult
+            Effect: Allow
+            Action: [ssm:GetCommandInvocation, ssm:ListCommandInvocations]
+            Resource: '*'
+
+  # ------------------------------------------------------------------ operator: configuration, a shell, a manual deploy
+  OperatorPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub voice-agent-operator-${EnvName}
+      Description: The developer. SSM parameters under /voice-agent/<env>/, Session Manager to the instance, manual deploys, read the stack.
+      Users: !If [HasOperator, [!Ref OperatorIamUser], !Ref 'AWS::NoValue']
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ManageEnvParameters
+            Effect: Allow
+            Action:
+              - ssm:PutParameter
+              - ssm:GetParameter
+              - ssm:GetParameters
+              - ssm:GetParametersByPath
+              - ssm:DeleteParameter
+              - ssm:DeleteParameters
+              - ssm:AddTagsToResource
+              - ssm:GetParameterHistory
+            Resource:
+              - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/voice-agent/${EnvName}
+              - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/voice-agent/${EnvName}/*
+          - Sid: ListParameters
+            Effect: Allow
+            Action: ssm:DescribeParameters
+            Resource: '*'
+          - Sid: SecureStringsThroughSsm
+            Effect: Allow
+            Action: [kms:Encrypt, kms:Decrypt]
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'kms:ViaService': !Sub 'ssm.${AWS::Region}.amazonaws.com'
+          - Sid: ShellOnTheInstance
+            Effect: Allow
+            Action: ssm:StartSession
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+              - !Sub arn:aws:ssm:${AWS::Region}::document/SSM-SessionManagerRunShell
+              # psql from the laptop to the private database, tunnelled through the instance.
+              # The database has no public address; this is the only way in, and it is audited.
+              - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-StartPortForwardingSessionToRemoteHost
+          - Sid: ReadTheDatabaseMasterPassword
+            Effect: Allow
+            Action: [secretsmanager:GetSecretValue, secretsmanager:DescribeSecret]
+            Resource: !GetAtt Database.MasterUserSecret.SecretArn
+          - Sid: OwnSessions
+            Effect: Allow
+            Action: [ssm:TerminateSession, ssm:ResumeSession]
+            Resource: 'arn:aws:ssm:*:*:session/${aws:username}-*'
+          - Sid: ManualDeploy
+            Effect: Allow
+            Action: ssm:SendCommand
+            Resource:
+              - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+              - !Sub arn:aws:ssm:${AWS::Region}::document/AWS-RunShellScript
+          - Sid: ReadOnly
+            Effect: Allow
+            Action:
+              - ssm:GetCommandInvocation
+              - ssm:ListCommandInvocations
+              - ssm:ListCommands
+              - ssm:DescribeInstanceInformation
+              - ssm:DescribeSessions
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeAddresses
+              - cloudformation:DescribeStacks
+              - cloudformation:DescribeStackEvents
+              - kms:DescribeKey
+            Resource: '*'
+          - Sid: RebootAfterKernelUpdate
+            Effect: Allow
+            Action: [ec2:RebootInstances, ec2:StartInstances, ec2:StopInstances]
+            Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${Instance}
+
+Outputs:
+  ElasticIp:
+    Description: Namecheap → Advanced DNS → A Record, Host = the subdomain of ApiDomain, Value = this.
+    Value: !Ref ElasticIp
+  ApiDomain:
+    Description: Put the same value in SSM as API_DOMAIN; API_PUBLIC_URL is https:// + this.
+    Value: !Ref ApiDomain
+  InstanceId:
+    Description: GitHub environment variable STAGING_INSTANCE_ID (and the target of `aws ssm start-session`).
+    Value: !Ref Instance
+  Region:
+    Description: GitHub environment variable AWS_REGION, and the AWS_REGION parameter in SSM (KMS client).
+    Value: !Ref AWS::Region
+  SipCredentialsKmsKeyArn:
+    Description: SSM parameter SIP_CREDENTIALS_KMS_KEY_ID.
+    Value: !GetAtt SipCredentialsKey.Arn
+  SsmPath:
+    Description: Where infra/scripts/ssm-put-env.sh writes the configuration.
+    Value: !Sub /voice-agent/${EnvName}/
+  CiUserName:
+    Description: Create one access key for this user in the IAM console and store it as the GitHub `staging` environment secrets.
+    Value: !Ref CiUser
+  OperatorPolicyArn:
+    Description: Attach to the developer's IAM user if OperatorIamUser was left empty.
+    Value: !Ref OperatorPolicy
+  DbEndpoint:
+    Description: The private database address. Only the instance's security group can reach it.
+    Value: !GetAtt Database.Endpoint.Address
+  DbMasterSecretArn:
+    Description: >-
+      Secrets Manager holds the generated master password. Read it once to run the migrations
+      and create the two login roles; the app never uses it.
+    Value: !GetAtt Database.MasterUserSecret.SecretArn
+  DbOwnerUrlCommand:
+    Description: Prints DIRECT_DATABASE_URL (the owner connection) for infra/scripts/db-env-roles.sh.
+    Value: !Sub >-
+      aws secretsmanager get-secret-value --region ${AWS::Region}
+      --secret-id ${Database.MasterUserSecret.SecretArn} --query SecretString --output text
+      | jq -r '"postgresql://\(.username):\(.password|@uri)@${Database.Endpoint.Address}:${Database.Endpoint.Port}/portal?sslmode=require"'
+  DbTunnelCommand:
+    Description: >-
+      Opens localhost:55432 onto the private database through the instance, so psql and
+      `pnpm db:deploy` work from the laptop. Leave it running in its own terminal.
+    Value: !Sub >-
+      aws ssm start-session --region ${AWS::Region} --target ${Instance}
+      --document-name AWS-StartPortForwardingSessionToRemoteHost
+      --parameters '{"host":["${Database.Endpoint.Address}"],"portNumber":["${Database.Endpoint.Port}"],"localPortNumber":["55432"]}'
+  DeployCommand:
+    Description: First deploy, from a machine with the operator policy (after DNS, SSM and the registry login).
+    Value: !Sub >-
+      aws ssm send-command --region ${AWS::Region} --instance-ids ${Instance}
+      --document-name AWS-RunShellScript
+      --parameters 'commands=["cd /opt/voice-agent/infra && git pull --quiet",
+      "sudo /opt/voice-agent/infra/infra/scripts/deploy.sh ${EnvName} develop"]'

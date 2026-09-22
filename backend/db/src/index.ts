@@ -65,11 +65,13 @@ export type { TemplateFileResult, TemplateRowShape } from './templates.js';
 export {
   APPEND_ONLY_VIOLATION,
   CALL_DEBIT_ONCE_CONSTRAINT,
+  RENTAL_DEBIT_ONCE_CONSTRAINT,
   WEBHOOK_DEDUPE_CONSTRAINT,
   isAppendOnlyViolation,
   isRlsViolation,
   isUniqueViolation,
   uniqueTargetUnknown,
   isDuplicateCallDebit,
+  isDuplicateRentalDebit,
   isDuplicateWebhook,
 } from './errors.js';

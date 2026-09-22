@@ -24,7 +24,9 @@
     "verify:auth0": "dotenv -e ../../.env -- tsx scripts/auth0-verify.ts",
     "verify:d6": "tsc -p tsconfig.scripts.json && dotenv -e ../../.env -- node dist-scripts/scripts/d6-staging-verify.js",
     "dev:link-user": "dotenv -e ../../.env -- tsx scripts/dev-link-user.ts",
-    "dev:seed-workspace": "dotenv -e ../../.env -- tsx scripts/dev-seed-workspace.ts"
+    "dev:seed-workspace": "dotenv -e ../../.env -- tsx scripts/dev-seed-workspace.ts",
+    "openapi:generate": "tsx scripts/openapi.ts",
+    "openapi:check": "tsx scripts/openapi.ts --check"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",

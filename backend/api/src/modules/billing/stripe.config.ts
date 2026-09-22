@@ -1,5 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { resolveAppEnv, type AppEnv } from '../../common/env';
+import { resolveAppEnv, type AppEnv, portalUrl } from '../../common/env';
 
 /**
  * Stripe settings, read once. Like RetellConfig: boot never dies here. A blank key
@@ -20,7 +20,7 @@ export class StripeConfig {
   constructor(env: NodeJS.ProcessEnv = process.env) {
     this.secretKey = env.STRIPE_SECRET_KEY?.trim() ?? '';
     this.webhookSecret = env.STRIPE_WEBHOOK_SECRET?.trim() ?? '';
-    this.portalUrl = (env.PORTAL_URL?.trim() || 'http://localhost:3000').replace(/\/+$/, '');
+    this.portalUrl = portalUrl(env);
     this.env = resolveAppEnv(env);
     this.missing = (['STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET'] as const).filter((k) => !env[k]?.trim());
 

@@ -1,5 +1,6 @@
 export { RetellModule } from './retell.module';
-export { RetellGateway, clampDuration, retellErrorStatus, isRetellNotFound } from './retell.gateway';
+export { RetellGateway, clampDuration, retellErrorStatus, isRetellNotFound, providerCallFacts, LIST_CALLS_PAGE, LIST_CALLS_MAX_PAGES } from './retell.gateway';
+export type { ProviderCallFacts } from './retell.gateway';
 export { RetellConfig } from './retell.config';
 export { stackFor, tierStack, agentStackTiers } from './retell.types';
 export type {

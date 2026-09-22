@@ -15,6 +15,7 @@ import { AgentsModule } from './modules/agents';
 import { AlertsModule } from './modules/alerts';
 import { CryptoModule } from './modules/crypto';
 import { KnowledgeModule } from './modules/knowledge';
+import { NotificationsModule } from './modules/notifications';
 import { NumbersModule } from './modules/numbers';
 import { PromptingModule } from './modules/prompting';
 import { RedisModule } from './modules/redis';
@@ -64,6 +65,7 @@ import { WorkspacesModule } from './modules/workspaces';
     AgentsModule,
     PromptingModule,
     KnowledgeModule,
+    NotificationsModule,
     NumbersModule,
     ActivationModule,
     VoicesModule,

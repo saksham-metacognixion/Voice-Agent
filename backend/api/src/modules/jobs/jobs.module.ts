@@ -1,9 +1,11 @@
 import { Global, Module } from '@nestjs/common';
+import { RedisModule } from '../redis';
 import { JobHandlerRegistry, WorkerRuntime } from './job-handlers';
 import { JobQueues } from './job-queues.service';
 import { JobRecordsService } from './job-records.service';
 import { JobsController } from './jobs.controller';
 import { SchedulerRegistrar } from './schedulers';
+import { WorkerHeartbeat } from './worker-heartbeat';
 
 /**
  * BullMQ plumbing — queues, the handler registry, the worker runtime and the scheduler
@@ -17,8 +19,10 @@ import { SchedulerRegistrar } from './schedulers';
  */
 @Global()
 @Module({
+  // Explicit for the same reason BillingModule gives: a partial graph must resolve on its own.
+  imports: [RedisModule],
   controllers: [JobsController],
-  providers: [JobQueues, JobHandlerRegistry, WorkerRuntime, SchedulerRegistrar, JobRecordsService],
-  exports: [JobQueues, JobHandlerRegistry, WorkerRuntime, SchedulerRegistrar, JobRecordsService],
+  providers: [JobQueues, JobHandlerRegistry, WorkerRuntime, SchedulerRegistrar, JobRecordsService, WorkerHeartbeat],
+  exports: [JobQueues, JobHandlerRegistry, WorkerRuntime, SchedulerRegistrar, JobRecordsService, WorkerHeartbeat],
 })
 export class JobsModule {}

@@ -8,3 +8,5 @@ export type { ProvisioningErrorKind } from './provisioning-error';
 export { forwardingGuideFor } from './forwarding-guide';
 export { toNumberResponse, toPlanResponse, parseTargets } from './number-response';
 export { NumbersController, PhonePlanController } from './numbers.controller';
+export { NumberRentalService, decideRental, daysBetween } from './number-rental.service';
+export type { RentalOutcome, ReleaseOutcome } from './number-rental.service';

@@ -36,6 +36,16 @@ export interface Workspace {
   userId: string;
   agentId: string;
   callId: string;
+  /** D6/D7 tenant-scoped rows, one of each, for the isolation matrix. */
+  knowledgeSourceId: string;
+  phonePlanId: string;
+  phoneNumberId: string;
+  creditLotId: string;
+  purchaseId: string;
+  invoiceId: string;
+  alertId: string;
+  notificationId: string;
+  jobId: string;
 }
 
 /** Builds one fully populated workspace on the owner connection, bypassing RLS. */
@@ -77,7 +87,58 @@ export async function createWorkspace(label: string): Promise<Workspace> {
     data: { tenantId: tenant.id, delta: 20, balanceAfter: 20, reason: 'trial' },
   });
 
-  return { tenantId: tenant.id, userId: user.id, agentId: agent.id, callId: call.id };
+  // D6/D7: one row in every tenant-scoped table the later days added.
+  const knowledge = await ownerDb.knowledgeSource.create({
+    data: { tenantId: tenant.id, agentId: agent.id, type: 'text', name: `${label} faq`, status: 'ready' },
+  });
+  const plan = await ownerDb.phonePlan.create({
+    data: { tenantId: tenant.id, agentId: agent.id, option: 'new', country: 'CA', status: 'executed' },
+  });
+  const number = await ownerDb.phoneNumber.create({
+    data: {
+      tenantId: tenant.id,
+      agentId: agent.id,
+      planId: plan.id,
+      e164: `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`,
+      type: 'retell_twilio',
+      status: 'active',
+      inboundToken: `tok_${randomUUID().replace(/-/g, '')}`,
+      country: 'CA',
+      nextRentalAt: new Date(Date.now() + 86_400_000),
+    },
+  });
+  const purchase = await ownerDb.purchase.create({
+    data: { tenantId: tenant.id, packId: 'starter', amountCents: 4_900, currency: 'USD', credits: 150, status: 'paid', stripeSessionId: `cs_${suffix}_${label}` },
+  });
+  const lot = await ownerDb.creditLot.create({
+    data: { tenantId: tenant.id, purchaseId: purchase.id, creditsTotal: 150, creditsRemaining: 150, expiresAt: new Date(Date.now() + 365 * 86_400_000) },
+  });
+  const invoice = await ownerDb.invoice.create({
+    data: { tenantId: tenant.id, purchaseId: purchase.id, stripeInvoiceId: `in_${suffix}_${label}`, stripeCustomerId: `cus_${suffix}_${label}`, amountCents: 4_900, currency: 'USD', status: 'paid' },
+  });
+  const alert = await ownerDb.alert.create({
+    data: { tenantId: tenant.id, type: 'low_balance', key: 'low_balance:20', threshold: 20, channel: 'in_app' },
+  });
+  const notification = await ownerDb.notification.create({
+    data: { tenantId: tenant.id, userId: user.id, kind: 'low_balance', dedupeKey: `rls:${suffix}:${label}`, channel: 'email', status: 'sent' },
+  });
+  const job = await ownerDb.job.create({ data: { tenantId: tenant.id, type: 'generate-agent', status: 'succeeded' } });
+
+  return {
+    tenantId: tenant.id,
+    userId: user.id,
+    agentId: agent.id,
+    callId: call.id,
+    knowledgeSourceId: knowledge.id,
+    phonePlanId: plan.id,
+    phoneNumberId: number.id,
+    creditLotId: lot.id,
+    purchaseId: purchase.id,
+    invoiceId: invoice.id,
+    alertId: alert.id,
+    notificationId: notification.id,
+    jobId: job.id,
+  };
 }
 
 /**

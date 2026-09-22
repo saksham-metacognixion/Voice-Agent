@@ -22,6 +22,11 @@ export type TopupDecision =
   | { action: 'charge'; reason: 'below_threshold' }
   | { action: 'skip'; reason: TopupSkipReason };
 
+/** Announced when a pending top-up is given up on; the notifications module opens the customer's `auto_topup_failed` alert from it. */
+export type TopupAbandonedListener = (event: { workspaceId: string; purchaseId: string; reason: string }) => Promise<void> | void;
+/** Announced when Stripe's confirmation credited a top-up; the same module resolves that alert from it. */
+export type TopupCreditedListener = (event: { workspaceId: string; purchaseId: string; credits: number }) => Promise<void> | void;
+
 export type TopupAttemptOutcome =
   | { outcome: 'charged'; purchaseId: string; paymentIntentId: string; status: string }
   | { outcome: 'declined'; purchaseId: string; paymentIntentId: string | null; reason: string }
@@ -70,10 +75,18 @@ export function decideTopup(input: {
  * idempotency key guards the one remaining gap (the process dies after the insert and
  * before the create returns): the reconcile sweep retries the create with the same key
  * and gets the same intent back.
+ *
+ * This service writes no `alerts` row. A declined or given-up top-up is *announced*
+ * (`onAbandoned`, the same shape as `BillingService.onPurchaseCredited`) and the
+ * notifications module — the only writer of `alerts` — opens the keyed customer alert and
+ * resolves it on `onCredited`. Billing therefore does not import notifications, and the
+ * arrows stay one-way.
  */
 @Injectable()
 export class AutoTopupService {
   private readonly log = new Logger(AutoTopupService.name);
+  private readonly abandonedListeners: TopupAbandonedListener[] = [];
+  private readonly creditedListeners: TopupCreditedListener[] = [];
 
   constructor(
     private readonly stripe: StripeGateway,
@@ -82,6 +95,24 @@ export class AutoTopupService {
     @Inject(forwardRef(() => BillingService)) private readonly billing: BillingService,
     private readonly alerts: OpsAlertService,
   ) {}
+
+  onAbandoned(listener: TopupAbandonedListener): void {
+    this.abandonedListeners.push(listener);
+  }
+
+  onCredited(listener: TopupCreditedListener): void {
+    this.creditedListeners.push(listener);
+  }
+
+  private async announce<E>(listeners: Array<(event: E) => Promise<void> | void>, what: string, event: E): Promise<void> {
+    for (const listener of listeners) {
+      try {
+        await listener(event);
+      } catch (error) {
+        this.log.error(`${what} listener failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
 
   // ------------------------------------------------------------------ settings (PUT /wallet/auto-topup)
 
@@ -228,7 +259,12 @@ export class AutoTopupService {
     const result = await this.wallet.withWallet(purchase.tenantId, async (tx, wallet) => {
       const fresh = await tx.purchase.findUniqueOrThrow({ where: { id: purchase.id } });
       if (fresh.status === 'paid' || fresh.status === 'refunded') return { outcome: 'already_paid' as const };
-      if (fresh.status !== 'pending') return { outcome: 'ignored' as const, reason: `purchase is ${fresh.status}` };
+      // `abandoned` is accepted too (D7 webhook-ordering review): Stripe may deliver a
+      // `payment_failed` for an earlier attempt after the `succeeded` for a later one, or
+      // the reconcile sweep may have given up moments before the webhook arrived. Stripe
+      // has the money either way, so the credits follow — the amount check below still
+      // holds, and a purchase that is `paid` stays idempotent.
+      if (fresh.status !== 'pending' && fresh.status !== 'abandoned') return { outcome: 'ignored' as const, reason: `purchase is ${fresh.status}` };
       if (intent.amount !== fresh.amountCents || intent.currency.toUpperCase() !== fresh.currency.toUpperCase()) {
         this.log.error(`auto top-up purchase ${fresh.id}: Stripe took ${intent.amount} ${intent.currency} but the purchase is ${fresh.amountCents} ${fresh.currency}; refusing to credit`);
         await tx.purchase.update({ where: { id: fresh.id }, data: { stripePaymentIntent: intent.id, failureReason: 'mismatch' } });
@@ -250,6 +286,7 @@ export class AutoTopupService {
     if (result.outcome === 'credited') {
       this.log.log(`auto top-up purchase ${purchase.id} credited ${result.credits} to ${purchase.tenantId} (balance ${result.balance})`);
       await this.config.refreshCaps(purchase.tenantId).catch(() => undefined);
+      await this.announce(this.creditedListeners, 'topup-credited', { workspaceId: purchase.tenantId, purchaseId: purchase.id, credits: result.credits });
     }
     return { ...result, purchaseId: purchase.id };
   }
@@ -277,11 +314,11 @@ export class AutoTopupService {
     return purchase;
   }
 
-  /** Marks a pending top-up abandoned with why, records an alert row, and tells ops once. Returns whether the row changed. */
+  /** Marks a pending top-up abandoned with why, announces it (the customer alert is the listener's), and tells ops once. Returns whether the row changed. */
   private async abandon(purchaseId: string, workspaceId: string, reason: string, detail: string | null): Promise<boolean> {
     const { count } = await adminDb.purchase.updateMany({ where: { id: purchaseId, status: 'pending' }, data: { status: 'abandoned', failureReason: reason.slice(0, 80) } });
     if (count === 0) return false;
-    await adminDb.alert.create({ data: { tenantId: workspaceId, type: 'auto_topup_failed', channel: 'in_app' } }).catch(() => undefined);
+    await this.announce(this.abandonedListeners, 'topup-abandoned', { workspaceId, purchaseId, reason });
     this.log.warn(`auto top-up purchase ${purchaseId} for ${workspaceId} abandoned: ${reason}${detail ? ` (${detail})` : ''}`);
     await this.alerts.send({
       kind: 'auto_topup_failed',

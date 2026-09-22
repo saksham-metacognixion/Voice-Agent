@@ -134,8 +134,10 @@ export class InMemoryRedis implements RedisLike {
     return this.live(key)?.value ?? null;
   }
 
-  async set(key: string, value: string, mode?: 'EX', seconds?: number): Promise<'OK'> {
+  async set(key: string, value: string, mode?: 'EX', seconds?: number, condition?: 'NX'): Promise<'OK' | null> {
     this.guard('set');
+    // `SET … NX` is the lock primitive (RedisCache.setIfAbsent / acquireLock): a live key wins.
+    if (condition === 'NX' && this.live(key)) return null;
     this.store.set(key, {
       value,
       ...(mode === 'EX' && seconds ? { expiresAt: Date.now() + seconds * 1000 } : {}),
@@ -225,7 +227,8 @@ export class InMemoryRedis implements RedisLike {
   async scan(_cursor: string, _m: 'MATCH', pattern: string): Promise<[string, string[]]> {
     this.guard('scan');
     const re = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$');
-    return ['0', [...this.store.keys()].filter((k) => re.test(k) && this.live(k))];
+    // Hashes are keys too: the concurrency monitor scans `active:*`.
+    return ['0', this.keys().filter((k) => re.test(k))];
   }
 
   async ping(): Promise<string> {

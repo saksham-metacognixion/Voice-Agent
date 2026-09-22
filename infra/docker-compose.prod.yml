@@ -1,0 +1,118 @@
+# EC2 compose stack — one instance per environment (ADR 0004). Same image for api and worker,
+# different commands. Only Caddy listens on the host: 80 for the ACME challenge and the
+# redirect, 443 for everything else. Redis is compose-internal.
+#
+#   Deploy:   infra/scripts/deploy.sh <env> <image tag>      (run by CI over SSM, or by hand)
+#   Rollback: infra/scripts/deploy.sh <env> <previous tag>
+#
+# Configuration comes from `.env` next to this file, written by deploy.sh from SSM Parameter
+# Store (/voice-agent/<env>/*). Nothing here is a secret; nothing in the repo ever is.
+name: voice-agent
+
+x-backend: &backend
+  image: ${BACKEND_IMAGE:-ghcr.io/metacognixion-labs/voice-agent-backend}:${BACKEND_TAG:-develop}
+  # `required: false` so `docker compose config` validates in CI, where no .env exists yet.
+  env_file:
+    - path: .env
+      required: false
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+  logging:
+    driver: json-file
+    options: { max-size: '20m', max-file: '5' }
+  networks: [backend]
+
+services:
+  api:
+    <<: *backend
+    command: ['node', 'dist/main.js']
+    environment:
+      API_PORT: '4000'
+      # Compose-internal Redis: loopback-class latency for the §13.9 hot path.
+      REDIS_URL: redis://redis:6379
+    expose: ['4000']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4000/health >/dev/null || exit 1']
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+    # Deliberately no CPU limit: this process owns the inbound authorisation path
+    # (p95 < 300 ms against Retell's 10 s timeout) and must never queue behind a worker job.
+
+  worker:
+    <<: *backend
+    command: ['node', 'dist/worker.js']
+    environment:
+      REDIS_URL: redis://redis:6379
+      WORKER_HEARTBEAT_FILE: /tmp/worker.heartbeat
+    healthcheck:
+      # No port to probe: WorkerHeartbeat touches this file every 30 s (D7).
+      test:
+        [
+          'CMD-SHELL',
+          'test -f /tmp/worker.heartbeat && test $$(( $$(date +%s) - $$(stat -c %Y /tmp/worker.heartbeat) )) -lt 120',
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # The instance has 2 vCPUs. Knowledge ingestion, exports and reconciliation are CPU-heavy
+    # and must not starve `api`: the worker gets at most one of them and 1 GB. It may run
+    # ~40% slower under load — that is the intended trade (plan D7, CLAUDE.md §13.9).
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1g
+
+  redis:
+    image: redis:7-alpine
+    command:
+      ['redis-server', '--appendonly', 'yes', '--maxmemory-policy', 'noeviction', '--save', '']
+    restart: unless-stopped
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+    networks: [backend]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ['80:80', '443:443']
+    environment:
+      # api.<domain>; ACME email for Let's Encrypt. Both come from the deploy .env.
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1/health >/dev/null || exit 1']
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+    networks: [backend]
+
+volumes:
+  redisdata:
+  caddydata:
+  caddyconfig:
+
+networks:
+  backend:

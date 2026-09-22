@@ -223,13 +223,40 @@ export class RetellGateway {
     return this.client.call.retrieve(callId);
   }
 
-  /** Nightly reconciliation (§14.2): everything Retell saw in a window, vs `calls`. */
-  listCalls(sinceMs: number, untilMs = Date.now()) {
+  /** Nightly reconciliation (§14.2): everything Retell saw in a window, vs `calls`. One page. */
+  listCalls(sinceMs: number, untilMs = Date.now(), paginationKey?: string) {
     return this.client.call.list({
       filter_criteria: { start_timestamp: { op: 'bt', type: 'range', value: [sinceMs, untilMs] } },
       sort_order: 'descending',
-      limit: 1000,
+      limit: LIST_CALLS_PAGE,
+      pagination_key: paginationKey,
     });
+  }
+
+  /**
+   * D7 `reconcile-calls`: every call the platform started in `[sinceMs, untilMs)`, paged
+   * until the platform runs out, reduced to the facts the reconciliation compares. `partial`
+   * is true when the page cap was hit — the caller records the run as partial rather than
+   * reporting drift against an incomplete list.
+   */
+  async listCallsInWindow(sinceMs: number, untilMs: number, maxPages = LIST_CALLS_MAX_PAGES): Promise<{ calls: ProviderCallFacts[]; partial: boolean }> {
+    const calls: ProviderCallFacts[] = [];
+    const seen = new Set<string>();
+    let paginationKey: string | undefined;
+    for (let page = 0; page < maxPages; page += 1) {
+      const { items, hasMore, paginationKey: next } = callListPage(await this.listCalls(sinceMs, untilMs, paginationKey));
+      for (const raw of items) {
+        const facts = providerCallFacts(raw);
+        if (facts && !seen.has(facts.call_id)) {
+          seen.add(facts.call_id);
+          calls.push(facts);
+        }
+      }
+      // The platform says when it is done; a cursor that does not move is treated the same.
+      if (!hasMore || items.length === 0 || !next || next === paginationKey) return { calls, partial: false };
+      paginationKey = next;
+    }
+    return { calls, partial: true };
   }
 
   deleteCall(callId: string) {
@@ -438,6 +465,62 @@ export class RetellGateway {
  * The only place the SDK's error class is named; every other module classifies on the
  * number (4xx is the request's fault and permanent, the rest is worth a retry).
  */
+/** Retell's list-calls page size; a window with more than 1000 × 10 calls is recorded as partial. */
+export const LIST_CALLS_PAGE = 1000;
+export const LIST_CALLS_MAX_PAGES = 10;
+
+/** What reconciliation compares, reduced from a `CallResponse`. `cost_cents` is `combined_cost` rounded (ADR 0003 §3). */
+export interface ProviderCallFacts {
+  call_id: string;
+  call_type: 'phone_call' | 'web_call' | 'unknown';
+  call_status: string | null;
+  start_timestamp: number | null;
+  end_timestamp: number | null;
+  duration_s: number | null;
+  disconnection_reason: string | null;
+  cost_cents: number | null;
+  /** `metadata.tenant_id` when the call carried our metadata (ADR 0011 §2). */
+  workspace_id: string | null;
+}
+
+/**
+ * One page of `list-calls` as retell-sdk 6 returns it: `{has_more, items, pagination_key}`
+ * (`CallListResponse`). Anything else is a provider error, never "zero calls" — the
+ * reconciliation would otherwise report every call in `calls` as extra and page ops with
+ * false drift every night. Pinned by `retell.list-calls.test.ts` against the SDK type.
+ */
+export function callListPage(response: unknown): { items: unknown[]; hasMore: boolean; paginationKey?: string } {
+  if (!response || typeof response !== 'object') throw new Error(`list-calls answered ${response === null ? 'null' : typeof response}, not a page`);
+  const r = response as Record<string, unknown>;
+  if (!Array.isArray(r.items)) throw new Error('list-calls answered without an items array');
+  return {
+    items: r.items,
+    hasMore: r.has_more === true,
+    paginationKey: typeof r.pagination_key === 'string' && r.pagination_key ? r.pagination_key : undefined,
+  };
+}
+
+export function providerCallFacts(raw: unknown): ProviderCallFacts | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.call_id !== 'string' || !r.call_id) return null;
+  const start = typeof r.start_timestamp === 'number' && Number.isFinite(r.start_timestamp) ? r.start_timestamp : null;
+  const end = typeof r.end_timestamp === 'number' && Number.isFinite(r.end_timestamp) ? r.end_timestamp : null;
+  const cost = (r.call_cost as { combined_cost?: unknown } | undefined)?.combined_cost;
+  const metadata = r.metadata && typeof r.metadata === 'object' ? (r.metadata as Record<string, unknown>) : {};
+  return {
+    call_id: r.call_id,
+    call_type: r.call_type === 'phone_call' || r.call_type === 'web_call' ? r.call_type : 'unknown',
+    call_status: typeof r.call_status === 'string' ? r.call_status : null,
+    start_timestamp: start,
+    end_timestamp: end,
+    duration_s: start !== null && end !== null && end >= start ? Math.round(((end - start) / 1000) * 1000) / 1000 : null,
+    disconnection_reason: typeof r.disconnection_reason === 'string' ? r.disconnection_reason : null,
+    cost_cents: typeof cost === 'number' && Number.isFinite(cost) ? Math.round(cost) : null,
+    workspace_id: typeof metadata.tenant_id === 'string' ? metadata.tenant_id : null,
+  };
+}
+
 export function retellErrorStatus(error: unknown): number | undefined {
   if (error instanceof Retell.APIError) return typeof error.status === 'number' ? error.status : undefined;
   return undefined;

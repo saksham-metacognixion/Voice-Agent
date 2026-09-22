@@ -5,12 +5,13 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { assertRlsEnforced, disconnect } from '@portal/db';
 import { AppModule } from './app.module';
 import { registerWebhookRawBody } from './modules/webhooks';
-import { resolveAppEnv } from './common/env';
+import { assertPortalUrl, portalUrl, resolveAppEnv } from './common/env';
 
 async function bootstrap() {
   // Before anything binds a port: if the runtime connection is not RLS-enforced, every
   // later tenancy guarantee is one forgotten WHERE clause away from being wrong (§17).
   await assertRlsEnforced();
+  assertPortalUrl();
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
@@ -24,7 +25,7 @@ async function bootstrap() {
 
   app.enableCors({
     origin: [
-      process.env.PORTAL_URL ?? 'http://localhost:3000',
+      portalUrl(),
       process.env.ADMIN_URL ?? 'http://localhost:3001',
     ],
     credentials: true,

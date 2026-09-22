@@ -13,6 +13,7 @@ import { AlertsModule, OpsAlertService, type OpsAlert } from '../src/modules/ale
 import { AuthModule } from '../src/modules/auth';
 import { CryptoModule } from '../src/modules/crypto';
 import { KnowledgeModule } from '../src/modules/knowledge';
+import { NotificationsModule } from '../src/modules/notifications';
 import { NumbersModule } from '../src/modules/numbers';
 import { BillingModule } from '../src/modules/billing';
 import { CallsModule } from '../src/modules/calls';
@@ -21,7 +22,7 @@ import { EventsModule } from '../src/modules/events';
 import { JobsModule, WorkerRuntime } from '../src/modules/jobs';
 import { PROMPT_PROVIDER, PromptingModule, ScriptedPromptProvider } from '../src/modules/prompting';
 import { RedisModule } from '../src/modules/redis';
-import { RetellGateway, RetellModule } from '../src/modules/retell';
+import { type ProviderCallFacts, RetellGateway, RetellModule } from '../src/modules/retell';
 import { RuntimeCacheModule } from '../src/modules/runtime-cache';
 import { ScheduledModule } from '../src/modules/scheduled';
 import { VoicesModule } from '../src/modules/voices';
@@ -124,6 +125,7 @@ export class FakeRetellGateway {
     this.delays.clear();
     this.phoneNumbers.clear();
     this.knowledgeBases.clear();
+    this.providerCalls.length = 0;
     this.kbIngestPolls = 1;
   }
 
@@ -255,6 +257,18 @@ export class FakeRetellGateway {
   /** The signature path is real elsewhere; nothing in D5 verifies a Retell signature. */
   verifyWebhookSignature(): Promise<boolean> {
     return Promise.resolve(true);
+  }
+
+  // ---------------------------------------------------------------- calls (D7 reconciliation)
+
+  /** What `list-calls` would return: a test seeds the platform's view of a window here. */
+  readonly providerCalls: ProviderCallFacts[] = [];
+
+  listCallsInWindow(sinceMs: number, untilMs: number): Promise<{ calls: ProviderCallFacts[]; partial: boolean }> {
+    return this.record('listCallsInWindow', [sinceMs, untilMs], () => ({
+      calls: this.providerCalls.filter((c) => c.start_timestamp !== null && c.start_timestamp >= sinceMs && c.start_timestamp < untilMs).map((c) => ({ ...c })),
+      partial: false,
+    }));
   }
 
   // ---------------------------------------------------------------- numbers (D6, §11)
@@ -494,6 +508,7 @@ export class CapturingAlerts {
     AgentsModule,
     PromptingModule,
     KnowledgeModule,
+    NotificationsModule,
     NumbersModule,
     ActivationModule,
     VoicesModule,

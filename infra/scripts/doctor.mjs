@@ -55,6 +55,12 @@ const CHECKS = [
   { key: 'SIP_CREDENTIALS_KMS_KEY_ID', phase: 'D6', required: false },
   { key: 'SIP_CREDENTIALS_LOCAL_KEY', phase: 'D6', required: false, secret: true },
   { key: 'OPS_ALERT_WEBHOOK_URL', phase: 'D6', required: false, secret: true },
+  // D7: recurring operations. All have defaults; RESEND_API_KEY is what turns the low-balance,
+  // rental and digest emails from log lines into deliveries.
+  { key: 'RECONCILE_DRIFT_THRESHOLD_PCT', phase: 'D7', required: false },
+  { key: 'CONCURRENCY_ALERT_PCT', phase: 'D7', required: false },
+  { key: 'CONCURRENCY_PLATFORM_LIMIT', phase: 'D7', required: false },
+  { key: 'DIGEST_LOCAL_HOUR', phase: 'D7', required: false },
 ];
 
 const results = [];

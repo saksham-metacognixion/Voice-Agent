@@ -75,23 +75,45 @@ export interface ScheduleSpec {
   pattern?: string;
   /** What the job does today. Skeleton entries log and return until their day lands. */
   status: 'live' | 'skeleton';
+  /**
+   * How long one tick may hold the per-schedule lock (D7). A tick that outlives its
+   * interval meets the next one on another worker; the lock turns that into a logged
+   * skip. Defaults to twice the interval for `every`, one hour for a cron.
+   */
+  lockTtlS?: number;
 }
 
+/**
+ * §13.11, as of D7. `daily-digest` is **hourly** on purpose: every tick asks each
+ * workspace whether it is past the digest hour in *its own* timezone and whether
+ * yesterday's digest went out — one UTC midnight run would mail Kolkata at 05:30 and
+ * Vancouver at 16:00 (DailyDigestService). `number-rental` is hourly so an anniversary
+ * is charged within the hour, and so a workspace that tops up after going overdue is
+ * charged the same day. `kb-sync` (automatic knowledge re-ingest) stays a skeleton — the
+ * platform re-crawls URL sources itself and nothing in P1 needs the schedule yet.
+ */
 export const SCHEDULES: readonly ScheduleSpec[] = [
   { name: SCHEDULED_JOBS.runtimeCacheRefresh, every: 5 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.webhookSweeper, every: 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.jobSweeper, every: 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.creditExpiry, pattern: '15 3 * * *', status: 'live' },
-  { name: SCHEDULED_JOBS.numberRental, pattern: '0 4 * * *', status: 'skeleton' },
-  { name: SCHEDULED_JOBS.lowBalanceAlerts, every: 15 * 60_000, status: 'skeleton' },
+  { name: SCHEDULED_JOBS.numberRental, pattern: '5 * * * *', status: 'live', lockTtlS: 50 * 60 },
+  { name: SCHEDULED_JOBS.lowBalanceAlerts, every: 15 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.autoTopup, every: 15 * 60_000, status: 'live' },
-  { name: SCHEDULED_JOBS.reconcileCalls, pattern: '30 2 * * *', status: 'skeleton' },
+  { name: SCHEDULED_JOBS.reconcileCalls, pattern: '30 2 * * *', status: 'live' },
   { name: SCHEDULED_JOBS.voiceCache, pattern: '0 5 * * *', status: 'live' },
-  { name: SCHEDULED_JOBS.concurrencyMonitor, every: 60_000, status: 'skeleton' },
-  { name: SCHEDULED_JOBS.numberRelease, pattern: '0 6 * * *', status: 'skeleton' },
-  { name: SCHEDULED_JOBS.dailyDigest, pattern: '0 12 * * *', status: 'skeleton' },
+  { name: SCHEDULED_JOBS.concurrencyMonitor, every: 5 * 60_000, status: 'live' },
+  { name: SCHEDULED_JOBS.numberRelease, pattern: '0 6 * * *', status: 'live' },
+  { name: SCHEDULED_JOBS.dailyDigest, pattern: '10 * * * *', status: 'live', lockTtlS: 50 * 60 },
   { name: SCHEDULED_JOBS.kbSync, pattern: '0 1 * * *', status: 'skeleton' },
 ];
+
+/** The lock TTL for one tick of a schedule (see ScheduleSpec.lockTtlS). */
+export function scheduleLockTtlS(spec: ScheduleSpec): number {
+  if (spec.lockTtlS) return spec.lockTtlS;
+  if (spec.every) return Math.max(60, Math.min(3_600, Math.round((spec.every * 2) / 1000)));
+  return 3_600;
+}
 
 export interface ProcessWebhookJob {
   eventId: string;

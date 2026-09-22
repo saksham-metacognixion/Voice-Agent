@@ -127,6 +127,62 @@ describe('reads are confined to the workspace in context', () => {
   });
 });
 
+/**
+ * D6/D7 resources: every tenant-scoped table the later days added, checked the same three
+ * ways — own row visible, neighbour's row invisible even by primary key, neighbour's row
+ * not insertable. The list is the §15 data model minus the tables above, so a table added
+ * without an RLS policy fails here rather than in production.
+ */
+describe('D6/D7 tenant-scoped resources are isolated the same way', () => {
+  type Row = { id: string };
+  const resources: Array<{ table: string; own: (w: Workspace) => string; find: (db: Parameters<Parameters<typeof asWorkspace>[1]>[0], id: string) => Promise<Row | null>; count: (db: Parameters<Parameters<typeof asWorkspace>[1]>[0], tenantId: string) => Promise<number> }> = [
+    { table: 'knowledge_sources', own: (w) => w.knowledgeSourceId, find: (db, id) => db.knowledgeSource.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.knowledgeSource.count({ where: { tenantId: t } }) },
+    { table: 'phone_plans', own: (w) => w.phonePlanId, find: (db, id) => db.phonePlan.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.phonePlan.count({ where: { tenantId: t } }) },
+    { table: 'phone_numbers', own: (w) => w.phoneNumberId, find: (db, id) => db.phoneNumber.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.phoneNumber.count({ where: { tenantId: t } }) },
+    { table: 'credit_lots', own: (w) => w.creditLotId, find: (db, id) => db.creditLot.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.creditLot.count({ where: { tenantId: t } }) },
+    { table: 'purchases', own: (w) => w.purchaseId, find: (db, id) => db.purchase.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.purchase.count({ where: { tenantId: t } }) },
+    { table: 'invoices', own: (w) => w.invoiceId, find: (db, id) => db.invoice.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.invoice.count({ where: { tenantId: t } }) },
+    { table: 'alerts', own: (w) => w.alertId, find: (db, id) => db.alert.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.alert.count({ where: { tenantId: t } }) },
+    { table: 'notifications', own: (w) => w.notificationId, find: (db, id) => db.notification.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.notification.count({ where: { tenantId: t } }) },
+    { table: 'jobs', own: (w) => w.jobId, find: (db, id) => db.job.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.job.count({ where: { tenantId: t } }) },
+  ];
+
+  it.each(resources.map((r) => [r.table, r] as const))('%s: own row visible, neighbour’s invisible by id and by tenant filter', async (_table, r) => {
+    const own = await asWorkspace(acme.tenantId, (db) => r.find(db, r.own(acme)));
+    expect(own?.id).toBe(r.own(acme));
+    const theirs = await asWorkspace(acme.tenantId, (db) => r.find(db, r.own(globex)));
+    expect(theirs).toBeNull();
+    expect(await asWorkspace(acme.tenantId, (db) => r.count(db, globex.tenantId))).toBe(0);
+    expect(await asWorkspace(globex.tenantId, (db) => r.count(db, globex.tenantId))).toBeGreaterThanOrEqual(1);
+    expect(await withNoWorkspace((db) => r.count(db, globex.tenantId))).toBe(0);
+  });
+
+  it('refuses to plant a phone number, an alert or a job in another workspace', async () => {
+    await expect(
+      asWorkspace(acme.tenantId, (db) =>
+        db.phoneNumber.create({ data: { tenantId: globex.tenantId, e164: '+14505559999', type: 'retell_twilio', inboundToken: `tok_${globex.tenantId}` } }),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+    await expect(asWorkspace(acme.tenantId, (db) => db.alert.create({ data: { tenantId: globex.tenantId, type: 'planted' } }))).rejects.toThrow(/row-level security/i);
+    await expect(asWorkspace(acme.tenantId, (db) => db.job.create({ data: { tenantId: globex.tenantId, type: 'planted' } }))).rejects.toThrow(/row-level security/i);
+  });
+
+  it('cannot dismiss, release or re-route a neighbour’s rows by id', async () => {
+    expect((await asWorkspace(acme.tenantId, (db) => db.alert.updateMany({ where: { id: globex.alertId }, data: { dismissedAt: new Date() } }))).count).toBe(0);
+    expect((await asWorkspace(acme.tenantId, (db) => db.phoneNumber.updateMany({ where: { id: globex.phoneNumberId }, data: { status: 'released' } }))).count).toBe(0);
+    expect((await asWorkspace(acme.tenantId, (db) => db.knowledgeSource.deleteMany({ where: { id: globex.knowledgeSourceId } }))).count).toBe(0);
+    const survivor = await ownerDb.phoneNumber.findUniqueOrThrow({ where: { id: globex.phoneNumberId } });
+    expect(survivor.status).toBe('active');
+  });
+
+  it('keeps the ledger, notifications and reconciliation runs read-only or unreachable for the app role', async () => {
+    // notifications: the portal may read its own, never write.
+    await expect(asWorkspace(acme.tenantId, (db) => db.notification.create({ data: { tenantId: acme.tenantId, kind: 'x', dedupeKey: `x:${acme.tenantId}`, channel: 'email' } }))).rejects.toThrow(/permission denied/i);
+    // reconciliation_runs: global, staff-only.
+    await expect(withNoWorkspace((db) => db.$queryRawUnsafe('SELECT 1 FROM "reconciliation_runs" LIMIT 1'))).rejects.toThrow(/permission denied/i);
+  });
+});
+
 describe('writes are confined to the workspace in context', () => {
   it('refuses to insert a row belonging to another workspace', async () => {
     await expect(

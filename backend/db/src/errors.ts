@@ -73,3 +73,10 @@ export function isDuplicateWebhook(error: unknown): boolean {
     uniqueTargetUnknown(error)
   );
 }
+
+/** D7 §5.3: one rental debit per (number, period). A re-run number-rental job lands here. */
+export const RENTAL_DEBIT_ONCE_CONSTRAINT = 'credit_ledger_rental_debit_once_idx';
+
+export function isDuplicateRentalDebit(error: unknown): boolean {
+  return isUniqueViolation(error, RENTAL_DEBIT_ONCE_CONSTRAINT) || isUniqueViolation(error, 'ref_id') || uniqueTargetUnknown(error);
+}
