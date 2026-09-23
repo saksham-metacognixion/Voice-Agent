@@ -228,4 +228,6 @@ jobs:
       - name: Portal answers over TLS
         run: |
           set -euo pipefail
-          curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://${{ vars.STAGING_PORTAL_HOST }}/login/"
+          host="${{ vars.STAGING_PORTAL_HOST }}"
+          [ -n "$host" ] || { echo "::error::STAGING_PORTAL_HOST is not set on the staging environment (e.g. app-staging.oraly.ai)"; exit 1; }
+          curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://$host/login/"
