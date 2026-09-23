@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-time EC2 instance preparation (Ubuntu 24.04 or Amazon Linux 2023) — ADR 0004, ADR 0015.
 #
-# A box created from infra/aws/staging-stack.yaml has already run the package half of this
+# A box created from infra/aws/backend-stack.yaml has already run the package half of this
 # as user data (check /var/log/voice-agent-bootstrap.done); on such a box only the second
 # half — the registry login and the private clone — is needed, and it is safe to run the
 # whole script again. Run as root once, then every deploy is infra/scripts/deploy.sh over SSM.

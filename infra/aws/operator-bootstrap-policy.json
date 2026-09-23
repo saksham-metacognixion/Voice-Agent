@@ -2,7 +2,7 @@
   "Version": "2012-10-17",
   "Comment": [
     "Voice Agent \u2014 the IAM permissions the developer needs so CloudFormation can manage",
-    "infra/aws/staging-stack.yaml. ADR 0015, ADR 0016.",
+    "infra/aws/backend-stack.yaml. ADR 0015, ADR 0016.",
     "",
     "Attach to the IAM user that deploys the stack (voice-agent-devs). Every statement that can",
     "change or delete something is scoped by name to voice-agent-*, so it cannot read, change or",

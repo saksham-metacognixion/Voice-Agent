@@ -74,8 +74,9 @@ pnpm auth0:export customer
 diff infra/auth0/tenant.customer.yaml infra/auth0/export/customer/tenant.yaml
 ```
 
-Reconcile the **names** first (`Portal Web`, `Portal API`, `Admin Console`, `Staff API`,
-`Username-Password-Authentication`): either rename the object in the dashboard, or change
+Reconcile the **names** first (`Voice Agent`, `Portal API`, `Admin Console`, `Staff API`,
+`Username-Password-Authentication` — the customer SPA is called *Voice Agent* in the tenant,
+which is why the file says that and not something tidier): either rename the object in the dashboard, or change
 the name in our YAML. Then look at the values and decide, field by field, whether the file
 or the tenant is right — the file is the source of truth from that moment on.
 
@@ -152,6 +153,29 @@ Without either, steps 1–2 still run and 3–4 report as skipped, never as pass
 
 All of these fail silently.
 
+- **`403 unauthorized_client: Callback URL mismatch`** on `/authorize` is the tenant
+  refusing the `redirect_uri` the SPA sent. The portal is a static export, so its callback
+  is the **app origin itself** — `http://localhost:3000` in dev, `https://app-staging.oraly.ai`
+  on staging — not a `/callback` path. The same value must be in all four lists of the
+  `Portal Web` application: _Allowed Callback URLs_, _Allowed Logout URLs_, _Allowed Web
+  Origins_ and _Allowed Origins (CORS)_.
+
+  Fix it from the file — `PORTAL_URL` and the optional `PORTAL_ALT_URL` are what get
+  deployed, and `pnpm auth0:validate` prints the resulting list before anything is sent:
+
+  ```sh
+  pnpm auth0:validate      # "Portal Web accepts: http://localhost:3000 …"
+  pnpm auth0:plan customer # what would change in the tenant; changes nothing
+  pnpm auth0:deploy customer
+  ```
+
+  That needs the M2M credentials from §1. Without them it is four fields in the dashboard
+  under **Applications → Portal Web → Settings**, and `.env` should then be brought in line
+  so the next deploy does not undo it.
+
+  **One tenant serves more than one origin.** Set `PORTAL_ALT_URL` whenever a second app is
+  pointed at the same tenant — a developer on localhost while staging is deployed — or
+  deploying for one silently removes the other and every login there starts failing this way.
 - **One tenant per Auth0 account on the free plan.** The second tenant needs a second
   account; sign up with a shared alias (`auth0@<domain>`), never a personal address.
 - **An API identifier cannot be edited after creation.** Getting `AUTH0_CUSTOMER_AUDIENCE`

@@ -25,7 +25,7 @@ staging box ends up with SSH open and a role nobody can name.
    BasicDNS for MVP: three A/CNAME records and the ACM validation CNAMEs are not worth a
    Route 53 zone and another IAM grant. `PORTAL_URL` on staging is `https://app-staging.oraly.ai`
    from day one, even before the portal is deployed, because `deploy.sh` refuses localhost.
-2. **One template per environment stack**, `infra/aws/staging-stack.yaml`: security group
+2. **One template per environment stack**, `infra/aws/backend-stack.yaml`: security group
    (80/443 only), instance role (Session Manager, `GetParametersByPath` on its own SSM path,
    `GenerateDataKey`/`Decrypt` on the SIP key), the instance (Ubuntu 24.04 by the canonical
    SSM public parameter, IMDSv2 required, encrypted root, Docker installed by user data),

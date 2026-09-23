@@ -32,7 +32,13 @@ tenant:
   idle_session_lifetime: 72
 
 clients:
-  - name: Portal Web
+  # The name is how a0deploy finds this application, and the tenant calls it "Voice Agent"
+  # (verified in the dashboard, 22 Sep 2026 — client l0UZ5TKd…, the one AUTH0_CLIENT_ID
+  # points at). Calling it anything else here does not fail: it CREATES a second
+  # application with a new client_id and leaves .env pointing at the old one, so login goes
+  # on failing and the deploy looks like it did nothing. Rename it here and in the
+  # dashboard together, or not at all.
+  - name: Voice Agent
     description: Customer portal (frontend/web). Public client on Authorization Code + PKCE (ADR 0008).
     app_type: spa
     is_first_party: true
@@ -43,14 +49,23 @@ clients:
       - refresh_token
     token_endpoint_auth_method: none
     # The app origin itself, not /auth/callback — a static export has no route handlers.
+    # Two entries, because one tenant serves more than one origin: PORTAL_URL is this
+    # environment's app, and PORTAL_ALT_URL is an optional second — a developer on
+    # localhost while staging is deployed against the same tenant. With only one
+    # slot, deploying for staging locks every developer out of login. When
+    # PORTAL_ALT_URL is unset in .env its line is dropped rather than sent empty.
     callbacks:
       - '##PORTAL_URL##'
+      - '##PORTAL_ALT_URL?##'
     allowed_logout_urls:
       - '##PORTAL_URL##'
+      - '##PORTAL_ALT_URL?##'
     web_origins:
       - '##PORTAL_URL##'
+      - '##PORTAL_ALT_URL?##'
     allowed_origins:
       - '##PORTAL_URL##'
+      - '##PORTAL_ALT_URL?##'
     cross_origin_authentication: false
     # Refresh Token Rotation — without it a SPA cannot hold a session past the access token.
     refresh_token:

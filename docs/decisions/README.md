@@ -42,3 +42,4 @@ Template:
 
 ## Consequences
 ```
+- [0017 — Portal foundation: session, gating, theme tokens, local issuer](0017-portal-foundation.md)

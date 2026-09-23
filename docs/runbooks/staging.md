@@ -11,7 +11,9 @@ BasicDNS — decided 22 Sep 2026, ADR 0015). Staging hosts carry a `-staging` su
 | `api.oraly.ai`, `app.oraly.ai`, `admin.oraly.ai` | the same, prod                | prod        | launch |
 
 Everything the backend needs on AWS is one CloudFormation template,
-`infra/aws/staging-stack.yaml`, deployed once per environment. As of 22 Sep 2026 **the stack
+`infra/aws/backend-stack.yaml`, deployed once per environment. **The record of the real staging
+run — what exists, what broke and why — is [staging-deploy-log.md](staging-deploy-log.md); keep
+it current as steps complete.** As of 22 Sep 2026 **the stack
 has not been created** — see "Where we stand" at the end.
 
 ## What runs
@@ -26,7 +28,7 @@ has not been created** — see "Where we stand" at the end.
                                               RDS Postgres (private, same VPC, reachable only from this box)
 ```
 
-Files: `infra/aws/staging-stack.yaml`, `infra/docker-compose.prod.yml`, `infra/caddy/Caddyfile`,
+Files: `infra/aws/backend-stack.yaml`, `infra/docker-compose.prod.yml`, `infra/caddy/Caddyfile`,
 `infra/scripts/deploy.sh`, `infra/scripts/ssm-put-env.sh`, `infra/scripts/db-env-roles.sh`,
 `infra/scripts/instance-bootstrap.sh`, `infra/Dockerfile`, `.github/workflows/ci.yml`.
 
@@ -51,10 +53,40 @@ then `voice-agent-deploy-iam` from `infra/aws/operator-bootstrap-policy-strict.j
 the second to the developer. Deploy the stack with `PermissionsBoundaryArn` set to the
 boundary's ARN, or every identity it creates is refused.
 
-Either way, delete the `Comment` key before pasting; IAM rejects unknown top-level keys:
+Either way, delete the `Comment` key before pasting; IAM rejects unknown top-level keys. From a
+clone of this repo (CloudShell has `git` and `jq`), the whole of **simple** is:
 
 ```sh
-jq 'del(.Comment)' infra/aws/operator-bootstrap-policy.json
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+aws iam create-policy --policy-name voice-agent-deploy-iam \
+  --policy-document "$(jq -c 'del(.Comment)' infra/aws/operator-bootstrap-policy.json)"
+aws iam attach-user-policy --user-name voice-agent-devs \
+  --policy-arn "arn:aws:iam::$ACCOUNT:policy/voice-agent-deploy-iam"
+```
+
+and **strict** is the boundary first, then the deployer policy that requires it:
+
+```sh
+ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+aws iam create-policy --policy-name voice-agent-boundary \
+  --policy-document "$(jq -c 'del(.Comment)' infra/aws/voice-agent-boundary-policy.json)"
+aws iam create-policy --policy-name voice-agent-deploy-iam \
+  --policy-document "$(jq -c 'del(.Comment)' infra/aws/operator-bootstrap-policy-strict.json)"
+aws iam attach-user-policy --user-name voice-agent-devs \
+  --policy-arn "arn:aws:iam::$ACCOUNT:policy/voice-agent-deploy-iam"
+# then create the stack with:
+#   --parameter-overrides PermissionsBoundaryArn=arn:aws:iam::$ACCOUNT:policy/voice-agent-boundary
+```
+
+Without the repo, paste the same files into **IAM → Policies → Create policy → JSON**, minus the
+`Comment` key.
+
+**If the stack already failed for want of this**, grant the policy and then delete the stack —
+cleanup now succeeds and takes the orphans with it, so nothing has to be removed by hand:
+
+```sh
+aws cloudformation delete-stack --stack-name voice-agent-staging-backend --region ca-central-1
+aws cloudformation wait stack-delete-complete --stack-name voice-agent-staging-backend --region ca-central-1
 ```
 
 **What neither can reach.** No EC2, RDS, S3 or KMS action appears in either file — only IAM. Every
@@ -95,13 +127,13 @@ the same VPC as the instance (ADR 0016), so nothing crosses a region.
 
 ```sh
 aws cloudformation deploy --region ca-central-1 \
-  --stack-name voice-agent-staging \
-  --template-file infra/aws/staging-stack.yaml \
+  --stack-name voice-agent-staging-backend \
+  --template-file infra/aws/backend-stack.yaml \
   --capabilities CAPABILITY_NAMED_IAM \
   --parameter-overrides EnvName=staging ApiDomain=api-staging.oraly.ai \
     VpcId=<default vpc id> SubnetId=<a public subnet in it> \
     OperatorIamUser=<the developer's IAM user name>
-aws cloudformation describe-stacks --region ca-central-1 --stack-name voice-agent-staging \
+aws cloudformation describe-stacks --region ca-central-1 --stack-name voice-agent-staging-backend \
   --query 'Stacks[0].Outputs' --output table
 ```
 
@@ -240,17 +272,39 @@ CloudFormation rolls back on its own, and the stack ends `ROLLBACK_COMPLETE` —
 create again. If it ends **`ROLLBACK_FAILED`**, rollback itself was refused, and the reason is
 almost always a missing `iam:Delete*` (step 0):
 
+The banner on the stack — _"The following resource(s) failed to delete"_ — describes the
+**cleanup**, not the failure. Two different questions, two queries (CloudShell is already in
+the account, bottom-left of the console):
+
 ```sh
-# what actually failed, as opposed to what was cancelled behind it
-aws cloudformation describe-stack-events --stack-name voice-agent-staging --region ca-central-1 \
-  --query "StackEvents[?ResourceStatus=='CREATE_FAILED'].[LogicalResourceId,ResourceStatusReason]" --output text
+# 1. why the stack failed at all — the first row is the cause, the rest are cancellations
+aws cloudformation describe-stack-events --stack-name voice-agent-staging-backend --region ca-central-1 \
+  --query "reverse(StackEvents[?ResourceStatus=='CREATE_FAILED'].[LogicalResourceId,ResourceStatusReason])" \
+  --output text
+
+# 2. why rollback could not clean up — usually the literal AccessDenied it needed
+aws cloudformation describe-stack-events --stack-name voice-agent-staging-backend --region ca-central-1 \
+  --query "reverse(StackEvents[?ResourceStatus=='DELETE_FAILED'].[LogicalResourceId,ResourceStatusReason])" \
+  --output text
 ```
+
+A resource that failed to **delete** was created successfully, so the identity has
+`iam:Create*` and the create failed somewhere else entirely — query 1 is the one that matters.
 
 Fix the permission first, then `Delete stack` — it will now clean up what it left behind. If the
 permission cannot be granted, delete with **Retain** on the resources it names, and have an
-administrator remove them by hand: the template gives them fixed names
-(`voice-agent-<env>-instance`, `voice-agent-ci-<env>`) and a retained one collides with the
-next create.
+administrator remove them by hand. Every name in the template is fixed, so anything retained
+collides with the next create and the second attempt fails with _already exists_:
+
+| Retained                     | Delete before retrying (IAM → …)                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------------------------------- |
+| `InstanceRole`               | Roles → `voice-agent-<env>-instance` (detach it from the instance profile of the same name first) |
+| `CiUser`                     | Users → `voice-agent-ci-<env>` (remove its access keys and attached policies first)               |
+| `InstanceProfile`            | `aws iam delete-instance-profile --instance-profile-name voice-agent-<env>-instance`              |
+| `CiPolicy`, `OperatorPolicy` | Policies → `voice-agent-ci-<env>`, `voice-agent-operator-<env>`                                   |
+
+Nothing here collides with another project in the account: every name this template creates is
+prefixed `voice-agent-`.
 
 ## Deploy
 
@@ -307,6 +361,79 @@ purchase … credited`. Alerts: `low-balance <ws>: balance … ≤ … — alert
   secret: the email sender logs recipient (masked) and subject only; webhook handlers log
   event type and ids.
 
+## The portal (S3 + CloudFront, ADR 0008 / 0017)
+
+One CloudFormation stack per app per environment, in **the same account and region as the
+backend** except for the certificate, which CloudFront reads only from `us-east-1`:
+
+**Both optional parameters can be left out on the first run**, and the stack still comes up in
+about ten minutes on its own `*.cloudfront.net` name — deployable and testable immediately:
+
+- `HostName` + `CertificateArn` — omit them and CloudFront serves its default certificate.
+  Add both once ACM reads _Issued_; the aliases attach on a stack update.
+- `CiUserName` — omit it and the stack creates **no IAM resource at all**, so it deploys
+  without the permissions of step 0 and without `CAPABILITY_NAMED_IAM`. Deploys then run from
+  the developer's own credentials; add the name later and the `deploy-portal-staging` job
+  takes over.
+
+That is the order to use while the backend is blocked: stack now, certificate and CI user when
+they exist.
+
+1. ACM, region `us-east-1`: request a certificate for `app-staging.oraly.ai`, DNS
+   validation, add the CNAME at Namecheap, wait for _Issued_. Note the ARN.
+2. Create the stack:
+
+   ```sh
+   aws cloudformation deploy --region ca-central-1 --stack-name voice-agent-staging-web \
+     --template-file infra/aws/frontend-stack.yaml --capabilities CAPABILITY_NAMED_IAM \
+     --parameter-overrides Environment=staging App=web HostName=app-staging.oraly.ai \
+       CertificateArn=arn:aws:acm:us-east-1:…:certificate/… CiUserName=voice-agent-ci-staging
+   aws cloudformation describe-stacks --stack-name voice-agent-staging-web --query 'Stacks[0].Outputs'
+   ```
+
+   It creates the private bucket, the OAC, the distribution with the `/path/ →
+/path/index.html` viewer function, the no-cache HTML policy, the security headers,
+   and grants the CI user sync + invalidation on exactly this bucket and distribution.
+
+3. DNS: `app-staging` CNAME → the `DistributionDomainName` output.
+4. Auth0 (customer tenant): the callback, logout and web-origin lists are `PORTAL_URL`
+   plus the optional `PORTAL_ALT_URL`. Deploy with **both**, or staging replaces localhost
+   and every developer's login starts answering _Callback URL mismatch_:
+
+   ```sh
+   PORTAL_URL=https://app-staging.oraly.ai PORTAL_ALT_URL=http://localhost:3000 \
+     pnpm auth0:validate      # prints the list that would be sent
+   PORTAL_URL=https://app-staging.oraly.ai PORTAL_ALT_URL=http://localhost:3000 \
+     pnpm auth0:plan customer && … deploy customer
+   ```
+
+   The callback is the **app origin**, not a `/callback` path — a static export has no
+   route handlers. Needs the M2M credentials (auth0.md §1), which are not in `.env` yet;
+   until then it is four fields in the dashboard.
+
+5. GitHub `staging` environment variables: `STAGING_PORTAL_BUCKET`,
+   `STAGING_PORTAL_DISTRIBUTION_ID`, `STAGING_PORTAL_HOST`, `STAGING_AUTH0_DOMAIN`,
+   `STAGING_AUTH0_CLIENT_ID`, `STAGING_AUTH0_AUDIENCE`, optionally `STAGING_POSTHOG_KEY` /
+   `STAGING_POSTHOG_HOST`. `STAGING_API_DOMAIN` and the AWS keys are shared with the
+   backend job. The `deploy-portal-staging` job then runs on every push to `develop`.
+6. By hand, the same thing:
+
+   ```sh
+   FRONTEND_BUCKET=… FRONTEND_DISTRIBUTION_ID=… NEXT_PUBLIC_API_URL=https://api-staging.oraly.ai \
+   NEXT_PUBLIC_AUTH0_DOMAIN=… NEXT_PUBLIC_AUTH0_CLIENT_ID=… NEXT_PUBLIC_AUTH0_AUDIENCE=… \
+   infra/scripts/deploy-frontend.sh web staging
+   ```
+
+7. Verify: `https://app-staging.oraly.ai/login/` answers 200, the sign-in round-trip
+   returns to the origin and lands on `/setup/workspace/`, `GET /events` streams (the
+   generation progress bar moves), a PostHog `$pageview` arrives, and the theme toggle
+   survives a reload. The scripted version of that check is
+   `pnpm --filter @portal/web e2e:wizard` with `PORTAL_URL=https://app-staging.oraly.ai`
+   and a real, verified test account — the local issuer is a dev-only stand-in.
+
+The API's CORS origin is `PORTAL_URL` from SSM, so the portal host and `PORTAL_URL` must
+agree, or every request from the browser fails the preflight.
+
 ## Where we stand (22 Sep 2026)
 
 Done: the domain (`oraly.ai`, Namecheap), the template, the scripts, the compose file
@@ -325,3 +452,22 @@ unblocks it is an account administrator running step 1 (or granting the develope
 `cloudformation:*` on `voice-agent-*` stacks plus the IAM/EC2/KMS/SSM rights the template
 needs). Steps 2–7 are then the developer's, about two hours end to end, and CI deploys every
 `develop` push from that point.
+
+**Re-checked 22 Sep 2026, after D8.** Nothing has moved. `aws sts get-caller-identity` is
+still `arn:aws:iam::878013573203:user/skydiveos-deploy`, and that user is now refused even
+`cloudformation:ValidateTemplate`. The account holds certificates for `ultimatedzm.com` and
+none for `oraly.ai`, and neither `app-staging` nor `api-staging.oraly.ai` resolves, so the
+backend is not deployed either — a portal published on its own would load and then fail
+every API call. `infra/aws/deployer-policy.json` is the least-privilege policy to hand the
+account administrator: it is scoped to `voice-agent-*` stacks, buckets, CI users and managed
+policies, and it covers the **frontend** stack only. The backend stack (ADR 0015/0016) needs
+EC2, RDS, SSM Parameter Store and KMS on top of it.
+
+**Order matters.** The backend stack comes first, or at least `api-staging.oraly.ai` must
+answer, because the portal bakes `NEXT_PUBLIC_API_URL` in at build time and the API's CORS
+origin is `PORTAL_URL` from SSM. Deploying the portal first only produces a login page that
+cannot talk to anything.
+
+What _is_ verified without AWS: the export builds (`pnpm --filter @portal/web build`), the
+deploy script refuses a missing bucket, a missing distribution and a localhost
+`NEXT_PUBLIC_API_URL`, and the wizard exit check passes 36/36 against a local API.

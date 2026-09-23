@@ -24,7 +24,7 @@
  *     Everything it reads is overridden explicitly below.
  *  2. Substitute ##KEYWORD## from .env and refuse to continue while one is unresolved. An
  *     empty callback URL or an empty action secret deploys perfectly happily and breaks
- *     login an hour later.
+ *     login an hour later. ##KEYWORD?## is the optional form: unset, its line is dropped.
  *  3. Keep the rendered file — which carries AUTH0_CUSTOMER_ACTION_SECRET — in a 0700
  *     temporary directory that is deleted on the way out, rather than next to the source.
  */
@@ -303,11 +303,24 @@ function validate() {
         console.log(`✗ ${tenant}: trigger binding names ${name}, which this file does not define`);
       }
     }
+    // A client with no callback URL deploys happily and answers every login attempt with
+    // "Callback URL mismatch", which says nothing about which URL it wanted. Print the
+    // list that would be sent, so the answer is on screen before the deploy.
+    for (const client of doc.clients ?? []) {
+      if ((client.callbacks ?? []).length === 0) {
+        failures += 1;
+        console.log(`✗ ${tenant}: client "${client.name}" would be deployed with no callback URL`);
+      }
+    }
+
     if (failures === before) {
       const names = (doc.actions ?? []).map((action) => action.name).join(', ');
       console.log(
         `✓ tenant.${tenant}.yaml — ${(doc.clients ?? []).length} client(s), ${(doc.resourceServers ?? []).length} API(s), actions bound: ${names}`,
       );
+      for (const client of doc.clients ?? []) {
+        console.log(`  ${client.name} accepts: ${(client.callbacks ?? []).join('  ')}`);
+      }
     }
   }
 
@@ -362,17 +375,41 @@ async function deploy(tenant, { dryRun }) {
   }
 }
 
-/** ##KEY## → process.env.KEY. An unresolved keyword stops the deploy; it never becomes ''. */
+/**
+ * ##KEY## → process.env.KEY. An unresolved keyword stops the deploy; it never becomes ''.
+ *
+ * ##KEY?## is the optional form, and it exists for one situation: a URL list that has a
+ * second entry in some environments and not others. A tenant serves more than one origin
+ * — a developer on localhost while staging is deployed against the same tenant — and a
+ * list that can hold only one of them means deploying for staging silently locks every
+ * developer out of login. When the variable is unset the whole LINE is dropped, so a YAML
+ * list item disappears rather than becoming an empty string that Auth0 would reject.
+ */
 function render(contents, source) {
   const missing = new Set();
-  const rendered = contents.replace(/##([A-Z0-9_]+)##/g, (_, key) => {
-    const value = process.env[key]?.trim();
-    if (!value) {
-      missing.add(key);
-      return '';
-    }
-    return value;
-  });
+  const withoutOptional = contents
+    .split('\n')
+    .filter((line) => {
+      const optional = line.match(/##([A-Z0-9_]+)\?##/g);
+      if (!optional) return true;
+      return optional.every((token) => {
+        const key = token.slice(2, -3);
+        return Boolean(process.env[key]?.trim());
+      });
+    })
+    .join('\n');
+
+  const rendered = withoutOptional
+    .replace(/##([A-Z0-9_]+)\?##/g, (_, key) => process.env[key].trim())
+    .replace(/##([A-Z0-9_]+)##/g, (_, key) => {
+      const value = process.env[key]?.trim();
+      if (!value) {
+        missing.add(key);
+        return '';
+      }
+      return value;
+    });
+
   if (missing.size > 0) {
     throw new Error(
       `${source} needs these, and .env does not set them: ${[...missing].join(', ')}`,

@@ -34,7 +34,7 @@ Everything else the migration does — `CREATE SCHEMA`, sql/plpgsql functions, t
 ## Decision
 
 **Postgres runs on Amazon RDS, one `db.t4g.micro` instance per environment, inside the
-environment's CloudFormation stack** (`infra/aws/staging-stack.yaml`, ADR 0015).
+environment's CloudFormation stack** (`infra/aws/backend-stack.yaml`, ADR 0015).
 
 | Concern          | Choice                                                                                                                                                                              |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

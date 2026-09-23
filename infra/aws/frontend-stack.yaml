@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Voice Agent frontend hosting for one app in one environment (ADR 0008, ADR 0017): a private
+  S3 bucket read only through CloudFront's Origin Access Control, the viewer-request function
+  that turns /path/ into the exported /path/index.html, the two cache policies, the security
+  headers, and optionally the deploy policy for the CI user.
+
+  One stack per app per environment: voice-agent-<env>-web, voice-agent-<env>-admin. The
+  region is the account's own (ca-central-1); only the ACM certificate must be requested in
+  us-east-1, because CloudFront reads certificates from nowhere else. Uploading the export is
+  infra/scripts/deploy-frontend.sh, which takes the BucketName and DistributionId outputs.
+
+  Both optional parameters exist so the stack can go up before the things they need do:
+  CertificateArn before DNS validation has finished, CiUserName before the account grants IAM.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, prod]
+  App:
+    Type: String
+    Default: web
+    AllowedValues: [web, admin]
+    Description: web is the customer portal (frontend/web); admin is the staff console (frontend/admin, D12).
+  HostName:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional, and only with CertificateArn. The public hostname, e.g. app-staging.oraly.ai.
+      Leave empty and the distribution answers on its own *.cloudfront.net name, which is
+      enough to deploy and test.
+  CertificateArn:
+    Type: String
+    Default: ''
+    AllowedPattern: '^(arn:aws:acm:us-east-1:[0-9]{12}:certificate/[0-9a-f-]+)?$'
+    Description: >-
+      Optional, us-east-1 only. Leave empty on the first deploy: the distribution comes up in
+      about ten minutes instead of waiting on DNS validation. Add it, with HostName, once the
+      certificate reads ISSUED.
+  CiUserName:
+    Type: String
+    Default: ''
+    Description: >-
+      Optional. An existing IAM user (voice-agent-ci-staging) that gets sync and invalidation
+      rights on exactly this bucket and distribution, for the deploy-portal-staging CI job.
+      Leave empty while the account has not granted IAM rights — everything else still works,
+      and deploys run from the developer's own credentials until then.
+
+Conditions:
+  HasCertificate:
+    !And [!Not [!Equals [!Ref CertificateArn, '']], !Not [!Equals [!Ref HostName, '']]]
+  HasCiUser: !Not [!Equals [!Ref CiUserName, '']]
+  IsProd: !Equals [!Ref Environment, prod]
+
+Mappings:
+  # AWS-managed policy ids; identical in every account.
+  CloudFrontPolicies:
+    Managed:
+      CachingOptimized: 658327ea-f89d-4fab-a63d-7e88639e58f6
+      SecurityHeaders: 67f7725c-6f97-4210-82d7-5512b31e9d03
+
+Resources:
+  Bucket:
+    Type: AWS::S3::Bucket
+    # A stack delete keeps the bucket. Emptying and removing it is a deliberate act, and a
+    # retained bucket costs far less than a frontend that vanished with a parameter typo.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub voice-agent-${Environment}-${App}-${AWS::AccountId}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      Tags:
+        - { Key: project, Value: voice-agent }
+        - { Key: env, Value: !Ref Environment }
+        - { Key: app, Value: !Ref App }
+
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub voice-agent-${Environment}-${App}
+        Description: CloudFront signs its reads; the bucket is private to everyone else
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # next.config.ts sets trailingSlash: true, so the export writes /login/index.html while the
+  # browser asks for /login/ — a key S3 does not have. Rewriting on viewer-request is what
+  # ADR 0008 calls the tidy option: real pages resolve directly, and a path that genuinely
+  # does not exist still ends as a 404 instead of a silent 200 carrying the shell.
+  RewriteToIndexHtml:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub voice-agent-${Environment}-${App}-rewrite
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Directory-style URLs to the exported index.html (ADR 0008)
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri.endsWith('/')) {
+            request.uri = uri + 'index.html';
+          } else if (uri.lastIndexOf('.') <= uri.lastIndexOf('/')) {
+            // No extension in the last segment: a page, not an asset.
+            request.uri = uri + '/index.html';
+          }
+          return request;
+        }
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub voice-agent ${Environment} ${App}
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        DefaultRootObject: index.html
+        PriceClass: !If [IsProd, PriceClass_All, PriceClass_100]
+        Aliases: !If [HasCertificate, [!Ref HostName], !Ref 'AWS::NoValue']
+        ViewerCertificate: !If
+          - HasCertificate
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+        Origins:
+          - Id: s3
+            DomainName: !GetAtt Bucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: s3
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          Compress: true
+          # Freshness comes from the Cache-Control header deploy-frontend.sh writes per object:
+          # a year and immutable for /_next/static, no-cache for HTML, so one behaviour is enough.
+          CachePolicyId: !FindInMap [CloudFrontPolicies, Managed, CachingOptimized]
+          ResponseHeadersPolicyId: !FindInMap [CloudFrontPolicies, Managed, SecurityHeaders]
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt RewriteToIndexHtml.FunctionARN
+        CustomErrorResponses:
+          # A private bucket answers a missing key with 403, not 404 (ADR 0008). Both become
+          # the export's own 404 page, with the status the browser deserves.
+          - {
+              ErrorCode: 403,
+              ResponseCode: 404,
+              ResponsePagePath: /404.html,
+              ErrorCachingMinTTL: 10,
+            }
+          - {
+              ErrorCode: 404,
+              ResponseCode: 404,
+              ResponsePagePath: /404.html,
+              ErrorCachingMinTTL: 10,
+            }
+      Tags:
+        - { Key: project, Value: voice-agent }
+        - { Key: env, Value: !Ref Environment }
+        - { Key: app, Value: !Ref App }
+
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: OnlyThisDistributionMayRead
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${Bucket.Arn}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+          - Sid: HttpsOnly
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt Bucket.Arn, !Sub '${Bucket.Arn}/*']
+            Condition:
+              Bool:
+                'aws:SecureTransport': false
+
+  # The only IAM in this template, and it is optional: without CiUserName the stack creates
+  # nothing that needs iam:* and deploys under the permissions the account already grants.
+  CiDeployPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Condition: HasCiUser
+    Properties:
+      ManagedPolicyName: !Sub voice-agent-ci-${Environment}-${App}-deploy
+      Description: !Sub Sync and invalidate the voice-agent ${Environment} ${App} frontend, and nothing else
+      Users: [!Ref CiUserName]
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: SyncTheExport
+            Effect: Allow
+            Action: [s3:PutObject, s3:DeleteObject, s3:GetObject]
+            Resource: !Sub '${Bucket.Arn}/*'
+          - Sid: SyncNeedsToList
+            Effect: Allow
+            Action: [s3:ListBucket, s3:GetBucketLocation]
+            Resource: !GetAtt Bucket.Arn
+          - Sid: InvalidateThisDistributionOnly
+            Effect: Allow
+            Action: [cloudfront:CreateInvalidation, cloudfront:GetInvalidation]
+            Resource: !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${Distribution}'
+
+Outputs:
+  BucketName:
+    Description: FRONTEND_BUCKET for deploy-frontend.sh, and STAGING_PORTAL_BUCKET in the GitHub environment.
+    Value: !Ref Bucket
+  DistributionId:
+    Description: FRONTEND_DISTRIBUTION_ID, and STAGING_PORTAL_DISTRIBUTION_ID in the GitHub environment.
+    Value: !Ref Distribution
+  DistributionDomainName:
+    Description: Namecheap — a CNAME from the app's host to this. Also the URL to test on before DNS exists.
+    Value: !GetAtt Distribution.DomainName
+  Url:
+    Description: Reachable as soon as the first deploy finishes, certificate or not.
+    Value: !Sub 'https://${Distribution.DomainName}'
+  RequestCertificateCommand:
+    Description: Run in us-east-1, add the validation CNAME at Namecheap, then update this stack with HostName and CertificateArn.
+    Value: !If
+      - HasCertificate
+      - 'already attached'
+      - 'aws acm request-certificate --region us-east-1 --domain-name <host>.oraly.ai --validation-method DNS'

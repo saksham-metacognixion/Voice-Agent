@@ -78,7 +78,9 @@ notifications outbox, the hourly per-timezone digest, reconciliation runs, the m
 OpenAPI contract and the EC2 compose stack with the worker CPU cap (D7), 0015 the domain
 (oraly.ai) and the AWS backend stack as one CloudFormation template — secrets reach SSM only
 through `infra/scripts/ssm-put-env.sh` from a file outside the repo, no SSH, Session Manager
-and Run Command only. Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+and Run Command only, 0016 Postgres on RDS, 0017 the portal foundation — the SPA session,
+§6.4 gating as one pure gate plus guards, theme tokens, `/invite/?token=`, SSE and polling
+together, the local stand-in issuer and the wizard end-to-end script (D8). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -90,6 +92,9 @@ imported by both and never deployed on its own.
 ```
 frontend/                         → S3 + CloudFront (static export, ADR 0008)
   web/            @portal/web         Next.js customer portal      app.<domain>
+                                      app/ = routes (A1–A8, onboarding/W1–W7, app/D1–D7); src/ = auth, guards,
+                                      workspace, wizard hooks, shell + wizard components, i18n, analytics;
+                                      scripts/ = serve-export, e2e-wizard (D8 exit check)
   admin/          @portal/admin       Next.js staff console        admin.<domain>
   ui/             @portal/ui          shadcn components + shared domain widgets
   api-client/     @portal/api-client  typed fetch wrapper + TanStack Query hooks
@@ -112,7 +117,10 @@ templates/                        *.json agent templates (receptionist, appointm
                                   API cannot resolve different directories or accept different shapes. A file
                                   that fails the zod schema fails the seed
 infra/                            Dockerfile (turbo prune), docker-compose.yml (local), docker-compose.prod.yml (EC2),
-                                  aws/staging-stack.yaml (the per-environment AWS stack, ADR 0015), auth0/,
+                                  aws/backend-stack.yaml (the per-environment AWS stack, ADR 0015),
+                                  aws/frontend-stack.yaml (S3 + CloudFront per app, ADR 0008/0017), auth0/,
+                                  scripts/local-issuer.mjs (`pnpm dev:issuer`, a stand-in OIDC issuer for dev),
+                                  scripts/deploy-frontend.sh (build + two-pass s3 sync + invalidation),
                                   scripts/doctor.mjs (`pnpm doctor` — what is unset, what is reachable),
                                   scripts/{deploy,instance-bootstrap,ssm-put-env,db-env-roles}.sh
 docs/                             specs, decisions, runbooks, spec-extract, plan, tools
@@ -164,7 +172,11 @@ job settles.
 - The webhook signature (`x-retell-signature`) is HMAC-SHA256 over the raw body **keyed with the
   API key**; there is no separate webhook secret. Verified through the gateway only.
 - Retell is never named in customer-facing copy. Say "voice", not "TTS"; "what your agent knows",
-  not "knowledge base".
+  not "knowledge base". **Audio and URLs count as copy**: the catalogue's own preview clips say
+  the vendor's name aloud and are served from its bucket, so `VOICE_VENDOR_SAMPLES` withholds
+  both (`deny` is the default under `APP_ENV=prod`). `voices.sample_url`, a clip of ours, is
+  played whatever the switch says and the daily `voice-cache` job never writes it. There is no
+  text-to-speech route to make one with (ADR 0003 §9 + the D8 addendum).
 
 **Webhooks (§13.10, §14.2)**
 
@@ -475,6 +487,53 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   not.** The API owns the §13.9 hot path; a worker job must never starve it. Do not add a CPU
   limit to `api`.
 
+**Portal (frontend/web — ADR 0017)**
+
+- Static export: no server, no dynamic segments, `trailingSlash: true`. Every page is a
+  client component behind a guard. **`pnpm dev` builds into `.next-dev`, everything else
+  into `.next`** (`NEXT_DIST_DIR`, both Next apps): a `build`, a `typecheck` (the web
+  typecheck task depends on `build`) or a deploy in a second terminal otherwise rewrites
+  the directory the running dev server holds open, and it throws
+  `ENOENT … _buildManifest.js.tmp.…` on every compile until it is restarted. `NEXT_PUBLIC_*` is baked at build time;
+  `next.config.ts` derives the local values from the repo-root `.env`, so a dev box sets
+  nothing extra. Never read `process.env` outside `src/config.ts`.
+- Session is `AuthProvider` (`@auth0/auth0-spa-js`, PKCE, localStorage cache, rotating
+  refresh tokens). The Auth0 callback is the **origin**; `/` handles `?code=&state=`.
+  `getToken()` throws `AuthRequiredError` on a lost session and the guard sends the person
+  to `/login?next=`. A3 re-reads claims with `refresh()`; A5 asks for `acr_values`
+  multi-factor; A6 is Auth0's `dbconnections/change_password`.
+- Gating is `useSessionGate()` + `RequireAuth` / `RequireVerified` / `RequireWorkspace` /
+  `OnboardingStepGuard(step)` / `AppGuard`. A wizard page W-k is allowed while
+  `k ≤ onboarding_step`; the portal advances the step with `PATCH /workspace`, never
+  backwards, single-flight; a guard never redirects while the workspace row is refetching.
+  `LAST_IMPLEMENTED_STEP` (`src/routes.ts`) gates the dashboard until W4–W7 land.
+- **Colours are tokens.** `bg-card`, `text-muted-foreground`, `border-border`, `bg-primary`…
+  from `frontend/ui/src/styles/globals.css` (`:root` and `.dark`), derived from the five
+  Oraly brand colours — Purple `#7B5CFF`, Electric Blue `#22D3EE`, Deep Navy `#0A0F1A`,
+  Slate `#1E2433`, Soft White `#F7F8FB` (`docs/brand.md`). No `bg-white`, `text-neutral-*`,
+  `dark:` overrides or hex values in components; a component that needs a new colour adds a
+  token pair. `ThemeProvider` / `ThemeToggle` / `ThemeSegment` are the only theme code, and
+  the logo is `Logo` in `@portal/ui`, rendering the supplied artwork from
+  `public/brand/` — never redrawn, recoloured or rebuilt inline.
+- **W3's language ranks the voice list, it does not cut it.** `list-voices` carries no
+  language at all, so the native language is derived from the accent
+  (`modules/voices/voice-languages.ts`), matched on the base subtag (`fr-FR` answers
+  `fr-CA`) and returned as `native` per item; the picker groups on it and `?native=true`
+  narrows. Reading "no languages" as "speaks all of them" is what made every voice
+  multilingual and the filter a no-op. `is_multilingual` now means "we cannot name one
+  native language", not "can speak others" — they all can.
+- Data goes through `useApi()` and the generated hooks; SSE through `useWorkspaceEvents`;
+  a `202 {job_id}` through `useJobWatch` **and** the topic's frames at the same time.
+  Errors become copy through `errorMessage(error, t)` (branch on `code`, never on text).
+- Every user-facing string is a key in `src/i18n/messages/en.json` (`useTranslations`).
+- Analytics: `track()` from `src/analytics/posthog.tsx` only; ids, step names and counts,
+  never brief text, emails or phone numbers.
+- Retell is never named; say "voice", "what your agent knows".
+- Local run without the Auth0 tenant: `pnpm dev:issuer`, then the API with
+  `AUTH0_CUSTOMER_DOMAIN=http://localhost:9999` and the portal built with
+  `NEXT_PUBLIC_AUTH0_DOMAIN=http://localhost:9999`. The D8 exit check is
+  `pnpm --filter @portal/web e2e:wizard` (headless Chrome, 36 assertions, a real Generate).
+
 **Configuration**
 
 - Pricing, feature flags, kill switches, templates and the agent stack live in versioned tables and are
@@ -642,6 +701,9 @@ pnpm db:roles          # local portal_app / portal_admin login roles (dev only)
 pnpm db:deploy         # migrations, incl. RLS, grants and the append-only triggers
 pnpm db:seed           # staff_role_limits (admin §2.2), packs (§5.2)
 pnpm doctor            # which env vars are unset, what is reachable
+pnpm dev               # api, worker, portal, admin. The worker is not optional: without it
+                       # every 202 job (generate, provision, activate) sits in `queued` for
+                       # ever. `GET /health/ready` reports it as "no heartbeat".
 pnpm --filter @portal/api openapi:generate   # after any route change: docs/api/openapi.json + the typed client
 ```
 

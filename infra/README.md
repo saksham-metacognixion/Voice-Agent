@@ -1,17 +1,19 @@
 # infra
 
-| File                            | Purpose                                                                                                                                                                      |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `docker-compose.yml`            | Local Postgres 16 + Redis 7. `pnpm infra:up` / `pnpm infra:down`.                                                                                                            |
-| `docker-compose.prod.yml`       | EC2 services: api, worker (1 CPU / 1 GB), redis, caddy. `docs/runbooks/staging.md`.                                                                                          |
-| `caddy/Caddyfile`               | TLS + reverse proxy for `api.<domain>`; SSE passthrough, HSTS.                                                                                                               |
-| `scripts/deploy.sh`             | Runs on the instance: `.env` from SSM, `compose pull && up -d --wait`. Rollback = previous tag.                                                                              |
-| `scripts/instance-bootstrap.sh` | One-time: Docker + Compose (skipped on a template-built box), the GHCR login and the private clone.                                                                          |
-| `aws/staging-stack.yaml`        | CloudFormation: SG, instance role, EC2 (Ubuntu 24.04, IMDSv2), Elastic IP, KMS key, CI user, operator policy. One stack per environment (ADR 0015).                          |
-| `scripts/ssm-put-env.sh`        | Pushes a `KEY=VALUE` file kept outside the repo into `/voice-agent/<env>/*` as SecureStrings; `--check` says what deploy.sh will find.                                       |
-| `scripts/db-env-roles.sh`       | Creates/rotates `portal_app_<env>` / `portal_admin_<env>` and writes their URLs into that file. Takes `DB_PUBLIC_HOST` when it reaches a private RDS through the SSM tunnel. |
-| `Dockerfile`                    | Backend image, built once by CI and pushed to GHCR. Run as `api` and `worker` with different commands.                                                                       |
-| `auth0/`                        | Auth0 tenant configuration and Actions source (ADR 0002).                                                                                                                    |
+| File                            | Purpose                                                                                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docker-compose.yml`            | Local Postgres 16 + Redis 7. `pnpm infra:up` / `pnpm infra:down`.                                                                                                                                    |
+| `docker-compose.prod.yml`       | EC2 services: api, worker (1 CPU / 1 GB), redis, caddy. `docs/runbooks/staging.md`.                                                                                                                  |
+| `caddy/Caddyfile`               | TLS + reverse proxy for `api.<domain>`; SSE passthrough, HSTS.                                                                                                                                       |
+| `scripts/deploy.sh`             | Runs on the instance: `.env` from SSM, `compose pull && up -d --wait`. Rollback = previous tag.                                                                                                      |
+| `scripts/instance-bootstrap.sh` | One-time: Docker + Compose (skipped on a template-built box), the GHCR login and the private clone.                                                                                                  |
+| `aws/frontend-stack.yaml`       | CloudFormation: private S3 + OAC + CloudFront + the index-rewrite function per app. Its only IAM resource, the CI deploy policy, is optional, so it deploys without IAM rights (ADR 0008, ADR 0017). |
+| `scripts/deploy-frontend.sh`    | Builds one app's static export, syncs it in two cache passes, invalidates.                                                                                                                           |
+| `aws/backend-stack.yaml`        | CloudFormation: SG, instance role, EC2 (Ubuntu 24.04, IMDSv2), Elastic IP, KMS key, CI user, operator policy. One stack per environment (ADR 0015).                                                  |
+| `scripts/ssm-put-env.sh`        | Pushes a `KEY=VALUE` file kept outside the repo into `/voice-agent/<env>/*` as SecureStrings; `--check` says what deploy.sh will find.                                                               |
+| `scripts/db-env-roles.sh`       | Creates/rotates `portal_app_<env>` / `portal_admin_<env>` and writes their URLs into that file. Takes `DB_PUBLIC_HOST` when it reaches a private RDS through the SSM tunnel.                         |
+| `Dockerfile`                    | Backend image, built once by CI and pushed to GHCR. Run as `api` and `worker` with different commands.                                                                                               |
+| `auth0/`                        | Auth0 tenant configuration and Actions source (ADR 0002).                                                                                                                                            |
 
 ## Backend on AWS EC2 (ADR 0004)
 
@@ -23,7 +25,7 @@
 | `redis`  | redis:7-alpine        | `appendonly yes`, `maxmemory-policy noeviction`. Compose-internal network only.      |
 
 One `t3.small` for staging and one `t3.medium` for prod, each with an Elastic IP, all from
-`aws/staging-stack.yaml` (region `ca-central-1`; domain `oraly.ai`, `api-staging.oraly.ai` for staging). Secrets come from SSM
+`aws/backend-stack.yaml` (region `ca-central-1`; domain `oraly.ai`, `api-staging.oraly.ai` for staging). Secrets come from SSM
 Parameter Store at deploy time (`scripts/deploy.sh`). Deploy = CI builds and pushes the image to GHCR,
 then runs `deploy.sh <env> <tag>` on the instance over SSM Run Command. Rollback = the same command with
 the previous image tag. The **worker is capped at 1 CPU and 1 GB** so knowledge ingestion, exports and

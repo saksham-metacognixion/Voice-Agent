@@ -26,14 +26,23 @@ clients:
       - authorization_code
       - refresh_token
     token_endpoint_auth_method: none
+    # Two entries, because one tenant serves more than one origin: ADMIN_URL is this
+    # environment's app, and ADMIN_ALT_URL is an optional second — a developer on
+    # localhost while staging is deployed against the same tenant. With only one
+    # slot, deploying for staging locks every developer out of login. When
+    # ADMIN_ALT_URL is unset in .env its line is dropped rather than sent empty.
     callbacks:
       - '##ADMIN_URL##'
+      - '##ADMIN_ALT_URL?##'
     allowed_logout_urls:
       - '##ADMIN_URL##'
+      - '##ADMIN_ALT_URL?##'
     web_origins:
       - '##ADMIN_URL##'
+      - '##ADMIN_ALT_URL?##'
     allowed_origins:
       - '##ADMIN_URL##'
+      - '##ADMIN_ALT_URL?##'
     cross_origin_authentication: false
     refresh_token:
       rotation_type: rotating

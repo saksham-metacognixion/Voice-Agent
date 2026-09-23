@@ -9,7 +9,7 @@
 # a `#` in a value is part of the value). It lives OUTSIDE the repo and is never committed:
 # .env.example lists the keys, docs/runbooks/staging.md says which value each takes on
 # staging. Values are never printed, only key names and lengths. Runs with the operator
-# policy from infra/aws/staging-stack.yaml (ssm:PutParameter on /voice-agent/<env>/*).
+# policy from infra/aws/backend-stack.yaml (ssm:PutParameter on /voice-agent/<env>/*).
 #
 # deploy.sh turns every parameter under the path back into a `.env` line, so this is the
 # only way configuration reaches the box (§17: nothing but .env.example in the repo).

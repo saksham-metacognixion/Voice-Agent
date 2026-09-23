@@ -104,7 +104,7 @@ reads.
 ## 4. AWS
 
 The domain is **oraly.ai** (Namecheap, BasicDNS; ADR 0015). The backend half of this table
-is one CloudFormation template, `infra/aws/staging-stack.yaml`, deployed once per environment
+is one CloudFormation template, `infra/aws/backend-stack.yaml`, deployed once per environment
 by an account administrator — `docs/runbooks/staging.md` step 1 has the command and what to do
 with the outputs. The frontend half (S3, CloudFront, ACM) is D8 and still by hand.
 
