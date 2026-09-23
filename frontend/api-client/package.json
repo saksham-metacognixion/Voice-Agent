@@ -13,6 +13,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@microsoft/fetch-event-source": "^2.0.1",
     "@portal/schemas": "workspace:*",
     "zod": "^3.25.0"
   },

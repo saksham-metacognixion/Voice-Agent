@@ -2,17 +2,21 @@
  * Shared Tailwind v4 theme for portal and admin.
  * Import from each app's globals.css:  @import "@portal/config/tailwind/preset.css";
  * Design system per spec §7.3: 8-px grid, one primary colour + semantic, Inter.
+ *
+ * Colours are NOT defined here any more: they are light/dark token pairs in
+ * @portal/ui/styles.css (`:root` and `.dark`), mapped into Tailwind with `@theme inline`,
+ * so that `bg-primary` follows the active theme. This file keeps what is theme-neutral.
  */
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter, 'Inter'), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
-  --color-primary: oklch(0.55 0.13 230);
-  --color-primary-foreground: oklch(0.99 0 0);
-  --color-success: oklch(0.62 0.15 150);
-  --color-warning: oklch(0.78 0.16 75);
-  --color-danger: oklch(0.55 0.2 20);
-
-  --radius-sm: 0.25rem;
+  --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+
+  /* 8-px grid helpers beyond Tailwind's default scale. */
+  --spacing-18: 4.5rem;
+  --spacing-sidebar: 16.5rem;
 }

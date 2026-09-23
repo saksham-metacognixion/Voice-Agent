@@ -1,8 +1,220 @@
+/*
+ * Design tokens for portal and admin — the Oraly palette (docs/brand.md), spec §7.3.
+ *
+ * The five brand colours are fixed and named below as `--brand-*`. Every other token is
+ * derived from them, once for light and once for dark, so a component says `bg-card`,
+ * `text-muted-foreground`, `border-border` and is correct in both themes without a `dark:`
+ * override. A component that needs a new colour adds a token pair here; it never names a
+ * hex, a `neutral-*` or a `white`.
+ *
+ * Light is Soft White over Deep Navy text; dark is Deep Navy with Slate surfaces. Oraly
+ * Purple is the one accent in both, which is why `--primary` is the same hex in each block.
+ *
+ * Dark mode is the `.dark` class on <html>, set by next-themes and persisted per browser.
+ * `@custom-variant dark` points `dark:` at that class, so the in-app toggle wins over the OS.
+ */
 @import 'tailwindcss';
 @import '@portal/config/tailwind/preset.css';
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* ---- brand constants: identical in both themes, never re-defined ---- */
+  --brand-purple: #7b5cff;
+  --brand-blue: #22d3ee;
+  --brand-navy: #0a0f1a;
+  --brand-slate: #1e2433;
+  --brand-white: #f7f8fb;
+  /* The waveform gradient, for a graphic that needs it outside the logo. */
+  --brand-gradient: linear-gradient(90deg, #6a3aff 0%, #7b5cff 55%, #8fa8ff 100%);
+
+  color-scheme: light;
+
+  --background: var(--brand-white);
+  --foreground: var(--brand-navy);
+
+  --card: #ffffff;
+  --card-foreground: var(--brand-navy);
+  --popover: #ffffff;
+  --popover-foreground: var(--brand-navy);
+
+  --primary: var(--brand-purple);
+  --primary-foreground: #ffffff;
+  --secondary: #eceff6;
+  --secondary-foreground: var(--brand-slate);
+  --muted: #f0f2f8;
+  --muted-foreground: #596479;
+  --accent: #efebff;
+  --accent-foreground: #4a2fd4;
+
+  --success: #16a34a;
+  --success-foreground: #ffffff;
+  --warning: #d97706;
+  --warning-foreground: #442105;
+  --danger: #dc2626;
+  --danger-foreground: #ffffff;
+  /* Electric Blue is a graphic colour: on Soft White it needs a darker step to be read. */
+  --info: #0e7490;
+  --info-foreground: #ffffff;
+
+  --border: #e2e6ef;
+  --input: #d5dbe6;
+  --ring: var(--brand-purple);
+
+  --sidebar: #f2f4f9;
+  --sidebar-foreground: #39415a;
+  --sidebar-border: #e2e6ef;
+  --sidebar-accent: #e7e2ff;
+  --sidebar-accent-foreground: #4a2fd4;
+
+  --shadow-color: 222 35% 20%;
+}
+
+.dark {
+  color-scheme: dark;
+
+  --background: var(--brand-navy);
+  --foreground: var(--brand-white);
+
+  /* Slate is the elevated surface; the popover sits one step above it. */
+  --card: #151c2b;
+  --card-foreground: var(--brand-white);
+  --popover: var(--brand-slate);
+  --popover-foreground: var(--brand-white);
+
+  --primary: var(--brand-purple);
+  --primary-foreground: #ffffff;
+  --secondary: var(--brand-slate);
+  --secondary-foreground: var(--brand-white);
+  --muted: #1a2131;
+  --muted-foreground: #96a1b8;
+  --accent: #251f47;
+  --accent-foreground: #c6b9ff;
+
+  --success: #4ade80;
+  --success-foreground: #05230f;
+  --warning: #fbbf24;
+  --warning-foreground: #2a1a02;
+  --danger: #f87171;
+  --danger-foreground: #2b0707;
+  --info: var(--brand-blue);
+  --info-foreground: #04222a;
+
+  --border: #232b3c;
+  --input: #2c3548;
+  --ring: #8f76ff;
+
+  --sidebar: #070b13;
+  --sidebar-foreground: #aab4c8;
+  --sidebar-border: #1c2333;
+  --sidebar-accent: #241f45;
+  --sidebar-accent-foreground: #c6b9ff;
+
+  --shadow-color: 222 60% 2%;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-danger: var(--danger);
+  --color-danger-foreground: var(--danger-foreground);
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--danger-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  /* The brand colours themselves, for a chart series or an illustration that must be
+     exactly on-brand rather than semantically "primary". */
+  --color-brand-purple: var(--brand-purple);
+  --color-brand-blue: var(--brand-blue);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-slate: var(--brand-slate);
+  --color-brand-white: var(--brand-white);
+
+  --shadow-card: 0 1px 2px hsl(var(--shadow-color) / 0.06), 0 1px 3px hsl(var(--shadow-color) / 0.04);
+  --shadow-popover: 0 8px 24px hsl(var(--shadow-color) / 0.14), 0 2px 6px hsl(var(--shadow-color) / 0.08);
+}
+
 @layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
-    @apply bg-neutral-50 text-neutral-900 antialiased;
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+  ::selection {
+    background-color: color-mix(in oklch, var(--primary) 25%, transparent);
+  }
+  :focus-visible {
+    outline: none;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--muted-foreground);
+    opacity: 0.8;
+  }
+  /* Range inputs and native selects inherit the theme instead of the OS chrome. */
+  input[type='range'] {
+    accent-color: var(--primary);
+  }
+}
+
+@layer utilities {
+  /* The waveform gradient as a fill — for a heading or a bar that carries the brand. */
+  .bg-brand-gradient {
+    background-image: var(--brand-gradient);
+  }
+  .text-brand-gradient {
+    background-image: var(--brand-gradient);
+    background-clip: text;
+    color: transparent;
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 20%, transparent) transparent;
+  }
+  .animate-in-fade {
+    animation: fade-in 160ms ease-out both;
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }

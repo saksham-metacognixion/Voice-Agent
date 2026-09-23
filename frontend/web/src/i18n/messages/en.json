@@ -1,0 +1,515 @@
+{
+  "common": {
+    "appName": "Oraly",
+    "tagline": "Human conversations. Real outcomes.",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "back": "Back",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "saved": "Saved",
+    "saving": "Saving…",
+    "unsaved": "Unsaved changes",
+    "saveFailed": "Could not save",
+    "optional": "Optional",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "signOut": "Sign out",
+    "dashboard": "Dashboard",
+    "comingSoon": "Coming soon",
+    "unknownError": "Something went wrong.",
+    "play": "Play",
+    "pause": "Pause",
+    "sampleUnavailable": "Sample unavailable",
+    "remove": "Remove",
+    "add": "Add",
+    "premium": "Premium",
+    "standard": "Standard",
+    "premiumRate": "1.5× credits",
+    "standardRate": "1× credits",
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "toggle": "Change theme"
+    },
+    "stepOf": "Step {n} of {total}"
+  },
+  "nav": {
+    "home": "Home",
+    "calls": "Calls",
+    "agents": "Agents",
+    "numbers": "Phone numbers",
+    "wallet": "Wallet & billing",
+    "settings": "Settings",
+    "help": "Help",
+    "build": "Build",
+    "operate": "Operate",
+    "account": "Account",
+    "workspace": "Workspace",
+    "switchWorkspace": "Switch workspace",
+    "createWorkspace": "New workspace",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "openNavigation": "Open navigation",
+    "signedInAs": "Signed in as"
+  },
+  "shell": {
+    "balance": "{credits} credits",
+    "balanceTitle": "Credit balance",
+    "balanceUnavailable": "Balance unavailable",
+    "trial": "Free trial",
+    "planTier": "{tier} plan",
+    "pausedBanner": "This workspace is paused. Your agent is not answering calls.",
+    "pausedReason": "Reason: {reason}",
+    "finishSetup": "Your agent is not live yet.",
+    "finishSetupCta": "Continue setup",
+    "live": "Live",
+    "reconnecting": "Reconnecting…",
+    "dismiss": "Dismiss",
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Viewer"
+    },
+    "tier": {
+      "trial": "Trial",
+      "starter": "Starter",
+      "growth": "Growth",
+      "scale": "Scale",
+      "pro": "Pro",
+      "volume": "Volume"
+    }
+  },
+  "auth": {
+    "brand": "From conversation to action.",
+    "brandPoints": {
+      "one": "Describe your business in plain language.",
+      "two": "Hear your agent answer before you pay anything.",
+      "three": "Go live on a real phone number when you are ready."
+    },
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to your workspace.",
+      "cta": "Sign in",
+      "redirecting": "Taking you to the sign-in page…",
+      "noAccount": "New here?",
+      "createAccount": "Create an account",
+      "forgot": "Forgot your password?",
+      "sessionExpired": "Your session ended. Sign in again to continue.",
+      "failed": "Sign-in did not complete.",
+      "failedHint": "{reason}"
+    },
+    "signup": {
+      "title": "Create your account",
+      "subtitle": "Free to start — 20 trial credits, no card needed.",
+      "cta": "Create account",
+      "haveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "terms": "By continuing you agree to the Terms of Service and Privacy Policy."
+    },
+    "verify": {
+      "title": "Confirm your email",
+      "body": "We sent a confirmation link to {email}. Open it, then come back here.",
+      "bodyNoEmail": "We sent you a confirmation link. Open it, then come back here.",
+      "check": "I have confirmed it",
+      "checking": "Checking…",
+      "stillUnverified": "Your email is not confirmed yet. Give the link a moment, then try again.",
+      "spam": "Not in your inbox? Check the spam folder.",
+      "useAnother": "Use a different account"
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "body": "Enter your email and we will send you a link to choose a new password.",
+      "email": "Email address",
+      "cta": "Send reset link",
+      "sent": "Check your inbox",
+      "sentBody": "If an account exists for {email}, a reset link is on its way. It expires in a few hours.",
+      "back": "Back to sign in",
+      "social": "Signed up with Google? Use the Google button on the sign-in page instead."
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "body": "Password resets happen on our secure sign-in page. Open the link from your email to set a new password, then sign in below.",
+      "cta": "Go to sign in",
+      "requestAnother": "Request another link"
+    },
+    "mfa": {
+      "title": "Two-factor authentication",
+      "body": "Add a one-time code from an authenticator app to every sign-in.",
+      "status": "Status",
+      "enabled": "Enabled on this session",
+      "notEnabled": "Not enabled",
+      "enable": "Set up two-factor",
+      "verifying": "You will be asked to sign in again and enrol an authenticator app.",
+      "done": "Two-factor authentication is on."
+    },
+    "callback": {
+      "title": "Signing you in…",
+      "error": "We could not complete sign-in.",
+      "retry": "Back to sign in"
+    },
+    "select": {
+      "title": "Choose a workspace",
+      "subtitle": "You belong to more than one. Pick where to work.",
+      "empty": "You are not a member of any workspace yet.",
+      "create": "Create a workspace",
+      "open": "Open"
+    },
+    "setup": {
+      "title": "Set up your workspace",
+      "subtitle": "A workspace is your business on Oraly. You can invite your team later.",
+      "name": "Business name",
+      "namePlaceholder": "e.g. Bright Smile Dental",
+      "country": "Country",
+      "countryPlaceholder": "Choose a country",
+      "timezone": "Time zone",
+      "timezoneHint": "Business hours and reports use this time zone.",
+      "phone": "Business phone",
+      "phoneHint": "E.164 format, e.g. +14155550123. You can add this later.",
+      "website": "Website",
+      "cta": "Create workspace",
+      "creating": "Creating…",
+      "trialNote": "You start with 20 free credits for browser test calls."
+    },
+    "invite": {
+      "title": "Join workspace",
+      "body": "You have been invited to a workspace. Sign in with the email address the invitation was sent to, then accept below.",
+      "accept": "Accept invitation",
+      "accepting": "Joining…",
+      "success": "You have joined {workspace} as {role}.",
+      "open": "Open workspace",
+      "missing": "This invitation link is missing its token. Ask the person who invited you to send it again.",
+      "invalid": "This invitation is not valid or has expired. Ask the person who invited you to send a new one.",
+      "alreadyMember": "You are already a member of this workspace.",
+      "wrongAccount": "Signed in as {email}. If the invitation went to another address, sign out and sign in with that one."
+    },
+    "brandKicker": "Human conversations. Real outcomes."
+  },
+  "errors": {
+    "NETWORK": "We could not reach the server. Check your connection and try again.",
+    "UNAUTHENTICATED": "Your session ended. Sign in again to continue.",
+    "INVALID_TOKEN": "Your session ended. Sign in again to continue.",
+    "EMAIL_UNVERIFIED": "Confirm your email address first.",
+    "FORBIDDEN_ROLE": "Your role in this workspace does not allow that.",
+    "NOT_A_MEMBER": "You are not a member of that workspace.",
+    "OWNER_ONLY": "Only the workspace owner can do that.",
+    "WORKSPACE_PAUSED": "This workspace is paused. Contact support to resume it.",
+    "NOT_FOUND": "We could not find that.",
+    "CONFLICT": "That is already in progress.",
+    "GENERATION_PAUSED": "Agent generation is briefly paused for maintenance. Try again in a few minutes.",
+    "PURCHASES_PAUSED": "Purchases are briefly paused for maintenance.",
+    "VALIDATION_FAILED": "Some fields need attention.",
+    "BAD_REQUEST": "Some fields need attention.",
+    "BRIEF_INCOMPLETE": "Tell us a bit more about the business and what a good call achieves first.",
+    "GENERATION_FAILED": "We could not write the agent this time.",
+    "RATE_LIMITED": "Too many requests. Wait a moment and try again.",
+    "TEST_RATE_LIMIT": "Too many test calls. Wait a moment and try again.",
+    "NO_CREDITS": "You are out of credits.",
+    "INVITE_INVALID": "This invitation is not valid or has expired.",
+    "ALREADY_MEMBER": "You are already a member of this workspace.",
+    "PLAN_LIMIT": "Your plan does not include that.",
+    "INTERNAL": "Something went wrong on our side. Try again.",
+    "UPSTREAM_UNAVAILABLE": "A service we depend on is unavailable. Try again shortly.",
+    "NOT_CONFIGURED": "This feature is not ready yet. Our team has been notified.",
+    "default": "Something went wrong.",
+    "title": "Something went wrong",
+    "loadFailed": "We could not load this."
+  },
+  "validation": {
+    "required": "Required",
+    "min": "At least {min} characters",
+    "max": "At most {max} characters",
+    "email": "Enter a valid email address",
+    "url": "Enter a full address, starting with https://",
+    "phone": "Use the international format, e.g. +14155550123",
+    "time": "Use HH:MM, 24-hour",
+    "name": "Between 2 and 80 characters",
+    "agentName": "Between 2 and 30 characters",
+    "transferNumber": "A transfer rule needs a number to transfer to"
+  },
+  "wizard": {
+    "title": "Set up your agent",
+    "steps": {
+      "template": "Template",
+      "brief": "Business",
+      "voice": "Voice",
+      "knowledge": "Knowledge",
+      "test": "Test",
+      "phone": "Phone",
+      "activate": "Go live"
+    },
+    "exit": "Save and exit",
+    "w1": {
+      "title": "What should your agent do?",
+      "subtitle": "Pick the closest fit. You can change every detail on the next step.",
+      "industry": "Your industry",
+      "industryHint": "Tailors the examples and placeholders you see next.",
+      "industryPlaceholder": "Choose an industry",
+      "industryOther": "Other",
+      "bestFor": "Best for",
+      "hearSample": "Hear a sample",
+      "select": "Select",
+      "selected": "Selected",
+      "continue": "Continue",
+      "creating": "Setting up your agent…",
+      "empty": "No templates are available right now.",
+      "existing": "You already started an agent from the {template} template. Continue with it, or pick another template to start over.",
+      "startOver": "Start over with this template",
+      "premiumHint": "Uses the Premium voice stack (1.5 credits per minute)."
+    },
+    "w2": {
+      "title": "Tell us about your business",
+      "hint": "Write like you would explain it to a new hire. Plain sentences work best — the agent turns them into a script.",
+      "generate": "Generate my agent",
+      "regenerate": "Regenerate",
+      "generateHint": "Fill in the first two fields to generate.",
+      "generating": "Writing your agent…",
+      "stage": {
+        "queued": "Getting started",
+        "started": "Reading your brief",
+        "writing": "Writing the script",
+        "done": "Done"
+      },
+      "generatedTitle": "Your agent is ready",
+      "generatedBody": "Version {version} was written from your brief. Review the summary, then choose a voice.",
+      "failedTitle": "We could not write the agent",
+      "failedBody": "Nothing was lost — your answers are saved. Try again in a moment.",
+      "warnings": "Notes from the writer",
+      "scenarios": "How a call might go",
+      "continue": "Choose a voice",
+      "editAfter": "Changed something? Regenerate to update the script.",
+      "restored": "Your saved answers were restored.",
+      "sections": {
+        "basics": "The basics",
+        "details": "Details callers ask about",
+        "rules": "Rules and hand-offs",
+        "personality": "Personality"
+      },
+      "card": {
+        "will": "{name} will:",
+        "wont": "{name} won’t:",
+        "handoff": "Hands off when:",
+        "empty": "Fill in the brief and this summary writes itself.",
+        "defaultName": "Your agent",
+        "preview": "Preview",
+        "fromGeneration": "From your generated agent"
+      },
+      "fields": {
+        "about_business": {
+          "label": "About your business",
+          "hint": "What you do, who you serve, where you are. 20–1,000 characters.",
+          "placeholder": "We are a family dental practice in Toronto with three dentists. We see adults and children for check-ups, cleanings, fillings and emergencies."
+        },
+        "goal": {
+          "label": "What a good call achieves",
+          "hint": "The one thing the agent should get done on most calls.",
+          "placeholder": "Book the caller into the next free slot, or take a message with their name and number if the request needs a person."
+        },
+        "business_hours": {
+          "label": "Business hours",
+          "hint": "When a person is available. Outside these hours the agent takes messages."
+        },
+        "address": {
+          "label": "Address",
+          "hint": "What the agent says when someone asks where you are.",
+          "placeholder": "120 King St W, Toronto, ON"
+        },
+        "services": {
+          "label": "Services",
+          "hint": "Press Enter after each one. Up to 30.",
+          "placeholder": "Cleaning, whitening, emergency visit…"
+        },
+        "pricing": {
+          "label": "Pricing",
+          "hint": "Only what the agent may quote. Leave blank and it will never give a price.",
+          "placeholder": "Check-up and cleaning from $150. Emergency visit $95 plus treatment."
+        },
+        "faqs": {
+          "label": "Frequently asked questions",
+          "hint": "Questions callers ask, with the answer you want given.",
+          "question": "Question",
+          "answer": "Answer",
+          "add": "Add a question",
+          "questionPlaceholder": "Do you take walk-ins?",
+          "answerPlaceholder": "Yes, but appointments are seen first."
+        },
+        "never_do": {
+          "label": "Things the agent must never do",
+          "hint": "Hard rules. These override everything else.",
+          "placeholder": "Never give medical advice. Never confirm an appointment without a phone number."
+        },
+        "handoff_rules": {
+          "label": "When to hand off to a person",
+          "hint": "Up to five rules.",
+          "condition": "When the caller…",
+          "conditionPlaceholder": "says it is an emergency",
+          "action": "Then",
+          "add": "Add a rule",
+          "number": "Transfer to",
+          "actions": {
+            "transfer": "Transfer the call",
+            "take_message": "Take a message",
+            "read_message": "Read a message to the caller"
+          }
+        },
+        "agent_name": {
+          "label": "Agent name",
+          "hint": "How it introduces itself. 2–30 characters.",
+          "placeholder": "Sophie"
+        },
+        "personality": {
+          "label": "Personality",
+          "hint": "Nudge the tone; the script does the rest.",
+          "formality": {
+            "label": "Tone",
+            "low": "Formal",
+            "high": "Friendly"
+          },
+          "brevity": {
+            "label": "Length",
+            "low": "Brief",
+            "high": "Chatty"
+          },
+          "energy": {
+            "label": "Energy",
+            "low": "Calm",
+            "high": "Upbeat"
+          },
+          "notes": "Anything else about the tone",
+          "notesPlaceholder": "Warm but efficient; never salesy."
+        },
+        "anything_else": {
+          "label": "Anything else",
+          "hint": "Parking, accessibility, languages spoken at the desk — anything a caller might ask.",
+          "placeholder": "Free parking behind the building. We speak French."
+        },
+        "ai_disclosure": {
+          "label": "Telling callers it is an AI",
+          "hint": "It will never claim to be human, whatever you choose.",
+          "always": {
+            "title": "Always say so",
+            "body": "Opens every call with a short note that it is an AI assistant."
+          },
+          "if_asked": {
+            "title": "Only if asked",
+            "body": "Answers honestly when a caller asks, otherwise gets on with the call."
+          },
+          "never_volunteer": {
+            "title": "Never volunteer it",
+            "body": "Same as above, but never brings it up on its own."
+          }
+        }
+      },
+      "hours": {
+        "open": "Open",
+        "close": "Close",
+        "closed": "Closed",
+        "addInterval": "Add hours",
+        "copyToAll": "Apply Monday to all weekdays",
+        "days": {
+          "mon": "Mon",
+          "tue": "Tue",
+          "wed": "Wed",
+          "thu": "Thu",
+          "fri": "Fri",
+          "sat": "Sat",
+          "sun": "Sun"
+        }
+      },
+      "slow": "This is taking longer than usual. Your answers are saved — leave this page open and it will finish on its own."
+    },
+    "w3": {
+      "title": "Choose a voice and languages",
+      "subtitle": "Every voice can say your greeting. Premium voices sound more natural and cost 1.5 credits a minute.",
+      "primaryLanguage": "Main language",
+      "primaryHint": "What most callers speak.",
+      "alsoSpeaks": "Also speaks",
+      "alsoSpeaksHint": "Up to four more. The agent switches when a caller does.",
+      "alsoSpeaksMax": "You can add up to four extra languages.",
+      "voices": "Voices",
+      "search": "Search voices",
+      "filters": {
+        "all": "All",
+        "gender": "Voice",
+        "male": "Male",
+        "female": "Female",
+        "neutral": "Neutral",
+        "tier": "Tier",
+        "clear": "Clear filters",
+        "native": "Native accents only"
+      },
+      "hearSample": "Hear this voice",
+      "previewFailed": "We could not play that voice right now.",
+      "previewLimited": "Too many previews. Give it a moment.",
+      "selected": "Selected voice",
+      "noneSelected": "Pick a voice to continue.",
+      "empty": "No voices match those filters.",
+      "emptyAll": "The voice catalogue is being refreshed. Check back in a few minutes.",
+      "stale": "The voice list may be out of date. New voices appear after the next refresh.",
+      "speed": "Speed",
+      "temperature": "Expressiveness",
+      "advanced": "Fine-tune",
+      "advancedHint": "Most businesses leave these alone.",
+      "accent": "{accent} accent",
+      "continue": "Continue",
+      "saving": "Saving your choice…",
+      "tierChange": "This voice switches the agent to the {tier} tier.",
+      "showMore": "Show more ({count} more voices)",
+      "showing": "Showing {shown} of {total} voices",
+      "groups": {
+        "native": "Sounds native in {language}",
+        "alsoSpeaks": "Also speaks {language}, with its own accent"
+      },
+      "sampleHint": "Speed changes the clip too. Your agent says your own greeting on the test call.",
+      "temperatureHint": "Heard on calls, not in the clip."
+    },
+    "placeholder": {
+      "title": "{step} is next",
+      "body": "This step arrives in the next release. Your progress so far is saved.",
+      "dashboard": "Go to the dashboard"
+    }
+  },
+  "dashboard": {
+    "home": {
+      "title": "Home",
+      "welcome": "Welcome to {workspace}",
+      "body": "Live calls, credits and your agent’s day will appear here once you go live."
+    },
+    "calls": {
+      "title": "Calls",
+      "empty": "No calls yet. Once your agent is live, every call shows up here with a transcript and summary."
+    },
+    "agents": {
+      "title": "Agents",
+      "empty": "No agents yet."
+    },
+    "numbers": {
+      "title": "Phone numbers",
+      "empty": "No phone numbers yet. Attach one when you go live."
+    },
+    "wallet": {
+      "title": "Wallet & billing",
+      "empty": "Your credit history will appear here.",
+      "paused": {
+        "banner": "Purchases are paused right now."
+      }
+    },
+    "settings": {
+      "title": "Settings",
+      "theme": "Appearance",
+      "themeHint": "Choose how Oraly looks to you on this device.",
+      "workspace": "Workspace",
+      "security": "Security",
+      "members": "Team"
+    },
+    "help": {
+      "title": "Help",
+      "body": "Guides and support are on the way. For now, email support@oraly.ai."
+    },
+    "comingSoon": "This page arrives in the next release."
+  }
+}

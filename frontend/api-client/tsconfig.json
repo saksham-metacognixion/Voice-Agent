@@ -1,5 +1,5 @@
 {
-  "extends": "@portal/config/tsconfig/nextjs.json",
-  "compilerOptions": { "plugins": [] },
+  "extends": "@portal/config/tsconfig/library.json",
+  "compilerOptions": { "lib": ["DOM", "DOM.Iterable", "ES2022"], "jsx": "react-jsx", "noEmit": true },
   "include": ["src"]
 }

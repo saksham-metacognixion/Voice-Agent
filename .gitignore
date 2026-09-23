@@ -8,6 +8,8 @@ node_modules/
 dist/
 build/
 .next/
+# `next dev` writes here, so a build never clobbers a running dev server
+.next-dev/
 out/
 .turbo/
 *.tsbuildinfo
@@ -54,3 +56,6 @@ backend/api/dist-scripts/
 # Curated fixtures are named by behaviour and have no timestamp, so they stay tracked.
 # Keep one file per behaviour, rename it, delete the rest — see backend/api/test/fixtures/README.md.
 backend/api/test/fixtures/*/*-20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*.json
+
+# wizard end-to-end run output (frontend/web/scripts/e2e-wizard.mjs)
+frontend/web/.e2e/

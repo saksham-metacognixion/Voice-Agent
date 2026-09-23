@@ -1,16 +1,44 @@
-import { Button } from '@portal/ui';
+'use client';
 
-export default function Home() {
+import { PageLoader, ErrorState, Button } from '@portal/ui';
+import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
+import * as React from 'react';
+import { useAuth } from '@/src/auth/auth-provider';
+import { useSessionGate } from '@/src/guards/session-gate';
+import { routes } from '@/src/routes';
+
+/**
+ * `/` is two things: the Auth0 redirect target (`?code=&state=`, handled by AuthProvider
+ * before this renders) and the front door. It never shows content — it works out where the
+ * person belongs (§6.4) and goes there.
+ */
+export default function RootPage() {
+  const auth = useAuth();
+  const gate = useSessionGate('/');
+  const router = useRouter();
+  const t = useTranslations();
+
+  React.useEffect(() => {
+    if (gate.ready && gate.destination) router.replace(gate.destination);
+  }, [gate.ready, gate.destination, router]);
+
+  if (auth.error && auth.status === 'anonymous') {
+    return (
+      <main className="flex min-h-dvh items-center justify-center p-6">
+        <ErrorState
+          title={t('auth.callback.error')}
+          description={auth.error}
+          action={
+            <Button onClick={() => router.replace(routes.login)}>{t('auth.callback.retry')}</Button>
+          }
+        />
+      </main>
+    );
+  }
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-start justify-center gap-4 p-8">
-      <h1 className="text-3xl font-semibold">Voice Agent Portal</h1>
-      <p className="text-neutral-600">
-        Build, test and publish an AI phone agent in under 15 minutes.
-      </p>
-      <p className="text-sm text-neutral-500">
-        Scaffold only. Screens land per the plan in <code>docs/plan/tasks.csv</code>.
-      </p>
-      <Button>It renders</Button>
+    <main className="flex min-h-dvh items-center justify-center">
+      <PageLoader label={auth.status === 'loading' ? t('auth.callback.title') : t('common.loading')} />
     </main>
   );
 }
