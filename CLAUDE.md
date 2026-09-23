@@ -660,7 +660,10 @@ blocklists, fraud_reviews, data_requests, staff_audit_log`.
 **Retell** (Appendix A): `list-voices`; `create-agent`, `update-agent`, `get-agent`, publish/version;
 `create-retell-llm`, `update-retell-llm`; `create-knowledge-base` + sources; `create-phone-number`,
 `import-phone-number`, `update-phone-number`, `delete-phone-number`, `list-phone-numbers`;
-`v2/create-web-call`, `v2/create-phone-call`, `v2/get-call`, `v2/list-calls`, `delete-call`.
+`v3/create-web-call`, `v2/create-phone-call`, `v2/get-call`, `v3/list-calls`, `delete-call`
+(v2 web-call creation loses support 30 Sep 2026; retell-sdk 6 already posts to v3, pinned by
+`retell.endpoints.test.ts`. The browser uses `RetellClient` with a `fetch` that answers
+create-web-call from our API — never a public key; `RetellWebClient` is gone in SDK 4.)
 Events in: `call_started`, `call_ended`, `call_analyzed`, `transfer_*`, plus the per-number inbound webhook.
 
 **Stripe**: Checkout Session, Customer Portal, `checkout.session.completed`,

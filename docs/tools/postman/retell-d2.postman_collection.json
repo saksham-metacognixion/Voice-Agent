@@ -869,7 +869,7 @@
               }
             ],
             "url": {
-              "raw": "https://api.retellai.com/v2/create-web-call",
+              "raw": "https://api.retellai.com/v3/create-web-call",
               "protocol": "https",
               "host": [
                 "api",
@@ -877,7 +877,7 @@
                 "com"
               ],
               "path": [
-                "v2",
+                "v3",
                 "create-web-call"
               ]
             },
@@ -1054,7 +1054,7 @@
               }
             ],
             "url": {
-              "raw": "https://api.retellai.com/v2/list-calls",
+              "raw": "https://api.retellai.com/v3/list-calls",
               "protocol": "https",
               "host": [
                 "api",
@@ -1062,7 +1062,7 @@
                 "com"
               ],
               "path": [
-                "v2",
+                "v3",
                 "list-calls"
               ]
             },

@@ -37,14 +37,17 @@ export class RetellDevController {
       metadata: { test: true, source: 'dev-test-call-page' },
       maxCallDurationMs: body.max_call_duration_ms,
     });
-    // transport + ice_servers must reach the browser SDK: a token minted for the `gateway`
-    // transport is refused by the LiveKit path the legacy client defaults to (D2 finding).
+    // transport + ice_servers (+ url, when v3 names one) must reach the browser SDK: a token
+    // minted for the `gateway` transport is refused by the LiveKit path (D2 finding). The
+    // page hands this body to `RetellClient` as if it were the create-web-call answer.
+    const { url } = call as { url?: string };
     return {
       access_token: call.access_token,
       call_id: call.call_id,
       expires_at: call.expires_at,
       transport: call.transport,
       ice_servers: call.ice_servers,
+      ...(url ? { url } : {}),
     };
   }
 }

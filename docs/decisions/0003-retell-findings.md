@@ -356,3 +356,22 @@ architecture explicitly keeps it off, §13.9); *let Retell time out* (worst of b
 - Open, not blocking: a "closed" agent for the `hours` decline (item 1); toll-free monthly
   price (item 4); §20 item 3 (Standard-tier model) still needs the quality benchmark — cost
   data for gpt-5-mini is now real ($0.008/min).
+
+## Addendum, 23 Sep 2026 — web-call v3
+
+Retell ends support for `POST /v2/create-web-call` on 30 Sep 2026 (weekly notice, org
+`org_vJqsnccsUYJAm6RX`). The one request it counted came from our Postman collection, not the
+product: retell-sdk 6.0.1 already posts `/v3/create-web-call` and `/v3/list-calls`, and
+`retell.endpoints.test.ts` now pins both. The collection's requests 11 and 16 moved to v3.
+
+The browser SDK is `retell-client-js-sdk` 3, where `RetellWebClient` is deprecated (removed in
+4.0) in favour of `RetellClient.createWebCall()`, which creates the call from the browser
+with a public key. **We do not adopt that half.** The API mints every web call, because that
+is where §13.4's authz, balance, the 10/h rate limit and `metadata.tenant_id` are, and a
+public key scoped to our Retell workspace would let any page on an allowed domain start
+calls on any agent. Instead the page gives `RetellClient` a `fetch` that answers
+`/v3/create-web-call` from our API and refuses every other path, so the placeholder key
+never reaches the platform and the v3 session (status, hooks, `ready`) is what the page
+uses. `frontend/web/app/dev/test-call` is the reference; W5's TestCallPanel follows it.
+Consequences: `transcript: true` (the monitor socket) and `stopCall()` from the browser are
+unavailable — the data channel's `update` carries the transcript, and `end()` needs no request.

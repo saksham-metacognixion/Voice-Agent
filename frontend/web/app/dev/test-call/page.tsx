@@ -1,16 +1,47 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { RetellWebClient } from 'retell-client-js-sdk';
+import { RetellClient, type WebCallSession } from 'retell-client-js-sdk';
 
 /**
  * D2 bare browser test call. Not W5 — no design system, no auth, no wallet. It exists to
  * prove `retell-client-js-sdk` connects from this app and to see what the SDK emits so
  * the §12.3 client flow is written against observed events. Talks to the dev-only
  * `POST /dev/retell/web-call` on the API, which is a 404 outside APP_ENV=dev.
+ *
+ * SDK 3's `RetellClient.createWebCall()` wants to POST `/v3/create-web-call` from the
+ * browser with a public key. We never do that: the token is minted by our API, which is
+ * where §13.4's authz, balance, rate limit and `metadata.tenant_id` live, and the agent id
+ * never has to be a browser secret. So the client gets a `fetch` that answers that one
+ * request from our API and refuses everything else — the placeholder key below cannot
+ * reach the platform. The deprecated `RetellWebClient` (removed in SDK 4) is not used.
  */
 
 type Line = { at: string; kind: 'event' | 'transcript' | 'error'; text: string };
+
+const CREATE_WEB_CALL = '/v3/create-web-call';
+
+/** A `fetch` for `RetellClient` that swaps the platform's create-web-call for our mint. */
+function mintThroughApi(apiBase: string): typeof fetch {
+  return async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (!new URL(url).pathname.endsWith(CREATE_WEB_CALL)) {
+      // stop-call on a cancelled start, listen/monitor: nothing on this page needs them,
+      // and forwarding would send the placeholder key to the platform.
+      throw new Error(`test-call: ${new URL(url).pathname} is not proxied`);
+    }
+    const body = JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>;
+    return fetch(`${apiBase}/dev/retell/web-call`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        agent_id: body.agent_id,
+        agent_version: body.agent_version,
+        ...(body.max_call_duration_ms !== undefined ? { max_call_duration_ms: body.max_call_duration_ms } : {}),
+      }),
+    });
+  };
+}
 
 export default function DevTestCallPage() {
   // `?auto=1&agent=agent_…&version=0&max_ms=60000` starts the call on load — used by the
@@ -24,11 +55,11 @@ export default function DevTestCallPage() {
   const [callId, setCallId] = useState<string | null>(null);
   const [agentTalking, setAgentTalking] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
-  const client = useRef<RetellWebClient | null>(null);
+  const session = useRef<WebCallSession | null>(null);
   // Two latches, both refs so they survive React's StrictMode double-mount (the effect
   // runs, is cleaned up, and runs again on the *same* instance, so state would be reset
-  // but refs are not). Without them `?auto=1` mints two web calls — two Retell calls on
-  // the bill — and `startCall` is issued twice.
+  // but refs are not). Without them `?auto=1` mints two web calls — two calls on the
+  // bill — and the transport is joined twice.
   const autoStarted = useRef(false);
   const starting = useRef(false);
 
@@ -38,34 +69,11 @@ export default function DevTestCallPage() {
   };
 
   useEffect(() => {
-    const c = new RetellWebClient();
-    client.current = c;
-    c.on('call_started', () => {
-      setStatus('in_call');
-      log('event', 'call_started');
-    });
-    c.on('call_ready', () => log('event', 'call_ready'));
-    c.on('call_ended', () => {
-      setStatus('ended');
-      setAgentTalking(false);
-      log('event', 'call_ended');
-    });
-    c.on('agent_start_talking', () => setAgentTalking(true));
-    c.on('agent_stop_talking', () => setAgentTalking(false));
-    c.on('update', (update: { transcript?: Array<{ role: string; content: string }> }) => {
-      const last = update.transcript?.at(-1);
-      if (last) log('transcript', `${last.role}: ${last.content}`);
-    });
-    c.on('metadata', (m: unknown) => log('event', `metadata ${JSON.stringify(m)}`));
-    c.on('error', (e: unknown) => {
-      log('error', String(e instanceof Error ? e.message : JSON.stringify(e)));
-      setStatus('ended');
-    });
     if (params.get('auto') === '1' && params.get('agent') && !autoStarted.current) {
       autoStarted.current = true;
       void start();
     }
-    return () => c.stopCall();
+    return () => session.current?.disconnect();
   }, []);
 
   async function start() {
@@ -74,32 +82,45 @@ export default function DevTestCallPage() {
     if (starting.current) return;
     starting.current = true;
     setLines([]);
+    setCallId(null);
     setStatus('connecting');
+    const client = new RetellClient({ key: 'minted-by-our-api', fetch: mintThroughApi(apiBase) });
+    const s = client.createWebCall({
+      agent_id: agentId,
+      agent_version: Number(agentVersion),
+      ...(maxMs ? { extra: { max_call_duration_ms: Number(maxMs) } } : {}),
+      hooks: {
+        // connecting → live → ended. `live` is the old `call_started`.
+        onStatus: (next) => {
+          log('event', `status ${next}`);
+          if (next === 'live') {
+            setCallId(s.callId ?? null);
+            setStatus('in_call');
+          }
+          if (next === 'ended') {
+            setStatus('ended');
+            setAgentTalking(false);
+          }
+        },
+        onAgentStartTalking: () => setAgentTalking(true),
+        onAgentStopTalking: () => setAgentTalking(false),
+        // The data channel's `update` still carries the transcript; `transcript: true`
+        // (the monitor socket) would need a key with Call.Write in the browser.
+        onUpdate: (update) => {
+          const last = update.transcript?.at(-1);
+          if (last) log('transcript', `${last.role}: ${last.content}`);
+        },
+        onMetadata: (m) => log('event', `metadata ${JSON.stringify(m.metadata)}`),
+        onEnd: (e) => log('event', `ended${e.disconnection_reason ? ` (${e.disconnection_reason})` : ''}`),
+        onError: (e) => log('error', e.message),
+      },
+    });
+    session.current = s;
     try {
-      const res = await fetch(`${apiBase}/dev/retell/web-call`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          agent_id: agentId,
-          agent_version: Number(agentVersion),
-          ...(maxMs ? { max_call_duration_ms: Number(maxMs) } : {}),
-        }),
-      });
-      if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
-      const { access_token, call_id, transport, ice_servers } = (await res.json()) as {
-        access_token: string;
-        call_id: string;
-        transport?: 'gateway' | 'livekit';
-        ice_servers?: RTCIceServer[];
-      };
-      setCallId(call_id);
-      log('event', `token minted for ${call_id} (transport ${transport ?? 'default'})`);
-      // §12.3: the API's create-web-call response decides the transport; the SDK must be
-      // told, or a `gateway` token is sent down the LiveKit path and rejected.
-      await client.current!.startCall({ accessToken: access_token, callId: call_id, transport, iceServers: ice_servers });
-    } catch (error) {
-      log('error', error instanceof Error ? error.message : String(error));
-      setStatus('idle');
+      await s.ready;
+      log('event', `joined ${s.callId}`);
+    } catch {
+      // onError has logged it; `ready` also rejects on an ordinary hang-up before joining.
     } finally {
       starting.current = false;
     }
@@ -124,7 +145,7 @@ export default function DevTestCallPage() {
         <button onClick={start} disabled={!agentId || status === 'connecting' || status === 'in_call'}>
           Start call
         </button>
-        <button onClick={() => client.current?.stopCall()} disabled={status !== 'in_call'}>
+        <button onClick={() => void session.current?.end()} disabled={status !== 'in_call'}>
           Hang up
         </button>
         <span style={{ alignSelf: 'center' }}>
