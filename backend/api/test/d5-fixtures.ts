@@ -264,6 +264,19 @@ export class FakeRetellGateway {
         languages: ['fr-CA', 'en-US'],
         preview_audio_url: 'https://example.test/margot.mp3',
       },
+      {
+        // The one voice here that is native in French and nothing else: `voices.e2e` needs a
+        // non-native entry to assert the en-US ranking against, and Adrian, Cleo and Margot
+        // are all native in en-US (the first two by their American accent, Margot because the
+        // catalogue sends her an explicit en-US). Accent `French` with no languages is exactly
+        // how the real catalogue carries her — see test/fixtures/retell/api/list-voices.json.
+        voice_id: 'cartesia-Pierre',
+        voice_name: 'Pierre',
+        provider: 'cartesia',
+        gender: 'male',
+        accent: 'French',
+        preview_audio_url: 'https://example.test/pierre.mp3',
+      },
     ]);
   }
 
