@@ -58,6 +58,19 @@ process.env.RETELL_API_KEY ||= 'key_e2e_placeholder_0123456789abcdef';
 process.env.API_PUBLIC_URL ||= 'http://localhost:4000';
 process.env.RECORDING_SIGNING_SECRET ||= 'e2e-recording-secret-long-enough-to-use';
 process.env.AUTH0_CUSTOMER_ACTION_SECRET ||= 'e2e-auth0-shared-secret-long-enough';
+/**
+ * Placeholders only, so a suite that builds a Nest graph without `startD5Harness()` —
+ * `worker-module.e2e.test.ts` builds the real `WorkerModule` — still gets an `AuthConfig`.
+ * `startD5Harness()` overwrites all four with its two fake tenants, and the tenancy
+ * assertions run against those. `||=`, so a developer's .env still wins locally.
+ *
+ * Not optional: turbo runs tasks in strict env mode, so nothing outside
+ * turbo.json's globalPassThroughEnv reaches CI, and CI has no .env to fall back on.
+ */
+process.env.AUTH0_CUSTOMER_DOMAIN ||= 'e2e-customers.placeholder.test';
+process.env.AUTH0_CUSTOMER_AUDIENCE ||= 'https://api.test';
+process.env.AUTH0_STAFF_DOMAIN ||= 'e2e-staff.placeholder.test';
+process.env.AUTH0_STAFF_AUDIENCE ||= 'https://admin-api.test';
 /** The whole point: no network, no key, deterministic answers. */
 process.env.GENERATION_PROVIDER = 'scripted';
 /** D6: SIP credentials are envelope-encrypted under a local master in tests (KMS in staging/prod). */
