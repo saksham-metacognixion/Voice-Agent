@@ -40,7 +40,10 @@ OUT="$ROOT/frontend/$APP/out"
 if [ "$NO_BUILD" != "--no-build" ]; then
   echo "▶ building $PKG for $ENV"
   export NEXT_PUBLIC_APP_ENV="$ENV"
-  (cd "$ROOT" && pnpm --filter "$PKG" build)
+  # Workspace packages first: @portal/schemas resolves to its gitignored dist/, which a
+  # fresh checkout does not have. The app itself is built outside turbo, whose cache
+  # covers .next/ but not out/ and would skip the export on a hit.
+  (cd "$ROOT" && pnpm turbo run build --filter="$PKG^..." && pnpm --filter "$PKG" build)
 fi
 [ -f "$OUT/index.html" ] || { echo "no export at $OUT" >&2; exit 1; }
 
