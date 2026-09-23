@@ -15,7 +15,7 @@ set -euo pipefail
 ENV_NAME="${1:?usage: deploy.sh <env> <image tag>}"
 TAG="${2:?usage: deploy.sh <env> <image tag>}"
 APP_DIR="${APP_DIR:-/opt/voice-agent}"
-# The instance requires IMDSv2 (infra/aws/staging-stack.yaml), so the region lookup needs a
+# The instance requires IMDSv2 (infra/aws/backend-stack.yaml), so the region lookup needs a
 # token; an untokened GET is refused and would silently have deployed against a default region.
 imds_region() {
   local token

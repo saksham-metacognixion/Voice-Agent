@@ -182,3 +182,50 @@ jobs:
           set -euo pipefail
           curl -fsS --max-time 10 "https://${{ vars.STAGING_API_DOMAIN }}/health"
           curl -fsS --max-time 10 "https://${{ vars.STAGING_API_DOMAIN }}/health/ready"
+
+  # ------------------------------------------------------------------ 4. portal (develop → S3 + CloudFront, ADR 0008)
+  #
+  # Runs when the staging environment has the frontend stack's outputs:
+  #   vars:    STAGING_PORTAL_BUCKET, STAGING_PORTAL_DISTRIBUTION_ID, STAGING_API_DOMAIN,
+  #            STAGING_AUTH0_DOMAIN, STAGING_AUTH0_CLIENT_ID, STAGING_AUTH0_AUDIENCE,
+  #            STAGING_POSTHOG_KEY (optional), STAGING_POSTHOG_HOST (optional)
+  #   secrets: the same AWS keys as deploy-staging (the CI user also holds the frontend policy)
+  # NEXT_PUBLIC_* is baked at build time, so this is a separate build from the local one.
+  deploy-portal-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.STAGING_PORTAL_BUCKET != ''
+    environment:
+      name: staging
+      url: https://${{ vars.STAGING_PORTAL_HOST }}/
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and publish the portal
+        env:
+          FRONTEND_BUCKET: ${{ vars.STAGING_PORTAL_BUCKET }}
+          FRONTEND_DISTRIBUTION_ID: ${{ vars.STAGING_PORTAL_DISTRIBUTION_ID }}
+          NEXT_PUBLIC_API_URL: https://${{ vars.STAGING_API_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_DOMAIN: ${{ vars.STAGING_AUTH0_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_CLIENT_ID: ${{ vars.STAGING_AUTH0_CLIENT_ID }}
+          NEXT_PUBLIC_AUTH0_AUDIENCE: ${{ vars.STAGING_AUTH0_AUDIENCE }}
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.STAGING_POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.STAGING_POSTHOG_HOST }}
+        run: infra/scripts/deploy-frontend.sh web staging
+      - name: Portal answers over TLS
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://${{ vars.STAGING_PORTAL_HOST }}/login/"
