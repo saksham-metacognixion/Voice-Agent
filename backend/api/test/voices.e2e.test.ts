@@ -2,7 +2,7 @@ import { adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ScheduledJobsService } from '../src/modules/scheduled';
-import { PREVIEW_RATE_LIMIT, VoicesService } from '../src/modules/voices';
+import { PREVIEW_RATE_LIMIT, VoicesService, vendorSamplePolicy } from '../src/modules/voices';
 import type { FakeAuth0Tenant } from './auth0-double';
 import { type FakeRetellGateway, type TestWorkspace, createWorkspace, startD5Harness } from './d5-fixtures';
 
@@ -144,13 +144,55 @@ describe('GET /voices', () => {
     expect(multilingual.every((v: { is_multilingual: boolean }) => v.is_multilingual)).toBe(true);
   });
 
-  it('matches a language by prefix in both directions', async () => {
-    // `cartesia-Margot` is listed as fr-CA + en-CA.
-    const french = (await get('/voices?lang=fr')).json().items.map((v: { id: string }) => v.id);
-    expect(french).toContain('cartesia-Margot');
+  it('gives a voice the languages its accent speaks, when the catalogue gives none', async () => {
+    // `11labs-Adrian` arrives with an American accent and no language at all — which is
+    // every voice in the real catalogue. Reading that as "speaks everything" is what made
+    // the W3 language filter a no-op.
+    const adrian = (await get('/voices')).json().items.find((v: { id: string }) => v.id === '11labs-Adrian');
+    expect(adrian.languages).toEqual(['en-US']);
+    expect(adrian.is_multilingual).toBe(false);
+  });
 
-    const canadian = (await get('/voices?lang=en-CA')).json().items.map((v: { id: string }) => v.id);
-    expect(canadian).toContain('cartesia-Margot');
+  it('puts the voices that sound native in the asked-for language first', async () => {
+    // `cartesia-Margot` is listed as fr-CA + en-US; the other two are American.
+    const french = (await get('/voices?lang=fr-CA')).json().items;
+    const firstNonNative = french.findIndex((v: { native: boolean }) => !v.native);
+    const margot = french.findIndex((v: { id: string }) => v.id === 'cartesia-Margot');
+    const adrian = french.findIndex((v: { id: string }) => v.id === '11labs-Adrian');
+
+    // The native block is a block: it starts at the top and nothing native follows it.
+    expect(firstNonNative).toBeGreaterThan(0);
+    expect(french.slice(0, firstNonNative).every((v: { native: boolean }) => v.native)).toBe(true);
+    expect(french.slice(firstNonNative).some((v: { native: boolean }) => v.native)).toBe(false);
+
+    expect(margot).toBeLessThan(firstNonNative);
+    expect(french[margot].native).toBe(true);
+    // Ranking, not filtering: every stack reads fr-CA, so an American voice is still offered.
+    expect(adrian).toBeGreaterThanOrEqual(firstNonNative);
+
+    // The same catalogue, a different language: now the American voice is the native one
+    // and the French one is not. Within a rank the provider/name order is kept.
+    const english = (await get('/voices?lang=en-US')).json().items;
+    expect(english[0].native).toBe(true);
+    expect(english.find((v: { id: string }) => v.id === '11labs-Adrian').native).toBe(true);
+    expect(english.find((v: { id: string }) => v.id === 'cartesia-Pierre').native).toBe(false);
+  });
+
+  it('answers a locale with another accent of the same language', async () => {
+    // `fr-FR` is neither `fr-CA` nor a prefix of it: the old matcher found nothing here.
+    const items = (await get('/voices?lang=fr-FR')).json().items;
+    expect(items.find((v: { id: string }) => v.id === 'cartesia-Margot').native).toBe(true);
+  });
+
+  it('narrows to native accents only when asked', async () => {
+    const items = (await get('/voices?lang=fr-CA&native=true')).json().items;
+    expect(items.map((v: { id: string }) => v.id)).toContain('cartesia-Margot');
+    expect(items.map((v: { id: string }) => v.id)).not.toContain('11labs-Adrian');
+    expect(items.every((v: { languages: string[] }) => v.languages.some((l) => l.startsWith('fr')))).toBe(true);
+  });
+
+  it('marks nothing native when no language was asked for', async () => {
+    expect((await get('/voices')).json().items.every((v: { native: boolean }) => v.native === false)).toBe(true);
   });
 
   it('says it is stale when the daily job has not run for two days', async () => {
@@ -197,6 +239,44 @@ describe('POST /voices/:id/preview', () => {
     const ledger = await adminDb.creditLedger.count({ where: { tenantId: ws.workspaceId } });
     expect(ledger).toBe(0);
     expect(retell.calls.filter((c) => c.method !== 'listVoices')).toEqual([]);
+  });
+
+  it('withholds the vendor clip — name and hostname — where policy says deny', async () => {
+    // The platform's catalogue clips say its name out loud, and their URLs are its own
+    // bucket. `deny` is the default under APP_ENV=prod, and it withholds both until
+    // `voices.sample_url` holds a clip of ours (ADR 0003 §9).
+    const previous = process.env.VOICE_VENDOR_SAMPLES;
+    process.env.VOICE_VENDOR_SAMPLES = 'deny';
+    try {
+      const listed = (await get('/voices')).json().items;
+      expect(listed.every((v: { preview_url: string | null }) => v.preview_url === null)).toBe(true);
+
+      const res = await preview('11labs-Adrian');
+      expect(res.statusCode).toBe(503);
+      expect(res.json().code).toBe('UPSTREAM_UNAVAILABLE');
+
+      // A clip of our own is played whatever the policy says.
+      await adminDb.voice.update({ where: { retellVoiceId: '11labs-Adrian' }, data: { sampleUrl: 'https://cdn.test/ours/adrian.mp3' } });
+      expect((await preview('11labs-Adrian')).json().audio_url).toBe('https://cdn.test/ours/adrian.mp3');
+    } finally {
+      if (previous === undefined) delete process.env.VOICE_VENDOR_SAMPLES;
+      else process.env.VOICE_VENDOR_SAMPLES = previous;
+      await adminDb.voice.update({ where: { retellVoiceId: '11labs-Adrian' }, data: { sampleUrl: null } });
+    }
+  });
+
+  it('defaults to deny under prod and allow elsewhere', () => {
+    expect(vendorSamplePolicy({ APP_ENV: 'prod' } as NodeJS.ProcessEnv)).toBe('deny');
+    expect(vendorSamplePolicy({ APP_ENV: 'dev' } as NodeJS.ProcessEnv)).toBe('allow');
+    expect(vendorSamplePolicy({ APP_ENV: 'prod', VOICE_VENDOR_SAMPLES: 'allow' } as NodeJS.ProcessEnv)).toBe('allow');
+  });
+
+  it('never lets the daily refresh overwrite a clip of ours', async () => {
+    await adminDb.voice.update({ where: { retellVoiceId: '11labs-Adrian' }, data: { sampleUrl: 'https://cdn.test/ours/adrian.mp3' } });
+    await voices.refreshCache();
+    const row = await adminDb.voice.findUniqueOrThrow({ where: { retellVoiceId: '11labs-Adrian' } });
+    expect(row.sampleUrl).toBe('https://cdn.test/ours/adrian.mp3');
+    await adminDb.voice.update({ where: { retellVoiceId: '11labs-Adrian' }, data: { sampleUrl: null } });
   });
 
   it('404s on a voice the catalogue does not have', async () => {

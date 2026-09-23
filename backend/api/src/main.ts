@@ -23,13 +23,17 @@ async function bootstrap() {
   // Before listen(): Fastify locks its content-type parsers on ready().
   registerWebhookRawBody(app);
 
+  // Methods are listed explicitly: the portal's autosave is a PATCH, and the browser
+  // refuses it when the preflight answer omits the method (found by the D8 wizard run).
   app.enableCors({
     origin: [
       portalUrl(),
       process.env.ADMIN_URL ?? 'http://localhost:3001',
     ],
     credentials: true,
-    allowedHeaders: ['Authorization', 'Content-Type', 'X-Workspace-Id'],
+    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'X-Workspace-Id', 'Last-Event-ID'],
+    maxAge: 600,
   });
   app.enableShutdownHooks();
 

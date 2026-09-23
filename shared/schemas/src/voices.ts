@@ -21,6 +21,15 @@ export const voicesQuery = z.object({
     .enum(['true', 'false'])
     .transform((value) => value === 'true')
     .optional(),
+  /**
+   * `true` keeps only the voices whose own accent is native to `lang` (W3's "Native
+   * accents only"). Without it every voice is returned — the stacks behind them all
+   * speak every locale we offer — with the native ones first and flagged.
+   */
+  native: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
   q: z.string().min(1).max(60).optional(),
 });
 export type VoicesQuery = z.infer<typeof voicesQuery>;
@@ -31,8 +40,24 @@ export const voiceResponse = z.object({
   name: z.string(),
   gender: z.string().nullable(),
   accent: z.string().nullable(),
+  /**
+   * The locales this voice sounds native in, derived from its accent. The catalogue
+   * itself carries no language field (`list-voices` returns accent, gender and age only),
+   * so this is the only language signal there is.
+   */
   languages: z.array(z.string()),
-  /** Provider preview clip. Proxying it is D6 work; today the URL is public and static. */
+  /**
+   * Does this voice sound native in the `lang` that was asked for? False whenever no
+   * `lang` was given. It is a property of the request, not of the voice, and it is what
+   * W3 groups the picker by — every other voice can still speak that language, with its
+   * own accent.
+   */
+  native: z.boolean(),
+  /**
+   * A clip of this voice we are willing to play. Null when there is none: the platform
+   * has no text-to-speech route (ADR 0003 §9), and its own catalogue clips name the
+   * vendor aloud, so they are withheld wherever `VOICE_VENDOR_SAMPLES` says `deny`.
+   */
   preview_url: z.string().nullable(),
   tier: agentTier,
   is_multilingual: z.boolean(),

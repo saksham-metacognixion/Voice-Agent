@@ -233,6 +233,36 @@ the provider preview clip. "Hear my greeting" in the customer's own words is P2,
 a 15-second `create-web-call` against the draft (it *is* a call: ~$0.03 and a `calls` row with
 `is_test`), not as a TTS call.
 
+**D8 addendum (22 Sep 2026, W3 in a browser).** Two things about the catalogue that only
+show up once a customer uses the screen:
+
+*The catalogue has no languages.* `list-voices` returns `voice_id`, `voice_name`,
+`provider`, `gender`, `age`, `accent` and `preview_audio_url` — nothing else. All 302
+cached rows arrived with none. The cache read "no languages" as "speaks every language",
+so `is_multilingual` was true on every row, the `lang` filter matched every row, and W3's
+"Main language" changed the query string and nothing else. The accent is the only language
+signal there is, and it is the one the caller hears, so accent → locales is now the voice's
+native language (`modules/voices/voice-languages.ts`). It **ranks** the list rather than
+cutting it: every voice runs on a multilingual stack and will read fr-CA, so the ones that
+sound native come first, flagged `native`, and `?native=true` is there for the customer who
+wants only those. Matching is on the base subtag — `fr-FR` answers a request for `fr-CA`,
+which the old exact-or-prefix rule did not.
+
+*The preview clips say the vendor's name out loud.* "Hi, I'm … from Retell AI" is the
+script on the bulk-generated clips as well as the legacy ones, and the URLs are the
+vendor's own S3 bucket. Both are the vendor in customer-facing output, which the isolation
+rule forbids, and §9 above says there is no text-to-speech route to synthesise a clean
+replacement with. So `VOICE_VENDOR_SAMPLES` decides: `deny` (the default under
+APP_ENV=prod) withholds the clip and its URL and W3 shows "Sample unavailable"; `allow`
+(the default elsewhere) keeps a dev box usable. `voices.sample_url` — a clip of our own —
+is played whichever way the switch is set, and the daily job never touches it.
+
+**Still open, and the owner's call:** what fills `sample_url` before the MVP. Recording one
+short web call per voice against a sampler agent is the only synthesis path that exists
+(~300 calls, a few dollars, once); the alternative is shipping W3 with no per-voice audio
+and letting the W5 test call be the first time anyone hears the agent, which is what the
+screen now says it will be.
+
 ### 10. Website widget, and concurrency
 
 *(docs only)* Retell ships a **Website Widget** (`<script>` tag, `data-public-key` +

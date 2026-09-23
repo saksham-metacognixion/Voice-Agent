@@ -2,9 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { adminDb, withWorkspace } from '@portal/db';
 import type { AgentTier, VoicePreviewRequest, VoicePreviewResponse, VoiceResponse, VoicesQuery, VoicesResponse } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
+import { isProdEnv } from '../../common/env';
 import type { WorkspaceContext } from '../auth';
 import { RedisCache } from '../redis';
 import { RetellGateway } from '../retell';
+import { isMultilingualFrom, languageRank, nativeLanguages } from './voice-languages';
 
 /**
  * W3 voices, and the §13.11 `voice-cache` job behind them.
@@ -16,6 +18,31 @@ import { RetellGateway } from '../retell';
  * server-side daily; if the voice API is down, serve cache with a banner" — and `stale` on
  * the response is that banner.
  */
+
+/**
+ * May we play the provider's own catalogue clip?
+ *
+ * Those clips are the vendor's marketing samples and several of them **say the vendor's
+ * name out loud** ("I'm … from Retell AI"). Retell is never named in customer-facing
+ * copy (CLAUDE.md, Retell isolation), and a clip the customer presses play on is
+ * customer-facing copy that happens to be audio. There is no text-to-speech route to
+ * synthesise a clean one with (ADR 0003 §9), so the only two honest answers are "play
+ * ours" and "play nothing", and this switch picks which way the missing case falls.
+ *
+ * `deny` also keeps the vendor's hostname out of the browser: the clip URLs are
+ * `retell-utils-public.s3…`, which is the vendor's name in a devtools panel.
+ *
+ * Default: `deny` under APP_ENV=prod, `allow` everywhere else, so a dev box still has a
+ * usable picker while nothing branded can reach a customer. `voices.sample_url` — a clip
+ * of our own — is played whatever this says.
+ */
+export type VendorSamplePolicy = 'allow' | 'deny';
+
+export function vendorSamplePolicy(env: NodeJS.ProcessEnv = process.env): VendorSamplePolicy {
+  const raw = env.VOICE_VENDOR_SAMPLES?.trim().toLowerCase();
+  if (raw === 'allow' || raw === 'deny') return raw;
+  return isProdEnv(env) ? 'deny' : 'allow';
+}
 
 /** A cache older than this is served with `stale: true`. Two missed daily runs. */
 export const VOICE_STALE_AFTER_MS = 48 * 3_600_000;
@@ -33,8 +60,9 @@ export class VoicesService {
   ) {}
 
   /**
-   * GET /voices — filtered in Postgres, not in the client, so a Starter plan on a phone
-   * does not download three hundred rows to show twelve.
+   * GET /voices — gender, tier and the name search are filtered in Postgres; language is
+   * decided here, because it is derived from the accent rather than stored (see
+   * `voice-languages.ts`).
    */
   async list(ctx: WorkspaceContext, query: VoicesQuery): Promise<VoicesResponse> {
     const rows = await withWorkspace(ctx, (db) =>
@@ -42,20 +70,39 @@ export class VoicesService {
         where: {
           ...(query.gender ? { gender: query.gender } : {}),
           ...(query.tier ? { tier: query.tier } : {}),
-          ...(query.multilingual !== undefined ? { isMultilingual: query.multilingual } : {}),
           ...(query.q ? { name: { contains: query.q, mode: 'insensitive' } } : {}),
         },
         orderBy: [{ provider: 'asc' }, { name: 'asc' }],
       }),
     );
 
-    // Language matching is a prefix match — `fr` must find `fr-CA`, and `en-US` must find
-    // a voice listed as `en`. Neither direction is expressible as a Prisma filter on a
-    // string array, and the catalogue is small enough that doing it here is honest.
-    const wanted = query.lang?.toLowerCase();
-    const filtered = wanted
-      ? rows.filter((row) => row.isMultilingual || row.languages.some((language) => languageMatches(language, wanted)))
-      : rows;
+    // Language is decided here rather than in Prisma: it is derived from the accent (the
+    // catalogue carries no language field at all — see `voice-languages.ts`), and the
+    // catalogue is three hundred rows.
+    //
+    // `lang` **ranks**, it does not exclude. Every voice in the catalogue runs on a
+    // multilingual stack and will read fr-CA; what differs is the accent it reads it in.
+    // Hiding the other 290 would be a worse answer than putting the five French ones
+    // first — and `native=true` is there for the customer who wants exactly that.
+    const wanted = query.lang?.trim();
+    const policy = vendorSamplePolicy();
+    const ranked = rows
+      .map((row) => {
+        const languages = nativeLanguages(row);
+        const rank = languageRank(languages, wanted);
+        return { row, languages, rank, native: rank >= 1 };
+      })
+      .filter((entry) => (query.native ? entry.native : true))
+      // `multilingual` is answered from the languages we just derived, not from the
+      // `is_multilingual` column: a row cached before the accent mapping existed still
+      // carries the old "no languages means all of them" value, and filtering on the
+      // column while answering from the derivation would contradict itself in one
+      // response.
+      .filter((entry) => (query.multilingual === undefined ? true : isMultilingualFrom(entry.languages) === query.multilingual));
+
+    // A stable sort: natives first, otherwise the provider/name order Postgres returned.
+    const ordered = ranked.map((entry, index) => ({ entry, index }));
+    ordered.sort((a, b) => b.entry.rank - a.entry.rank || a.index - b.index);
 
     const refreshedAt = rows.reduce<Date | null>(
       (newest, row) => (!newest || row.updatedAt > newest ? row.updatedAt : newest),
@@ -63,20 +110,21 @@ export class VoicesService {
     );
 
     return {
-      items: filtered.map(toVoice),
+      items: ordered.map(({ entry }) => toVoice(entry.row, { languages: entry.languages, native: entry.native, policy })),
       refreshed_at: refreshedAt?.toISOString() ?? null,
       stale: !refreshedAt || Date.now() - refreshedAt.getTime() > VOICE_STALE_AFTER_MS,
     };
   }
 
   /**
-   * POST /voices/:id/preview {text} — W3 "Hear my greeting".
+   * POST /voices/:id/preview {text} — W3's play button.
    *
-   * Today this hands back the provider's own preview clip, which is what the cached
-   * catalogue carries and what costs nothing: no credits, no call, no Retell request
-   * (W3: "TTS sample via Retell (if available) or cached provider preview; no credits").
-   * Synthesising the customer's actual greeting is Phase 2 and is why the response
-   * carries `kind` — the portal already knows how to render both.
+   * It hands back a clip, never a synthesis: there is no text-to-speech route to speak
+   * the customer's own words with (ADR 0003 §9), which is why the response carries
+   * `kind` and why W3 tells them they will hear their greeting on the test call. Ours
+   * first, the provider's only where `VOICE_VENDOR_SAMPLES` allows it — those say the
+   * vendor's name aloud — and `UPSTREAM_UNAVAILABLE` when there is neither. No credits,
+   * no call, no request to the provider either way.
    *
    * Authorisation is a workspace membership, and the rate limit is per workspace. The
    * catalogue is global, so there is nothing here that could belong to another workspace;
@@ -94,14 +142,15 @@ export class VoicesService {
 
     const voice = await withWorkspace(ctx, (db) => db.voice.findUnique({ where: { retellVoiceId: voiceId } }));
     if (!voice) throw AppError.notFound('Voice');
-    if (!voice.previewUrl) {
+    const audioUrl = sampleUrlOf(voice, vendorSamplePolicy());
+    if (!audioUrl) {
       throw new AppError('UPSTREAM_UNAVAILABLE', 'There is no sample for this voice yet. Try another one.');
     }
 
     return {
       voice_id: voice.retellVoiceId,
       kind: 'sample',
-      audio_url: voice.previewUrl,
+      audio_url: audioUrl,
       // Null, not the customer's text: the sample clip says its own fixed line, and
       // captioning it with words nobody speaks would be a small lie in the player. When
       // synthesis lands (Phase 2) this carries what was actually said.
@@ -221,17 +270,22 @@ interface ProviderVoice {
 function toRow(voice: ProviderVoice) {
   if (!voice.voice_id || !voice.voice_name) return null;
   const provider = voice.provider ?? 'unknown';
-  const languages = voice.languages ?? (voice.language ? [voice.language] : []);
+  const accent = voice.accent ?? null;
+  const listed = voice.languages ?? (voice.language ? [voice.language] : []);
+  // The catalogue has never sent a language; the accent is the only signal, and reading
+  // "no languages" as "speaks all of them" is what made every voice multilingual and the
+  // W3 language filter a no-op. `nativeLanguages` prefers whatever the provider sends.
+  const languages = nativeLanguages({ languages: listed, accent });
   return {
     retellVoiceId: voice.voice_id,
     provider,
     name: voice.voice_name,
     gender: normaliseGender(voice.gender),
-    accent: voice.accent ?? null,
+    accent,
     languages,
     previewUrl: voice.preview_audio_url ?? null,
     tier: (isPremium(provider) ? 'premium' : 'standard') as AgentTier,
-    isMultilingual: languages.length === 0 || languages.length > 1,
+    isMultilingual: isMultilingualFrom(languages),
   };
 }
 
@@ -244,13 +298,7 @@ function normaliseGender(value: string | undefined): string | null {
   return gender === 'male' || gender === 'female' ? gender : gender ? 'neutral' : null;
 }
 
-/** `fr` matches `fr-CA`, `en-US` matches `en`. Case-insensitive, both directions. */
-export function languageMatches(available: string, wanted: string): boolean {
-  const a = available.toLowerCase();
-  return a === wanted || a.startsWith(`${wanted}-`) || wanted.startsWith(`${a}-`);
-}
-
-function toVoice(row: {
+interface VoiceRow {
   retellVoiceId: string;
   provider: string;
   name: string;
@@ -258,20 +306,36 @@ function toVoice(row: {
   accent: string | null;
   languages: string[];
   previewUrl: string | null;
+  sampleUrl: string | null;
   tier: string;
   isMultilingual: boolean;
   updatedAt: Date;
-}): VoiceResponse {
+}
+
+/**
+ * The clip we are willing to play for this voice: ours if we have recorded one, the
+ * vendor's catalogue clip only where policy allows it, otherwise nothing. A null here is
+ * what turns W3's play button into "no sample", which is the honest state — see
+ * `vendorSamplePolicy`.
+ */
+export function sampleUrlOf(row: { sampleUrl?: string | null; previewUrl: string | null }, policy: VendorSamplePolicy): string | null {
+  return row.sampleUrl ?? (policy === 'allow' ? row.previewUrl : null);
+}
+
+function toVoice(row: VoiceRow, context: { languages: string[]; native: boolean; policy: VendorSamplePolicy }): VoiceResponse {
   return {
     id: row.retellVoiceId,
     provider: row.provider,
     name: row.name,
     gender: row.gender,
     accent: row.accent,
-    languages: row.languages,
-    preview_url: row.previewUrl,
+    languages: context.languages,
+    native: context.native,
+    preview_url: sampleUrlOf(row, context.policy),
     tier: row.tier as AgentTier,
-    is_multilingual: row.isMultilingual,
+    // Recomputed from the languages we just derived, so a row written before the accent
+    // mapping existed does not keep claiming to speak everything.
+    is_multilingual: isMultilingualFrom(context.languages),
     updated_at: row.updatedAt.toISOString(),
   };
 }

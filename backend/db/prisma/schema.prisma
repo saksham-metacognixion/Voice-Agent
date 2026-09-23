@@ -585,6 +585,10 @@ model Voice {
   accent         String?
   languages      String[]  @default([])
   previewUrl     String?   @map("preview_url")
+  /// A clip of this voice that we recorded and host ourselves. Played in preference to
+  /// the provider's catalogue clip, which names the vendor aloud (ADR 0003 §9). Never
+  /// written by the daily `voice-cache` job.
+  sampleUrl      String?   @map("sample_url")
   tier           AgentTier @default(standard)
   isMultilingual Boolean   @default(false) @map("is_multilingual")
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at")

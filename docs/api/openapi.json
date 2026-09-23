@@ -6930,6 +6930,9 @@
                 "name": {
                   "type": "string"
                 },
+                "native": {
+                  "type": "boolean"
+                },
                 "preview_url": {
                   "nullable": true,
                   "type": "string"
@@ -6956,6 +6959,7 @@
                 "gender",
                 "accent",
                 "languages",
+                "native",
                 "preview_url",
                 "tier",
                 "is_multilingual",
@@ -13064,6 +13068,18 @@
           {
             "in": "query",
             "name": "multilingual",
+            "required": false,
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "native",
             "required": false,
             "schema": {
               "enum": [
