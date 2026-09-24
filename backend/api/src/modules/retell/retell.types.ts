@@ -35,6 +35,40 @@ export const voiceModel = z.enum([
   'inworld-tts-2', 'inworld-tts-2-flash',
 ]);
 
+/**
+ * Which voice provider each TTS model belongs to. A model sent with a voice from another
+ * provider is a 400 on `create-agent`/`update-agent` ("Selected voice model
+ * eleven_flash_v2_5 is not supported for this voice provider", found by the D9 wizard run:
+ * W3 offers every provider, the tier stack names one ElevenLabs model). So the stack's
+ * model is sent only with a voice of its own provider; with any other voice it is sent
+ * as `null`, which clears the model an earlier sync stored (omitting it is not enough:
+ * `update-agent` keeps the stored ElevenLabs model and rejects the Cartesia voice
+ * against it) and lets the platform use that provider's default.
+ */
+const VOICE_MODEL_PROVIDER: Record<z.infer<typeof voiceModel>, string> = {
+  eleven_flash_v2: 'elevenlabs', eleven_flash_v2_5: 'elevenlabs', eleven_multilingual_v2: 'elevenlabs', eleven_v3: 'elevenlabs',
+  'sonic-3': 'cartesia', 'sonic-3-latest': 'cartesia', 'sonic-3.5': 'cartesia', 'sonic-3.6': 'cartesia',
+  'tts-1': 'openai', 'gpt-4o-mini-tts': 'openai',
+  'speech-02-turbo': 'minimax', 'speech-2.8-turbo': 'minimax',
+  s1: 'fish_audio', 's2-pro': 'fish_audio', 's2.1-pro': 'fish_audio',
+  'inworld-tts-2': 'inworld', 'inworld-tts-2-flash': 'inworld',
+};
+
+/** The id prefixes `list-voices` uses per provider — the fallback when a voice is not in our cache. */
+const VOICE_ID_PREFIX: Array<[string, string]> = [
+  ['11labs-', 'elevenlabs'], ['cartesia-', 'cartesia'], ['openai-', 'openai'], ['minimax-', 'minimax'], ['fish_audio-', 'fish_audio'], ['inworld-', 'inworld'],
+];
+
+export function providerOfVoiceId(voiceId: string): string | null {
+  return VOICE_ID_PREFIX.find(([prefix]) => voiceId.startsWith(prefix))?.[1] ?? null;
+}
+
+/** The stack's TTS model when it fits the voice's provider, otherwise `null` (clear it: the provider's default). */
+export function voiceModelFor(voiceProvider: string | null, model: VoiceModel | undefined): VoiceModel | null {
+  if (!model || !voiceProvider) return null;
+  return VOICE_MODEL_PROVIDER[model as z.infer<typeof voiceModel>] === voiceProvider ? model : null;
+}
+
 /** Same seam as the locale list: an SDK upgrade that drops a value fails the build. */
 type _VoiceModelIsSupported = z.infer<typeof voiceModel> extends VoiceModel ? true : never;
 const _voiceModelIsSupported: _VoiceModelIsSupported = true;
@@ -104,7 +138,8 @@ export interface AgentSpec {
   name: string;
   llmId: string;
   voiceId: string;
-  voiceModel?: VoiceModel;
+  /** `null` clears a model stored by an earlier sync (see `voiceModelFor`). */
+  voiceModel?: VoiceModel | null;
   /** W3's two voice dials. Undefined leaves Retell's own default in place. */
   voiceSpeed?: number;
   voiceTemperature?: number;

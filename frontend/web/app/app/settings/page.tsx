@@ -1,15 +1,19 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, ThemeSegment, Button } from '@portal/ui';
+import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, ThemeSegment, Button } from '@portal/ui';
 import { ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
+import { useAuth } from '@/src/auth/auth-provider';
 import { PageHeader } from '@/src/components/shell/portal-shell';
 import { routes } from '@/src/routes';
 
 /** D6 Settings — appearance and security entry points now; the rest lands in D11. */
 export default function SettingsPage() {
   const t = useTranslations();
+  // Same source as A5's badge: the `mfa_enrolled` ID-token claim, or `amr` on the
+  // sign-in that enrolled. Without it this card offered setup to people already enrolled.
+  const mfaOn = useAuth().user?.mfa === true;
   return (
     <>
       <PageHeader title={t('dashboard.settings.title')} />
@@ -25,8 +29,11 @@ export default function SettingsPage() {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>{t('dashboard.settings.security')}</CardTitle>
-            <CardDescription>{t('auth.mfa.body')}</CardDescription>
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle>{t('dashboard.settings.security')}</CardTitle>
+              <Badge variant={mfaOn ? 'success' : 'outline'}>{mfaOn ? t('auth.mfa.enabled') : t('auth.mfa.notEnabled')}</Badge>
+            </div>
+            <CardDescription>{mfaOn ? t('auth.mfa.onHint') : t('auth.mfa.body')}</CardDescription>
           </CardHeader>
           <CardContent>
             <Button variant="outline" asChild>

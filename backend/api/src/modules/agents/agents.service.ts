@@ -11,6 +11,7 @@ import {
   type AnalysisField,
   type Brief,
   type CreateAgentRequest,
+  type LintRequest,
   type LintResult,
   type Page,
   type PromptUpdate,
@@ -326,6 +327,25 @@ export class AgentsService {
    * prompt and never a "guardrails" field. The settings are the base version's, carried
    * forward unchanged.
    */
+  /**
+   * `POST /agents/:id/versions/:v/lint` — the same rules `saveManualPrompt` applies, on
+   * the same text it would store (guardrails appended), against version `v`'s brief and
+   * language. Nothing is written and nothing is published on the event stream.
+   */
+  async lintDraftPrompt(ctx: WorkspaceContext, agentId: string, baseVersionNo: number, body: LintRequest): Promise<LintResult> {
+    const stack = await this.stack.current();
+    const { base, agent } = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const base = await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } } });
+      if (!base) throw AppError.notFound(`Version ${baseVersionNo}`);
+      return { base, agent };
+    });
+    const settings = settingsOf(base, agent);
+    const prompt = body.prompt.trim() ? applyGuardrails(body.prompt, stack.guardrails) : '';
+    const greeting = body.greeting === undefined ? base.greeting : body.greeting;
+    return lintPrompt({ prompt, greeting, brief: parseBrief(base.briefJson), primaryLanguage: settings.primary_language }, stack.lint);
+  }
+
   async saveManualPrompt(
     ctx: WorkspaceContext,
     agentId: string,

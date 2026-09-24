@@ -4,6 +4,9 @@ import { Injectable, Logger } from '@nestjs/common';
 /** How long a minted recording link plays (CLAUDE.md, "signed 1-hour URLs"). */
 export const RECORDING_URL_TTL_S = 3_600;
 
+export type TokenPurpose = 'recording' | 'live';
+const PURPOSE_TAG: Record<TokenPurpose, number | string> = { recording: 1, live: 'live' };
+
 export interface RecordingClaims {
   callId: string;
   workspaceId: string;
@@ -40,14 +43,19 @@ export class RecordingSigner {
     }
   }
 
-  sign(claims: Omit<RecordingClaims, 'exp'>, now = new Date(), ttlS = RECORDING_URL_TTL_S): { token: string; expiresAt: Date } {
+  /**
+   * `purpose` keeps the two credentials this signer mints apart: a recording link (tag
+   * `1`, the original format, unchanged) and a live-transcript token for W5's relay (tag
+   * `live`). Each `verify` accepts only its own, so one can never stand in for the other.
+   */
+  sign(claims: Omit<RecordingClaims, 'exp'>, now = new Date(), ttlS = RECORDING_URL_TTL_S, purpose: TokenPurpose = 'recording'): { token: string; expiresAt: Date } {
     const exp = Math.floor(now.getTime() / 1000) + ttlS;
-    const payload = base64url(JSON.stringify([1, claims.workspaceId, claims.callId, exp]));
+    const payload = base64url(JSON.stringify([PURPOSE_TAG[purpose], claims.workspaceId, claims.callId, exp]));
     return { token: `${payload}.${this.digest(payload)}`, expiresAt: new Date(exp * 1000) };
   }
 
   /** The claims when the token is intact and unexpired; null otherwise. Never throws. */
-  verify(token: string | undefined, now = new Date()): RecordingClaims | null {
+  verify(token: string | undefined, now = new Date(), purpose: TokenPurpose = 'recording'): RecordingClaims | null {
     if (!token) return null;
     const dot = token.lastIndexOf('.');
     if (dot <= 0) return null;
@@ -64,7 +72,7 @@ export class RecordingSigner {
     } catch {
       return null;
     }
-    if (!Array.isArray(parsed) || parsed.length !== 4 || parsed[0] !== 1) return null;
+    if (!Array.isArray(parsed) || parsed.length !== 4 || parsed[0] !== PURPOSE_TAG[purpose]) return null;
     const [, workspaceId, callId, exp] = parsed as [number, unknown, unknown, unknown];
     if (typeof workspaceId !== 'string' || typeof callId !== 'string' || typeof exp !== 'number') return null;
     if (exp * 1000 <= now.getTime()) return null;

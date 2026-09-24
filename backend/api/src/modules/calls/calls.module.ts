@@ -1,5 +1,6 @@
 import { Module, type OnModuleInit } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { AgentsModule } from '../agents';
 import { AlertsModule } from '../alerts';
 import { PlatformConfigModule } from '../config';
 import {
@@ -20,7 +21,10 @@ import { CallReconciliationService } from './call-reconciliation.service';
 import { CallsService } from './calls.service';
 import { ConcurrencyMonitorService } from './concurrency-monitor.service';
 import { InboundAuthorizationService } from './inbound.service';
+import { LiveTranscriptRelay } from './live-transcript.relay';
 import { RecordingSigner } from './recording';
+import { TestCallController } from './test-call.controller';
+import { TestCallService } from './test-call.service';
 
 /**
  * Spec §13.1 `calls`: the §13.9 inbound authorisation, the §14 metering that the Retell
@@ -34,8 +38,8 @@ import { RecordingSigner } from './recording';
  * run from the `scheduled` module.
  */
 @Module({
-  imports: [RetellModule, WalletModule, PlatformConfigModule, RuntimeCacheModule, AlertsModule, NotificationsModule],
-  controllers: [CallsController, StatsController],
+  imports: [AgentsModule, RetellModule, WalletModule, PlatformConfigModule, RuntimeCacheModule, AlertsModule, NotificationsModule],
+  controllers: [CallsController, StatsController, TestCallController],
   providers: [
     CallsService,
     CallsQueryService,
@@ -43,8 +47,10 @@ import { RecordingSigner } from './recording';
     { provide: RecordingSigner, useFactory: () => new RecordingSigner() },
     CallReconciliationService,
     ConcurrencyMonitorService,
+    TestCallService,
+    LiveTranscriptRelay,
   ],
-  exports: [CallsService, CallsQueryService, InboundAuthorizationService, RecordingSigner, CallReconciliationService, ConcurrencyMonitorService],
+  exports: [LiveTranscriptRelay, CallsService, CallsQueryService, InboundAuthorizationService, RecordingSigner, CallReconciliationService, ConcurrencyMonitorService],
 })
 export class CallsModule implements OnModuleInit {
   constructor(

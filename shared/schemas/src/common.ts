@@ -16,12 +16,19 @@ export const paginated = <T extends z.ZodTypeAny>(item: T) =>
   z.object({
     items: z.array(item),
     next_cursor: z.string().nullable(),
+    total: z.number().int().optional(),
   });
 
 export interface Page<T> {
   items: T[];
   /** null when this is the last page. Pass it back as ?cursor= for the next one. */
   next_cursor: string | null;
+  /**
+   * Rows matching the filter across every page, when the list is cheap enough to count
+   * (D2 asks for it so the pager can say "1–25 of 312"). Omitted where a count would cost
+   * more than the page.
+   */
+  total?: number;
 }
 
 /** Long operations return 202 {job_id}; the client then listens on SSE (§16). */

@@ -757,6 +757,10 @@ model Call {
   note                String?
   status              CallStatus     @default(registered)
   declineReason       DeclineReason? @map("decline_reason")
+  /// ADR 0011 §7: when `call-recovery` last asked the platform about this row, and how often.
+  /// A row is re-asked on `RECOVER_RECHECK_MS`, an unanalysed one at most `RECOVER_ANALYSIS_MAX_CHECKS` times.
+  recoveryCheckedAt   DateTime?      @map("recovery_checked_at")
+  recoveryChecks      Int            @default(0) @map("recovery_checks")
   createdAt           DateTime       @default(now()) @map("created_at")
 
   tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)

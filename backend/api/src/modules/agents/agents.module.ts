@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { RetellModule } from '../retell';
 import { RuntimeCacheModule } from '../runtime-cache';
 import { AgentPublishService } from './agent-publish.service';
+import { AgentDraftSyncService } from './agent-draft-sync.service';
 import { AgentRetellService } from './agent-retell.service';
 import { AgentStackService } from './agent-stack.service';
 import { AgentsController, TemplatesController } from './agents.controller';
@@ -20,7 +21,7 @@ import { TemplatesService } from './templates.service';
 @Module({
   imports: [RetellModule, RuntimeCacheModule],
   controllers: [AgentsController, TemplatesController],
-  providers: [TemplatesService, AgentStackService, AgentsService, AgentRetellService, AgentPublishService],
-  exports: [TemplatesService, AgentStackService, AgentsService, AgentRetellService, AgentPublishService],
+  providers: [TemplatesService, AgentStackService, AgentsService, AgentRetellService, AgentPublishService, AgentDraftSyncService],
+  exports: [TemplatesService, AgentStackService, AgentsService, AgentRetellService, AgentPublishService, AgentDraftSyncService],
 })
 export class AgentsModule {}

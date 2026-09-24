@@ -7,9 +7,11 @@ import {
   type Page,
   type PublishResponse,
   type TemplateSummary,
+  type LintResult,
   agentDraftPatch,
   agentsQuery,
   createAgentRequest,
+  lintRequest,
   promptUpdate,
   publishRequest,
   selectVersionRequest,
@@ -101,6 +103,20 @@ export class AgentsController {
     @Body() body: unknown,
   ): Promise<AgentVersionDetail> {
     return this.agents.saveManualPrompt(ctx, agentId(id), versionNo, promptUpdate.parse(body));
+  }
+
+  /**
+   * The Advanced editor's live lint (§9.5): what `PUT …/prompt` would find, without
+   * writing a version. Read-only, so every role may ask.
+   */
+  @Post(':id/versions/:v/lint')
+  lint(
+    @Ctx() ctx: WorkspaceContext,
+    @Param('id') id: string,
+    @Param('v', ParseIntPipe) versionNo: number,
+    @Body() body: unknown,
+  ): Promise<LintResult> {
+    return this.agents.lintDraftPrompt(ctx, agentId(id), versionNo, lintRequest.parse(body));
   }
 
   /** §13.6. Synchronous: it ends with the agent live, or with nothing changed. */

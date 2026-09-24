@@ -47,6 +47,12 @@ export const JOBS = {
   provisionNumber: 'provision-number',
   /** D6 §13.8: publish → provision → bind → mark live → notify. `jobId = activate-<jobs.id>`. */
   activateAgent: 'activate-agent',
+  /**
+   * ADR 0011 §7 for one call someone is looking at: `GET /calls/:id` served an unsettled
+   * row, so ask `get-call` now instead of waiting for the 5-minute schedule. `jobId =
+   * recover-<call_id>`, delayed, freed when it settles — at most one per call per delay.
+   */
+  recoverCall: 'recover-call',
 } as const;
 
 /** §13.11 Job Schedulers. Registered idempotently on worker boot (architecture §12). */
@@ -60,6 +66,8 @@ export const SCHEDULED_JOBS = {
   lowBalanceAlerts: 'low-balance-alerts',
   autoTopup: 'auto-topup',
   reconcileCalls: 'reconcile-calls',
+  /** Settles calls whose call_ended / call_analyzed the platform never delivered (CallRecoveryService, ADR 0011 §7). */
+  callRecovery: 'call-recovery',
   voiceCache: 'voice-cache',
   concurrencyMonitor: 'concurrency-monitor',
   numberRelease: 'number-release',
@@ -89,7 +97,8 @@ export interface ScheduleSpec {
  * yesterday's digest went out — one UTC midnight run would mail Kolkata at 05:30 and
  * Vancouver at 16:00 (DailyDigestService). `number-rental` is hourly so an anniversary
  * is charged within the hour, and so a workspace that tops up after going overdue is
- * charged the same day. `kb-sync` (automatic knowledge re-ingest) stays a skeleton — the
+ * charged the same day. `call-recovery` (every 5 min) asks the platform about calls whose
+ * `call_ended` or `call_analyzed` never arrived and stores its answer as that webhook. `kb-sync` (automatic knowledge re-ingest) stays a skeleton — the
  * platform re-crawls URL sources itself and nothing in P1 needs the schedule yet.
  */
 export const SCHEDULES: readonly ScheduleSpec[] = [
@@ -101,6 +110,7 @@ export const SCHEDULES: readonly ScheduleSpec[] = [
   { name: SCHEDULED_JOBS.lowBalanceAlerts, every: 15 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.autoTopup, every: 15 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.reconcileCalls, pattern: '30 2 * * *', status: 'live' },
+  { name: SCHEDULED_JOBS.callRecovery, every: 5 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.voiceCache, pattern: '0 5 * * *', status: 'live' },
   { name: SCHEDULED_JOBS.concurrencyMonitor, every: 5 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.numberRelease, pattern: '0 6 * * *', status: 'live' },
@@ -139,6 +149,10 @@ export interface InboundDecisionJob {
   configVersion: number | null;
   maxCallDurationMs: number | null;
   reservedCredits: number;
+}
+
+export interface RecoverCallJob {
+  callId: string;
 }
 
 export interface WarmWorkspaceJob {

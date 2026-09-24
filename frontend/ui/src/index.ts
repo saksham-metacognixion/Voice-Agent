@@ -31,3 +31,5 @@ export { ThemeProvider, ThemeToggle, ThemeSegment, useTheme, type ThemeTogglePro
 export { AudioButton, type AudioButtonProps, type AudioState } from './components/audio-button';
 export { Stepper, type StepperProps, type StepperStep } from './components/stepper';
 export { Logo, type LogoProps } from './components/logo';
+export { Checkbox } from './components/checkbox';
+export { Tabs, TabsList, TabsTrigger, TabsContent } from './components/tabs';

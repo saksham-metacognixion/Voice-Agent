@@ -125,6 +125,44 @@ auto_topup` metadata) is ignored on this path; `checkout.session.completed` owns
 event from moving an invoice backwards. An invoice whose customer maps to no workspace is
 stored with `tenant_id NULL` for reconciliation and is visible to nobody.
 
+### 9. A paid Checkout is settled from Stripe's answer, not only from the webhook — 24 Sep 2026
+
+Found on a dev box: a customer paid a Growth pack, Stripe sent them back to
+`/onboarding/activate?session_id=…`, and the page sat on "Still waiting for the payment
+confirmation" for ever. Stripe had the money (`status=complete`, `payment_status=paid`) and the
+purchase was `pending`. The only webhook endpoint registered on the Stripe account is
+`api-staging.oraly.ai`, and `stripe listen` was not running, so `checkout.session.completed`
+never reached this API. Nothing in the design could recover from that: fulfilment had exactly
+one entry point, the webhook, and the W7 copy "we check the payment first" only read our own
+table.
+
+Stripe's own guidance for Checkout is to fulfil from **both** the webhook and the return URL,
+retrieving the session by id, and to make fulfilment idempotent. We now do that, through the
+handlers that already exist:
+
+- `StripeGateway.retrieveCheckoutSession(id)` → the same `CheckoutSessionFacts` the webhook
+  reduces `data.object` to.
+- `BillingService.confirmCheckout(ctx, sessionId)` behind `POST /wallet/checkout/confirm`
+  (owner/admin). It finds **this workspace's** pending purchase by `stripe_session_id`
+  under RLS — a foreign or unknown id is a 404 before any Stripe call — retrieves the
+  session, checks `identify()` still names that purchase, and hands it to `fulfil()`
+  (`expired` → `abandon()`). Same amount/currency check, same wallet lock, same
+  `already_paid` short-circuit, same post-commit `onPurchaseCredited` that starts the
+  activation. Answers `{purchase_id, status, credited}`; Stripe unreachable is
+  `503 UPSTREAM_UNAVAILABLE` and the row stays `pending`.
+- `BillingService.reconcilePendingCheckouts()` at the top of the `auto-topup` tick (§7 already
+  did the same for top-up PaymentIntents): pending, non-top-up purchases with a session
+  created more than 5 minutes and less than 48 hours ago, oldest first, 100 per tick. Paid →
+  credited, expired → abandoned, still open → left alone. Beyond 48 hours the row is SA9's.
+- W7 posts `session_id` once on mount and on "Check again". The URL still proves nothing to
+  the page; it proves nothing to the API either — Stripe's answer does.
+
+Three writers, one fulfilment, so ordering does not matter: the e2e suite confirms, confirms
+again, then delivers the real webhook for the same session and still finds one lot and one
+ledger row. The dev box needs `pnpm dev:stripe` for the webhook path regardless; the two new
+paths make a stopped forwarder a delay, not a lost sale. In staging and prod the webhook is
+the normal path and the confirm is what makes the return screen immediate.
+
 ## Alternatives considered
 
 - **One transaction around publish + provision + bind.** Ruled out by ADR 0006: four to six

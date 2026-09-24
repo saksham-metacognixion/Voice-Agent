@@ -33,6 +33,12 @@ beforeAll(async () => {
   baseUrl = await app.getUrl();
 
   recordings = createServer((req, res) => {
+    if (req.url?.endsWith('.wav')) {
+      // The platform's CDN labels its .wav this way; the proxy must not pass that on.
+      res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': String(AUDIO.length) });
+      res.end(AUDIO);
+      return;
+    }
     if (req.headers.range) {
       res.writeHead(206, { 'content-type': 'audio/mpeg', 'content-range': `bytes 0-9/${AUDIO.length}`, 'content-length': '10' });
       res.end(AUDIO.subarray(0, 10));
@@ -146,7 +152,7 @@ describe('GET /calls', () => {
     const empty = await createCallWorkspace('no-calls');
     const res = await get('/calls', await headers(empty.sub, empty.tenantId));
     expect(res.statusCode).toBe(200);
-    expect(res.json()).toEqual({ items: [], next_cursor: null });
+    expect(res.json()).toEqual({ items: [], next_cursor: null, total: 0 });
   });
 
   it('refuses a malformed cursor, an unknown filter value and a bad limit', async () => {
@@ -163,6 +169,159 @@ describe('GET /calls', () => {
     const noWorkspace = await app.inject({ method: 'GET', url: '/calls', headers: { authorization: `Bearer ${await customerTenant.mint(ws.sub)}` } });
     expect(noWorkspace.statusCode).toBe(400);
     expect(noWorkspace.json().code).toBe('WORKSPACE_REQUIRED');
+  });
+});
+
+describe('GET /calls sort, total and D2 extras', () => {
+  it('reports the total for the filter and sorts by duration or credits in either direction, nulls last', async () => {
+    const all = (await get('/calls?limit=2')).json();
+    expect(all.total).toBe(5);
+    expect(all.items).toHaveLength(2);
+    expect((await get('/calls?status=missed')).json().total).toBe(1);
+
+    const byDuration = (await get('/calls?sort=duration_s&order=desc')).json().items.map((c: { id: string }) => c.id);
+    // 120 s, 60 s, 30 s, 0 s, then the live call whose duration is still null.
+    expect(byDuration).toEqual([ids.old, ids.ended, ids.web, ids.missed, ids.live]);
+    const asc = (await get('/calls?sort=duration_s&order=asc')).json().items.map((c: { id: string }) => c.id);
+    expect(asc.slice(0, 4)).toEqual([ids.missed, ids.web, ids.ended, ids.old]);
+    expect(asc.at(-1)).toBe(ids.live);
+
+    const byCredits = (await get('/calls?sort=credits_charged&order=desc&limit=1')).json();
+    expect(byCredits.items[0].id).toBe(ids.old);
+    expect(byCredits.total).toBe(5);
+    expect((await get('/calls?sort=nope')).statusCode).toBe(422);
+  });
+
+  it('pages a sorted list without repeating or skipping a row', async () => {
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    for (let i = 0; i < 4; i += 1) {
+      const url: string = `/calls?sort=credits_charged&order=asc&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const page: { items: Array<{ id: string }>; next_cursor: string | null } = (await get(url)).json();
+      seen.push(...page.items.map((c) => c.id));
+      cursor = page.next_cursor;
+      if (!cursor) break;
+    }
+    expect(new Set(seen).size).toBe(5);
+    expect(seen).toHaveLength(5);
+  });
+
+  it('pages through the null tail of a sort: a cursor row with no duration still yields the rest', async () => {
+    // A second call with no duration yet, so page one ends on a null row and page two must
+    // find the other one. Prisma's own cursor compared the tuple against NULL and answered
+    // nothing here while `total` said otherwise.
+    const second = callId();
+    await adminDb.call.create({ data: { id: second, tenantId: ws.tenantId, agentId: ws.agentId, numberId: ws.numberId, channel: 'phone', direction: 'inbound', startedAt: new Date(Date.now() - 20_000), rate: new Prisma.Decimal(1), status: 'in_progress' } });
+    try {
+      const first = (await get('/calls?sort=duration_s&order=desc&limit=5')).json();
+      expect(first.items).toHaveLength(5);
+      expect(first.total).toBe(6);
+      expect(first.items.at(-1).duration_s).toBeNull(); // the cursor row is in the null tail
+      const rest = (await get(`/calls?sort=duration_s&order=desc&limit=5&cursor=${encodeURIComponent(first.next_cursor)}`)).json();
+      expect(rest.items).toHaveLength(1);
+      expect(rest.items[0].duration_s).toBeNull();
+      expect(rest.next_cursor).toBeNull();
+      const seen = new Set([...first.items, ...rest.items].map((c: { id: string }) => c.id));
+      expect(seen.size).toBe(6);
+
+      // Ascending too, where the nulls also come last.
+      const asc: string[] = [];
+      let cursor: string | null = null;
+      for (let i = 0; i < 4; i += 1) {
+        const page: { items: Array<{ id: string }>; next_cursor: string | null } = (await get(`/calls?sort=credits_charged&order=asc&limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)).json();
+        asc.push(...page.items.map((c: { id: string }) => c.id));
+        cursor = page.next_cursor;
+        if (!cursor) break;
+      }
+      expect(new Set(asc).size).toBe(6);
+      expect(asc.slice(-2).sort()).toEqual([ids.live, second].sort());
+
+      // The export walks the same order and reaches the tail as well.
+      const csv = await app.inject({ method: 'POST', url: '/calls/export', headers: { ...(await headers()), 'content-type': 'application/json' }, payload: JSON.stringify({ sort: 'duration_s', order: 'desc' }) });
+      expect(csv.body.trim().split('\r\n')).toHaveLength(7);
+    } finally {
+      await adminDb.call.delete({ where: { id: second } });
+    }
+  });
+
+  it('refuses a cursor that names another workspace’s call as an invalid page link, not a page', async () => {
+    const cursor = Buffer.from(JSON.stringify([1, ids.theirs, null]), 'utf8').toString('base64url');
+    const res = await get(`/calls?cursor=${encodeURIComponent(cursor)}`);
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVALID_CURSOR');
+  });
+
+  it('carries the sentiment from the analysis and filters on handled', async () => {
+    await adminDb.call.update({ where: { id: ids.web }, data: { analysisJson: { call_successful: true, user_sentiment: 'Positive' } } });
+    const web = (await get(`/calls?channel=web`)).json().items[0];
+    expect(web.sentiment).toBe('Positive');
+    expect((await get(`/calls?handled=true`)).json().items.map((c: { id: string }) => c.id)).not.toContain(ids.old);
+    expect((await get(`/calls?handled=false`)).json().total).toBe(5);
+  });
+});
+
+describe('PATCH /calls (bulk)', () => {
+  const bulk = async (payload: unknown, auth?: Record<string, string>) =>
+    app.inject({ method: 'PATCH', url: '/calls', headers: { ...(auth ?? (await headers())), 'content-type': 'application/json' }, payload: JSON.stringify(payload) });
+
+  it('marks several calls handled in one request, counts another workspace’s id as untouched, and undoes', async () => {
+    const res = await bulk({ ids: [ids.old, ids.missed, ids.theirs, callId()], handled: true });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ updated: 2 });
+    const theirs = await adminDb.call.findUniqueOrThrow({ where: { id: ids.theirs } });
+    expect(theirs.handledAt).toBeNull();
+    const old = await adminDb.call.findUniqueOrThrow({ where: { id: ids.old } });
+    expect(old.handledAt).not.toBeNull();
+
+    // Already handled rows count as done; the first timestamp is kept.
+    const again = await bulk({ ids: [ids.old, ids.missed], handled: true });
+    expect(again.json()).toEqual({ updated: 2 });
+    expect((await adminDb.call.findUniqueOrThrow({ where: { id: ids.old } })).handledAt?.toISOString()).toBe(old.handledAt?.toISOString());
+
+    expect((await bulk({ ids: [ids.old, ids.missed], handled: false })).json()).toEqual({ updated: 2 });
+    expect((await adminDb.call.findUniqueOrThrow({ where: { id: ids.old } })).handledAt).toBeNull();
+  });
+
+  it('is 422 without ids and 403 for a viewer', async () => {
+    expect((await bulk({ ids: [], handled: true })).statusCode).toBe(422);
+    const viewer = await createCallWorkspace('bulk-viewer');
+    await adminDb.membership.update({ where: { tenantId_userId: { tenantId: viewer.tenantId, userId: viewer.userId } }, data: { role: 'viewer' } });
+    const res = await bulk({ ids: [ids.old], handled: true }, await headers(viewer.sub, viewer.tenantId));
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN_ROLE');
+  });
+});
+
+describe('POST /calls/export', () => {
+  const exportCsv = async (payload: unknown, auth?: Record<string, string>) =>
+    app.inject({ method: 'POST', url: '/calls/export', headers: { ...(auth ?? (await headers())), 'content-type': 'application/json' }, payload: JSON.stringify(payload) });
+
+  it('streams a CSV of the filtered calls, this workspace only, with the D2 columns', async () => {
+    const res = await exportCsv({});
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/csv/);
+    expect(res.headers['content-disposition']).toMatch(/attachment; filename="calls-.*\.csv"/);
+    const lines = res.body.trim().split('\r\n');
+    expect(lines[0]).toMatch(/^call_id,started_at,ended_at,status,/);
+    expect(lines).toHaveLength(6);
+    expect(res.body).not.toContain(ids.theirs);
+    expect(res.body).not.toMatch(/retell|recording_url/);
+    // The missed call is "missed" to the customer, and the E.164 number is defused for spreadsheets.
+    expect(res.body).toContain(`${ids.missed},`);
+    expect(res.body).toContain(',missed,');
+    expect(res.body).toContain('"\t+19375550100"');
+  });
+
+  it('honours the filters and a selection of ids, and refuses ids from elsewhere silently', async () => {
+    const missed = (await exportCsv({ status: 'missed' })).body.trim().split('\r\n');
+    expect(missed).toHaveLength(2);
+    expect(missed[1]!.startsWith(ids.missed)).toBe(true);
+
+    const picked = (await exportCsv({ ids: [ids.ended, ids.web, ids.theirs] })).body.trim().split('\r\n');
+    expect(picked).toHaveLength(3);
+    expect(picked.join('\n')).not.toContain(ids.theirs);
+
+    expect((await exportCsv({ status: 'exploded' })).statusCode).toBe(422);
   });
 });
 
@@ -233,6 +392,38 @@ describe('GET /calls/:id/recording — the signed proxy (§17)', () => {
     expect(played.headers.get('content-type')).toBe('audio/mpeg');
     expect(played.headers.get('cache-control')).toContain('no-store');
     expect(Buffer.from(await played.arrayBuffer()).equals(AUDIO)).toBe(true);
+  });
+
+  it('mints the link on the origin the browser called, never on API_PUBLIC_URL (the platform callback tunnel)', async () => {
+    const before = process.env.API_PUBLIC_URL;
+    process.env.API_PUBLIC_URL = 'https://tunnel.example.test';
+    try {
+      const res = await get(`/calls/${ids.ended}/recording`, { ...(await headers()), host: 'api.example.test', 'x-forwarded-proto': 'https' });
+      expect(res.statusCode).toBe(200);
+      expect(res.json().url).toMatch(new RegExp(`^https://api\\.example\\.test/calls/${ids.ended}/recording/stream\\?token=`));
+      // Behind Caddy the forwarded host wins over the upstream hop's Host.
+      const forwarded = await get(`/calls/${ids.ended}/recording`, { ...(await headers()), host: 'api:4000', 'x-forwarded-host': 'api-staging.oraly.ai', 'x-forwarded-proto': 'https' });
+      expect(forwarded.json().url.startsWith('https://api-staging.oraly.ai/calls/')).toBe(true);
+    } finally {
+      if (before === undefined) delete process.env.API_PUBLIC_URL;
+      else process.env.API_PUBLIC_URL = before;
+    }
+  });
+
+  it('labels a .wav the CDN serves as application/octet-stream as audio/wav, so every browser plays it', async () => {
+    const wavUrl = recordingUrl.replace(/rec\.mp3$/, 'rec.wav');
+    const original = await adminDb.call.findUniqueOrThrow({ where: { id: ids.ended }, select: { recordingUrl: true } });
+    await adminDb.call.update({ where: { id: ids.ended }, data: { recordingUrl: wavUrl } });
+    try {
+      const { url } = (await get(`/calls/${ids.ended}/recording`)).json();
+      const played = await fetch(url.replace(/^https?:\/\/[^/]+/, baseUrl));
+      expect(played.status).toBe(200);
+      expect(played.headers.get('content-type')).toBe('audio/wav');
+      expect(played.headers.get('content-disposition')).toBe(`inline; filename="call-${ids.ended}.wav"`);
+      expect(Buffer.from(await played.arrayBuffer()).equals(AUDIO)).toBe(true);
+    } finally {
+      await adminDb.call.update({ where: { id: ids.ended }, data: { recordingUrl: original.recordingUrl } });
+    }
   });
 
   it('passes a Range request through so the player can seek', async () => {

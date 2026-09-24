@@ -16,7 +16,9 @@ export function WizardShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
   const pathname = usePathname();
   const ws = useWorkspace();
-  const current = Math.max(0, ONBOARDING_STEPS.findIndex((s) => pathname.startsWith(s.path.replace(/\/$/, ''))));
+  // `/onboarding/live` is past the last step: every dot shows as done.
+  const onLive = pathname.startsWith(routes.onboarding.live.replace(/\/$/, ''));
+  const current = onLive ? ONBOARDING_STEPS.length : Math.max(0, ONBOARDING_STEPS.findIndex((s) => pathname.startsWith(s.path.replace(/\/$/, ''))));
   const reached = ws.workspace?.onboarding_step ?? 1;
   const canExit = Boolean(ws.workspace?.onboarding_completed_at) || reached > LAST_IMPLEMENTED_STEP;
   const themeLabels = { light: t('common.theme.light'), dark: t('common.theme.dark'), system: t('common.theme.system'), toggle: t('common.theme.toggle') };

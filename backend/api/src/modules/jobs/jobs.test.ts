@@ -32,6 +32,7 @@ describe('queue and job names', () => {
       'low-balance-alerts',
       'auto-topup',
       'reconcile-calls',
+      'call-recovery',
       'voice-cache',
       'concurrency-monitor',
       'number-release',

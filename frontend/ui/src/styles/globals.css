@@ -51,6 +51,8 @@
   --success-foreground: #ffffff;
   --warning: #d97706;
   --warning-foreground: #442105;
+  /* Warning as text on an ordinary surface: amber deep enough to read on Soft White. */
+  --warning-emphasis: #92400e;
   --danger: #dc2626;
   --danger-foreground: #ffffff;
   /* Electric Blue is a graphic colour: on Soft White it needs a darker step to be read. */
@@ -95,6 +97,7 @@
   --success-foreground: #05230f;
   --warning: #fbbf24;
   --warning-foreground: #2a1a02;
+  --warning-emphasis: #fbbf24;
   --danger: #f87171;
   --danger-foreground: #2b0707;
   --info: var(--brand-blue);
@@ -132,6 +135,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-emphasis: var(--warning-emphasis);
   --color-danger: var(--danger);
   --color-danger-foreground: var(--danger-foreground);
   --color-destructive: var(--danger);

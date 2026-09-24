@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Retell, { toFile } from 'retell-sdk';
+import WebSocket from 'ws';
 import { RetellConfig } from './retell.config';
+import { type RetellCallFacts, retellCallFacts } from './retell-webhook';
 import type { AgentSpec, AllowOptions, InboundAllow, InboundDecline, KnowledgeSourcesInput, LlmSpec } from './retell.types';
 
 /**
@@ -196,6 +198,22 @@ export class RetellGateway {
     });
   }
 
+  /**
+   * The live transcript of one call (W5, ADR 0003 D9 addendum): the platform's monitor
+   * socket, `/v2/monitor-call/{call_id}`, authorised by our key as the `bearer`
+   * subprotocol. v3 web calls run on the `gateway` transport, whose data channel carries
+   * status frames only, so this socket is the one place the transcript streams from
+   * while a call is live. It is opened here, server-side, for `LiveTranscriptRelay` — the
+   * key never goes to a browser.
+   */
+  openCallMonitor(callId: string): WebSocket {
+    const base = this.client.baseURL.replace(/\/+$/, '').replace(/^http/, 'ws');
+    return new WebSocket(`${base}/v2/monitor-call/${encodeURIComponent(callId)}`, ['bearer', this.config.apiKey], {
+      handshakeTimeout: 10_000,
+      maxPayload: 1024 * 1024,
+    });
+  }
+
   /** Outbound (Phase 2, §14.2). Same balance/cap checks as inbound happen before this. */
   createPhoneCall(input: {
     fromNumber: string;
@@ -221,6 +239,23 @@ export class RetellGateway {
 
   getCall(callId: string) {
     return this.client.call.retrieve(callId);
+  }
+
+  /**
+   * `get-call`, read as the same `call` object the lifecycle webhooks carry, so the
+   * `call-recovery` schedule can store it as the event the platform never delivered and
+   * the ordinary handler bills it. `null` when the platform has no such call; any other
+   * failure throws. The parsed object passes unknown fields through, like a webhook body.
+   */
+  async retrieveCallFacts(callId: string): Promise<RetellCallFacts | null> {
+    try {
+      const parsed = retellCallFacts.safeParse(await this.client.call.retrieve(callId));
+      if (!parsed.success) throw new Error(`get-call ${callId} answered an unreadable call: ${parsed.error.issues[0]?.message ?? 'invalid'}`);
+      return parsed.data;
+    } catch (error) {
+      if (isRetellNotFound(error)) return null;
+      throw error;
+    }
   }
 
   /** Nightly reconciliation (§14.2): everything Retell saw in a window, vs `calls`. One page. */

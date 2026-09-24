@@ -109,8 +109,10 @@ describe('the feedback-patch contract', () => {
     }
   });
 
-  it('does not require `updated_prompt` — a refusal has nothing to put in it (§9.6)', () => {
-    expect(requiredKeys(GENERATED_PATCH_JSON_SCHEMA)).not.toContain('updated_prompt');
+  it('requires `updated_prompt`, and a refusal may answer it with an empty string (§9.6, D9)', () => {
+    // Optional, the real model skipped it on ordinary requests and failed the job.
+    expect(requiredKeys(GENERATED_PATCH_JSON_SCHEMA)).toContain('updated_prompt');
+    expect(generatedPatch.safeParse({ updated_brief: {}, updated_prompt: '', changes: [], explanation: 'I cannot.' }).success).toBe(true);
   });
 
   it('accepts a refusal with no prompt at all, and rejects a change with none', () => {

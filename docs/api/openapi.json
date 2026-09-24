@@ -3281,6 +3281,10 @@
           "rate": {
             "type": "number"
           },
+          "sentiment": {
+            "nullable": true,
+            "type": "string"
+          },
           "started_at": {
             "format": "date-time",
             "nullable": true,
@@ -3339,6 +3343,7 @@
           "handled_at",
           "note",
           "has_recording",
+          "sentiment",
           "created_at",
           "transcript_text",
           "transcript_json",
@@ -3454,6 +3459,10 @@
           "rate": {
             "type": "number"
           },
+          "sentiment": {
+            "nullable": true,
+            "type": "string"
+          },
           "started_at": {
             "format": "date-time",
             "nullable": true,
@@ -3505,7 +3514,164 @@
           "handled_at",
           "note",
           "has_recording",
+          "sentiment",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "callsBulkPatch": {
+        "properties": {
+          "handled": {
+            "type": "boolean"
+          },
+          "ids": {
+            "items": {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids",
+          "handled"
+        ],
+        "type": "object"
+      },
+      "callsBulkResponse": {
+        "properties": {
+          "updated": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "updated"
+        ],
+        "type": "object"
+      },
+      "callsExportRequest": {
+        "properties": {
+          "agent_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "channel": {
+            "enum": [
+              "phone",
+              "web"
+            ],
+            "type": "string"
+          },
+          "direction": {
+            "enum": [
+              "inbound",
+              "outbound"
+            ],
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "handled": {
+            "enum": [
+              "true",
+              "false"
+            ],
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "is_test": {
+            "enum": [
+              "true",
+              "false"
+            ],
+            "type": "string"
+          },
+          "number_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "order": {
+            "default": "desc",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string"
+          },
+          "sort": {
+            "default": "started_at",
+            "enum": [
+              "started_at",
+              "duration_s",
+              "credits_charged"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "registered",
+              "in_progress",
+              "ended",
+              "analyzed",
+              "missed"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "checkoutConfirmRequest": {
+        "properties": {
+          "session_id": {
+            "pattern": "^cs_[A-Za-z0-9_]{8,200}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "type": "object"
+      },
+      "checkoutConfirmResponse": {
+        "properties": {
+          "credited": {
+            "type": "boolean"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "paid",
+              "abandoned",
+              "refunded"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "purchase_id",
+          "status",
+          "credited"
         ],
         "type": "object"
       },
@@ -4633,6 +4799,85 @@
           "ref_type",
           "ref_id",
           "created_at"
+        ],
+        "type": "object"
+      },
+      "lintRequest": {
+        "properties": {
+          "greeting": {
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 20000,
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "type": "object"
+      },
+      "lintResult": {
+        "properties": {
+          "findings": {
+            "items": {
+              "properties": {
+                "field": {
+                  "default": null,
+                  "maxLength": 80,
+                  "nullable": true,
+                  "type": "string"
+                },
+                "message": {
+                  "maxLength": 300,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "rule": {
+                  "enum": [
+                    "prompt_empty",
+                    "prompt_too_long",
+                    "no_greeting",
+                    "greeting_too_long",
+                    "handoff_rule_missing",
+                    "transfer_tool_missing",
+                    "absolute_language",
+                    "language_mismatch",
+                    "guardrails_missing"
+                  ],
+                  "type": "string"
+                },
+                "severity": {
+                  "enum": [
+                    "error",
+                    "warning"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "rule",
+                "severity",
+                "message"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "linted_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "findings",
+          "publishable",
+          "linted_at"
         ],
         "type": "object"
       },
@@ -6616,6 +6861,67 @@
           "name",
           "tagline",
           "best_for"
+        ],
+        "type": "object"
+      },
+      "testWebCallRequest": {
+        "properties": {
+          "version_no": {
+            "exclusiveMinimum": false,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "testWebCallResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "balance": {
+            "type": "number"
+          },
+          "call_id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "number"
+          },
+          "ice_servers": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "live_token": {
+            "type": "string"
+          },
+          "max_call_duration_s": {
+            "type": "integer"
+          },
+          "rate": {
+            "type": "number"
+          },
+          "transport": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "version_no": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "call_id",
+          "access_token",
+          "rate",
+          "balance",
+          "version_no",
+          "max_call_duration_s",
+          "live_token"
         ],
         "type": "object"
       },
@@ -9530,6 +9836,186 @@
         ]
       }
     },
+    "/agents/{id}/test/web": {
+      "post": {
+        "description": "Spec §13.4.",
+        "operationId": "startTestWebCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/testWebCallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/testWebCallResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {BRIEF_INCOMPLETE, WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "BRIEF_INCOMPLETE",
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NO_CREDITS}",
+            "x-error-codes": [
+              "NO_CREDITS"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONCURRENCY_LIMIT, TESTS_PAUSED}",
+            "x-error-codes": [
+              "CONCURRENCY_LIMIT",
+              "TESTS_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {TEST_RATE_LIMIT}",
+            "x-error-codes": [
+              "TEST_RATE_LIMIT"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "W5 — mint a browser test call for a version (default the draft)",
+        "tags": [
+          "calls"
+        ],
+        "x-auth": "workspace",
+        "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
     "/agents/{id}/versions": {
       "get": {
         "description": "Spec §9.9.",
@@ -9724,6 +10210,132 @@
           }
         ],
         "summary": "One version with its prompt",
+        "tags": [
+          "agents"
+        ],
+        "x-auth": "workspace"
+      }
+    },
+    "/agents/{id}/versions/{v}/lint": {
+      "post": {
+        "description": "Spec §9.5.",
+        "operationId": "lintVersionPrompt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "v",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/lintRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lintResult"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Advanced — lint a prompt against a version without saving it",
         "tags": [
           "agents"
         ],
@@ -10145,6 +10757,45 @@
             }
           },
           {
+            "in": "query",
+            "name": "handled",
+            "required": false,
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "started_at",
+              "enum": [
+                "started_at",
+                "duration_s",
+                "credits_charged"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "order",
+            "required": false,
+            "schema": {
+              "default": "desc",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "type": "string"
+            }
+          },
+          {
             "$ref": "#/components/parameters/WorkspaceId"
           }
         ],
@@ -10237,11 +10888,216 @@
             "bearerAuth": []
           }
         ],
-        "summary": "D2 — calls, newest first",
+        "summary": "D2 — calls, filtered and sorted, with the total for the pager",
         "tags": [
           "calls"
         ],
         "x-auth": "workspace"
+      },
+      "patch": {
+        "operationId": "bulkUpdateCalls",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/callsBulkPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/callsBulkResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D2 — mark several calls handled (or not) in one statement",
+        "tags": [
+          "calls"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
+    "/calls/export": {
+      "post": {
+        "description": "Spec §16.",
+        "operationId": "exportCalls",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/callsExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The bytes."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D2 — CSV of the calls matching the filters, or of the selected ids",
+        "tags": [
+          "calls"
+        ],
+        "x-auth": "workspace",
+        "x-client": false,
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
       }
     },
     "/calls/{id}": {
@@ -13613,6 +14469,133 @@
         ],
         "x-auth": "workspace",
         "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
+      }
+    },
+    "/wallet/checkout/confirm": {
+      "post": {
+        "operationId": "confirmCheckout",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/checkoutConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/checkoutConfirmResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "§13.7 — back from Stripe: verify the session with Stripe and credit the pack if the webhook has not",
+        "tags": [
+          "wallet"
+        ],
+        "x-auth": "workspace",
         "x-roles": [
           "owner",
           "admin"

@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import { assertRlsEnforced, disconnect } from '@portal/db';
 import { AppModule } from './app.module';
+import { LiveTranscriptRelay } from './modules/calls';
 import { registerWebhookRawBody } from './modules/webhooks';
 import { assertPortalUrl, portalUrl, resolveAppEnv } from './common/env';
 
@@ -36,6 +37,9 @@ async function bootstrap() {
     maxAge: 600,
   });
   app.enableShutdownHooks();
+
+  // W5's live transcript: a WebSocket upgrade on this server only (the worker binds none).
+  app.get(LiveTranscriptRelay).attach(app.getHttpServer());
 
   const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port, '0.0.0.0');

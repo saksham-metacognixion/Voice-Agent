@@ -137,6 +137,18 @@ Until §20 item 9 is decided, the link is owner/admin/editor; a viewer still see
 transcript and the analysis. `RECORDING_SIGNING_SECRET` must be set wherever the API runs as more
 than one process, or a link minted by one is refused by its sibling.
 
+**Addendum, 24 Sep 2026 — the link's origin.** The minted link used `API_PUBLIC_URL` when
+set, on the premise that it is "what Retell and the browser both reach". In dev it is not:
+`API_PUBLIC_URL` is the ngrok tunnel Retell calls back on, and ngrok's free tier answers a
+browser user agent with an HTML interstitial (`ERR_NGROK_6024`), so `<audio>` received a web
+page and reported "The recording could not be played" on every D2 call. The link is now built
+from the request's own forwarded proto and host (Caddy sets them; `trustProxy` is on), which
+is by construction an origin the calling browser can follow; `API_PUBLIC_URL` is not consulted.
+The same pass fixed a second latent problem: the platform's CDN labels its `.wav`
+`application/octet-stream`, which Firefox refuses for media, so the proxy now derives
+`audio/wav` (or the type the extension implies) when the upstream header says nothing
+useful, and names the download to match. Both are pinned in `calls-api.e2e.test.ts`.
+
 ### 6. SSE is one Redis channel per workspace, with the topic filter in the client's query
 
 `events:{ws}` carries every frame for a workspace; a process subscribes while it holds at least one
@@ -147,6 +159,104 @@ construction rather than by filtering. `?topics=` narrows what a client is sent.
 A lost frame is a display problem, never a billing one: `publish()` is bounded at 500 ms, never
 throws, and a client that missed something repairs it by re-reading `GET /calls/:id` or
 `GET /wallet`. Frames are therefore small, and the server never replays.
+
+**Addendum, 24 Sep 2026 — streams end on shutdown.** `app.close()` (SIGTERM through
+`enableShutdownHooks`) waits for Fastify, and Fastify forces only *idle* keep-alive
+connections closed; a hijacked SSE response is never idle. One dashboard tab left open was
+enough to keep the old API process alive indefinitely, so a `nest --watch` restart never
+happened in dev and the same would hold for a compose stop in staging. `EventsController`
+now tracks every open stream and ends them all in `beforeApplicationShutdown()`, which runs
+before the HTTP server is closed; the ended sockets are then idle and Fastify drops them.
+`@microsoft/fetch-event-source` reconnects after the `retry: 3000` the stream opened with.
+The relay already did the same for its WebSockets (`OnModuleDestroy`).
+`test/shutdown.e2e.test.ts` opens a stream and races `app.close()` against a timer.
+
+### 7. A lost lifecycle webhook is recovered from `get-call` (addendum, 24 Sep 2026)
+
+**Observed.** A 43-second web test call on 24 Sep 2026 (`call_3860566ea7a8e1f9ef6ad67d24d`)
+delivered `call_started` and nothing else. The tunnel was up, the agent's `webhook_url` and
+`webhook_events` were right, the calls either side of it got all three events within a second,
+and `get-call` showed it `ended` and analysed. The platform simply never sent `call_ended` or
+`call_analyzed`. Nothing on our side noticed: the row stayed `in_progress` for ever, the call was
+never billed, the W5 card said "Calculating…", the `active:{ws}` field only lapsed on its own
+expiry, and SA12 replay had nothing to replay because nothing was stored. `reconcile-calls` would
+report the call the next night, but it reports and does not repair.
+
+**Decision.** A 14th §13.11 schedule, `call-recovery`, every 5 minutes, under the usual
+`lock:schedule:{name}`:
+
+- It picks rows still `registered`/`in_progress` created 3 minutes to 24 hours ago, and rows
+  `ended` 10 minutes to 6 hours ago with no `analysis_json`, newest first, 100 of each per tick.
+  Two partial indexes (`calls_unsettled_created_at_idx`, `calls_unanalysed_ended_at_idx`) keep
+  that off a scan of `calls`.
+- It skips any call whose missing event is already in `webhook_events`: a stored but
+  unprocessed event is the `webhook-sweeper`'s and BullMQ's.
+- It asks `RetellGateway.retrieveCallFacts()` (`get-call`, parsed with the same `retellCallFacts`
+  schema the webhooks use, a 404 as `null`). Once the call is `ended`/`error`/`not_connected`
+  and ended at least 2 minutes ago, it **stores the answer as the missing webhook** (same
+  `(provider, external_id, event_type)` key, the payload marked `recovered_by: call-recovery`)
+  and enqueues it. `call_analyzed` is stored the same way when the answer carries
+  `call_analysis`.
+
+**It moves no money itself.** The ordinary `call_ended` handler bills, so every §14.2 rule holds
+unchanged: `call_ended` is the only event that moves credits, the debit is idempotent on
+`call_id`, and the rate is the one captured on the row. A real delivery that turns up after the
+recovery is a duplicate of a processed event (204), not a second charge.
+
+**Not covered.** A call with no row at all — its `call_started` was lost too — is invisible to
+this query. `reconcile-calls` still lists it as `missing`; settling that from the nightly
+`list-calls` is a later step if it ever happens in practice.
+
+**Portal.** The W5 after-call card waits 10 minutes rather than 2 (a 5-minute tick, 3 minutes
+after the row is written), polls every 15 s after the first 2 minutes, and says the result is
+late rather than telling the caller to try a longer call.
+
+**On demand, for the call someone is watching (later on 24 Sep 2026).** The schedule alone
+still left a W5 card on "Calculating…" for up to eight minutes: the 3-minute age floor plus
+a 5-minute tick. The platform delivers `call_ended` in the same second as `call_analyzed`,
+seconds after hang-up, so a watched call with nothing stored 20 s after it ended has lost its
+webhook. `GET /calls/:id` therefore queues `recover-call` (`webhooks` queue,
+`jobId = recover-<call_id>`, 20 s delay, freed when it settles) whenever it serves a row that is
+`registered`/`in_progress`, or `ended` without analysis, and less than a day old. The fixed id
+while it waits is the throttle: a card polling every 3 s costs one `get-call` per 20 s. The job
+runs `CallRecoveryService.recoverOne()`, the same per-call step as the schedule with a 15 s
+ended-ago grace instead of 2 minutes, so it stores the missing event and bills nothing itself.
+A real delivery that races it is a duplicate under the same key.
+
+**Review, later on 24 Sep 2026: an ask is remembered, and a call the platform has no
+record of is settled.** Two rows the platform can never answer for were re-asked every tick
+for the whole window: a `registered` row whose caller hung up before the platform created
+the call (`get-call` 404 for 24 hours — and the row rang in D2 the whole time), and an
+`ended` short call the platform never analysed (72 `get-call`s over 6 hours). Newest-first
+with a batch of 100 let such rows starve a call whose webhook was actually lost. Now:
+
+- Every ask is written to the row — `calls.recovery_checked_at`, `calls.recovery_checks`
+  (migration `20260924150000_call_recovery_checks`). A provider error is not an ask. The
+  schedule skips a row asked within `RECOVER_RECHECK_MS` (15 min) and orders by
+  `recovery_checked_at ASC NULLS FIRST`, newest first within that: rows never asked come
+  first, and a genuinely long call is re-asked four times an hour, not twelve.
+- An `ended` row with no analysis is asked `RECOVER_ANALYSIS_MAX_CHECKS` (3) times and
+  then left alone. `recoverOne()` counts towards the same cap, so it waits a minute after
+  the call ended, and a minute after its own last ask, before spending one — the platform's
+  analysis lands within a minute of the call, and asked every 20 s from the card's first poll
+  the three would be gone before it could have arrived.
+- A 404 on an unfinished row **stores the `call_ended` the platform never sent**, marked
+  `recovery_reason: not_found`: `call_status: not_connected` for a `registered` row (no
+  `call_started` ever came), `error` for an `in_progress` one once the platform has said so
+  twice (`RECOVER_NOT_FOUND_CHECKS_IN_PROGRESS`). Neither carries timestamps, so the
+  ordinary handler bills zero, frees the `active:{ws}` slot and ends the row. The money
+  rules are untouched: still the one handler, still idempotent on `call_id`.
+- `recoverOne()` returns before `get-call` when everything the row is missing is already
+  stored and only waiting for the queue.
+- The predicate and the windows live in one place, `modules/calls/call-recovery.rules.ts`
+  (`unsettledCallKind`, `RECOVER_WINDOW_MS`…), used by both `GET /calls/:id` and the
+  service, so the route cannot queue what the worker would discard.
+
+**Also fixed here: `calls.agent_version` is our version number.** The lifecycle handlers had
+copied the platform's `agent_version` into it, so a draft test call read `0` and the platform's
+counter reached the wire, against the rule that `retell_agent_version` stays server-side. It is now
+`metadata.version_no` when the call carries it (every W5 test call), else the platform version
+translated through the published `agent_versions` row that recorded it, else `null`.
 
 ## Alternatives considered
 

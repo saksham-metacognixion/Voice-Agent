@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { Prisma, adminDb, withWorkspace, type PlanTier } from '@portal/db';
-import { type AutoTopup, type CheckoutRequest, type CheckoutResponse, type PricingConfig, type PricingPack, planTier as planTierEnum } from '@portal/schemas';
+import { type AutoTopup, type CheckoutConfirmResponse, type CheckoutRequest, type CheckoutResponse, type PricingConfig, type PricingPack, planTier as planTierEnum } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
@@ -8,6 +8,11 @@ import { WalletService, addMonths } from '../wallet/wallet.service';
 import { type CheckoutSessionFacts, StripeGateway } from './stripe.gateway';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A Checkout purchase still `pending` this long after its session was made is asked about. */
+export const CHECKOUT_RECONCILE_AFTER_MS = 5 * 60_000;
+/** Sessions live 31 minutes; a purchase pending for longer than this is SA9's, not the sweep's. */
+export const CHECKOUT_RECONCILE_WINDOW_MS = 48 * 60 * 60_000;
 
 /** Fired after a purchase is credited and the transaction has committed. D6: the activation hook. */
 export type PurchaseCreditedListener = (event: { workspaceId: string; purchaseId: string; agentId: string | null; isAutoTopup: boolean }) => void | Promise<void>;
@@ -152,6 +157,82 @@ export class BillingService {
       db.auditLog.create({ data: { tenantId: ctx.workspaceId, actorUserId: ctx.userId, action: 'billing.portal_session', targetType: 'workspace', targetId: ctx.workspaceId } }),
     ).catch(() => undefined);
     return { url };
+  }
+
+  /**
+   * POST /wallet/checkout/confirm. Stripe sends the customer back with `session_id` before
+   * — or instead of — delivering `checkout.session.completed`: a dev box without
+   * `stripe listen`, an endpoint registered for another environment, a delivery Stripe is
+   * still retrying. The URL proves nothing, so the session is retrieved from Stripe and
+   * handed to the same `fulfil()` the webhook uses — same amount check, same wallet lock,
+   * same idempotency, and the same `onPurchaseCredited` announcement that starts W7's
+   * activation. Only a purchase of *this* workspace is looked up, so a foreign or unknown
+   * id is a 404 and never a Stripe call.
+   */
+  async confirmCheckout(ctx: WorkspaceContext, sessionId: string): Promise<CheckoutConfirmResponse> {
+    const purchase = await withWorkspace(ctx, (db) =>
+      db.purchase.findFirst({ where: { tenantId: ctx.workspaceId, stripeSessionId: sessionId, isAutoTopup: false }, select: { id: true, status: true } }),
+    );
+    if (!purchase) throw AppError.notFound('Checkout');
+    if (purchase.status !== 'pending') return { purchase_id: purchase.id, status: purchase.status, credited: false };
+
+    const outcome = await this.settleFromStripe(purchase.id, sessionId);
+    const after = await adminDb.purchase.findUniqueOrThrow({ where: { id: purchase.id }, select: { status: true } });
+    return { purchase_id: purchase.id, status: after.status, credited: outcome.outcome === 'credited' };
+  }
+
+  /**
+   * The lost-webhook sweep for Checkout, run by the §13.11 `auto-topup` tick beside the
+   * top-up one: a purchase still `pending` five minutes after its session was created is
+   * asked about — paid → credited, expired → abandoned, still open → left alone. Nothing
+   * older than two days is retrieved for ever; SA9 lists it.
+   */
+  async reconcilePendingCheckouts(now = new Date()): Promise<{ checked: number; credited: number }> {
+    const stale = await adminDb.purchase.findMany({
+      where: {
+        isAutoTopup: false,
+        status: 'pending',
+        stripeSessionId: { not: null },
+        createdAt: { lt: new Date(now.getTime() - CHECKOUT_RECONCILE_AFTER_MS), gt: new Date(now.getTime() - CHECKOUT_RECONCILE_WINDOW_MS) },
+      },
+      select: { id: true, stripeSessionId: true },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    const result = { checked: 0, credited: 0 };
+    for (const purchase of stale) {
+      try {
+        const outcome = await this.settleFromStripe(purchase.id, purchase.stripeSessionId!);
+        result.checked += 1;
+        if (outcome.outcome === 'credited') result.credited += 1;
+      } catch (error) {
+        this.log.error(`checkout reconcile for purchase ${purchase.id} failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Asks Stripe about one pending purchase's session and settles it through the webhook
+   * handlers: paid → `fulfil`, expired → `abandon`, still open → nothing. Throws
+   * `UPSTREAM_UNAVAILABLE` when Stripe cannot be reached, and refuses a session whose
+   * metadata names another purchase or workspace.
+   */
+  private async settleFromStripe(purchaseId: string, sessionId: string): Promise<FulfilmentOutcome> {
+    let session: CheckoutSessionFacts;
+    try {
+      session = await this.stripe.retrieveCheckoutSession(sessionId);
+    } catch (error) {
+      this.log.warn(`checkout ${sessionId}: retrieve failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not reach the payment provider. Please try again in a moment.');
+    }
+    const ids = this.identify(session);
+    if ('reason' in ids || ids.purchaseId !== purchaseId) {
+      this.log.error(`checkout ${sessionId}: not purchase ${purchaseId}'s session (${'reason' in ids ? ids.reason : `names ${ids.purchaseId}`})`);
+      return { outcome: 'ignored', reason: 'session/purchase mismatch' };
+    }
+    if (session.status === 'expired') return this.abandon(session);
+    return this.fulfil(session);
   }
 
   // ------------------------------------------------------------------ fulfilment (webhook)

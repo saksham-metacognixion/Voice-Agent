@@ -88,6 +88,7 @@ export const GENERATION_PROMPTS_V1 = {
     '- Second person, addressed to the agent ("You are…", "You do…").',
     '- Keep the whole prompt under 6000 characters.',
     '- Use only facts from the brief. Where the brief is silent, instruct the agent to say it does not have that information and offer to take a message.',
+    '- Never add a number, limit, threshold or policy the brief does not state. If the brief names a condition without one ("hand off large parties"), keep the brief\'s own words in the prompt and the summary, and add a warning asking the customer to set it.',
     '- Never write a rule that tells the agent to claim to be human, to quote invented prices, or to collect card or health details.',
     '- Write the greeting as one sentence of at most 25 words, in the primary language.',
     '',

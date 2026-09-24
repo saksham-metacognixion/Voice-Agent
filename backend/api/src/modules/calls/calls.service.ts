@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Prisma, adminDb, type CallStatus, type DeclineReason } from '@portal/db';
+import { Prisma, adminDb, type DeclineReason } from '@portal/db';
 import type { AgentTier } from '@portal/schemas';
 import { EventsService } from '../events';
 import type { InboundDecisionJob } from '../jobs';
@@ -91,9 +91,16 @@ export class CallsService {
     });
 
     if (count === 1) {
+      // The D1/D2 pages subscribe to every `call:` topic and act on the first frame of a
+      // call, so it carries what a toast needs: who called, on which agent, and that it
+      // was a phone call — a browser test call (`call_started`, `is_test`) is not news.
       await this.publishCall(job.workspaceId, job.callId, declined ? 'missed' : 'registered', {
         decline_reason: job.declineReason,
         from_number: job.fromNumber,
+        agent_id: job.agentId,
+        channel: 'phone',
+        direction: 'inbound',
+        is_test: false,
       });
     }
     return { created: count === 1, callId: job.callId };
@@ -137,17 +144,25 @@ export class CallsService {
     const startedAt = timestamp(call.start_timestamp) ?? new Date();
 
     if (existing) {
-      await adminDb.call.update({
-        where: { id: call.call_id },
+      // Conditional in Postgres, not on the read above: a call_ended landing in between
+      // must not be reopened.
+      const { count } = await adminDb.call.updateMany({
+        where: { id: call.call_id, status: { notIn: ['ended', 'analyzed', 'declined'] } },
         data: {
           status: 'in_progress',
           startedAt,
-          agentVersion: numberOrNull(call.agent_version),
+          agentVersion: await this.versionOf(call, existing.agentId),
           fromNumber: existing.fromNumber ?? call.from_number ?? null,
           toNumber: existing.toNumber ?? call.to_number ?? null,
           // rate / configVersion are NOT touched: captured when the row was created (§14.2).
         },
       });
+      if (count === 0) {
+        // The race the condition guards against happened: another worker finalised the
+        // row between the read and this write. Reserving now would hold an `active:{ws}`
+        // slot for a finished call until its TTL, and the frame would show it live again.
+        return { outcome: 'already_started', callId: call.call_id };
+      }
     } else {
       await adminDb.call.createMany({
         data: [
@@ -156,7 +171,7 @@ export class CallsService {
             tenantId: workspaceId,
             agentId: origin?.agentId ?? null,
             numberId: origin?.numberId ?? null,
-            agentVersion: numberOrNull(call.agent_version),
+            agentVersion: await this.versionOf(call, origin?.agentId ?? null),
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
             isTest: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
@@ -174,7 +189,15 @@ export class CallsService {
     }
 
     await this.reserve(workspaceId, call.call_id, rate, existing?.agentId ?? origin?.agentId ?? null);
-    await this.publishCall(workspaceId, call.call_id, 'in_progress', { started_at: startedAt.toISOString(), rate });
+    await this.publishCall(workspaceId, call.call_id, 'in_progress', {
+      started_at: startedAt.toISOString(),
+      rate,
+      from_number: call.from_number ?? null,
+      agent_id: existing?.agentId ?? origin?.agentId ?? null,
+      channel: channelOf(call.call_type),
+      direction: directionOf(call.direction),
+      is_test: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
+    });
     return { outcome: 'started', callId: call.call_id, rate, configVersion };
   }
 
@@ -213,23 +236,26 @@ export class CallsService {
       transcriptText: call.transcript ?? undefined,
       transcriptJson: (call.transcript_object ?? undefined) as Prisma.InputJsonValue | undefined,
       recordingUrl: call.recording_url ?? undefined,
-      status: 'ended' as CallStatus,
+    };
+    // An analyzed row stays analyzed: call_analyzed is the later state (§13.10). The two
+    // events can land in the same millisecond, so `existing.status` may already be stale;
+    // the condition is evaluated by Postgres, not from the read above.
+    const finalise = async (fallbackStartedAt: Date) => {
+      await adminDb.call.update({ where: { id: call.call_id }, data: facts });
+      await adminDb.call.updateMany({ where: { id: call.call_id, startedAt: null }, data: { startedAt: fallbackStartedAt } });
+      await adminDb.call.updateMany({ where: { id: call.call_id, status: { not: 'analyzed' } }, data: { status: 'ended' } });
     };
     if (existing) {
-      await adminDb.call.update({
-        where: { id: call.call_id },
-        // An analyzed row stays analyzed: call_analyzed is the later state (§13.10).
-        data: { ...facts, status: existing.status === 'analyzed' ? 'analyzed' : 'ended', startedAt: existing.startedAt ?? startedAt },
-      });
+      await finalise(startedAt);
     } else {
-      await adminDb.call.createMany({
+      const created = await adminDb.call.createMany({
         data: [
           {
             id: call.call_id,
             tenantId: workspaceId,
             agentId: origin?.agentId ?? null,
             numberId: origin?.numberId ?? null,
-            agentVersion: numberOrNull(call.agent_version),
+            agentVersion: await this.versionOf(call, origin?.agentId ?? null),
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
             isTest: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
@@ -240,10 +266,13 @@ export class CallsService {
             rate: new Prisma.Decimal(rate),
             configVersion,
             ...facts,
+            status: 'ended',
           },
         ],
         skipDuplicates: true,
       });
+      // Another event created the row since the read (call_analyzed first): finalise it.
+      if (created.count === 0) await finalise(startedAt);
     }
 
     // 2. Release the concurrency slot. Before the debit, not after: a debit that fails and
@@ -320,14 +349,14 @@ export class CallsService {
       // Analysis before (or without) call_ended. The row is created unbilled and stays
       // that way: only call_ended bills, and if it never arrives the reconcile-calls job
       // (§13.11) is what settles it — not this event.
-      await adminDb.call.createMany({
+      const created = await adminDb.call.createMany({
         data: [
           {
             id: call.call_id,
             tenantId: workspaceId,
             agentId: origin?.agentId ?? null,
             numberId: origin?.numberId ?? null,
-            agentVersion: numberOrNull(call.agent_version),
+            agentVersion: await this.versionOf(call, origin?.agentId ?? null),
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
             isTest: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
@@ -347,7 +376,12 @@ export class CallsService {
         ],
         skipDuplicates: true,
       });
-      this.log.warn(`call_analyzed ${call.call_id}: no row and no call_ended yet; stored unbilled`);
+      if (created.count === 0) {
+        // call_ended (or call_started) created the row since the read: annotate that one.
+        await adminDb.call.update({ where: { id: call.call_id }, data });
+      } else {
+        this.log.warn(`call_analyzed ${call.call_id}: no row and no call_ended yet; stored unbilled`);
+      }
     }
 
     await this.publishCall(workspaceId, call.call_id, 'analyzed', { outcome: outcomeOf(analysis) });
@@ -397,6 +431,28 @@ export class CallsService {
       return { workspaceId: number.tenantId, agentId: number.agentId, numberId: number.id, tier: number.agent?.tier ?? null };
     }
     return null;
+  }
+
+  /**
+   * `calls.agent_version` is **our** `agent_versions.version_no`, never the platform's
+   * version counter — that one is `retell_agent_version`, which stays off every wire
+   * schema (a draft test call reads 0 there). A test call names its version in
+   * `metadata.version_no`; a phone call runs `latest_published`, so the platform's number
+   * is translated through the published row that recorded it. Unknown → null.
+   */
+  private async versionOf(call: RetellCallFacts, agentId: string | null): Promise<number | null> {
+    const fromMetadata = metadataOf(call).version_no;
+    if (typeof fromMetadata === 'number' && Number.isInteger(fromMetadata) && fromMetadata > 0) return fromMetadata;
+    const platformVersion = numberOrNull(call.agent_version);
+    if (!agentId || platformVersion === null) return null;
+    const row = await adminDb.agentVersion
+      .findFirst({
+        where: { agentId, retellAgentVersion: platformVersion, publishedAt: { not: null } },
+        orderBy: { versionNo: 'desc' },
+        select: { versionNo: true },
+      })
+      .catch(() => null);
+    return row?.versionNo ?? null;
   }
 
   /** The agent Retell says took the call, by its `retell_agent_id`. */

@@ -25,7 +25,7 @@
     "test": "vitest run --passWithNoTests",
     "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
     "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
-    "studio": "dotenv -e ../../.env -- prisma studio",
+    "studio": "dotenv -e ../../.env -- sh -c 'DATABASE_URL=\"$ADMIN_DATABASE_URL\" prisma studio'",
     "migrate:status": "dotenv -e ../../.env -- prisma migrate status",
     "seed": "dotenv -e ../../.env -- tsx prisma/seed.ts",
     "roles": "dotenv -e ../../.env -- node prisma/dev-roles.mjs",

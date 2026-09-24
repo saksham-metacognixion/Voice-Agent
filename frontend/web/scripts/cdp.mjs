@@ -4,11 +4,11 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-export async function launch({ port = 9333, dark = false } = {}) {
+export async function launch({ port = 9333, dark = false, args = [] } = {}) {
   const profile = mkdtempSync(join(tmpdir(), 'cdp-'));
   const chrome = spawn(process.env.CHROME_PATH ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', [
     '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
-    '--window-size=1440,1000', '--hide-scrollbars', ...(dark ? ['--force-dark-mode'] : []), 'about:blank',
+    '--window-size=1440,1000', '--hide-scrollbars', ...(dark ? ['--force-dark-mode'] : []), ...args, 'about:blank',
   ], { stdio: 'ignore' });
   let targets;
   for (let i = 0; i < 50; i++) { try { targets = await (await fetch(`http://127.0.0.1:${port}/json`)).json(); if (targets.length) break; } catch {} await new Promise(r => setTimeout(r, 200)); }

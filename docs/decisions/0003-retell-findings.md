@@ -375,3 +375,45 @@ never reaches the platform and the v3 session (status, hooks, `ready`) is what t
 uses. `frontend/web/app/dev/test-call` is the reference; W5's TestCallPanel follows it.
 Consequences: `transcript: true` (the monitor socket) and `stopCall()` from the browser are
 unavailable — the data channel's `update` carries the transcript, and `end()` needs no request.
+
+## Addendum, 23 Sep 2026 (D9) — the browser test call in practice
+
+Found by driving W5 in headless Chrome against the dev workspace; each is fixed and pinned.
+
+- **The data channel carries no transcript.** v3 `create-web-call` answers `transport:
+  'gateway'` only (retell-sdk 6 types it as the literal), and on that transport the data
+  channel sends `{"type":"status","state":"connected"}` and nothing else — no `update`
+  frames. The previous addendum's "the data channel's `update` carries the transcript" is
+  wrong for v3. The transcript streams from the monitor socket
+  (`wss://api.retellai.com/v2/monitor-call/{call_id}`, subprotocols `["bearer", key]`),
+  measured: `transcript_snapshot` then one `transcript_updated` per word.
+- **Decision: the API relays it.** `LiveTranscriptRelay` (calls module, API process only)
+  serves `wss://<api>/test-calls/v2/monitor-call/{call_id}`. The browser offers the
+  `live_token` that `POST /agents/:id/test/web` minted — `RecordingSigner` with purpose tag
+  `live`, bound to (workspace, call), expiring with the call's ceiling + 5 min, never
+  accepted where a recording link is and vice versa. The relay opens the real socket
+  through `RetellGateway.openCallMonitor()` and forwards only `transcript_snapshot`,
+  `transcript_updated` and `call_ended`, reduced to `{id, role, content, time_sec}` for
+  agent/user lines. One relay per call; either side closing closes both. Browser origin
+  must be `PORTAL_URL`'s. The key never leaves the server. New dependency: `ws`.
+- **Only the monitor address moves.** The SDK derives WebRTC signalling
+  (`${baseURL}/webrtc-proxy/…`) and the monitor socket from one `baseURL`, so `baseURL`
+  stays the platform default and W5 replaces `client.api.monitorSocket` on the instance
+  (SDK internal, retell-client-js-sdk 3.0.1 pinned). If a release renames it the call still
+  works with `transcript` off; the after-call card still shows the stored transcript.
+- **`voice_model` must match the voice's provider.** `update-agent` with a Cartesia voice
+  and the Standard stack's `eleven_flash_v2_5` is `400 Selected voice model … is not
+  supported for this voice provider`, so every version written after W3 picked a
+  non-ElevenLabs voice had no platform copy — untestable, and its publish failed on attempt
+  three. Omitting the field is not enough (the agent keeps the stored model). The spec now
+  sends the stack's model only with a voice of its provider (`voices.provider`, else the id
+  prefix) and `null` otherwise, which clears it (`voiceModelFor`, `retell.types.ts`).
+- **W3 edits never reached the platform draft.** Only generation and publish synced;
+  `PATCH /agents/:id/draft` does not. `POST /agents/:id/test/web` therefore re-syncs the
+  unpublished draft before minting (`AgentDraftSyncService`, shared with the generation
+  worker), about 1.5 s more on "Connecting…".
+- **A knowledge base cannot be emptied.** Deleting its last source is `400 cannot delete
+  the last source, delete the knowledge base instead`; the row sat in `deleting` for ever.
+  The sync worker now deletes the base with its last source and clears
+  `agents.retell_kb_id`; the next add creates a new one. `FakeRetellGateway` refuses the
+  same way.

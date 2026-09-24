@@ -4,7 +4,7 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { Test } from '@nestjs/testing';
 import { adminDb } from '@portal/db';
 import { randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AllExceptionsFilter } from '../src/common/errors/all-exceptions.filter';
 import { AuthModule } from '../src/modules/auth';
 import { BillingModule, BillingService, StripeGateway } from '../src/modules/billing';
@@ -360,6 +360,139 @@ describe('POST /webhooks/stripe', () => {
     const event = sessionEvent('checkout.session.completed', ours(purchase, { env: 'staging' }));
     expect((await post(event)).statusCode).toBe(200);
     expect((await adminDb.purchase.findUniqueOrThrow({ where: { id: purchase.id } })).status).toBe('pending');
+  });
+});
+
+describe('POST /wallet/checkout/confirm — the return path when the webhook is late or lost', () => {
+  async function headers() {
+    return { authorization: `Bearer ${await customerTenant.mint(ws.sub)}`, 'x-workspace-id': ws.tenantId, 'content-type': 'application/json' };
+  }
+  async function confirm(sessionId: string) {
+    return app.inject({ method: 'POST', url: '/wallet/checkout/confirm', headers: await headers(), payload: { session_id: sessionId } });
+  }
+  async function pendingWithSession(packId = 'starter') {
+    const purchase = await pendingPurchase(packId);
+    const sessionId = `cs_test_${randomUUID().replace(/-/g, '')}`;
+    await adminDb.purchase.update({ where: { id: purchase.id }, data: { stripeSessionId: sessionId } });
+    return { purchase, sessionId };
+  }
+  /** What `checkout.sessions.retrieve` would answer for one of our purchases. */
+  function stripeSays(purchase: { id: string; amountCents: number; currency: string }, sessionId: string, extra: Record<string, unknown> = {}) {
+    return StripeGateway.sessionFacts({
+      id: sessionId,
+      object: 'checkout.session',
+      mode: 'payment',
+      status: 'complete',
+      payment_status: 'paid',
+      customer: `cus_${randomUUID().slice(0, 14)}`,
+      payment_intent: `pi_${randomUUID().slice(0, 14)}`,
+      invoice: null,
+      ...ours(purchase),
+      ...extra,
+    });
+  }
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it('credits a paid session Stripe confirms, exactly once, and the late webhook is then a no-op', async () => {
+    const { purchase, sessionId } = await pendingWithSession();
+    const before = await ledgerSum(ws.tenantId);
+    const retrieve = vi.spyOn(stripe, 'retrieveCheckoutSession').mockResolvedValue(stripeSays(purchase, sessionId));
+
+    const first = await confirm(sessionId);
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toEqual({ purchase_id: purchase.id, status: 'paid', credited: true });
+    expect(retrieve).toHaveBeenCalledWith(sessionId);
+    expect(await adminDb.creditLot.count({ where: { purchaseId: purchase.id } })).toBe(1);
+    expect(await ledgerSum(ws.tenantId)).toBe(before + 150);
+
+    // Refresh, second tab, "Check again": paid already, Stripe not asked again.
+    const again = await confirm(sessionId);
+    expect(again.statusCode).toBe(201);
+    expect(again.json()).toEqual({ purchase_id: purchase.id, status: 'paid', credited: false });
+    expect(retrieve).toHaveBeenCalledTimes(1);
+
+    // Stripe finally delivers the webhook for the same session: same fulfilment, nothing more.
+    expect((await post(sessionEvent('checkout.session.completed', { id: sessionId, ...ours(purchase) }))).statusCode).toBe(200);
+    expect(await adminDb.creditLot.count({ where: { purchaseId: purchase.id } })).toBe(1);
+    expect(await adminDb.creditLedger.count({ where: { reason: 'purchase', refId: purchase.id } })).toBe(1);
+    expect(await ledgerSum(ws.tenantId)).toBe(before + 150);
+  });
+
+  it('a session that is another workspace\'s, or nobody\'s, is 404 and Stripe is never asked', async () => {
+    const retrieve = vi.spyOn(stripe, 'retrieveCheckoutSession');
+    const other = await createWorkspace('billing-other');
+    const pack = (await config.purchasablePack('starter'))!.pack;
+    const foreignSession = `cs_test_${randomUUID().replace(/-/g, '')}`;
+    await adminDb.purchase.create({
+      data: { tenantId: other.tenantId, packId: pack.id, amountCents: pack.price_cents, currency: pack.currency, credits: pack.credits, status: 'pending', stripeSessionId: foreignSession },
+    });
+
+    const foreign = await confirm(foreignSession);
+    expect(foreign.statusCode).toBe(404);
+    expect(foreign.json().code).toBe('NOT_FOUND');
+    const unknown = await confirm(`cs_test_${randomUUID().replace(/-/g, '')}`);
+    expect(unknown.statusCode).toBe(404);
+    expect(retrieve).not.toHaveBeenCalled();
+
+    const malformed = await app.inject({ method: 'POST', url: '/wallet/checkout/confirm', headers: await headers(), payload: { session_id: 'evt_not_a_session' } });
+    expect(malformed.statusCode).toBe(422);
+    expect(retrieve).not.toHaveBeenCalled();
+  });
+
+  it('refuses a session whose metadata names another purchase, and credits nothing', async () => {
+    const { purchase, sessionId } = await pendingWithSession();
+    const { purchase: otherPurchase } = await pendingWithSession();
+    vi.spyOn(stripe, 'retrieveCheckoutSession').mockResolvedValue(stripeSays(otherPurchase, sessionId));
+
+    const res = await confirm(sessionId);
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ purchase_id: purchase.id, status: 'pending', credited: false });
+    expect(await adminDb.creditLot.count({ where: { purchaseId: { in: [purchase.id, otherPurchase.id] } } })).toBe(0);
+  });
+
+  it('Stripe unreachable is 503 UPSTREAM_UNAVAILABLE and the purchase stays pending', async () => {
+    const { purchase, sessionId } = await pendingWithSession();
+    vi.spyOn(stripe, 'retrieveCheckoutSession').mockRejectedValue(new Error('stripe is down'));
+    const res = await confirm(sessionId);
+    expect(res.statusCode).toBe(503);
+    expect(res.json().code).toBe('UPSTREAM_UNAVAILABLE');
+    expect((await adminDb.purchase.findUniqueOrThrow({ where: { id: purchase.id } })).status).toBe('pending');
+  });
+
+  it('an expired session abandons the purchase; a completed one still processing credits nothing yet', async () => {
+    const expired = await pendingWithSession();
+    const processing = await pendingWithSession();
+    vi.spyOn(stripe, 'retrieveCheckoutSession').mockImplementation(async (id) => {
+      if (id === expired.sessionId) return stripeSays(expired.purchase, id, { status: 'expired', payment_status: 'unpaid', payment_intent: null });
+      if (id === processing.sessionId) return stripeSays(processing.purchase, id, { status: 'complete', payment_status: 'unpaid' });
+      throw new Error(`unexpected session ${id}`);
+    });
+
+    expect((await confirm(expired.sessionId)).json()).toEqual({ purchase_id: expired.purchase.id, status: 'abandoned', credited: false });
+    expect((await confirm(processing.sessionId)).json()).toEqual({ purchase_id: processing.purchase.id, status: 'pending', credited: false });
+    expect(await adminDb.creditLot.count({ where: { purchaseId: { in: [expired.purchase.id, processing.purchase.id] } } })).toBe(0);
+  });
+
+  it('the auto-topup tick reconciles a pending checkout the webhook never reached, and leaves a fresh one alone', async () => {
+    const stale = await pendingWithSession('growth');
+    const fresh = await pendingWithSession();
+    await adminDb.purchase.update({ where: { id: stale.purchase.id }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
+    // Every other pending purchase this suite left behind answers "still open".
+    const retrieve = vi.spyOn(stripe, 'retrieveCheckoutSession').mockImplementation(async (id) => {
+      if (id === stale.sessionId) return stripeSays(stale.purchase, id, { metadata: { ...ours(stale.purchase).metadata, pack_id: 'growth' } });
+      const row = await adminDb.purchase.findFirstOrThrow({ where: { stripeSessionId: id } });
+      return stripeSays(row, id, { status: 'open', payment_status: 'unpaid', payment_intent: null });
+    });
+    const before = await ledgerSum(ws.tenantId);
+
+    const result = await app.get(BillingService).reconcilePendingCheckouts();
+    expect(result.credited).toBe(1);
+    expect(retrieve).toHaveBeenCalledWith(stale.sessionId);
+    expect(retrieve).not.toHaveBeenCalledWith(fresh.sessionId);
+    expect((await adminDb.purchase.findUniqueOrThrow({ where: { id: stale.purchase.id } })).status).toBe('paid');
+    expect((await adminDb.purchase.findUniqueOrThrow({ where: { id: fresh.purchase.id } })).status).toBe('pending');
+    expect(await ledgerSum(ws.tenantId)).toBe(before + 500);
   });
 });
 

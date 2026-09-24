@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "serve:export": "node scripts/serve-export.mjs",
-    "e2e:wizard": "node scripts/e2e-wizard.mjs"
+    "e2e:wizard": "node scripts/e2e-wizard.mjs",
+    "e2e:dashboard": "node scripts/e2e-dashboard.mjs"
   },
   "dependencies": {
     "@auth0/auth0-spa-js": "^2.27.0",

@@ -49,7 +49,7 @@ export const GENERATED_PROMPT_JSON_SCHEMA = {
       additionalProperties: false,
       required: ['does', 'doesnt', 'handoff'],
       description:
-        'A plain-language summary shown back to the customer: three to five lines each, one short sentence per line.',
+        'A plain-language summary shown back to the customer: three to five lines each, one short sentence per line. Restate only what the brief and the template say; never add a number or limit the brief does not give.',
       properties: {
         does: { type: 'array', items: { type: 'string' } },
         doesnt: { type: 'array', items: { type: 'string' } },
@@ -84,7 +84,8 @@ export const GENERATED_PROMPT_JSON_SCHEMA = {
     },
     warnings: {
       type: 'array',
-      description: 'At most 3 short notes, one clause each, on what the brief left unclear. Empty when nothing is.',
+      description:
+        'At most 3 short notes, one clause each, on what the brief left unclear — including a condition with no limit, such as "large parties" with no party size. Empty when nothing is.',
       items: { type: 'string' },
     },
   },
@@ -93,8 +94,13 @@ export const GENERATED_PROMPT_JSON_SCHEMA = {
 export const GENERATED_PATCH_JSON_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  // `updated_prompt` is deliberately not required: a refusal has nothing to put in it.
-  required: ['updated_brief', 'changes'],
+  // `updated_prompt` is required, and a refusal answers it with an empty string (which
+  // `generatedPatch` accepts, so an honest refusal is never a failed job). Optional, the
+  // model skipped it on ordinary requests and put the rewritten prompt into `closing`
+  // instead — two of five real feedback patches failed that way in the D9 wizard run
+  // ("closing: at most 500 characters; updated_prompt: a patch that changed something
+  // must carry the full updated prompt").
+  required: ['updated_brief', 'updated_prompt', 'changes'],
   properties: {
     /**
      * The brief fields spoken feedback actually changes — closed, because
@@ -128,7 +134,7 @@ export const GENERATED_PATCH_JSON_SCHEMA = {
     updated_prompt: {
       type: 'string',
       description:
-        'The full prompt after the change. Omit it entirely when changes is empty. Do not include a "## Platform rules (fixed)" section — it is appended automatically.',
+        'The COMPLETE prompt after the change — every section, not only the changed part. Always present: an empty string only when changes is empty. Do not include a "## Platform rules (fixed)" section — it is appended automatically.',
     },
     changes: {
       type: 'array',
@@ -140,7 +146,13 @@ export const GENERATED_PATCH_JSON_SCHEMA = {
       type: 'string',
       description: 'Required when changes is empty: why the request could not be carried out.',
     },
-    greeting: { type: 'string' },
-    closing: { type: 'string' },
+    greeting: {
+      type: 'string',
+      description: 'Only when the change is to the first thing the agent says: the new opening line, one or two sentences, under 500 characters. Omit otherwise.',
+    },
+    closing: {
+      type: 'string',
+      description: 'Only when the change is to how the agent ends the call: the new sign-off line, one or two sentences, under 500 characters. Never the prompt. Omit otherwise.',
+    },
   },
 } as const;

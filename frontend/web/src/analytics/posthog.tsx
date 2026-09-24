@@ -49,9 +49,37 @@ export type AnalyticsEvent =
   | 'voice_selected'
   | 'language_selected'
   | 'voice_preview_played'
+  // W4–W7 (D9). §12 names test_call_started/ended, pack_selected, checkout_completed.
+  | 'knowledge_added'
+  | 'knowledge_removed'
+  | 'test_call_started'
+  | 'test_call_ended'
+  | 'test_call_failed'
+  | 'feedback_submitted'
+  | 'feedback_applied'
+  | 'feedback_failed'
+  | 'phone_option_selected'
+  | 'pack_selected'
+  | 'checkout_returned'
+  | 'checkout_confirmed'
+  | 'checkout_cancelled'
+  | 'checkout_completed'
+  | 'agent_live'
+  | 'onboarding_live_viewed'
+  | 'forwarding_confirmed'
   | 'mfa_enrol_started'
   | 'password_reset_requested'
-  | 'theme_changed';
+  | 'theme_changed'
+  // D10 dashboard
+  | 'calls_filtered'
+  | 'calls_bulk_handled'
+  | 'calls_exported'
+  | 'agent_created'
+  | 'agent_published'
+  | 'agent_settings_saved'
+  | 'agent_deleted'
+  | 'prompt_saved'
+  | 'version_restored';
 
 export function track(event: AnalyticsEvent, props: Record<string, string | number | boolean | null | undefined> = {}) {
   if (!initialised) return;

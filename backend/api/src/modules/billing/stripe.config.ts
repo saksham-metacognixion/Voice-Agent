@@ -48,12 +48,23 @@ export class StripeConfig {
     }
   }
 
-  /** W7: `/onboarding/activate?session_id=…` (§13.7). Stripe fills the placeholder. */
-  get successUrl(): string {
-    return `${this.portalUrl}/onboarding/activate?session_id={CHECKOUT_SESSION_ID}`;
+  /**
+   * W7: `/onboarding/activate?session_id=…` (§13.7). Stripe fills the placeholder. A
+   * purchase with no agent to activate (D5's "Buy credits") goes back to the wallet —
+   * W7 would only bounce a finished onboarding on to the live screen.
+   */
+  successUrl(fromWizard = true): string {
+    return fromWizard
+      ? `${this.portalUrl}/onboarding/activate?session_id={CHECKOUT_SESSION_ID}`
+      : `${this.portalUrl}/app/wallet?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
   }
 
-  get cancelUrl(): string {
-    return `${this.portalUrl}/app/wallet?checkout=cancelled`;
+  /**
+   * Where "Back" on Checkout lands. W7's session (it carries `agent_id`) goes back to W7:
+   * `/app` is gated until onboarding completes, so the wallet URL would bounce the
+   * customer to the wizard and lose the `checkout=cancelled` that explains why.
+   */
+  cancelUrl(fromWizard = false): string {
+    return fromWizard ? `${this.portalUrl}/onboarding/activate?checkout=cancelled` : `${this.portalUrl}/app/wallet?checkout=cancelled`;
   }
 }

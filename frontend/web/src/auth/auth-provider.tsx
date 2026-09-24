@@ -2,6 +2,7 @@
 
 import { Auth0Client, type User } from '@auth0/auth0-spa-js';
 import { AuthRequiredError } from '@portal/api-client';
+import { CLAIM_MFA_ENROLLED } from '@portal/schemas';
 import * as React from 'react';
 import { authConfigured, config } from '../config';
 import { routes, safeNext } from '../routes';
@@ -29,7 +30,10 @@ export interface AuthUser {
   name: string | null;
   picture: string | null;
   emailVerified: boolean;
-  /** `amr` contains `mfa` when the session was established with a second factor (A5). */
+  /**
+   * A second factor is enrolled (A5): the Post-Login Action's `mfa_enrolled` claim, or
+   * `amr` containing `mfa` on the sign-in that enrolled it (the claim is read before it).
+   */
   mfa: boolean;
 }
 
@@ -48,7 +52,8 @@ interface AuthContextValue {
   /** Set when the redirect callback failed (A2 error state). */
   error: string | null;
   login: (opts?: LoginOptions) => Promise<void>;
-  logout: (returnTo?: string) => Promise<void>;
+  /** Ends the Auth0 session and returns to the origin, which routes to /login. */
+  logout: () => Promise<void>;
   getToken: () => Promise<string | null>;
   /** Re-mint the session and re-read claims (email_verified, mfa). Returns the fresh user. */
   refresh: () => Promise<AuthUser | null>;
@@ -68,7 +73,7 @@ function toUser(u: User | undefined): AuthUser | null {
     name: u.name ?? u.nickname ?? null,
     picture: u.picture ?? null,
     emailVerified: u.email_verified === true,
-    mfa: amr.includes('mfa'),
+    mfa: u[CLAIM_MFA_ENROLLED] === true || amr.includes('mfa'),
   };
 }
 
@@ -163,10 +168,14 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
     });
   }, []);
 
-  const logout = React.useCallback(async (returnTo?: string) => {
+  // Auth0 compares `returnTo` against "Allowed Logout URLs" exactly, path included, and
+  // answers anything else with its "Oops, something went wrong" page. Only the origin is
+  // registered (tenant.customer.yaml, one entry per origin), so logout returns there and
+  // `/` sends a signed-out visitor to /login like any other.
+  const logout = React.useCallback(async () => {
     setUser(null);
     setStatus('anonymous');
-    await client().logout({ logoutParams: { returnTo: `${origin()}${returnTo ?? routes.login}` } });
+    await client().logout({ logoutParams: { returnTo: origin() } });
   }, []);
 
   const getToken = React.useCallback(async (): Promise<string | null> => {

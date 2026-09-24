@@ -1,20 +1,30 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, withWorkspace } from '@portal/db';
-import type {
-  CallDetail,
-  CallDisplayStatus,
-  CallPatch,
-  CallSummary,
-  CallsQuery,
-  DeclineReason,
-  Page,
-  StatsQuery,
-  StatsResponse,
+import {
+  CALLS_EXPORT_MAX_ROWS,
+  type CallDetail,
+  type CallDisplayStatus,
+  type CallFilters,
+  type CallPatch,
+  type CallSort,
+  type CallSummary,
+  type CallsBulkPatch,
+  type CallsBulkResponse,
+  type CallsExportRequest,
+  type CallsQuery,
+  type DeclineReason,
+  type Page,
+  type SortOrder,
+  type StatsQuery,
+  type StatsResponse,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { cursorArgs, toPage } from '../../common/pagination';
+import { decodeCursor, toPage } from '../../common/pagination';
 import type { WorkspaceContext } from '../auth';
+import { JobQueues } from '../jobs';
 import { RetellGateway } from '../retell';
+import { unsettledCallKind } from './call-recovery.rules';
+import { csvHeader, csvRow } from './csv';
 import { RecordingSigner } from './recording';
 
 /** A call row as the customer reads it, before it becomes a response. */
@@ -44,10 +54,19 @@ const CALL_SELECT = {
   handledAt: true,
   note: true,
   recordingUrl: true,
+  analysisJson: true,
   createdAt: true,
 } satisfies Prisma.CallSelect;
 
-const DETAIL_SELECT = { ...CALL_SELECT, transcriptText: true, transcriptJson: true, analysisJson: true } satisfies Prisma.CallSelect;
+/** `recoveryChecks` feeds `unsettledCallKind` (ADR 0011 §7) and is not on the wire. */
+const DETAIL_SELECT = { ...CALL_SELECT, transcriptText: true, transcriptJson: true, recoveryChecks: true } satisfies Prisma.CallSelect;
+
+/** The columns a keyset cursor resumes from: the sort column, then the tiebreakers. */
+const POSITION_SELECT = { id: true, startedAt: true, durationS: true, creditsCharged: true, createdAt: true } satisfies Prisma.CallSelect;
+type CursorRow = Prisma.CallGetPayload<{ select: typeof POSITION_SELECT }>;
+
+/** Rows read per round trip while streaming an export. */
+const EXPORT_BATCH = 500;
 
 /**
  * The customer-facing reads of D2 and D1: `GET /calls`, `GET /calls/:id`,
@@ -67,21 +86,83 @@ export class CallsQueryService {
   constructor(
     private readonly signer: RecordingSigner,
     private readonly retell: RetellGateway,
+    private readonly queues: JobQueues,
   ) {}
 
   async list(ctx: WorkspaceContext, query: CallsQuery): Promise<Page<CallSummary>> {
-    const rows = await withWorkspace(ctx, (db) =>
-      db.call.findMany({
-        ...cursorArgs(query),
-        where: this.filter(ctx.workspaceId, query),
-        // started_at is null only on a row that has not started; createdAt breaks the tie
-        // and keeps the ordering total, which a keyset cursor needs to be stable.
-        orderBy: [{ startedAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }, { id: 'desc' }],
-        select: CALL_SELECT,
-      }),
-    );
+    const where = this.filter(ctx.workspaceId, query);
+    const cursorId = query.cursor ? decodeCursor(query.cursor).id : null;
+    const { rows, total } = await withWorkspace(ctx, async (db) => {
+      // The cursor row is read under RLS: another workspace's id, like one that never
+      // existed, is simply not there and the page link is refused — never a leak.
+      const position = cursorId ? await db.call.findFirst({ where: { id: cursorId, tenantId: ctx.workspaceId }, select: POSITION_SELECT }) : null;
+      if (cursorId && !position) throw invalidCursor();
+      const [rows, total] = await Promise.all([
+        db.call.findMany({
+          take: query.limit + 1,
+          where: position ? { AND: [where, afterPosition(query.sort, query.order, position)] } : where,
+          orderBy: orderBy(query.sort, query.order),
+          select: CALL_SELECT,
+        }),
+        // Indexed on (tenant_id, started_at) and (tenant_id, status); a count is one index
+        // scan and is what lets the D2 pager say "1–25 of 312".
+        db.call.count({ where }),
+      ]);
+      return { rows, total };
+    });
     const page = toPage(rows, query);
-    return { next_cursor: page.next_cursor, items: page.items.map(toSummary) };
+    return { next_cursor: page.next_cursor, items: page.items.map(toSummary), total };
+  }
+
+  /**
+   * `PATCH /calls {ids, handled}` — the D2 bulk action. One `updateMany` under RLS: an id
+   * from another workspace matches nothing and is neither an error nor a leak. Marking a
+   * call handled keeps the time it was first handled; unmarking clears it.
+   */
+  async bulkPatch(ctx: WorkspaceContext, body: CallsBulkPatch): Promise<CallsBulkResponse> {
+    const ids = [...new Set(body.ids)];
+    const updated = await withWorkspace(ctx, async (db) => {
+      const where: Prisma.CallWhereInput = { id: { in: ids }, tenantId: ctx.workspaceId };
+      if (body.handled) await db.call.updateMany({ where: { ...where, handledAt: null }, data: { handledAt: new Date() } });
+      else await db.call.updateMany({ where, data: { handledAt: null } });
+      // The answer is how many of the ids are now in the asked-for state — the customer
+      // asked for a state, not a write, so a row that was already there counts; one from
+      // another workspace, or an id that never existed, does not.
+      return db.call.count({ where: { ...where, handledAt: body.handled ? { not: null } : null } });
+    });
+    return { updated };
+  }
+
+  /**
+   * `POST /calls/export` — the filtered list as CSV, streamed in batches so a big export
+   * never holds every row in memory or a transaction open for its whole duration. Each
+   * batch is its own `withWorkspace` (no long-lived connection, ADR 0006), resumed by
+   * keyset on the same total order the list uses, capped at `CALLS_EXPORT_MAX_ROWS`.
+   */
+  async *exportCsv(ctx: WorkspaceContext, body: CallsExportRequest): AsyncGenerator<string> {
+    yield csvHeader();
+    const where = this.filter(ctx.workspaceId, body);
+    if (body.ids?.length) where.id = { in: [...new Set(body.ids)] };
+    const order = orderBy(body.sort, body.order);
+
+    let position: CursorRow | null = null;
+    let written = 0;
+    while (written < CALLS_EXPORT_MAX_ROWS) {
+      const take = Math.min(EXPORT_BATCH, CALLS_EXPORT_MAX_ROWS - written);
+      const after = position ? afterPosition(body.sort, body.order, position) : null;
+      const rows: CallRow[] = await withWorkspace(ctx, (db) =>
+        db.call.findMany({
+          where: after ? { AND: [where, after] } : where,
+          orderBy: order,
+          take,
+          select: CALL_SELECT,
+        }),
+      );
+      for (const row of rows) yield csvRow(toSummary(row));
+      written += rows.length;
+      if (rows.length < take) return;
+      position = rows[rows.length - 1]!;
+    }
   }
 
   async get(ctx: WorkspaceContext, callId: string): Promise<CallDetail> {
@@ -89,12 +170,13 @@ export class CallsQueryService {
       db.call.findFirst({ where: { id: callId, tenantId: ctx.workspaceId }, select: DETAIL_SELECT }),
     );
     if (!row) throw AppError.notFound('Call');
-    return {
-      ...toSummary(row),
-      transcript_text: row.transcriptText,
-      transcript_json: row.transcriptJson ?? null,
-      analysis_json: row.analysisJson ?? null,
-    };
+    if (unsettledCallKind(row)) {
+      // Someone is waiting on this call. If the platform dropped its call_ended /
+      // call_analyzed, settle it now rather than at the next 5-minute call-recovery tick
+      // (ADR 0011 §7). Not awaited; JobQueues bounds, dedupes and logs the enqueue.
+      void this.queues.enqueueRecoverCall(row.id);
+    }
+    return toDetail(row);
   }
 
   /** D2 detail actions: mark handled, leave a note. */
@@ -112,12 +194,7 @@ export class CallsQueryService {
       });
     });
     if (!updated) throw AppError.notFound('Call');
-    return {
-      ...toSummary(updated),
-      transcript_text: updated.transcriptText,
-      transcript_json: updated.transcriptJson ?? null,
-      analysis_json: updated.analysisJson ?? null,
-    };
+    return toDetail(updated);
   }
 
   /**
@@ -229,7 +306,7 @@ export class CallsQueryService {
     };
   }
 
-  private filter(workspaceId: string, query: CallsQuery): Prisma.CallWhereInput {
+  private filter(workspaceId: string, query: CallFilters): Prisma.CallWhereInput {
     const startedAt: Prisma.DateTimeNullableFilter = {};
     if (query.from) startedAt.gte = new Date(query.from);
     if (query.to) startedAt.lt = new Date(query.to);
@@ -241,9 +318,66 @@ export class CallsQueryService {
       ...(query.agent_id ? { agentId: query.agent_id } : {}),
       ...(query.number_id ? { numberId: query.number_id } : {}),
       ...(query.is_test === undefined ? {} : { isTest: query.is_test }),
+      ...(query.handled === undefined ? {} : { handledAt: query.handled ? { not: null } : null }),
       ...(Object.keys(startedAt).length ? { startedAt } : {}),
     };
   }
+}
+
+type SortColumn = 'startedAt' | 'durationS' | 'creditsCharged';
+
+function sortColumn(sort: CallSort): SortColumn {
+  return sort === 'started_at' ? 'startedAt' : sort === 'duration_s' ? 'durationS' : 'creditsCharged';
+}
+
+/**
+ * The D2 sort as Prisma sees it. Whatever the column, `createdAt` and `id` follow so the
+ * order is total — a keyset cursor resumes from one row, and two calls that started in
+ * the same millisecond (or both have no duration yet) must not swap pages between
+ * requests. Nulls go last in either direction: a call still ringing has no duration.
+ */
+function orderBy(sort: CallSort, order: SortOrder): Prisma.CallOrderByWithRelationInput[] {
+  return [{ [sortColumn(sort)]: { sort: order, nulls: 'last' } }, { createdAt: order }, { id: order }];
+}
+
+/**
+ * The rows after `position` in the order `orderBy()` produces, spelled out. Prisma's own
+ * `cursor` compares the sort columns as a tuple, and a tuple comparison against NULL is
+ * NULL in Postgres — so once the cursor row sat in the null tail (a missed call has no
+ * duration and no credits) the next page came back empty while `total` said otherwise.
+ * With nulls last: after a non-null value come the greater/lesser values, the equal ones
+ * past the tiebreak, and then every null; after a null row come only the other null rows
+ * past the tiebreak.
+ */
+function afterPosition(sort: CallSort, order: SortOrder, position: CursorRow): Prisma.CallWhereInput {
+  const column = sortColumn(sort);
+  const op = order === 'asc' ? 'gt' : 'lt';
+  const tiebreak: Prisma.CallWhereInput = {
+    OR: [{ createdAt: { [op]: position.createdAt } }, { createdAt: position.createdAt, id: { [op]: position.id } }],
+  };
+  const value = position[column];
+  if (value === null) return { AND: [{ [column]: null }, tiebreak] };
+  return { OR: [{ [column]: { [op]: value } }, { AND: [{ [column]: value }, tiebreak] }, { [column]: null }] };
+}
+
+function invalidCursor(): AppError {
+  return new AppError('INVALID_CURSOR', 'That page link is no longer valid. Start from the first page.');
+}
+
+function toDetail(row: CallRow & { transcriptText: string | null; transcriptJson: Prisma.JsonValue | null }): CallDetail {
+  return {
+    ...toSummary(row),
+    transcript_text: row.transcriptText,
+    transcript_json: row.transcriptJson ?? null,
+    analysis_json: row.analysisJson ?? null,
+  };
+}
+
+/** `analysis_json.user_sentiment`, when the platform wrote one. */
+function sentimentOf(analysis: Prisma.JsonValue | null): string | null {
+  if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) return null;
+  const value = (analysis as Record<string, unknown>).user_sentiment;
+  return typeof value === 'string' && value.trim() ? value : null;
 }
 
 function toSummary(row: CallRow): CallSummary {
@@ -272,6 +406,7 @@ function toSummary(row: CallRow): CallSummary {
     handled_at: row.handledAt?.toISOString() ?? null,
     note: row.note,
     has_recording: Boolean(row.recordingUrl),
+    sentiment: sentimentOf(row.analysisJson),
     created_at: row.createdAt.toISOString(),
   };
 }

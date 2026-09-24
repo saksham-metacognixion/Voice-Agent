@@ -546,6 +546,41 @@ describe('POST /webhooks/retell — lifecycle and metering (§13.10, §14.2)', (
     expect((await callRow(id))!.creditsCharged!.toNumber()).toBe(2);
   });
 
+  it('call_ended and call_analyzed in the same instant leave the row analyzed, finalised and billed once', async () => {
+    // Retell was seen delivering both in the same millisecond (24 Sep): call_ended read the
+    // row as in_progress, call_analyzed committed, and call_ended wrote `ended` over it.
+    const ws = await readyWorkspace('ended-analyzed-race', 100);
+    const ids = await Promise.all(
+      Array.from({ length: 6 }, async (_, i) => {
+        const id = callId();
+        const start = Date.now() - 60_000;
+        const facts = { call_id: id, start_timestamp: start, end_timestamp: start + 60_000, disconnection_reason: 'user_hangup', call_status: 'ended', metadata: { tenant_id: ws.tenantId } };
+        // Half with a call_started row already there, half where the two race to create it.
+        if (i % 2 === 0) {
+          await post('/webhooks/retell', lifecycleEvent('call_started', { call_id: id, start_timestamp: start, metadata: { tenant_id: ws.tenantId } }));
+          await waitFor('started', async () => (await callRow(id)) ?? null);
+        }
+        await Promise.all([
+          post('/webhooks/retell', lifecycleEvent('call_ended', facts)),
+          post('/webhooks/retell', lifecycleEvent('call_analyzed', { ...facts, call_analysis: { call_summary: 'Booked a table.', call_successful: true } })),
+        ]);
+        return id;
+      }),
+    );
+
+    for (const id of ids) {
+      const row = await waitFor('analyzed and billed', async () => {
+        const r = await callRow(id);
+        return r?.creditsCharged != null && r.analysisJson ? r : null;
+      });
+      expect(row.status).toBe('analyzed');
+      expect(row.durationS).toBe(60);
+      expect(row.disconnectionReason).toBe('user_hangup');
+      expect(row.creditsCharged!.toNumber()).toBe(1);
+    }
+    expect(await adminDb.creditLedger.count({ where: { tenantId: ws.tenantId, reason: 'call' } })).toBe(ids.length);
+  });
+
   it('never bills a call that did not connect, or one with no duration', async () => {
     const ws = await readyWorkspace('not-connected', 30);
     const before = await ledgerSum(ws.tenantId);

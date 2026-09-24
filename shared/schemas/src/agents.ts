@@ -449,6 +449,21 @@ export const promptUpdate = z.object({
 });
 export type PromptUpdate = z.infer<typeof promptUpdate>;
 
+/**
+ * POST /agents/:id/versions/:v/lint — the Advanced editor's live lint (§9.5). A dry run
+ * of exactly what `PUT …/prompt` would store, against version `v`'s brief and settings:
+ * the guardrails are appended first, so `guardrails_missing` cannot fire on text the
+ * customer is not allowed to contain anyway. Nothing is written.
+ *
+ * Unlike `promptUpdate` the prompt may be short or empty — `prompt_empty` is a finding
+ * the editor wants to show, not a 422.
+ */
+export const lintRequest = z.object({
+  prompt: z.string().max(20_000),
+  greeting: z.string().max(500).nullable().optional(),
+});
+export type LintRequest = z.infer<typeof lintRequest>;
+
 /** POST /agents/:id/generate. `regenerate` rewrites from the brief and keeps test feedback. */
 export const generateRequest = z.object({
   mode: z.enum(['generate', 'regenerate']).default('generate'),

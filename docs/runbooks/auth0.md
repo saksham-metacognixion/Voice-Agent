@@ -188,6 +188,19 @@ All of these fail silently.
   MFA happened. Without the `all-applications` Guardian policy — in
   `tenant.staff.yaml` — the claim is always `false` and `AuthGuard` rejects every staff
   token.
+- **Customer two-factor needs an enabled factor, and the Action is the policy.** The
+  tenant MFA policy stays "Never" (`guardianPolicies: []` in `tenant.customer.yaml`);
+  `customer-post-login.js` calls `api.multifactor.enable` when A5 asks (`acr_values`
+  multi-factor) or the person is already enrolled, never on a refresh-token grant or a
+  session that already passed MFA. With every factor off — the live state until 24 Sep
+  2026 — A5 signed the person straight back in and the status stayed "Not enabled".
+  One-time Password and recovery codes are on. The MFA scopes are needed on both tenants.
+- **A full `auth0:deploy customer` from a developer `.env` rewrites the shared dev
+  tenant.** Callbacks come from `PORTAL_URL`/`PORTAL_ALT_URL` and the Action secrets from
+  `API_PUBLIC_URL`; from a laptop that is localhost and an ngrok tunnel, which drops
+  staging's callback and points staging's sign-in webhooks at the laptop. Set
+  `PORTAL_ALT_URL` to the staging origin and `API_PUBLIC_URL` to the staging API before a
+  full deploy, or make the one change through the Management API.
 - **`a0deploy` reads `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET` and
   `AUTH0_AUDIENCE` from the environment**, and all four mean something else in our `.env`
   (the customer SPA, and the portal API). Never run the binary directly against this repo's

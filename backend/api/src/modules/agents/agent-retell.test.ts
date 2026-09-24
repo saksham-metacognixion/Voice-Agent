@@ -9,7 +9,7 @@ import { AgentRetellService, toRetellAnalysisFields, type RetellSyncInput } from
 
 const stack: TierStack = {
   model: 'model-from-sa6',
-  default_voice_id: 'voice-from-sa6',
+  default_voice_id: '11labs-voice-from-sa6',
   voice_model: 'eleven_multilingual_v2',
   max_call_duration_ms: 900_000,
 };
@@ -90,10 +90,18 @@ describe('AgentRetellService.syncDraft', () => {
       voiceModel: string;
       maxCallDurationMs: number;
     };
-    expect(agent.voiceId).toBe('voice-from-sa6');
+    expect(agent.voiceId).toBe('11labs-voice-from-sa6');
     expect(agent.voiceModel).toBe('eleven_multilingual_v2');
     // min(agent 1500 s, plan 900 s) — the plan ceiling is configuration.
     expect(agent.maxCallDurationMs).toBe(900_000);
+  });
+
+  it("sends the tier's TTS model only with a voice of its provider (a Cartesia voice gets its own default)", async () => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft({ ...input(), voiceId: 'cartesia-Adrian' });
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as { voiceId: string; voiceModel?: string | null };
+    expect(agent.voiceId).toBe('cartesia-Adrian');
+    expect(agent.voiceModel).toBeNull();
   });
 
   it('prefers the version’s own voice and ceiling when they are within the plan', async () => {

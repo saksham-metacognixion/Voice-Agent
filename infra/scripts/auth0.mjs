@@ -89,7 +89,8 @@ const DEPLOY_SCOPES = [
   'read:attack_protection',
   'update:attack_protection',
 ];
-const STAFF_ONLY_SCOPES = [
+// Both tenants: staff MFA is mandatory (admin §2.1), customer MFA is opt-in (§6.2, A5).
+const MFA_SCOPES = [
   'read:guardian_factors',
   'update:guardian_factors',
   'read:mfa_policies',
@@ -221,7 +222,7 @@ async function check(tenants) {
     const granted = new Set((body.scope ?? '').split(' ').filter(Boolean));
     const wanted = [
       ...DEPLOY_SCOPES,
-      ...(tenant === 'staff' ? STAFF_ONLY_SCOPES : []),
+      ...MFA_SCOPES,
       ...RUNTIME_SCOPES,
     ];
     const missing = wanted.filter((scope) => !granted.has(scope));

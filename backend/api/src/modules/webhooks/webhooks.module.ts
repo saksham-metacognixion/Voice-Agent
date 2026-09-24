@@ -3,8 +3,9 @@ import type { Job } from 'bullmq';
 import { AuthModule } from '../auth';
 import { BillingModule } from '../billing';
 import { CallsModule } from '../calls';
-import { JOBS, JobHandlerRegistry, type ProcessWebhookJob, QUEUES } from '../jobs';
+import { JOBS, JobHandlerRegistry, type ProcessWebhookJob, QUEUES, type RecoverCallJob } from '../jobs';
 import { RetellModule } from '../retell';
+import { CallRecoveryService } from './call-recovery.service';
 import { FixtureWriter } from './fixture-writer.service';
 import { RetellEventHandler } from './retell-events.handler';
 import { WebhookEventsService } from './webhook-events.service';
@@ -30,18 +31,22 @@ import { WebhooksController } from './webhooks.controller';
 @Module({
   imports: [AuthModule, RetellModule, BillingModule, CallsModule],
   controllers: [WebhooksController],
-  providers: [FixtureWriter, WebhookEventsService, RetellEventHandler, WebhookProcessingService],
-  exports: [FixtureWriter, WebhookEventsService, RetellEventHandler, WebhookProcessingService],
+  providers: [FixtureWriter, WebhookEventsService, RetellEventHandler, WebhookProcessingService, CallRecoveryService],
+  exports: [FixtureWriter, WebhookEventsService, RetellEventHandler, WebhookProcessingService, CallRecoveryService],
 })
 export class WebhooksModule implements OnModuleInit {
   constructor(
     private readonly registry: JobHandlerRegistry,
     private readonly processing: WebhookProcessingService,
+    private readonly recovery: CallRecoveryService,
   ) {}
 
   onModuleInit(): void {
     this.registry.register<ProcessWebhookJob>(QUEUES.webhooks, JOBS.processWebhook, (job: Job<ProcessWebhookJob>) =>
       this.processing.process(job.data.eventId),
+    );
+    this.registry.register<RecoverCallJob>(QUEUES.webhooks, JOBS.recoverCall, (job: Job<RecoverCallJob>) =>
+      this.recovery.recoverOne(job.data.callId),
     );
   }
 }

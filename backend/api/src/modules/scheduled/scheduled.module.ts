@@ -57,6 +57,7 @@ export class ScheduledModule implements OnModuleInit {
       [SCHEDULED_JOBS.numberRelease]: () => this.jobs.numberRelease(),
       [SCHEDULED_JOBS.lowBalanceAlerts]: () => this.jobs.lowBalanceAlerts(),
       [SCHEDULED_JOBS.reconcileCalls]: () => this.jobs.reconcileCalls(),
+      [SCHEDULED_JOBS.callRecovery]: () => this.jobs.callRecovery(),
       [SCHEDULED_JOBS.concurrencyMonitor]: () => this.jobs.concurrencyMonitor(),
       [SCHEDULED_JOBS.dailyDigest]: () => this.jobs.dailyDigest(),
     };

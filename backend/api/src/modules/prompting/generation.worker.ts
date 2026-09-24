@@ -13,7 +13,7 @@ import type {
 import { brief as briefSchema, templateId as templateIdSchema } from '@portal/schemas';
 import {
   AgentEvents,
-  AgentRetellService,
+  AgentDraftSyncService,
   AgentStackService,
   AgentsService,
   TemplatesService,
@@ -71,7 +71,7 @@ export class GenerationWorker {
     private readonly agents: AgentsService,
     private readonly templates: TemplatesService,
     private readonly stack: AgentStackService,
-    private readonly retell: AgentRetellService,
+    private readonly draftSync: AgentDraftSyncService,
     private readonly events: EventsService,
   ) {}
 
@@ -510,64 +510,9 @@ export class GenerationWorker {
    */
   private async syncRetell(data: PromptingJob, versionNo: number): Promise<Record<string, unknown>> {
     try {
-      const stack = await this.stack.current();
-      const snapshot = await withWorkspace(data.workspaceId, async (db) => {
-        const agent = await db.agent.findFirstOrThrow({ where: { id: data.agentId, tenantId: data.workspaceId } });
-        const version = await db.agentVersion.findUniqueOrThrow({
-          where: { agentId_versionNo: { agentId: data.agentId, versionNo } },
-        });
-        const tenant = await db.tenant.findUniqueOrThrow({
-          where: { id: data.workspaceId },
-          select: { name: true, timezone: true },
-        });
-        return { agent, version, tenant };
-      });
-
-      if (!snapshot.version.promptText) return { retell_sync: 'skipped', retell_sync_reason: 'no_prompt' };
-
-      const settings = settingsOf(snapshot.version, snapshot.agent);
-      const tierStack = await this.stack.tierStack(settings.tier);
-      if (!tierStack) {
-        // No compiled-in stack to fall back to (CLAUDE.md, "Configuration"). The version
-        // is stored; publish will refuse loudly with NOT_CONFIGURED until SA6 is fixed.
-        this.log.error(`agent ${data.agentId}: no ${settings.tier} stack in agent_stack_configs; draft not synced`);
-        return { retell_sync: 'skipped', retell_sync_reason: 'stack_missing' };
-      }
-
-      const sync = await this.retell.syncDraft({
-        agentId: data.agentId,
-        agentName: snapshot.agent.name,
-        retellAgentId: snapshot.agent.retellAgentId,
-        retellLlmId: snapshot.agent.retellLlmId,
-        retellKbId: snapshot.agent.retellKbId,
-        promptText: snapshot.version.promptText,
-        greeting: snapshot.version.greeting,
-        brief: parseBrief(snapshot.version.briefJson),
-        analysisFields: parseAnalysisFields(snapshot.version.analysisSchemaJson),
-        voiceId: settings.voice_id,
-        voiceSpeed: settings.voice_speed,
-        voiceTemperature: settings.voice_temperature,
-        primaryLanguage: settings.primary_language,
-        languages: settings.languages,
-        maxCallDurationS: settings.max_call_duration_s,
-        timezone: snapshot.tenant.timezone,
-        businessName: snapshot.tenant.name,
-        stack: tierStack,
-        guardrails: stack.guardrails,
-      });
-
-      await withWorkspace(data.workspaceId, async (db) => {
-        await db.agent.update({
-          where: { id: data.agentId },
-          data: { retellAgentId: sync.agentId, retellLlmId: sync.llmId },
-        });
-        await db.agentVersion.update({
-          where: { agentId_versionNo: { agentId: data.agentId, versionNo } },
-          data: { retellAgentVersion: sync.draftVersion },
-        });
-      });
-
-      return { retell_sync: 'ok', retell_agent_version: sync.draftVersion };
+      const outcome = await this.draftSync.syncVersion(data.workspaceId, data.agentId, versionNo);
+      if (outcome.status === 'skipped') return { retell_sync: 'skipped', retell_sync_reason: outcome.reason };
+      return { retell_sync: 'ok', retell_agent_version: outcome.retellAgentVersion };
     } catch (error) {
       this.log.warn(`agent ${data.agentId}: Retell draft sync failed (${describe(error)}); publish will re-sync`);
       return { retell_sync: 'failed', retell_error: describe(error).slice(0, 300) };

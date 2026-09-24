@@ -20,8 +20,15 @@ export type CallStatus = z.infer<typeof callStatus>;
 export const callDisplayStatus = z.enum(['registered', 'in_progress', 'ended', 'analyzed', 'missed']);
 export type CallDisplayStatus = z.infer<typeof callDisplayStatus>;
 
-/** GET /calls (filters) — §16. Everything optional; unknown values are a 422, never a 500. */
-export const callsQuery = paginationQuery.extend({
+/** D2 sort columns. Whatever the column, the order is made total with `created_at` and `id`. */
+export const callSort = z.enum(['started_at', 'duration_s', 'credits_charged']);
+export type CallSort = z.infer<typeof callSort>;
+
+export const sortOrder = z.enum(['asc', 'desc']);
+export type SortOrder = z.infer<typeof sortOrder>;
+
+/** The D2 filters alone — what `GET /calls` and `POST /calls/export` have in common. */
+export const callFilters = z.object({
   status: callDisplayStatus.optional(),
   channel: callChannel.optional(),
   direction: callDirection.optional(),
@@ -35,8 +42,49 @@ export const callsQuery = paginationQuery.extend({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
+  /** `true` = marked handled, `false` = still to do. */
+  handled: z
+    .enum(['true', 'false'])
+    .transform((v) => v === 'true')
+    .optional(),
+});
+export type CallFilters = z.infer<typeof callFilters>;
+
+/** GET /calls (filters) — §16. Everything optional; unknown values are a 422, never a 500. */
+export const callsQuery = paginationQuery.merge(callFilters).extend({
+  sort: callSort.default('started_at'),
+  order: sortOrder.default('desc'),
 });
 export type CallsQuery = z.infer<typeof callsQuery>;
+
+/**
+ * PATCH /calls {ids, handled} — the D2 bulk "Mark handled". One statement, not one
+ * request per row; ids from another workspace are simply not matched (RLS), and the
+ * answer says how many rows changed so the UI can tell a partial match from a full one.
+ */
+export const callsBulkPatch = z.object({
+  ids: z.array(z.string().min(1).max(120)).min(1).max(200),
+  handled: z.boolean(),
+});
+export type CallsBulkPatch = z.infer<typeof callsBulkPatch>;
+
+export const callsBulkResponse = z.object({ updated: z.number().int() });
+export type CallsBulkResponse = z.infer<typeof callsBulkResponse>;
+
+/**
+ * POST /calls/export — a CSV of the calls matching the filters (the current D2 view), or
+ * of `ids` when the customer selected rows. Streams `text/csv`; the row cap keeps one
+ * export from holding a connection for a workspace's whole history.
+ */
+export const callsExportRequest = callFilters.extend({
+  ids: z.array(z.string().min(1).max(120)).max(200).optional(),
+  sort: callSort.default('started_at'),
+  order: sortOrder.default('desc'),
+});
+export type CallsExportRequest = z.infer<typeof callsExportRequest>;
+
+/** The most rows one export may carry. */
+export const CALLS_EXPORT_MAX_ROWS = 10_000;
 
 /** One row of D2. No Retell identifiers beyond the call id, and no COGS (`retell_cost_cents` is staff-only). */
 export const callSummary = z.object({
@@ -64,6 +112,12 @@ export const callSummary = z.object({
   handled_at: isoDateTime.nullable(),
   note: z.string().nullable(),
   has_recording: z.boolean(),
+  /**
+   * `analysis_json.user_sentiment` as the platform wrote it (`Positive`, `Neutral`,
+   * `Negative`, `Unknown`), for the D2 list's mood column (spec p. 34). Null until
+   * `call_analyzed` arrives.
+   */
+  sentiment: z.string().nullable(),
   created_at: isoDateTime,
 });
 export type CallSummary = z.infer<typeof callSummary>;
@@ -141,3 +195,37 @@ export const callPatch = z
   })
   .refine((b) => b.handled !== undefined || b.note !== undefined, { message: 'Nothing to update' });
 export type CallPatch = z.infer<typeof callPatch>;
+
+/** POST /agents/:id/test/web {version_no} — §13.4 browser test call. Default: the draft. */
+export const testWebCallRequest = z.object({
+  version_no: z.number().int().min(1).optional(),
+});
+export type TestWebCallRequest = z.infer<typeof testWebCallRequest>;
+
+/**
+ * §16's example (`call_id`, `access_token`, `rate`, `balance`) plus what the browser SDK
+ * needs to join: a token minted for one transport is refused by the other (D2 finding),
+ * so `transport`, `url` and `ice_servers` travel with it. None of them names the vendor.
+ */
+export const testWebCallResponse = z.object({
+  call_id: z.string(),
+  access_token: z.string(),
+  /** Credits per minute this call bills at — the tier of the version under test. */
+  rate: z.number(),
+  /** Wallet balance when the call was minted, 2 dp. */
+  balance: z.number(),
+  version_no: z.number().int(),
+  /** The ceiling this call was given: min(the version's limit, what the balance covers). */
+  max_call_duration_s: z.number().int(),
+  /**
+   * The credential for this call's live transcript: the browser SDK offers it as the
+   * bearer subprotocol to `wss://<api>/test-calls/v2/monitor-call/{call_id}`, which our
+   * API relays (ADR 0003, D9 addendum). Bound to this call, expires with it.
+   */
+  live_token: z.string(),
+  transport: z.string().optional(),
+  url: z.string().optional(),
+  ice_servers: z.array(z.record(z.unknown())).optional(),
+  expires_at: z.number().optional(),
+});
+export type TestWebCallResponse = z.infer<typeof testWebCallResponse>;

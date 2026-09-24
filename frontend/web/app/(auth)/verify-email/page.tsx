@@ -54,7 +54,7 @@ function VerifyInner() {
           {checking ? t('auth.verify.checking') : t('auth.verify.check')}
         </Button>
         <p className="text-center text-xs text-muted-foreground">{t('auth.verify.spam')}</p>
-        <Button variant="ghost" onClick={() => void auth.logout(routes.login)}>
+        <Button variant="ghost" onClick={() => void auth.logout()}>
           {t('auth.verify.useAnother')}
         </Button>
       </div>

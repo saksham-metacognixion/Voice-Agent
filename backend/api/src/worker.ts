@@ -4,8 +4,9 @@ import { NestFactory } from '@nestjs/core';
 import { assertRlsEnforced, disconnect } from '@portal/db';
 import { WorkerModule } from './worker.module';
 import { resolveAppEnv, assertPortalUrl } from './common/env';
-import { QUEUES, SchedulerRegistrar, WorkerHeartbeat, WorkerRuntime } from './modules/jobs';
+import { JobQueues, QUEUES, SchedulerRegistrar, WorkerHeartbeat, WorkerRuntime } from './modules/jobs';
 import { RuntimeCacheService } from './modules/runtime-cache';
+import { VoicesService } from './modules/voices';
 
 /**
  * Worker entrypoint. Same codebase as the API, separate process, separate compose service
@@ -16,7 +17,9 @@ import { RuntimeCacheService } from './modules/runtime-cache';
  *      updates a schedule instead of duplicating it (architecture §12),
  *   3. a full `runtime-cache` refresh on boot, so the §13.9 hot path finds `num:{e164}`,
  *      `caps:{ws}` and `bal:{ws}` populated after a Redis restart (ADR 0003 §12 item 5),
- *   4. (D7) the heartbeat — `worker:heartbeat` in Redis and a file for the compose
+ *   4. a `voice-cache` run when the W3 catalogue is empty or stale, rather than an empty
+ *      picker until the next 05:00 UTC tick,
+ *   5. (D7) the heartbeat — `worker:heartbeat` in Redis and a file for the compose
  *      healthcheck — so an operator can see from the API that jobs are being drained.
  *
  * Job processors call the same services the routes do, so the same tenancy rules apply:
@@ -45,6 +48,16 @@ async function bootstrap() {
       return null;
     });
   if (warmed) Logger.log(`runtime cache warm: ${warmed.numbers} numbers across ${warmed.workspaces} workspaces`, 'Worker');
+
+  // Best effort too: the daily 05:00 UTC tick is the backstop.
+  const voicesStale = await app
+    .get(VoicesService)
+    .catalogueNeedsRefresh()
+    .catch(() => false);
+  if (voicesStale) {
+    const queued = await app.get(JobQueues).enqueueVoiceCacheNow();
+    Logger.log(`voice catalogue empty or stale: voice-cache ${queued}`, 'Worker');
+  }
 
   Logger.log(`Worker started (${resolveAppEnv()})`, 'Worker');
 

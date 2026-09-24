@@ -105,6 +105,12 @@ export const WORKSPACE_HEADER = 'x-workspace-id';
 export const CLAIM_EMAIL_VERIFIED = 'https://portal/email_verified';
 export const CLAIM_MFA = 'https://portal/mfa';
 /**
+ * Customer ID-token claim: the person has a second factor enrolled (§6.2, A5). Set by the
+ * customer Post-Login Action from `event.user.enrolledFactors`, which is read before the
+ * enrolment the same sign-in may trigger, so A5 also accepts `amr` containing `mfa`.
+ */
+export const CLAIM_MFA_ENROLLED = 'https://portal/mfa_enrolled';
+/**
  * The signed-in person's email and display name, stamped on the customer access token
  * by the Post-Login Action. Auth0 access tokens carry neither by default, and the API
  * needs both to provision a `users` row for a sign-in whose registration webhook never

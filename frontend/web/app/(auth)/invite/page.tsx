@@ -83,7 +83,7 @@ function InviteInner() {
             <Button size="lg" className="w-full" onClick={go} loading={busy} disabled={!token}>
               {t('auth.invite.accept')}
             </Button>
-            <Button variant="ghost" onClick={() => void auth.logout(routes.login)}>
+            <Button variant="ghost" onClick={() => void auth.logout()}>
               {t('common.signOut')}
             </Button>
           </>

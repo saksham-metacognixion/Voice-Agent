@@ -45,7 +45,7 @@ export function UserMenu() {
           <ShieldCheck /> {t('auth.mfa.title')}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem destructive onSelect={() => void auth.logout(routes.login)}>
+        <DropdownMenuItem destructive onSelect={() => void auth.logout()}>
           <LogOut /> {t('common.signOut')}
         </DropdownMenuItem>
       </DropdownMenuContent>

@@ -68,7 +68,8 @@ Redis-down), 0004 EC2, ~~0005 Amplify~~,
 0006 tenancy (two DB roles, RLS, append-only), ~~0007 OpenAI~~, 0008 S3 + CloudFront (supersedes 0005),
 0009 Anthropic `claude-sonnet-5` (supersedes 0007), 0010 wallet ledger semantics + pricing config shape +
 Stripe webhook retries (D3; §5 amended by 0011), 0011 call runtime — `active:{ws}` reservations, the
-BullMQ hand-off for both providers, the recording proxy (D4), 0012 prompting pipeline and
+BullMQ hand-off for both providers, the recording proxy (D4), and `call-recovery` for a lifecycle
+webhook the platform never sent (§7, 24 Sep), 0012 prompting pipeline and
 agent lifecycle — guardrails appended after zod, the version-immutability trigger, the
 publish lease, the `prompting` queue (D5), 0013 knowledge, numbers, activation and billing —
 the `jobs`-row step machine, look-before-you-buy idempotency, the `provisioning` queue, SIP
@@ -80,7 +81,11 @@ OpenAPI contract and the EC2 compose stack with the worker CPU cap (D7), 0015 th
 through `infra/scripts/ssm-put-env.sh` from a file outside the repo, no SSH, Session Manager
 and Run Command only, 0016 Postgres on RDS, 0017 the portal foundation — the SPA session,
 §6.4 gating as one pure gate plus guards, theme tokens, `/invite/?token=`, SSE and polling
-together, the local stand-in issuer and the wizard end-to-end script (D8). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+together, the local stand-in issuer and the wizard end-to-end script (D8), 0018 the
+customer dashboard — sort/total/`sentiment` on `GET /calls`, `PATCH /calls` bulk handled,
+`POST /calls/export` streamed CSV, the lint dry-run route, first-frame `call:` payloads,
+`?id=&tab=` / `?call=` routes, URL-held D2 state, shared wizard form bodies, the inline
+SVG chart and phone-width tables (D10). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -92,9 +97,10 @@ imported by both and never deployed on its own.
 ```
 frontend/                         → S3 + CloudFront (static export, ADR 0008)
   web/            @portal/web         Next.js customer portal      app.<domain>
-                                      app/ = routes (A1–A8, onboarding/W1–W7, app/D1–D7); src/ = auth, guards,
-                                      workspace, wizard hooks, shell + wizard components, i18n, analytics;
-                                      scripts/ = serve-export, e2e-wizard (D8 exit check)
+                                      app/ = routes (A1–A8, onboarding/W1–W7, app/D1–D7, app/agents/detail = D3 tabs);
+                                      src/ = auth, guards, workspace, wizard hooks, dashboard hooks + pure
+                                      modules (src/dashboard), shell + wizard + dashboard components, i18n,
+                                      analytics; scripts/ = serve-export, e2e-wizard (D8), e2e-dashboard (D10)
   admin/          @portal/admin       Next.js staff console        admin.<domain>
   ui/             @portal/ui          shadcn components + shared domain widgets
   api-client/     @portal/api-client  typed fetch wrapper + TanStack Query hooks
@@ -144,8 +150,8 @@ needs it too, which is what saves both modules from a `forwardRef`.
 Jobs: `modules/jobs` owns the BullMQ plumbing — five queues (`webhooks`, `calls`, `prompting`,
 `provisioning`, `scheduled`), a handler registry every feature module registers into at module init, the worker
 runtime, the §13.11 schedulers (plus `job-sweeper`, which writes off `jobs` rows whose queue
-job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). Twelve
-of the thirteen schedules are live since D7 (`kb-sync` is the skeleton); each is upserted by
+job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). Thirteen
+of the fourteen schedules are live (`kb-sync` is the skeleton; `call-recovery` joined on 24 Sep); each is upserted by
 id on worker boot, strangers are removed, and **every tick runs under
 `lock:schedule:{name}`** — a tick that outlives its interval is skipped on the second worker,
 not run twice (ADR 0014 §1). The lock waits 2 s for Redis, and the third consecutive skip
@@ -205,6 +211,26 @@ job settles.
 - Retell can deliver out of order: `call_ended` first finalises the row and the late `call_started`
   does not reopen it; `call_analyzed` first creates an **unbilled** row and leaves it unbilled.
 - Every ledger write goes through the `wallet` module. No direct `credit_ledger` inserts anywhere else.
+- **A lifecycle webhook the platform never sends is recovered, not lost** (ADR 0011 §7). The
+  platform has been seen delivering `call_started` and dropping `call_ended` + `call_analyzed`
+  for a call it had ended and analysed. The 5-minute `call-recovery` schedule
+  (`CallRecoveryService`, module `webhooks`) asks `get-call` about rows still
+  `registered`/`in_progress` after 3 min (24 h window) and `ended` rows without analysis after
+  10 min (6 h window), and **stores the answer as the missing `webhook_events` row** — same
+  dedupe key, same queue, same handler — so it bills nothing itself and a late real delivery is
+  a 204 duplicate. A call whose event is already stored is skipped (that is the sweeper's).
+  A call someone is watching does not wait for the tick: `GET /calls/:id` on an unsettled row
+  queues `recover-call` (`recover-<call_id>`, 20 s delay, which is also the throttle) →
+  `CallRecoveryService.recoverOne()`, same path, a 15 s ended-ago grace. **Every ask is
+  remembered on the row** (`recovery_checked_at`, `recovery_checks`): re-asked no sooner
+  than 15 min, never-asked rows first, a missing analysis given up after 3 asks, and a
+  call the platform has no record of is settled with the `call_ended` it never sent
+  (`not_connected` / `error`, `recovery_reason: not_found`, billed zero by the ordinary
+  handler). The predicate and windows are `modules/calls/call-recovery.rules.ts`
+  (`unsettledCallKind`), shared by the route and the service.
+- `calls.agent_version` is **our** `agent_versions.version_no` — `metadata.version_no`, else the
+  platform version mapped through the published row's `retell_agent_version`, else null. Never
+  the platform's counter (a draft reads 0 there, and it must not reach the wire).
 
 **Inbound call authorisation (§13.9) — p95 < 300 ms**
 
@@ -283,6 +309,20 @@ job settles.
   miss with `SET NX`. Nothing else writes `bal:{ws}`.
 - Stripe fulfilment credits nothing unless `amount_total` and `currency` match the pending purchase.
   A mismatch leaves the purchase `pending` for SA9 and answers 200 (ADR 0010 §5).
+- **A paid Checkout is settled from Stripe's answer, not only from the webhook** (ADR 0013 §9,
+  24 Sep). `POST /wallet/checkout/confirm {session_id}` (owner/admin) looks up _this_
+  workspace's pending purchase by session id, retrieves the session from Stripe and hands it
+  to the same `fulfil()` the webhook uses — same amount check, same wallet lock, same
+  idempotency, same `onPurchaseCredited` announcement that starts W7's activation. A
+  foreign or unknown id is a 404 and never a Stripe call; an `expired` session is
+  abandoned. W7 posts it on every return from Stripe and on "Check again". The
+  `auto-topup` tick runs `BillingService.reconcilePendingCheckouts()` first — pending
+  Checkout purchases whose session is older than 5 min and younger than 48 h — so a tab
+  closed before the confirm is covered too. Whichever of the three lands first credits;
+  the others are no-ops. **Local dev needs `pnpm dev:stripe`** (`stripe listen` forwarding
+  to `/webhooks/stripe`, the same `whsec_` as `STRIPE_WEBHOOK_SECRET`): the only endpoint
+  registered on the Stripe account points at staging, so without it no local purchase is
+  ever credited by webhook — the confirm and the sweep are what saved the 24 Sep go-live.
 
 **Prompts and versions (§9)**
 
@@ -359,6 +399,12 @@ job settles.
   locales are `retellLanguage` in `@portal/schemas` (validated, not cast); there is no `en-CA`.
 - An unknown `voice_model` is **ignored silently** by Retell where every other stack id is a
   400, so `tierStack.voice_model` is validated against the SDK union in code.
+- A `voice_model` from another provider than the voice is a **400** on `update-agent`, and
+  omitting it keeps the stored one: `voiceModelFor()` sends the stack's model only with a
+  voice of its provider (`voices.provider`) and `null` otherwise (ADR 0003, D9 addendum).
+- `PATCH /agents/:id/draft` does not touch the platform. `POST /agents/:id/test/web`
+  re-syncs the unpublished draft (`AgentDraftSyncService`, shared with the generation
+  worker) before minting, so a test call rings the voice and languages W3 saved.
 
 **Knowledge, numbers and activation (§11, §13.8, W4 — ADR 0013)**
 
@@ -397,7 +443,9 @@ job settles.
 {pending, syncing, ready, failed, deleting}`, file/text bytes held in `payload` only until
   ingested. Gated by `knowledge_base` and `caps.kb_allowance` (one KB per agent counts), ≤ 20
   sources per agent, files ≤ 20 MB, private hosts refused. A source that synced is deleted on
-  the platform **before** its row (`deleting` + the `-del` job id). A KB added after publish
+  the platform **before** its row (`deleting` + the `-del` job id). The platform will not
+  empty a knowledge base, so the **last** source deletes the base and clears
+  `agents.retell_kb_id`. A KB added after publish
   reaches the LLM at the next publish (the LLM is versioned with the agent, ADR 0003 §7).
 - **Auto top-up (§5.4) credits nothing on the create call.** `AutoTopupService.evaluate`
   (every debit + the 15-minute `auto-topup` schedule) creates the pending purchase under the
@@ -501,18 +549,26 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   refresh tokens). The Auth0 callback is the **origin**; `/` handles `?code=&state=`.
   `getToken()` throws `AuthRequiredError` on a lost session and the guard sends the person
   to `/login?next=`. A3 re-reads claims with `refresh()`; A5 asks for `acr_values`
-  multi-factor; A6 is Auth0's `dbconnections/change_password`.
+  multi-factor, and customer two-factor is opt-in through `customer-post-login.js`
+  (tenant MFA policy "Never", One-time Password + recovery codes enabled; the Action
+  challenges on that request and on every interactive sign-in of an enrolled person,
+  never on a refresh grant; status = the `https://portal/mfa_enrolled` ID-token claim or
+  `amr` `mfa`); A6 is Auth0's `dbconnections/change_password`.
 - Gating is `useSessionGate()` + `RequireAuth` / `RequireVerified` / `RequireWorkspace` /
   `OnboardingStepGuard(step)` / `AppGuard`. A wizard page W-k is allowed while
   `k ≤ onboarding_step`; the portal advances the step with `PATCH /workspace`, never
   backwards, single-flight; a guard never redirects while the workspace row is refetching.
-  `LAST_IMPLEMENTED_STEP` (`src/routes.ts`) gates the dashboard until W4–W7 land.
+  `LAST_IMPLEMENTED_STEP` is 7 since D9, so `/app` opens only once `onboarding_completed_at`
+  is set (the activation job's `mark_live`). `/onboarding/live` sits outside the 1–7 steps
+  behind `LiveGuard` (onboarding complete, else back to the step); W7's guard takes
+  `completeRedirect` so a finished activation lands there, not on `/app`.
 - **Colours are tokens.** `bg-card`, `text-muted-foreground`, `border-border`, `bg-primary`…
   from `frontend/ui/src/styles/globals.css` (`:root` and `.dark`), derived from the five
   Oraly brand colours — Purple `#7B5CFF`, Electric Blue `#22D3EE`, Deep Navy `#0A0F1A`,
   Slate `#1E2433`, Soft White `#F7F8FB` (`docs/brand.md`). No `bg-white`, `text-neutral-*`,
   `dark:` overrides or hex values in components; a component that needs a new colour adds a
-  token pair. `ThemeProvider` / `ThemeToggle` / `ThemeSegment` are the only theme code, and
+  token pair (`text-warning-emphasis` is warning-as-text on an ordinary surface — never
+  `text-warning-foreground dark:text-warning`). `ThemeProvider` / `ThemeToggle` / `ThemeSegment` are the only theme code, and
   the logo is `Logo` in `@portal/ui`, rendering the supplied artwork from
   `public/brand/` — never redrawn, recoloured or rebuilt inline.
 - **W3's language ranks the voice list, it does not cut it.** `list-voices` carries no
@@ -531,8 +587,61 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Retell is never named; say "voice", "what your agent knows".
 - Local run without the Auth0 tenant: `pnpm dev:issuer`, then the API with
   `AUTH0_CUSTOMER_DOMAIN=http://localhost:9999` and the portal built with
-  `NEXT_PUBLIC_AUTH0_DOMAIN=http://localhost:9999`. The D8 exit check is
-  `pnpm --filter @portal/web e2e:wizard` (headless Chrome, 36 assertions, a real Generate).
+  `NEXT_PUBLIC_AUTH0_DOMAIN=http://localhost:9999`. The wizard check is
+  `pnpm --filter @portal/web e2e:wizard` (headless Chrome with a fake microphone, 60
+  assertions: a real Generate, a real W5 test call with live transcript and after-call
+  card, a real feedback patch, W6 persistence, the W7 Stripe redirect and cancel/unpaid
+  returns). It stops before paying: activation buys a real number.
+- W5 test calls: `useTestCall` gives `RetellClient` a `fetch` that answers create-web-call
+  from `POST /agents/:id/test/web`, and replaces `client.api.monitorSocket` so only the
+  live-transcript socket goes to our relay (`${apiUrl}/test-calls/v2/monitor-call/:id`)
+  while WebRTC signalling stays on the platform (ADR 0003, D9 addendum). W7 remembers the
+  started checkout in `checkoutMarker` as a hint only; paid is whatever the activation says.
+  Back from Stripe it posts the URL's `session_id` to `POST /wallet/checkout/confirm` once
+  on mount and again on "Check again", so a late or lost webhook cannot strand a paid
+  customer on "Confirming your payment"; the page still shows only what the activation says.
+
+**Dashboard (frontend/web `/app` — ADR 0018)**
+
+- **D3 is `/app/agents/detail/?id=&tab=` and the D2 detail is `/app/calls/?call=`** — the
+  spec's `[id]` segments flattened for the export like `/invite/?token=`. Build them with
+  `agentPath()` / `callPath()` in `src/routes.ts`, never by hand. `AGENT_TABS` is the
+  tab order.
+- **D2 state is the URL** (`useUrlQuery` + `calls-url.ts`): status, agent, channel, test,
+  handled, range, sort, order, cursor and the open call. A component never holds its own
+  copy. Range presets are instants from the workspace timezone's local midnight
+  (`startOfLocalDay`), the same days `GET /stats` uses. Pages are the §16 cursor plus the
+  API's `total`.
+- **One SSE subscription per page, on every topic** (`useDashboardLive`): a `call:{id}`
+  topic cannot be subscribed to before the id exists. Frames only invalidate queries
+  (`listCalls`, `getStats`, `getCall`, `getWallet`, `listActiveAlerts`, `getAgent`),
+  folded 400 ms; the new-call toast fires once per call id, on the first `registered` /
+  `in_progress` / `missed` frame, and never for `is_test` or a `web` channel. The first
+  frame carries `from_number`, `agent_id`, `channel`, `direction`, `is_test` for that.
+- `GET /calls` sorts server-side (`sort`, `order`, nulls last, `created_at`+`id` tiebreak)
+  and returns `total`; `callSummary.sentiment` is read from `analysis_json` on the server.
+  The cursor is an explicit keyset predicate (`afterPosition()`), **not Prisma's `cursor`**:
+  a tuple compared against NULL is NULL, so a cursor row in the null tail (a missed call)
+  made the next page empty. A cursor naming a row this workspace cannot see is
+  `400 INVALID_CURSOR`. The portal carries a 1-based `page` beside `cursor` in the URL and
+  keeps the walked cursors in `sessionStorage` per filter, so a pasted or reloaded page
+  labels itself right and can step back.
+  Bulk handled is `PATCH /calls {ids, handled}` → `{updated}` (rows now in that state,
+  foreign ids silently unmatched). Export is `POST /calls/export` → streamed `text/csv`,
+  500 rows per `withWorkspace`, 10 000 rows max, formula-safe cells; the client helper is
+  `exportCalls()` (hand-written — `client: false` in the manifest).
+- The Advanced editor lints through `POST /agents/:id/versions/:v/lint` (same
+  `lintPrompt`, guardrails appended, nothing written) and saves through
+  `PUT …/versions/:v/prompt`. It edits `editable_prompt` only; the §9.4 block is shown
+  read-only. Unsaved edits survive a background refetch and warn on `beforeunload`.
+- `BriefFields` and `VoiceSettings` (`src/components/wizard/`) are the W2/W3 bodies and the
+  D3 Brief/Voice tabs at once. Change a field there, not in a page.
+- Tables drop secondary columns below `sm` (`hidden sm:table-cell`) instead of carrying a
+  `min-width`: Chrome sizes the mobile layout viewport from a table's minimum width even
+  inside an `overflow-x-auto` wrapper. The 30-day chart is inline SVG, one series, one hue.
+- D10 exit check: `pnpm --filter @portal/web e2e:dashboard` against the export, the API
+  and worker it was built for, and the local issuer minting the owner of a **live**
+  workspace (`docs/decisions/0018-customer-dashboard.md`, Consequences).
 
 **Configuration**
 
@@ -618,7 +727,11 @@ throws and never waits past its budget (ADR 0010 §6).
 - SSE topics: `wallet`, `alerts` (D7: `opened` / `resolved` / `dismissed`), `agent:{id}`,
   `call:{id}`, `activation:{id}`. `GET /events` is an ordinary
   authenticated route (the client is `@microsoft/fetch-event-source`), narrowed with `?topics=`, and
-  only ever carries `ctx.workspaceId`'s own channel. `agent:{id}` frame types are named once, in
+  only ever carries `ctx.workspaceId`'s own channel. **Every open stream is ended on
+  shutdown** (`EventsController.beforeApplicationShutdown`): Fastify's close forces only
+  idle connections and a hijacked stream is never idle, so one open dashboard tab kept the
+  old process alive and the `nest --watch` restart — or a deploy's graceful stop — hanging
+  behind it (24 Sep; `test/shutdown.e2e.test.ts`). The client reconnects on `retry: 3000`. `agent:{id}` frame types are named once, in
   `modules/agents/agent-events.ts`: `created`, `draft_updated`, `draft_selected`,
   `generation_started`, `generation_progress`, `generated`, `generation_failed`, `patched`, `version_created`,
   `published`, `paused`, `resumed`, `deleted`, plus `activated` (D6). `activation:{job_id}` frames
@@ -629,16 +742,44 @@ throws and never waits past its budget (ADR 0010 §6).
   the same resource at `/knowledge`); `PUT/GET /agents/:id/phone-plan`; `GET /numbers`,
   `POST /numbers/buy`, `POST /numbers/import`, `GET/PATCH/DELETE /numbers/:id`,
   `GET /numbers/forwarding-guide`; `POST /agents/:id/activate` (202), `GET /agents/:id/activation`,
-  `GET /activations/:id`; `PUT /wallet/auto-topup`, `GET /wallet/invoices`, `POST /wallet/portal-session`.
+  `GET /activations/:id`; `PUT /wallet/auto-topup`, `GET /wallet/invoices`, `POST /wallet/portal-session`;
+  since 24 Sep `POST /wallet/checkout/confirm` (owner/admin, `{session_id}` →
+  `{purchase_id, status, credited}`, `404` for a session that is not this workspace's,
+  `503 UPSTREAM_UNAVAILABLE` when Stripe cannot be asked).
   Buying, importing, releasing, activating and billing routes are owner/admin; knowledge and
   routing edits are editor and above.
 - D7 routes: `GET /alerts/active`, `POST /alerts/:id/dismiss`,
   `GET|PATCH /workspace/notification-settings` (any member; a member edits only their own
   preferences), `GET /health/ready`. The full contract with every code and role is
   `docs/api/openapi.json`.
+- D10 routes: `PATCH /calls {ids, handled}` (owner/admin/editor), `POST /calls/export`
+  (owner/admin/editor, `text/csv`), `POST /agents/:id/versions/:v/lint` (any role);
+  `GET /calls` takes `sort`, `order`, `handled` and answers `total`.
+- D9 routes: `POST /agents/:id/test/web` (201, editor+, verified email; §13.4:
+  `402 NO_CREDITS`, `429 TEST_RATE_LIMIT` at 10/h per workspace — a **fixed** window
+  (`RedisCache.increment`, `SET NX` + `INCR`, counted only after the platform minted),
+  `409 TESTS_PAUSED` under the SA12 `pause_web_tests` switch, `409 CONCURRENCY_LIMIT`
+  when every `active:{ws}` slot of the plan is live) answers `{call_id, access_token, rate, balance,
+  version_no, max_call_duration_s, live_token, transport…}` and writes no row —
+  `call_started` does, from `metadata {tenant_id, agent_id, version_no, tier, test}`. Its
+  ceiling is the inbound formula (ADR 0011 §1): min(the version's duration, what the
+  balance **after the other live calls' reservations** covers) — never the raw balance,
+  which let two tabs each spend the whole wallet. The
+  **only WebSocket** on the API is `LiveTranscriptRelay` at
+  `/test-calls/v2/monitor-call/:call_id` (bearer subprotocol = `live_token`, a
+  `RecordingSigner` token with purpose `live`; `main.ts` attaches it, the worker never
+  does). Stripe's success/cancel URLs depend on the session: with `agent_id` (W7) both go
+  to `/onboarding/activate` (`?session_id=` / `?checkout=cancelled`), without it to
+  `/app/wallet`.
 - Recordings: `GET /calls/:id/recording` mints a signed one-hour link to
   `GET /calls/:id/recording/stream?token=`, which is `@Public()` and proxies the bytes. The Retell
-  URL is never given to the browser (ADR 0011 §5).
+  URL is never given to the browser (ADR 0011 §5). **The link is minted on the origin the
+  request arrived on** (`x-forwarded-proto`/`x-forwarded-host`, then `host`), never on
+  `API_PUBLIC_URL`: that is the platform's callback URL, in dev an ngrok tunnel whose free
+  tier answers a browser with an HTML interstitial, which `<audio>` reported as "could not
+  be played" (24 Sep). The proxy also relabels a `.wav` the CDN serves as
+  `application/octet-stream` to `audio/wav` (`recordingContentType`); Firefox refuses the
+  former outright.
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 
@@ -707,6 +848,9 @@ pnpm doctor            # which env vars are unset, what is reachable
 pnpm dev               # api, worker, portal, admin. The worker is not optional: without it
                        # every 202 job (generate, provision, activate) sits in `queued` for
                        # ever. `GET /health/ready` reports it as "no heartbeat".
+pnpm dev:stripe        # stripe listen → localhost:4000/webhooks/stripe. The Stripe account's only
+                       # registered endpoint is staging's; without this no local purchase is credited
+                       # by webhook (W7's confirm and the 15-minute sweep still credit it, later).
 pnpm --filter @portal/api openapi:generate   # after any route change: docs/api/openapi.json + the typed client
 ```
 
@@ -766,8 +910,15 @@ knowledge W4 → auto top-up → team and invites.
   the overdue → release path, expiry idempotency, low-balance alert state, digest per
   timezone (DST included), reconciliation once-per-window alerting, concurrency alert
   hysteresis, webhook ordering / replay / decline for both providers, and the RLS matrix over
-  every D6/D7 table (`test/d7-*.e2e.test.ts`, `backend/db/test/rls.e2e.test.ts`).
-  Other areas are best-effort.
+  every D6/D7 table (`test/d7-*.e2e.test.ts`, `backend/db/test/rls.e2e.test.ts`); from D9 —
+  the test-call mint (draft re-sync, credits, rate limit, kill switch, roles, isolation) and
+  the live-transcript relay's authorisation and frame filter (`test/d9-test-call.e2e.test.ts`,
+  `live-transcript.relay.test.ts`); from D10 — server-side sort with a stable cursor, the
+  total, `handled`/`sentiment`, bulk handled (foreign id, viewer) and the CSV export
+  (columns, filters, ids, isolation, formula-safe cells) in `test/calls-api.e2e.test.ts`
+  and `modules/calls/csv.test.ts`, plus the portal's URL state, 30-day series, transcript
+  and analysis parsers and line diff (`frontend/web/src/dashboard/*.test.ts`). Other areas
+  are best-effort.
 - The §13.9 latency SLO is asserted, not eyeballed: `pnpm --filter @portal/api load:setup` then
   `load:inbound` runs k6 with `p(95)<300` as a threshold, so the run exits non-zero if it regresses.
   `load:reset` frees the slots a previous run reserved; `load:teardown` pauses the number afterwards.

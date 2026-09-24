@@ -141,11 +141,12 @@
       "title": "Two-factor authentication",
       "body": "Add a one-time code from an authenticator app to every sign-in.",
       "status": "Status",
-      "enabled": "Enabled on this session",
+      "enabled": "Enabled",
       "notEnabled": "Not enabled",
+      "onHint": "Two-factor authentication is on. Every sign-in asks for a code from your authenticator app.",
       "enable": "Set up two-factor",
       "verifying": "You will be asked to sign in again and enrol an authenticator app.",
-      "done": "Two-factor authentication is on."
+      "done": "Two-factor authentication is on. You will be asked for a code from your authenticator app each time you sign in."
     },
     "callback": {
       "title": "Signing you in…",
@@ -217,7 +218,15 @@
     "NOT_CONFIGURED": "This feature is not ready yet. Our team has been notified.",
     "default": "Something went wrong.",
     "title": "Something went wrong",
-    "loadFailed": "We could not load this."
+    "loadFailed": "We could not load this.",
+    "TESTS_PAUSED": "Test calls are briefly paused for maintenance. Try again in a few minutes.",
+    "CONCURRENCY_LIMIT": "Every line your plan allows is on a call right now. Try again when one finishes.",
+    "ACTIVATION_IN_PROGRESS": "Your agent is already going live.",
+    "PACK_UNAVAILABLE": "That pack is not available. Choose another.",
+    "PROMO_INVALID": "That promo code cannot be used.",
+    "NO_PAYMENT_METHOD": "There is no saved card for this workspace yet.",
+    "LINT_FAILED": "Your agent's instructions need a fix before it can go live.",
+    "NUMBER_IN_USE": "That number is already in use."
   },
   "validation": {
     "required": "Required",
@@ -471,21 +480,789 @@
       "title": "{step} is next",
       "body": "This step arrives in the next release. Your progress so far is saved.",
       "dashboard": "Go to the dashboard"
+    },
+    "w4": {
+      "title": "What should your agent know?",
+      "subtitle": "Add your website pages, menus, price lists or FAQs. Your agent answers from them on every call. You can skip this and add them later.",
+      "continue": "Continue",
+      "skip": "Skip for now",
+      "lockedTitle": "Included from a bigger pack",
+      "lockedBody": "Adding what your agent knows is part of the {pack} pack and up. Skip for now and come back after you choose a pack in the last step.",
+      "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack. Skip for now and come back after you choose a pack in the last step.",
+      "asideTitle": "Good sources",
+      "asideBody": "Short, factual pages work best: hours, services, prices, policies, directions.",
+      "asideLive": "Each source is read once it is added. Anything still being read when you go live is picked up the next time you publish.",
+      "full": "Your agent can know up to {max} sources. Remove one to add another.",
+      "listTitle": "Sources",
+      "checking": "Checking progress…",
+      "emptyTitle": "Nothing added yet",
+      "emptyBody": "Sources you add appear here with their progress.",
+      "failedDefault": "We could not read this source.",
+      "remove": "Remove {name}",
+      "status": {
+        "processing": "Processing",
+        "ready": "Ready",
+        "failed": "Failed",
+        "deleting": "Removing"
+      },
+      "addTitle": "Add a source",
+      "addBody": "One page, one file or a block of text at a time.",
+      "typeLabel": "Source type",
+      "types": {
+        "url": "Web page",
+        "urlHint": "A public page on your website.",
+        "file": "File",
+        "fileHint": "PDF, Word, text or CSV, up to {mb} MB.",
+        "text": "Text",
+        "textHint": "Paste anything: FAQs, a menu, a policy."
+      },
+      "fields": {
+        "url": "Page address",
+        "urlHint": "One page is read, not the whole site.",
+        "file": "File",
+        "fileHint": "The file is read once and not kept after that.",
+        "name": "Name",
+        "namePlaceholder": "e.g. Opening hours",
+        "text": "Text",
+        "textPlaceholder": "Q: Do you take walk-ins?\nA: Yes, until 4 pm on weekdays."
+      },
+      "errors": {
+        "url": "Enter a full web address starting with https://",
+        "name": "Give this text a name.",
+        "text": "Paste some text first.",
+        "file": "Choose a file first.",
+        "fileType": "That file type is not supported. Use PDF, Word, text or CSV.",
+        "fileSize": "That file is larger than {mb} MB."
+      },
+      "add": "Add source",
+      "adding": "Adding…",
+      "added": "Source added. We are reading it now."
+    },
+    "w5": {
+      "title": "Test your agent",
+      "subtitle": "Talk to your agent in the browser, see what it captured, and tell it what to change. Test calls use your credits.",
+      "continue": "Continue",
+      "call": {
+        "title": "Talk to your agent",
+        "subtitle": "You are testing draft version {version}. Nothing is live yet.",
+        "timer": "Time",
+        "rate": "Rate",
+        "perMin": "{credits}/min",
+        "used": "Used",
+        "balance": "Balance",
+        "left": "≈ {credits} left",
+        "noCreditsHint": "Choose a pack in the last step to keep testing.",
+        "start": "Start test call",
+        "again": "Call again",
+        "end": "Hang up",
+        "askingMic": "Allow the microphone…",
+        "connecting": "Connecting…",
+        "micHint": "Your browser will ask to use your microphone.",
+        "transcript": "Live transcript",
+        "listening": "Listening… say hello.",
+        "transcriptEmpty": "The conversation will appear here.",
+        "agent": "Agent",
+        "you": "You",
+        "tryThese": "Try saying",
+        "status": {
+          "idle": "Ready",
+          "connecting": "Connecting",
+          "live": "On the call",
+          "agentTalking": "Agent speaking",
+          "ended": "Call ended",
+          "failed": "Could not connect"
+        },
+        "errors": {
+          "micDeniedTitle": "Microphone blocked",
+          "micDenied": "Allow microphone access for this site in your browser's address bar, then try again.",
+          "micMissingTitle": "No microphone found",
+          "micMissing": "Connect a microphone or headset, then try again.",
+          "noCreditsTitle": "Out of credits",
+          "apiTitle": "We could not start the call",
+          "connectionTitle": "The call could not connect",
+          "connection": "Check your connection and try again. If you are on a work network, it may block browser calls."
+        }
+      },
+      "after": {
+        "title": "After the call",
+        "subtitle": "What your agent took away from the conversation.",
+        "ready": "Ready",
+        "analysing": "Analysing",
+        "notRecorded": "We have no record of this call yet. If you hung up within a second or two, nothing was charged.",
+        "duration": "Duration",
+        "seconds": "{s, plural, one {# second} other {# seconds}}",
+        "charged": "Credits charged",
+        "pending": "Calculating…",
+        "sentiment": "Caller mood",
+        "outcome": "Outcome",
+        "successful": "Goal reached",
+        "unsuccessful": "Goal not reached",
+        "summary": "Summary",
+        "waiting": "The summary usually arrives within a minute of hanging up.",
+        "late": "This is taking longer than usual. The results will appear here as soon as they arrive.",
+        "unavailable": "No summary came back for this call. Very short calls sometimes have none.",
+        "captured": "What it captured",
+        "fullTranscript": "Full transcript",
+        "yes": "Yes",
+        "no": "No"
+      },
+      "improve": {
+        "title": "Tell it what to change",
+        "subtitle": "Describe the change in your own words. We write a new draft version; the old one is kept.",
+        "label": "What should change?",
+        "placeholder": "e.g. Ask for the caller's phone number before ending the call, and don't mention prices.",
+        "tooShort": "Write at least {min} characters.",
+        "submit": "Update my agent",
+        "working": "Updating your agent…",
+        "workingHint": "This usually takes 10 to 20 seconds.",
+        "failedTitle": "We could not update your agent",
+        "failedBody": "Nothing was changed. Try again, or rephrase the request.",
+        "refusedTitle": "Nothing changed",
+        "refusedBody": "That request goes against a rule every agent follows, so your agent is unchanged.",
+        "doneTitle": "Version {version} is ready",
+        "doneBody": "Your agent was updated.",
+        "testAgain": "Call again to hear the difference."
+      }
+    },
+    "w6": {
+      "title": "How will callers reach your agent?",
+      "subtitle": "Choose a number now. It is set up when you go live in the next step; nothing is bought yet.",
+      "continue": "Continue",
+      "fixErrors": "Some fields need attention.",
+      "options": {
+        "label": "Phone number option",
+        "rental": "{credits, plural, one {# credit} other {# credits}} a month.",
+        "new": {
+          "title": "A new number",
+          "body": "Get a local or toll-free number that your agent answers."
+        },
+        "forward": {
+          "title": "Keep your number",
+          "body": "We give you a new number and you forward your existing line to it."
+        },
+        "sip": {
+          "title": "Bring your own line",
+          "body": "Connect a phone system you already have over SIP.",
+          "free": "No monthly number fee.",
+          "locked": "Part of the {pack} pack and up.",
+          "lockedGeneric": "Part of a bigger pack."
+        }
+      },
+      "details": {
+        "new": {
+          "title": "Your new number",
+          "body": "Pick a country and, if you like, an area code. We choose the closest available number."
+        },
+        "forward": {
+          "title": "Forward your existing number",
+          "body": "Callers keep dialling the number they know. We give your agent a new number and you forward your line to it."
+        },
+        "sip": {
+          "title": "Your SIP connection",
+          "body": "The number your system delivers and where to reach it. Your password is encrypted the moment it arrives and never shown again."
+        }
+      },
+      "fields": {
+        "country": "Country",
+        "countries": {
+          "US": "United States",
+          "CA": "Canada"
+        },
+        "areaCode": "Area code",
+        "areaCodeHint": "Three digits, e.g. 514.",
+        "tollFree": "Toll-free",
+        "tollFreeHint": "An 8XX number instead of a local one.",
+        "existingNumber": "Your current number",
+        "existingNumberHint": "The line callers dial today, with the country code, e.g. +14505550123.",
+        "sipNumber": "Phone number",
+        "sipHost": "SIP address",
+        "sipHostHint": "e.g. sip.example.com or sip:pbx.example.com:5060",
+        "sipUsername": "Username",
+        "sipPassword": "Password",
+        "sipPasswordHint": "Only if your system needs one.",
+        "sipPasswordAgain": "A password is saved. Enter it again to keep it; saving without one removes it."
+      },
+      "routing": {
+        "title": "Answering and hand-off",
+        "body": "When the agent answers, and who it can pass a caller to.",
+        "hours": "When to answer",
+        "modes": {
+          "always": "Around the clock",
+          "business": "During business hours"
+        },
+        "hoursHint": {
+          "always": "Your agent answers every call, day and night.",
+          "business": "Your agent answers during the business hours you gave in step 2."
+        }
+      },
+      "transfer": {
+        "title": "Transfer to a person",
+        "body": "Up to five people or lines the agent may hand a caller to when asked.",
+        "empty": "No one yet. The agent will take a message instead.",
+        "label": "Name",
+        "labelPlaceholder": "e.g. Front desk",
+        "number": "Phone number",
+        "remove": "Remove person {n}",
+        "add": "Add a person",
+        "max": "That is the most you can add ({max}).",
+        "errors": {
+          "label": "Give this person a name.",
+          "number": "Enter the number with its country code, e.g. +14505550123."
+        }
+      },
+      "errors": {
+        "country": "Choose the United States or Canada.",
+        "areaCode": "An area code is three digits and does not start with 0 or 1.",
+        "e164": "Enter the number with its country code, e.g. +14505550123.",
+        "sipHost": "Enter an address such as sip.example.com.",
+        "generic": "Check this field."
+      },
+      "guide": {
+        "carrier": "Your phone company",
+        "carriers": {
+          "bell": "Bell",
+          "rogers": "Rogers",
+          "telus": "TELUS",
+          "videotron": "Vidéotron",
+          "att": "AT&T",
+          "verizon": "Verizon",
+          "tmobile": "T-Mobile",
+          "other": "Another carrier"
+        },
+        "turnOn": "To turn forwarding on",
+        "turnOff": "To turn it off",
+        "whenLive": "Do this once your agent is live — we show your new number on the next screens."
+      }
+    },
+    "w7": {
+      "title": "Choose a pack and go live",
+      "subtitle": "Credits pay for calls: 1 credit is 1 minute with a Standard voice. Your agent goes live as soon as payment clears.",
+      "progressTitle": "Going live",
+      "progressSubtitle": "This usually takes under a minute. You can leave this page; we email you when it is done.",
+      "cancelledTitle": "Checkout cancelled",
+      "cancelledBody": "Nothing was charged. Choose a pack when you are ready.",
+      "confirm": {
+        "title": "Confirming your payment…",
+        "body": "We are waiting for the payment confirmation. This normally takes a few seconds.",
+        "slowTitle": "Still waiting for the payment confirmation",
+        "slowBody": "Some payments take longer to clear. If you completed checkout, you can start going live now — we check the payment first.",
+        "start": "Start going live",
+        "check": "Check again",
+        "paidTitle": "Payment confirmed",
+        "paidBody": "Your credits are in. Starting the go-live steps now.",
+        "notPaid": "There is no completed payment for this checkout. If you paid, wait a moment and check again; otherwise choose a pack below."
+      },
+      "otherPack": "Need a different pack?",
+      "otherPackAction": "Choose again",
+      "packs": {
+        "label": "Packs",
+        "none": "No packs are on sale right now. Please try again later.",
+        "roleTitle": "Ask the workspace owner",
+        "roleBody": "Only an owner or admin can buy credits and put the agent live.",
+        "credits": "{credits} credits",
+        "bonus": "+{credits} bonus",
+        "concurrency": "{n, plural, one {# call at a time} other {# calls at a time}}",
+        "knowledge": "{n, plural, one {What your agent knows for # agent} other {What your agent knows for # agents}}",
+        "noKnowledge": "No knowledge sources",
+        "summaryTitle": "{pack} pack",
+        "summaryBody": "{credits} credits, valid for {months} months.",
+        "topup": "Top up automatically",
+        "topupHint": "Buy another {pack} pack when your balance falls to {threshold} credits, so your agent never stops answering.",
+        "pay": "Pay {price} and go live",
+        "redirecting": "Opening secure checkout…",
+        "secure": "Secure checkout by Stripe"
+      },
+      "progress": {
+        "connecting": "Connecting…",
+        "status": {
+          "pending": "Getting started",
+          "publishing": "Publishing your agent",
+          "provisioning": "Setting up your number",
+          "binding": "Connecting your number",
+          "marking_live": "Going live",
+          "live": "Your agent is live",
+          "failed": "We could not finish"
+        },
+        "badgeLive": "Live",
+        "badgeFailed": "Stopped",
+        "badgeWorking": "Working",
+        "workingBody": "Each step is saved as it finishes, so nothing is done twice.",
+        "liveBody": "Taking you to your new number…",
+        "failedBody": "Your payment is safe. Try again, and if it keeps failing we will help.",
+        "progressLabel": "{pct}% done",
+        "attempt": "Attempt {n} of {max}",
+        "steps": {
+          "publish": "Publish the agent",
+          "provision": "Get the number",
+          "bind": "Connect the number to the agent",
+          "mark_live": "Switch on",
+          "notify": "Send the confirmation email"
+        },
+        "skipped": "Not needed",
+        "number": "Your number: {number}",
+        "failedTitle": "Going live stopped",
+        "failedDefault": "Something went wrong while going live.",
+        "polling": "Live updates paused — checking every few seconds."
+      }
+    },
+    "live": {
+      "title": "{name} is live",
+      "subtitle": "Your agent is answering calls now. Call the number below to hear it.",
+      "numberTitle": "Your agent's number",
+      "numberBody": "Calls to this number reach your agent.",
+      "numberPending": "Your number is being finalised. It appears here and in Numbers shortly.",
+      "dashboard": "Go to the dashboard",
+      "calls": "See calls",
+      "forwarding": {
+        "title": "One more step: forward {from}",
+        "body": "Your agent already answers {to}. Forward your existing line to it with the codes below.",
+        "confirm": "I have turned forwarding on",
+        "confirmed": "Thanks — forwarding is marked as on.",
+        "ready": "Calls to {from} are forwarded to your agent."
+      }
     }
   },
   "dashboard": {
     "home": {
       "title": "Home",
       "welcome": "Welcome to {workspace}",
-      "body": "Live calls, credits and your agent’s day will appear here once you go live."
+      "body": "Live calls, credits and your agent’s day will appear here once you go live.",
+      "credits": {
+        "title": "Credits",
+        "buy": "Buy credits",
+        "credits": "credits",
+        "ofPack": "of a {pack}-credit pack",
+        "remaining": "Credits remaining from your last pack",
+        "usedToday": "Used today",
+        "expiring": "Expiring next",
+        "expiringValue": "{credits} on {date}",
+        "nothingExpiring": "Nothing expiring",
+        "autoTopupOn": "Auto top-up is on: refills below {threshold} credits."
+      },
+      "today": {
+        "title": "Today",
+        "timezone": "Your day in {tz}",
+        "calls": "Calls",
+        "ofWhichTests": "{n} test",
+        "missed": "Missed",
+        "minutes": "Minutes",
+        "credits": "Credits used",
+        "avgDuration": "Avg. length",
+        "answered": "Answered"
+      },
+      "agents": {
+        "title": "Agents",
+        "all": "All agents"
+      },
+      "checklist": {
+        "title": "Set-up checklist",
+        "progress": "{done} of {total} done",
+        "steps": {
+          "workspace_created": "Create your workspace",
+          "agent_created": "Start an agent",
+          "agent_generated": "Write the agent from your brief",
+          "agent_published": "Publish the agent",
+          "credits_purchased": "Buy your first credits",
+          "number_attached": "Attach a phone number"
+        }
+      },
+      "recent": {
+        "title": "Recent calls",
+        "all": "All calls"
+      },
+      "activity": {
+        "title": "Last 30 days",
+        "total": "{value} {metric} in the last 30 days",
+        "metricLabel": "Show",
+        "metric": {
+          "calls": "Calls",
+          "minutes": "Minutes",
+          "credits": "Credits"
+        },
+        "empty": "No calls in the last 30 days.",
+        "emptyHint": "Once your agent answers a call, each day shows up here.",
+        "table": "View as a table",
+        "day": "Day",
+        "missed": "Missed",
+        "tooltip": "{calls} calls · {missed} missed · {minutes} min · {credits} credits"
+      }
     },
     "calls": {
       "title": "Calls",
-      "empty": "No calls yet. Once your agent is live, every call shows up here with a transcript and summary."
+      "empty": "No calls yet. Once your agent is live, every call shows up here with a transcript and summary.",
+      "count": "{n} calls",
+      "loadFailed": "Unable to load calls. Try again.",
+      "emptyFiltered": "No calls match these filters.",
+      "browserTest": "Browser test",
+      "unknownCaller": "Unknown caller",
+      "test": "test",
+      "creditsShort": "{n} cr",
+      "perMin": "{n}/min",
+      "selectAll": "Select all calls on this page",
+      "selectOne": "Select this call",
+      "handledYes": "Handled",
+      "showing": "Showing {first}–{last} of {total}",
+      "showingPage": "Showing {first}–{last}",
+      "previous": "Previous",
+      "next": "Next",
+      "status": {
+        "registered": "Ringing",
+        "in_progress": "Live",
+        "ended": "Ended",
+        "analyzed": "Done",
+        "missed": "Missed"
+      },
+      "sentiment": {
+        "positive": "Positive",
+        "neutral": "Neutral",
+        "negative": "Negative",
+        "unknown": "Unknown"
+      },
+      "direction": {
+        "inbound": "Inbound",
+        "outbound": "Outbound"
+      },
+      "channel": {
+        "phone": "Phone",
+        "web": "Browser"
+      },
+      "declineReason": {
+        "balance": "Declined: the balance was too low.",
+        "cap": "Declined: every line was busy.",
+        "blocked": "Declined: this caller is blocked.",
+        "hours": "Declined: outside business hours.",
+        "paused": "Declined: the agent or workspace was paused."
+      },
+      "columns": {
+        "when": "When",
+        "caller": "Caller",
+        "agent": "Agent",
+        "duration": "Length",
+        "mood": "Mood",
+        "credits": "Credits",
+        "status": "Status",
+        "handled": "Handled"
+      },
+      "filters": {
+        "range": "Period",
+        "ranges": {
+          "all": "All time",
+          "today": "Today",
+          "7d": "Last 7 days",
+          "30d": "Last 30 days"
+        },
+        "status": "Status",
+        "anyStatus": "Any status",
+        "agent": "Agent",
+        "anyAgent": "Any agent",
+        "channel": "Channel",
+        "anyChannel": "Phone and browser",
+        "phone": "Phone",
+        "web": "Browser",
+        "test": "Test calls",
+        "testAny": "Include tests",
+        "testHide": "Hide tests",
+        "testOnly": "Tests only",
+        "handled": "Handled",
+        "handledAny": "Handled or not",
+        "handledNo": "To handle",
+        "handledYes": "Handled",
+        "clear": "Clear filters"
+      },
+      "bulk": {
+        "selected": "{n} selected",
+        "markHandled": "Mark handled",
+        "export": "Export selected",
+        "clear": "Clear",
+        "done": "{n} calls marked handled"
+      },
+      "export": {
+        "button": "Export CSV",
+        "done": "Your export is downloading."
+      },
+      "recording": {
+        "none": "No recording for this call.",
+        "load": "Load recording",
+        "unavailable": "The recording is not available.",
+        "expired": "The recording link expired. Load it again.",
+        "playbackError": "The recording could not be played.",
+        "noAudioSupport": "Your browser cannot play audio here."
+      },
+      "transcript": {
+        "agent": "Agent",
+        "caller": "Caller",
+        "unavailable": "No transcript for this call.",
+        "showAll": "Show {n} more"
+      },
+      "detail": {
+        "title": "Call",
+        "notFound": "This call is not in your workspace.",
+        "missedTitle": "The caller did not reach your agent",
+        "summary": "Summary",
+        "summaryPending": "The summary arrives a minute or so after the call ends.",
+        "summaryUnavailable": "No summary came back for this call.",
+        "sentiment": "Caller mood",
+        "outcome": "Outcome",
+        "goalReached": "Goal reached",
+        "goalNotReached": "Goal not reached",
+        "voicemail": "Voicemail",
+        "captured": "What it captured",
+        "capturedPending": "Captured fields arrive with the summary.",
+        "capturedNone": "Nothing was captured on this call.",
+        "transcript": "Transcript",
+        "recording": "Recording",
+        "details": "Details",
+        "duration": "Length",
+        "charged": "Credits charged",
+        "rate": "Rate",
+        "tier": "Tier",
+        "direction": "Direction",
+        "channel": "Channel",
+        "from": "From",
+        "to": "To",
+        "agentVersion": "Agent version",
+        "started": "Started",
+        "ended": "Ended",
+        "disconnection": "How it ended",
+        "callId": "Call ID",
+        "handled": "Handled",
+        "handledAt": "Marked handled {when}",
+        "handledHint": "Tick once someone has followed up.",
+        "markedHandled": "Marked handled",
+        "markedUnhandled": "Marked not handled",
+        "note": "Note",
+        "notePlaceholder": "What happened next?",
+        "noteViewer": "No note.",
+        "noteSaved": "Note saved"
+      }
     },
     "agents": {
       "title": "Agents",
-      "empty": "No agents yet."
+      "empty": "No agents yet.",
+      "count": "{n} agents",
+      "emptyHint": "Start one from a template and it will be ready to test in minutes.",
+      "version": "Version {n}",
+      "notPublished": "Not published yet",
+      "numbers": "{n} numbers",
+      "numbersLabel": "Numbers",
+      "unpublished": "Unpublished changes",
+      "live": "Live",
+      "draft": "Draft",
+      "max": "max",
+      "created": "Created {when}",
+      "status": {
+        "live": "Live",
+        "paused": "Paused",
+        "draft": "Draft"
+      },
+      "templates": {
+        "receptionist": "Receptionist",
+        "appointment": "Appointment booking",
+        "afterhours": "After-hours",
+        "lead_qual": "Lead qualification",
+        "faq_support": "FAQ and support",
+        "restaurant": "Restaurant",
+        "custom": "Custom"
+      },
+      "tabs": {
+        "overview": "Overview",
+        "brief": "Brief",
+        "prompt": "Advanced",
+        "voice": "Voice",
+        "knowledge": "Knowledge",
+        "test": "Test",
+        "versions": "Versions",
+        "settings": "Settings"
+      },
+      "detail": {
+        "back": "All agents",
+        "missing": "No agent was chosen.",
+        "notFound": "This agent is not in your workspace.",
+        "subtitle": "Live {live} · Draft {draft}",
+        "tabs": "Agent sections"
+      },
+      "new": {
+        "button": "New agent",
+        "title": "New agent",
+        "body": "Pick the closest template. Everything can be changed afterwards.",
+        "name": "Name",
+        "nameHint": "How it appears in your dashboard, 2–60 characters.",
+        "namePlaceholder": "Front desk",
+        "template": "Template",
+        "create": "Create agent",
+        "planLimit": "Your plan includes one agent. Choose a bigger pack to add another."
+      },
+      "publish": {
+        "title": "Draft v{n} has changes that are not live (live: v{live})",
+        "firstTitle": "Draft v{n} is ready to publish",
+        "hint": "Publishing runs the checks and puts this version on your numbers.",
+        "pausedHint": "This agent is paused. Publishing updates it but does not resume it.",
+        "button": "Publish v{n}",
+        "done": "Version {n} is live.",
+        "alreadyLive": "Version {n} was already live.",
+        "blocked": "Fix these before publishing",
+        "warnings": "Published with warnings"
+      },
+      "overview": {
+        "configuration": "Configuration",
+        "liveVsDraft": "What callers hear now, next to what the draft would change.",
+        "draftOnly": "Nothing is live yet. These are the draft's settings.",
+        "setting": "Setting",
+        "tier": "Tier",
+        "voice": "Voice",
+        "language": "Languages",
+        "maxDuration": "Max call length",
+        "recording": "Recording",
+        "on": "On",
+        "off": "Off",
+        "greeting": "Greeting",
+        "recentCalls": "Recent calls",
+        "allCalls": "All calls",
+        "noCalls": "No calls for this agent yet.",
+        "status": "Status",
+        "statusLabel": "Status",
+        "numbers": "Phone numbers",
+        "noNumbers": "None attached",
+        "template": "Template",
+        "created": "Created",
+        "publishedAt": "Published",
+        "draftUpdated": "Draft updated",
+        "finishBrief": "Finish the brief"
+      },
+      "brief": {
+        "hint": "Edits save automatically into draft v{n}. Regenerate to rewrite the script from them.",
+        "viewerHint": "You can read the brief; editing needs the editor role.",
+        "regenerateTitle": "Rewrite the script",
+        "regenerateBody": "Turns the brief into a new draft version. The current version is kept.",
+        "regenerated": "Version {n} was written from your brief."
+      },
+      "prompt": {
+        "hint": "Editing the script of draft v{n}. Saving creates a new version; the old one is kept.",
+        "viewerHint": "Reading the script of v{n}. Editing needs the editor role.",
+        "save": "Save as new version",
+        "saved": "Saved as version {n}.",
+        "greeting": "Greeting",
+        "greetingHint": "The first thing the caller hears.",
+        "prompt": "Script",
+        "promptHint": "Plain instructions work best. The platform rules below are always added.",
+        "closing": "Closing",
+        "closingHint": "How the agent ends a call.",
+        "tooShort": "Write at least {min} characters.",
+        "tooLong": "The script is too long.",
+        "guardrails": "Platform rules (always applied)",
+        "guardrailsHint": "These are appended to every agent and cannot be edited.",
+        "lintTitle": "Checks",
+        "linting": "Checking…",
+        "lintHint": "Run as you type. Errors block publishing; warnings are advice.",
+        "lintNone": "Start typing to run the checks.",
+        "lintClean": "All checks pass.",
+        "publishable": "No errors. This version can be published.",
+        "notPublishable": "Errors must be fixed before publishing.",
+        "field": "in {field}",
+        "versionNote": "Every save is a new immutable version. Restore any earlier one from the Versions tab.",
+        "noVersion": "This agent has no version yet.",
+        "noPrompt": "Generate the script from the Brief tab first.",
+        "rules": {
+          "prompt_empty": "Empty script",
+          "prompt_too_long": "Script length",
+          "no_greeting": "Missing greeting",
+          "greeting_too_long": "Greeting length",
+          "handoff_rule_missing": "No hand-off rule",
+          "transfer_tool_missing": "Transfer without a number",
+          "absolute_language": "Absolute language",
+          "language_mismatch": "Language mismatch",
+          "guardrails_missing": "Platform rules missing"
+        }
+      },
+      "voice": {
+        "hint": "Changes save to the draft and go live at the next publish.",
+        "viewerHint": "Voice settings can be changed by editors and above."
+      },
+      "knowledge": {
+        "lockedBody": "Adding what your agent knows is part of the {pack} pack and up.",
+        "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack.",
+        "publishedHint": "A source added now reaches your agent at the next publish."
+      },
+      "test": {
+        "hint": "You are testing draft v{n} in the browser. Test calls use credits.",
+        "viewerHint": "Test calls can be made by editors and above.",
+        "noPrompt": "Generate the script from the Brief tab before testing."
+      },
+      "versions": {
+        "hint": "Every version is kept. Pick two to compare.",
+        "compare": "Compare two versions",
+        "compareThese": "Compare v{a} and v{b}",
+        "pick": "Pick",
+        "pickVersion": "Pick version {n} to compare",
+        "version": "Version",
+        "source": "Source",
+        "created": "Created",
+        "changes": "Changes",
+        "actions": "Actions",
+        "live": "Live",
+        "draft": "Draft",
+        "noPrompt": "No script",
+        "publishedAt": "Published {when}",
+        "moreChanges": "{n} more",
+        "view": "View",
+        "restore": "Restore as draft",
+        "publish": "Publish",
+        "restored": "Version {n} is now the draft.",
+        "published": "Version {n} is live.",
+        "alreadyLive": "Version {n} was already live.",
+        "lintBlocked": "That version has errors and cannot be published.",
+        "empty": "No versions yet.",
+        "viewTitle": "Version {n}",
+        "greeting": "Greeting",
+        "prompt": "Script",
+        "feedback": "Feedback that produced it",
+        "lintOk": "Checks pass",
+        "lintErrors": "Has errors",
+        "diffTitle": "v{a} → v{b}",
+        "diffSummary": "{added} lines added, {removed} removed",
+        "sources": {
+          "generated": "Generated",
+          "feedback": "Feedback",
+          "manual": "Manual edit",
+          "regenerate": "Regenerated"
+        }
+      },
+      "settings": {
+        "general": "General",
+        "generalHint": "Labels for your dashboard. Callers never hear these.",
+        "name": "Name",
+        "nameHint": "2–60 characters.",
+        "industry": "Industry",
+        "calls": "Calls",
+        "callsHint": "These apply to the draft and go live at the next publish.",
+        "tier": "Tier",
+        "tierHint": "Premium uses the more natural voice stack.",
+        "standardBody": "{rate}. Good for most businesses.",
+        "premiumBody": "{rate}. Most natural voices.",
+        "maxDuration": "Max call length",
+        "maxDurationHint": "Calls end at this point. 3 to 30 minutes.",
+        "recording": "Record calls",
+        "recordingHint": "Recordings appear on each call's page.",
+        "on": "on",
+        "off": "off",
+        "liveNow": "Live now: {tier}, {duration} max, recording {recording}.",
+        "saved": "Settings saved.",
+        "danger": "Pause or delete",
+        "dangerHint": "Owners and admins only.",
+        "pause": "Pause agent",
+        "pauseHint": "Callers on its numbers hear a busy tone until you resume.",
+        "resume": "Resume agent",
+        "resumeHint": "Answers again on every number.",
+        "paused": "Agent paused.",
+        "resumed": "Agent resumed.",
+        "delete": "Delete agent",
+        "deleteHint": "Removes the agent. Its calls stay in your history.",
+        "deleteTitle": "Delete {name}?",
+        "deleteBody": "This cannot be undone. Calls it took stay in your history.",
+        "deleted": "Agent deleted.",
+        "inUse": "Release its phone numbers first.",
+        "adminOnly": "Your role cannot pause or delete agents."
+      }
     },
     "numbers": {
       "title": "Phone numbers",
@@ -510,6 +1287,41 @@
       "title": "Help",
       "body": "Guides and support are on the way. For now, email support@oraly.ai."
     },
-    "comingSoon": "This page arrives in the next release."
+    "comingSoon": "This page arrives in the next release.",
+    "live": {
+      "newCall": "New inbound call",
+      "missedCall": "Missed call",
+      "from": "From {number}",
+      "view": "View"
+    },
+    "alerts": {
+      "loadFailed": "Alerts could not be loaded",
+      "lowBalance": {
+        "title": "Your balance is below {pct}% of your last pack",
+        "outTitle": "You are out of credits",
+        "body": "{balance} credits left. Calls stop once the balance runs out.",
+        "outBody": "Your agent will stop answering until you add credits.",
+        "cta": "Buy credits"
+      },
+      "rentalOverdue": {
+        "title": "The rental for {number} is overdue",
+        "body": "{days} days overdue. Add credits to keep the number."
+      },
+      "numberReleased": {
+        "title": "{number} was released",
+        "body": "The number's rental went unpaid for too long and it was released. Attach a new number to take calls.",
+        "cta": "Phone numbers"
+      },
+      "concurrency": {
+        "title": "Callers are hitting your concurrency limit",
+        "body": "{live} calls at once against a limit of {cap}. A bigger pack raises the limit.",
+        "cta": "See packs"
+      },
+      "autoTopupFailed": {
+        "title": "Auto top-up failed",
+        "body": "Your saved card was declined. Update it to keep the balance topped up.",
+        "cta": "Update card"
+      }
+    }
   }
 }

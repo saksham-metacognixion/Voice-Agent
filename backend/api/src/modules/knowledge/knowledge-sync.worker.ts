@@ -177,11 +177,24 @@ export class KnowledgeSyncWorker {
   }
 
   private async delete(row: SourceRow): Promise<{ outcome: string; reason?: string }> {
-    if (row.retellSourceId && row.agent.retellKbId) {
+    const kbId = row.agent.retellKbId;
+    if (row.retellSourceId && kbId) {
+      // The platform refuses to empty a knowledge base ("400 cannot delete the last
+      // source, delete the knowledge base instead" — found by the D9 wizard run), so the
+      // last synced source takes the base with it; the next add creates a fresh one
+      // through the usual look-before-you-buy path.
+      const others = await adminDb.knowledgeSource.count({ where: { agentId: row.agentId, id: { not: row.id }, retellSourceId: { not: null }, status: { not: 'deleting' } } });
       try {
-        await this.retell.deleteKnowledgeSource(row.agent.retellKbId, row.retellSourceId);
+        if (others === 0) {
+          await this.retell.deleteKnowledgeBase(kbId);
+          await adminDb.agent.updateMany({ where: { id: row.agentId, retellKbId: kbId }, data: { retellKbId: null } });
+          this.log.log(`knowledge ${row.id} was the last source; KB ${kbId} deleted`);
+        } else {
+          await this.retell.deleteKnowledgeSource(kbId, row.retellSourceId);
+        }
       } catch (error) {
         if (!isRetellNotFound(error)) throw error; // retried by BullMQ; the row stays `deleting`
+        if (others === 0) await adminDb.agent.updateMany({ where: { id: row.agentId, retellKbId: kbId }, data: { retellKbId: null } });
       }
     }
     await adminDb.knowledgeSource.deleteMany({ where: { id: row.id, status: 'deleting' } });

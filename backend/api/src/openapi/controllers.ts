@@ -3,6 +3,7 @@ import { ActivationController } from '../modules/activation/activation.controlle
 import { AgentsController, TemplatesController } from '../modules/agents/agents.controller';
 import { BillingController } from '../modules/billing/billing.controller';
 import { CallsController, StatsController } from '../modules/calls/calls.controller';
+import { TestCallController } from '../modules/calls/test-call.controller';
 import { ConfigController } from '../modules/config/config.controller';
 import { EventsController } from '../modules/events/events.controller';
 import { JobsController } from '../modules/jobs/jobs.controller';
@@ -37,6 +38,7 @@ export const CONTROLLERS = [
   ActivationController,
   CallsController,
   StatsController,
+  TestCallController,
   WalletController,
   BillingController,
   JobsController,

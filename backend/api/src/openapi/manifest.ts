@@ -17,7 +17,7 @@ import type { ErrorCode, MemberRole } from '@portal/schemas';
  */
 
 /** A response body: one named schema, an array of one, a §16 page of one, or nothing. */
-export type ResponseRef = { schema: string; nullable?: boolean } | { array: string } | { paginated: string } | { none: true } | { stream: 'text/event-stream' | 'application/octet-stream' };
+export type ResponseRef = { schema: string; nullable?: boolean } | { array: string } | { paginated: string } | { none: true } | { stream: 'text/event-stream' | 'application/octet-stream' | 'text/csv' };
 
 export interface EndpointSpec {
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
@@ -73,6 +73,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
   { method: 'POST', path: '/agents/:id/draft/select', operationId: 'selectAgentDraft', summary: '§13.5 Undo / restore a version as the draft', tag: 'agents', body: 'selectVersionRequest', response: { schema: 'agentDetail' }, roles: ['owner', 'admin', 'editor'], errors: ['NOT_FOUND', 'VALIDATION_FAILED'] },
   { method: 'GET', path: '/agents/:id/versions', operationId: 'listAgentVersions', summary: 'Version history', tag: 'agents', spec: '§9.9', response: { array: 'agentVersionSummary' }, errors: ['NOT_FOUND'] },
   { method: 'GET', path: '/agents/:id/versions/:v', operationId: 'getAgentVersion', summary: 'One version with its prompt', tag: 'agents', response: { schema: 'agentVersionDetail' }, errors: ['NOT_FOUND'] },
+  { method: 'POST', path: '/agents/:id/versions/:v/lint', operationId: 'lintVersionPrompt', summary: 'Advanced — lint a prompt against a version without saving it', tag: 'agents', spec: '§9.5', body: 'lintRequest', response: { schema: 'lintResult' }, errors: ['NOT_FOUND', 'VALIDATION_FAILED'] },
   { method: 'PUT', path: '/agents/:id/versions/:v/prompt', operationId: 'updateVersionPrompt', summary: 'Advanced — manual prompt edit creates a new version', tag: 'agents', spec: '§9.4', body: 'promptUpdate', response: { schema: 'agentVersionDetail' }, roles: ['owner', 'admin', 'editor'], errors: ['NOT_FOUND', 'VALIDATION_FAILED', 'LINT_FAILED'] },
   { method: 'POST', path: '/agents/:id/publish', operationId: 'publishAgent', summary: '§13.6 publish — lint, push to the voice platform, go live', tag: 'agents', body: 'publishRequest', response: { schema: 'publishResponse' }, roles: ['owner', 'admin', 'editor'], errors: ['NOT_FOUND', 'LINT_FAILED', 'PUBLISH_IN_PROGRESS', 'WORKSPACE_PAUSED', 'NOT_CONFIGURED', 'UPSTREAM_UNAVAILABLE'] },
   { method: 'POST', path: '/agents/:id/pause', operationId: 'pauseAgent', summary: 'Stop answering on every number', tag: 'agents', response: { schema: 'agentDetail' }, roles: ['owner', 'admin'], errors: ['NOT_FOUND'] },
@@ -112,7 +113,10 @@ export const MANIFEST: readonly EndpointSpec[] = [
   { method: 'GET', path: '/activations/:id', operationId: 'getActivation', summary: 'One activation job', tag: 'activation', response: { schema: 'activationView' }, errors: ['NOT_FOUND'] },
 
   // ------------------------------------------------------------------ calls (D2, §14)
-  { method: 'GET', path: '/calls', operationId: 'listCalls', summary: 'D2 — calls, newest first', tag: 'calls', query: 'callsQuery', response: { paginated: 'callSummary' } },
+  { method: 'GET', path: '/calls', operationId: 'listCalls', summary: 'D2 — calls, filtered and sorted, with the total for the pager', tag: 'calls', query: 'callsQuery', response: { paginated: 'callSummary' } },
+  { method: 'PATCH', path: '/calls', operationId: 'bulkUpdateCalls', summary: 'D2 — mark several calls handled (or not) in one statement', tag: 'calls', body: 'callsBulkPatch', response: { schema: 'callsBulkResponse' }, roles: ['owner', 'admin', 'editor'], errors: ['VALIDATION_FAILED'] },
+  { method: 'POST', path: '/calls/export', operationId: 'exportCalls', summary: 'D2 — CSV of the calls matching the filters, or of the selected ids', tag: 'calls', spec: '§16', body: 'callsExportRequest', response: { stream: 'text/csv' }, roles: ['owner', 'admin', 'editor'], client: false, errors: ['VALIDATION_FAILED'] },
+  { method: 'POST', path: '/agents/:id/test/web', operationId: 'startTestWebCall', summary: 'W5 — mint a browser test call for a version (default the draft)', tag: 'calls', spec: '§13.4', body: 'testWebCallRequest', response: { schema: 'testWebCallResponse' }, roles: ['owner', 'admin', 'editor'], errors: ['NOT_FOUND', 'NO_CREDITS', 'EMAIL_UNVERIFIED', 'TEST_RATE_LIMIT', 'TESTS_PAUSED', 'CONCURRENCY_LIMIT', 'WORKSPACE_PAUSED', 'BRIEF_INCOMPLETE', 'UPSTREAM_UNAVAILABLE'] },
   { method: 'GET', path: '/calls/:id', operationId: 'getCall', summary: 'D2 detail: transcript, analysis, charge', tag: 'calls', response: { schema: 'callDetail' }, errors: ['NOT_FOUND'] },
   { method: 'PATCH', path: '/calls/:id', operationId: 'updateCall', summary: 'Mark handled, add a note', tag: 'calls', body: 'callPatch', response: { schema: 'callDetail' }, roles: ['owner', 'admin', 'editor'], errors: ['NOT_FOUND', 'VALIDATION_FAILED'] },
   { method: 'GET', path: '/calls/:id/recording', operationId: 'getCallRecording', summary: 'A signed one-hour link to the recording stream', tag: 'calls', spec: 'ADR 0011 §5', response: { schema: 'recordingResponse' }, roles: ['owner', 'admin', 'editor'], errors: ['NOT_FOUND'] },
@@ -124,6 +128,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
   { method: 'GET', path: '/wallet/lots', operationId: 'listCreditLots', summary: 'Credit lots and their expiry', tag: 'wallet', response: { array: 'creditLotResponse' } },
   { method: 'GET', path: '/wallet/ledger', operationId: 'listLedger', summary: 'Every credit movement', tag: 'wallet', query: 'ledgerQuery', response: { paginated: 'ledgerEntryResponse' } },
   { method: 'POST', path: '/wallet/checkout', operationId: 'createCheckout', summary: '§13.7 — a hosted Checkout session for a pack', tag: 'wallet', body: 'checkoutRequest', response: { schema: 'checkoutResponse' }, roles: ['owner', 'admin'], errors: ['PACK_UNAVAILABLE', 'PROMO_INVALID', 'PURCHASES_PAUSED', 'EMAIL_UNVERIFIED', 'UPSTREAM_UNAVAILABLE'] },
+  { method: 'POST', path: '/wallet/checkout/confirm', operationId: 'confirmCheckout', summary: '§13.7 — back from Stripe: verify the session with Stripe and credit the pack if the webhook has not', tag: 'wallet', body: 'checkoutConfirmRequest', response: { schema: 'checkoutConfirmResponse' }, roles: ['owner', 'admin'], errors: ['NOT_FOUND', 'UPSTREAM_UNAVAILABLE'] },
   { method: 'PUT', path: '/wallet/auto-topup', operationId: 'updateAutoTopup', summary: '§5.4 — auto top-up settings', tag: 'wallet', body: 'autoTopupRequest', response: { schema: 'autoTopup' }, roles: ['owner', 'admin'], errors: ['NO_PAYMENT_METHOD', 'PACK_UNAVAILABLE', 'PLAN_LIMIT'] },
   { method: 'GET', path: '/wallet/invoices', operationId: 'listInvoices', summary: 'Stripe invoices mirrored for the workspace', tag: 'wallet', query: 'invoicesQuery', response: { paginated: 'invoiceResponse' } },
   { method: 'POST', path: '/wallet/portal-session', operationId: 'createPortalSession', summary: 'A Stripe Customer Portal session', tag: 'wallet', body: 'portalSessionRequest', response: { schema: 'portalSessionResponse' }, roles: ['owner', 'admin'], errors: ['NO_PAYMENT_METHOD', 'UPSTREAM_UNAVAILABLE'] },

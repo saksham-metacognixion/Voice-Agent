@@ -164,8 +164,8 @@ export class StripeGateway {
       },
       ...(autoTopup ? { saved_payment_method_options: { payment_method_save: 'enabled' } } : {}),
       invoice_creation: { enabled: true },
-      success_url: this.config.successUrl,
-      cancel_url: this.config.cancelUrl,
+      success_url: this.config.successUrl(Boolean(input.agentId)),
+      cancel_url: this.config.cancelUrl(Boolean(input.agentId)),
       expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_TTL_S,
     });
 
@@ -280,6 +280,14 @@ export class StripeGateway {
 
   async retrievePaymentIntent(id: string): Promise<PaymentIntentFacts> {
     return StripeGateway.paymentIntentFacts(await this.client.paymentIntents.retrieve(id));
+  }
+
+  /**
+   * A Checkout Session by id, for the return path (`POST /wallet/checkout/confirm`) and the
+   * pending-purchase sweep: what Stripe says happened, never what the URL says.
+   */
+  async retrieveCheckoutSession(id: string): Promise<CheckoutSessionFacts> {
+    return StripeGateway.sessionFacts(await this.client.checkout.sessions.retrieve(id));
   }
 
   static paymentIntentFacts(object: unknown): PaymentIntentFacts {

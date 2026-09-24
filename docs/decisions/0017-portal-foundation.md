@@ -27,8 +27,11 @@ handles `?code=&state=` and then goes to `appState.returnTo`.
 A3 needs the `email_verified` claim to flip without a new sign-in. `refresh()` calls
 `getTokenSilently({cacheMode: 'off'})`, which is a refresh-token grant; Post-Login Actions
 run on that grant, so the re-minted tokens carry the new claim. A5 asks for the
-`multi-factor` `acr_values` on a fresh sign-in and reads `amr` afterwards; enrolment is
-Auth0's page, not ours. A6's first half is Auth0's public `dbconnections/change_password`.
+`multi-factor` `acr_values` on a fresh sign-in; enrolment is Auth0's page, not ours. The
+customer Post-Login Action is the opt-in policy (tenant policy "Never"): it enables MFA
+when that is requested or a factor is enrolled, and stamps `https://portal/mfa_enrolled`
+on the ID token. A5's status is that claim or `amr` containing `mfa` (24 Sep 2026: the
+tenant had no factor enabled, so the request enrolled nothing). A6's first half is Auth0's public `dbconnections/change_password`.
 
 ### 2. Gating is one pure function plus four guards
 

@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { adminDb } from '@portal/db';
 import type { AnalysisField, Brief, RetellLanguage } from '@portal/schemas';
 import { transferTargets } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
@@ -12,6 +13,8 @@ import {
   type PostCallAnalysisField,
   type PostCallAnalysisModel,
   type TierStack,
+  providerOfVoiceId,
+  voiceModelFor,
 } from '../retell';
 
 /**
@@ -47,6 +50,7 @@ export class AgentRetellService {
       throw new AppError('NOT_CONFIGURED', 'The agent stack is not configured; nothing was sent to the voice platform.');
     }
     const llmSpec = this.llmSpec(input);
+    const voiceProvider = await this.voiceProvider(input.voiceId ?? input.stack.default_voice_id);
     let llmId = input.retellLlmId;
     let created = false;
 
@@ -63,7 +67,7 @@ export class AgentRetellService {
       if (!created) await this.retell.updateLlm(llmId, llmSpec);
       // `create-agent` makes version 0, unpublished, already carrying this content
       // (ADR 0003 §7). There is nothing left to update.
-      const agent = await this.retell.createAgent(this.agentSpec(input, llmId));
+      const agent = await this.retell.createAgent(this.agentSpec(input, llmId, voiceProvider));
       this.log.log(`agent ${input.agentId}: created Retell agent ${agent.agent_id} (v${agent.version ?? 0})`);
       return { llmId, agentId: agent.agent_id, draftVersion: agent.version ?? 0, created: true };
     }
@@ -95,7 +99,7 @@ export class AgentRetellService {
     // until the payload was sent to the real API
     // (`scripts/d5-retell-verify.ts`, fixtures `d5-*.json`).
     if (!created) await this.retell.updateLlm(llmId, llmSpec);
-    await this.retell.updateAgent(agentId, this.agentSpec(input, llmId));
+    await this.retell.updateAgent(agentId, this.agentSpec(input, llmId, voiceProvider));
 
     return { llmId, agentId, draftVersion, created };
   }
@@ -159,14 +163,30 @@ export class AgentRetellService {
     };
   }
 
-  private agentSpec(input: RetellSyncInput, llmId: string): AgentSpec {
+  /**
+   * The chosen voice's provider, from the catalogue (`voices.provider`, a global table),
+   * else its id prefix. A catalogue that cannot be read never fails a sync over it.
+   */
+  private async voiceProvider(voiceId: string): Promise<string | null> {
+    try {
+      const row = await adminDb.voice.findUnique({ where: { retellVoiceId: voiceId }, select: { provider: true } });
+      if (row?.provider) return row.provider;
+    } catch {
+      /* fall through to the prefix */
+    }
+    return providerOfVoiceId(voiceId);
+  }
+
+  private agentSpec(input: RetellSyncInput, llmId: string, voiceProvider: string | null): AgentSpec {
     // W3: no voice picked means the tier's default voice — a row in SA6, never a constant.
     const voiceId = input.voiceId ?? input.stack.default_voice_id;
     return {
       name: input.agentName,
       llmId,
       voiceId,
-      voiceModel: input.stack.voice_model,
+      // The tier's TTS model only fits voices of its own provider; any other voice runs
+      // on its provider's default model rather than failing the sync with a 400.
+      voiceModel: voiceModelFor(voiceProvider, input.stack.voice_model),
       // W3 offers both; they are stored on the version and were never sent, so the
       // customer's choice had no effect on the call. Null means "leave Retell's default".
       voiceSpeed: input.voiceSpeed ?? undefined,

@@ -22,7 +22,7 @@ import { EventsModule } from '../src/modules/events';
 import { JobsModule, WorkerRuntime } from '../src/modules/jobs';
 import { PROMPT_PROVIDER, PromptingModule, ScriptedPromptProvider } from '../src/modules/prompting';
 import { RedisModule } from '../src/modules/redis';
-import { type ProviderCallFacts, RetellGateway, RetellModule } from '../src/modules/retell';
+import { type ProviderCallFacts, type RetellCallFacts, RetellGateway, RetellModule } from '../src/modules/retell';
 import { RuntimeCacheModule } from '../src/modules/runtime-cache';
 import { ScheduledModule } from '../src/modules/scheduled';
 import { VoicesModule } from '../src/modules/voices';
@@ -139,6 +139,7 @@ export class FakeRetellGateway {
     this.phoneNumbers.clear();
     this.knowledgeBases.clear();
     this.providerCalls.length = 0;
+    this.callObjects.clear();
     this.kbIngestPolls = 1;
   }
 
@@ -297,7 +298,31 @@ export class FakeRetellGateway {
     }));
   }
 
+  /** What `get-call` answers, by call id: a test seeds the platform's copy of a call whose webhooks were lost. Absent → 404 (null). */
+  readonly callObjects = new Map<string, RetellCallFacts>();
+
+  retrieveCallFacts(callId: string): Promise<RetellCallFacts | null> {
+    return this.record('retrieveCallFacts', [callId], () => {
+      const call = this.callObjects.get(callId);
+      return call ? structuredClone(call) : null;
+    });
+  }
+
   // ---------------------------------------------------------------- numbers (D6, §11)
+
+  /** §13.4 browser test call: the minted token, with the transport fields the SDK needs. */
+  createWebCall(input: { agentId: string; agentVersion: number; metadata: Record<string, unknown>; maxCallDurationMs?: number }) {
+    return this.record('createWebCall', [input], () => ({
+      call_id: `call_web_${Math.random().toString(16).slice(2, 14)}`,
+      access_token: 'fake-access-token',
+      agent_id: input.agentId,
+      agent_version: input.agentVersion,
+      call_status: 'registered',
+      transport: 'livekit',
+      url: 'wss://fake.livekit.test',
+      ice_servers: [],
+    }));
+  }
 
   createPhoneNumber(input: { numberToken: string; agentId: string; country: 'US' | 'CA'; areaCode?: number; tollFree?: boolean; nickname: string; allowedInboundCountries?: string[] }) {
     return this.record('createPhoneNumber', [input], () => {
@@ -398,6 +423,8 @@ export class FakeRetellGateway {
     return this.record('deleteKnowledgeSource', [kbId, sourceId], () => {
       const kb = this.kbOrThrow(kbId);
       const before = kb.knowledge_base_sources.length;
+      // Retell will not empty a knowledge base (D9 wizard run, live).
+      if (before === 1 && kb.knowledge_base_sources[0]!.source_id === sourceId) throw notFoundLike(400, 'cannot delete the last source, delete the knowledge base instead');
       kb.knowledge_base_sources = kb.knowledge_base_sources.filter((s) => s.source_id !== sourceId);
       if (kb.knowledge_base_sources.length === before) throw notFoundLike(404, `source ${sourceId} not found`);
       return this.kbView(kb);

@@ -174,23 +174,33 @@ describe('knowledge sources', () => {
     expect(retell.knowledgeBases.get(agent.retellKbId!)!.knowledge_base_sources).toHaveLength(1);
   }, 40_000);
 
-  it('deleting removes the platform copy first and then the row; a never-synced source is removed at once', async () => {
+  it('deleting removes the platform copy first and then the row; the last source takes the knowledge base with it; a never-synced source is removed at once', async () => {
     const ws = await paidWorkspace(app, 'kb-delete', 'growth');
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
-    const created = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'text', name: 'Hours', text: 'Open 9–5.' });
-    const sourceId = created.body.id as string;
-    const ready = await waitForSource(sourceId);
-    if ('gone' in ready) throw new Error('row vanished');
+    const first = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'text', name: 'Hours', text: 'Open 9–5.' });
+    const second = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'text', name: 'Parking', text: 'Free parking behind the building.' });
+    const readyFirst = await waitForSource(first.body.id as string);
+    const readySecond = await waitForSource(second.body.id as string);
+    if ('gone' in readyFirst || 'gone' in readySecond) throw new Error('row vanished');
     const agent = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    const kbId = agent.retellKbId!;
 
-    const removed = await call('DELETE', `/agents/${agentId}/knowledge/${sourceId}`, headers);
+    // Not the last: that one source leaves the platform's knowledge base, then the row goes.
+    const removed = await call('DELETE', `/agents/${agentId}/knowledge/${first.body.id as string}`, headers);
     expect(removed.status).toBe(200);
     expect(removed.body).toEqual({ deleted: false, pending: true });
-    const gone = await waitForSource(sourceId);
-    expect('gone' in gone).toBe(true);
-    expect(retell.knowledgeBases.get(agent.retellKbId!)!.knowledge_base_sources.find((s) => s.source_id === ready.retellSourceId)).toBeUndefined();
+    expect('gone' in (await waitForSource(first.body.id as string))).toBe(true);
+    expect(retell.knowledgeBases.get(kbId)!.knowledge_base_sources.find((s) => s.source_id === readyFirst.retellSourceId)).toBeUndefined();
     expect(retell.countOf('deleteKnowledgeSource')).toBeGreaterThan(0);
+
+    // The last: the platform will not empty a knowledge base, so the base itself is deleted.
+    const kbDeletesBefore = retell.countOf('deleteKnowledgeBase');
+    await call('DELETE', `/agents/${agentId}/knowledge/${second.body.id as string}`, headers);
+    expect('gone' in (await waitForSource(second.body.id as string))).toBe(true);
+    expect(retell.countOf('deleteKnowledgeBase') - kbDeletesBefore).toBe(1);
+    expect(retell.knowledgeBases.has(kbId)).toBe(false);
+    expect((await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } })).retellKbId).toBeNull();
 
     // Never reached the platform: no job, straight delete.
     const pending = await adminDb.knowledgeSource.create({ data: { tenantId: ws.workspaceId, agentId, type: 'text', name: 'orphan', status: 'failed' } });

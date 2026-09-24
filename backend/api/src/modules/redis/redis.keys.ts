@@ -12,6 +12,7 @@
  *   kill:reject_inbound  the SA12 inbound kill switch, projected for the hot path
  *   lock:schedule:{name} one worker per running schedule tick (D7)
  *   worker:heartbeat  the worker's liveness beacon (D7)
+ *   ratelimit:test-web:{ws}  browser test calls this hour (§13.4, D9)
  *   alert:platform_concurrency  the open platform-wide concurrency incident (D7)
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
  *
@@ -54,6 +55,8 @@ export const redisKeys = {
   scheduleLock: (name: string) => `lock:schedule:${name}`,
   /** D7: the worker's liveness beacon, refreshed every 30 s; read by GET /health/ready. */
   workerHeartbeat: 'worker:heartbeat',
+  /** §13.4: browser test calls minted in the current hour, per workspace (fixed window). */
+  testCallWindow: (workspaceId: string) => `ratelimit:test-web:{${workspaceId}}`,
   /**
    * D7: the platform-wide concurrency incident the `concurrency-monitor` schedule has
    * open, so ops is paged once per incident and not once per tick. Held for a day at

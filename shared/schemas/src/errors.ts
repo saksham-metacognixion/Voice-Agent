@@ -52,6 +52,10 @@ export const ErrorCode = {
   CONFLICT: 'CONFLICT',
   PURCHASES_PAUSED: 'PURCHASES_PAUSED',
   GENERATION_PAUSED: 'GENERATION_PAUSED',
+  /** The SA12 `pause_web_tests` kill switch is on (§13.4). */
+  TESTS_PAUSED: 'TESTS_PAUSED',
+  /** Every concurrent-call slot of the plan is taken by a live call (§13.4 test call, §5.2 caps). */
+  CONCURRENCY_LIMIT: 'CONCURRENCY_LIMIT',
   ALREADY_MEMBER: 'ALREADY_MEMBER',
   AGENT_IN_USE: 'AGENT_IN_USE',
   PUBLISH_IN_PROGRESS: 'PUBLISH_IN_PROGRESS',
@@ -101,6 +105,8 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409,
   PURCHASES_PAUSED: 409,
   GENERATION_PAUSED: 409,
+  TESTS_PAUSED: 409,
+  CONCURRENCY_LIMIT: 409,
   ALREADY_MEMBER: 409,
   AGENT_IN_USE: 409,
   PUBLISH_IN_PROGRESS: 409,

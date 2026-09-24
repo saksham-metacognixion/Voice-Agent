@@ -94,17 +94,19 @@ function WorkspaceGate({ children }: { children: React.ReactNode }) {
 
 /**
  * A wizard page W-k: reachable only while `k ≤ onboarding_step` (no skipping ahead), and
- * not at all once onboarding is complete (then it is the dashboard's job).
+ * not at all once onboarding is complete (then it is the dashboard's job — or, with
+ * `completeRedirect`, that page's: W7 sends a finished activation to the live screen).
  */
-export function OnboardingStepGuard({ step, children }: { step: number; children: React.ReactNode }) {
+export function OnboardingStepGuard({ step, completeRedirect, children }: { step: number; completeRedirect?: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const gate = useSessionGate(pathname);
   const router = useRouter();
   const t = useTranslations();
 
   const allowed = gate.ready && gate.onboardingStep !== null && !gate.onboardingComplete && step <= gate.onboardingStep;
+  const destination = gate.onboardingComplete && completeRedirect ? completeRedirect : gate.destination;
   // Never redirect on a workspace row that is being re-read: the step may have just advanced.
-  const redirect = gate.ready && !gate.settling && gate.destination && !allowed && gate.destination !== pathname ? gate.destination : null;
+  const redirect = gate.ready && !gate.settling && destination && !allowed && destination !== pathname ? destination : null;
 
   React.useEffect(() => {
     if (redirect) router.replace(redirect);
@@ -112,6 +114,26 @@ export function OnboardingStepGuard({ step, children }: { step: number; children
 
   if (!gate.ready || redirect) return <PageLoader label={t('common.loading')} />;
   if (!allowed) return <PageLoader label={t('common.loading')} />;
+  return <>{children}</>;
+}
+
+/**
+ * `/onboarding/live`: only once onboarding is complete — `onboarding_completed_at` is
+ * written by the activation job's `mark_live`, so a refresh here never restarts
+ * anything, and someone who is not live yet is sent back to their wizard step.
+ */
+export function LiveGuard({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const gate = useSessionGate(pathname);
+  const router = useRouter();
+  const t = useTranslations();
+  const redirect = gate.ready && !gate.settling && gate.onboardingStep !== null && !gate.onboardingComplete ? stepPath(gate.onboardingStep) : null;
+
+  React.useEffect(() => {
+    if (redirect) router.replace(redirect);
+  }, [redirect, router]);
+
+  if (!gate.ready || redirect || !gate.onboardingComplete) return <PageLoader label={t('common.loading')} />;
   return <>{children}</>;
 }
 

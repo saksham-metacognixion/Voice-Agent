@@ -220,6 +220,18 @@ export class VoicesService {
   }
 
   /**
+   * Does the catalogue need filling now rather than at the next 05:00 UTC tick? True when
+   * `voices` is empty or older than `VOICE_STALE_AFTER_MS` — the same condition W3 shows
+   * the stale banner for. A fresh environment otherwise serves an empty picker for up to
+   * a day (found on staging, 23 Sep 2026). Read on worker boot.
+   */
+  async catalogueNeedsRefresh(now = Date.now()): Promise<boolean> {
+    const newest = await adminDb.voice.aggregate({ _max: { updatedAt: true } });
+    const refreshedAt = newest._max.updatedAt;
+    return !refreshedAt || now - refreshedAt.getTime() > VOICE_STALE_AFTER_MS;
+  }
+
+  /**
    * A fixed window in Redis, counted read-then-write.
    *
    * Two honest limitations, both deliberate. The increment is not atomic, so a burst of

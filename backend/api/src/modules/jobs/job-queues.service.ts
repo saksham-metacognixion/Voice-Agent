@@ -12,7 +12,9 @@ import {
   type ProvisionNumberJob,
   QUEUES,
   type QueueName,
+  type RecoverCallJob,
   type RefreshNumberJob,
+  SCHEDULED_JOBS,
   type WarmWorkspaceJob,
 } from './jobs.constants';
 
@@ -105,6 +107,9 @@ export const REPAIR_JOB_OPTIONS: JobsOptions = {
   removeOnComplete: true,
   removeOnFail: true,
 };
+
+/** How long a `recover-call` waits before asking the platform, and so how often an open card can ask. */
+export const RECOVER_CALL_DELAY_MS = 20_000;
 
 /** How long `add()` may wait for Redis. The inbound path is on a 300 ms budget overall. */
 export const ENQUEUE_TIMEOUT_MS = 1_000;
@@ -285,6 +290,32 @@ export class JobQueues implements OnApplicationShutdown {
       { ...activationJobOptions(), jobId: activationBullId(job.jobId) },
       ENQUEUE_TIMEOUT_MS,
       true,
+    );
+  }
+
+  /**
+   * A one-off `voice-cache` run outside its daily cron, for a worker that boots onto an
+   * empty or stale catalogue. It lands on the scheduled queue under the schedule's own
+   * handler, so it takes `lock:schedule:voice-cache` like any tick; the fixed id makes
+   * several workers booting at once enqueue one run, and it is freed once the job settles.
+   */
+  enqueueVoiceCacheNow(): Promise<EnqueueResult> {
+    return this.add(QUEUES.scheduled, SCHEDULED_JOBS.voiceCache, {}, { ...REPAIR_JOB_OPTIONS, attempts: 1, jobId: 'voice-cache-boot' });
+  }
+
+  /**
+   * ADR 0011 §7 on demand. The delay is the throttle: while the job waits, every later
+   * poll of the same call enqueues the same id and BullMQ refuses it, so an open W5 card
+   * polling every 3 s costs one `get-call` per `RECOVER_CALL_DELAY_MS`, not one per poll.
+   * It rides the `webhooks` queue because what it does is store a missing webhook.
+   */
+  enqueueRecoverCall(callId: string): Promise<EnqueueResult> {
+    return this.add<RecoverCallJob>(
+      QUEUES.webhooks,
+      JOBS.recoverCall,
+      { callId },
+      { ...REPAIR_JOB_OPTIONS, attempts: 1, delay: RECOVER_CALL_DELAY_MS, jobId: `recover-${safeId(callId)}` },
+      250,
     );
   }
 

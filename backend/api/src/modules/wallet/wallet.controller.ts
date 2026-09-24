@@ -1,11 +1,13 @@
 import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import {
+  type CheckoutConfirmResponse,
   type CheckoutResponse,
   type CreditLotResponse,
   type LedgerEntryResponse,
   type LedgerQuery,
   type Page,
   type WalletResponse,
+  checkoutConfirmRequest,
   checkoutRequest,
   ledgerQuery,
 } from '@portal/schemas';
@@ -51,5 +53,16 @@ export class WalletController {
   @RequireEmailVerified()
   checkout(@Ctx() ctx: WorkspaceContext, @Body() body: z.infer<typeof checkoutRequest>): Promise<CheckoutResponse> {
     return this.billing.createCheckout(ctx, checkoutRequest.parse(body));
+  }
+
+  /**
+   * §13.7 back from Stripe: `session_id` in the return URL is verified with Stripe and the
+   * pack credited if the webhook has not done it yet. Idempotent; a paid purchase answers
+   * `credited: false`.
+   */
+  @Post('checkout/confirm')
+  @Roles('owner', 'admin')
+  confirmCheckout(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<CheckoutConfirmResponse> {
+    return this.billing.confirmCheckout(ctx, checkoutConfirmRequest.parse(body).session_id);
   }
 }

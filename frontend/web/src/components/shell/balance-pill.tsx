@@ -31,7 +31,7 @@ export function BalancePill({ className }: { className?: string }) {
           className={cn(
             'inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition-colors hover:bg-muted',
             tone === 'ok' && 'border-border bg-card text-foreground',
-            tone === 'warning' && 'border-warning/50 bg-warning/15 text-warning-foreground dark:text-warning',
+            tone === 'warning' && 'border-warning/50 bg-warning/15 text-warning-emphasis',
             tone === 'danger' && 'border-danger/40 bg-danger/10 text-danger',
             className,
           )}

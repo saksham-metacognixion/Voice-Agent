@@ -18,9 +18,11 @@ Domain **oraly.ai** (Namecheap, BasicDNS — ADR 0015). Started 22 Sep 2026.
 | 4. Configuration → SSM Parameter Store             | **done** — 31 parameters under `/voice-agent/staging/`              |
 | 5. Instance bootstrap (registry login, repo clone) | **done** — 23 Sep, GHCR login + private clone                       |
 | 6. First deploy                                    | **done** — 23 Sep 11:36 IST, `develop`, all four containers healthy |
-| 7. Retell / Stripe / Auth0 pointed at staging      | Stripe endpoint created; Retell and Auth0 pending                   |
-| 8. GitHub `staging` environment, CI deploys        | not started                                                         |
-| F. Frontend stack (S3 + CloudFront)                | not started — independent of all of the above                       |
+| 7. Retell / Stripe / Auth0 pointed at staging      | Stripe and Auth0 done (23 Sep); Retell pending                      |
+| 8. GitHub `staging` environment, CI deploys        | **done** — backend and portal deploy on every `develop` push        |
+| F. Frontend stack (S3 + CloudFront)                | **done** — `voice-agent-staging-web`, `app-staging.oraly.ai`, D8 exit passed 23 Sep |
+
+Step-by-step version with every value: [staging-deployment-steps.md](staging-deployment-steps.md).
 
 ## What exists now
 

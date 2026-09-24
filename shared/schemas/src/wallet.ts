@@ -93,6 +93,25 @@ export const checkoutResponse = z.object({
 });
 export type CheckoutResponse = z.infer<typeof checkoutResponse>;
 
+/**
+ * POST /wallet/checkout/confirm — the customer is back from Stripe with `session_id` in
+ * the URL. The id proves nothing on its own: the API retrieves the session from Stripe and
+ * runs the same fulfilment as the webhook, so a late or lost `checkout.session.completed`
+ * never leaves a paid customer waiting on the return screen.
+ */
+export const checkoutConfirmRequest = z.object({
+  session_id: z.string().regex(/^cs_[A-Za-z0-9_]{8,200}$/),
+});
+export type CheckoutConfirmRequest = z.infer<typeof checkoutConfirmRequest>;
+
+export const checkoutConfirmResponse = z.object({
+  purchase_id: uuid,
+  status: purchaseStatus,
+  /** True when this call is what credited the pack — the webhook had not arrived. */
+  credited: z.boolean(),
+});
+export type CheckoutConfirmResponse = z.infer<typeof checkoutConfirmResponse>;
+
 // ---------------------------------------------------------------------------
 // D5 Wallet — auto top-up, invoices, payment methods (§5.4, §13.7, §16)
 // ---------------------------------------------------------------------------

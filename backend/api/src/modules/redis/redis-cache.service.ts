@@ -72,6 +72,25 @@ export class RedisCache {
     return this.attempt(`SET NX ${key}`, async () => (await this.client.set(key, value, 'EX', ttlSeconds, 'NX')) === 'OK', timeoutMs, false);
   }
 
+  /**
+   * A fixed-window counter: `SET key 0 EX ttl NX` then `INCR`. The window starts with the
+   * first write and is never pushed out by later ones — `SET … EX` on every increment would
+   * make a sliding window that never expires while writes keep coming. Two commands, so a
+   * crash between them leaves a `0` that expires on its own, never a counter with no TTL.
+   * Null when Redis did not answer: the caller decides whether that means allow.
+   */
+  async increment(key: string, ttlSeconds: number, timeoutMs = DEFAULT_REDIS_TIMEOUT_MS): Promise<number | null> {
+    return this.attempt(
+      `INCR ${key}`,
+      async () => {
+        await this.client.set(key, '0', 'EX', ttlSeconds, 'NX');
+        return this.client.incr(key);
+      },
+      timeoutMs,
+      null,
+    );
+  }
+
   setJson(key: string, value: unknown, ttlSeconds?: number, timeoutMs = DEFAULT_REDIS_TIMEOUT_MS): Promise<boolean> {
     return this.set(key, JSON.stringify(value), ttlSeconds, timeoutMs);
   }

@@ -22,11 +22,15 @@ export const routes = {
     test: '/onboarding/test/',
     phone: '/onboarding/phone/',
     activate: '/onboarding/activate/',
+    /** After W7: the agent answers calls. Outside the 1–7 step sequence, gated on the activation itself. */
+    live: '/onboarding/live/',
   },
   app: {
     home: '/app/',
     calls: '/app/calls/',
     agents: '/app/agents/',
+    /** `/app/agents/[id]/*` in the spec (D3); a static export cannot serve the segment, so it is `?id=&tab=`. */
+    agentDetail: '/app/agents/detail/',
     numbers: '/app/numbers/',
     wallet: '/app/wallet/',
     settings: '/app/settings/',
@@ -48,11 +52,12 @@ export const ONBOARDING_STEPS = [
 export type OnboardingStepKey = (typeof ONBOARDING_STEPS)[number]['key'];
 
 /**
- * W1–W3 ship in D8; W4–W7 are placeholders until D9. The dashboard is reachable once the
- * customer is past the last implemented step, so nobody is stranded on a placeholder.
- * Bump when the next step lands.
+ * The last wizard step with a real page. W1–W3 shipped in D8, W4–W7 in D9, so the
+ * dashboard now opens only once onboarding is complete (`onboarding_completed_at`, set
+ * by the activation job's `mark_live`). Kept as a constant so a future step can land
+ * behind it the same way.
  */
-export const LAST_IMPLEMENTED_STEP = 3;
+export const LAST_IMPLEMENTED_STEP = 7;
 
 export function stepPath(step: number): string {
   const clamped = Math.min(Math.max(step, 1), ONBOARDING_STEPS.length);
@@ -73,4 +78,19 @@ export function safeNext(value: string | null | undefined, fallback: string): st
   if (!value) return fallback;
   if (!value.startsWith('/') || value.startsWith('//') || value.includes('://')) return fallback;
   return value;
+}
+
+/** D3 agent tabs, in the order the spec lists them (p. 36). */
+export const AGENT_TABS = ['overview', 'brief', 'prompt', 'voice', 'knowledge', 'test', 'versions', 'settings'] as const;
+export type AgentTab = (typeof AGENT_TABS)[number];
+
+export function agentPath(agentId: string, tab: AgentTab = 'overview'): string {
+  const query = new URLSearchParams({ id: agentId });
+  if (tab !== 'overview') query.set('tab', tab);
+  return `${routes.app.agentDetail}?${query.toString()}`;
+}
+
+/** D2's detail drawer: `/app/calls/[id]` in the spec, `?call=` in the export. */
+export function callPath(callId: string): string {
+  return `${routes.app.calls}?call=${encodeURIComponent(callId)}`;
 }

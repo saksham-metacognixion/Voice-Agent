@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsQuery, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, memberResponse, notificationSettingsResponse, numberAccepted, paginated, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, revokedResponse, selectVersionRequest, statsQuery, statsResponse, templateSummary, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, revokedResponse, selectVersionRequest, statsQuery, statsResponse, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -197,6 +197,15 @@ export function useResumeAgent(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string } }) => resumeAgent(api, vars.params) });
 }
 
+/** POST /agents/:id/test/web — W5 — mint a browser test call for a version (default the draft) (roles: owner, admin, editor) — §13.4. */
+export function startTestWebCall(api: ApiClient, params: { id: string }, body: z.input<typeof testWebCallRequest>) {
+  return api.post(`/agents/${enc(params.id)}/test/web`, body, testWebCallResponse);
+}
+
+export function useStartTestWebCall(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof testWebCallRequest> }) => startTestWebCall(api, vars.params, vars.body) });
+}
+
 /** GET /agents/:id/versions — Version history — §9.9. */
 export function listAgentVersions(api: ApiClient, params: { id: string }) {
   return api.get(`/agents/${enc(params.id)}/versions`, agentVersionSummary.array());
@@ -213,6 +222,15 @@ export function getAgentVersion(api: ApiClient, params: { id: string; v: string 
 
 export function useGetAgentVersion(api: ApiClient, params: { id: string; v: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getAgentVersion', params], queryFn: () => getAgentVersion(api, params), ...options });
+}
+
+/** POST /agents/:id/versions/:v/lint — Advanced — lint a prompt against a version without saving it — §9.5. */
+export function lintVersionPrompt(api: ApiClient, params: { id: string; v: string }, body: z.input<typeof lintRequest>) {
+  return api.post(`/agents/${enc(params.id)}/versions/${enc(params.v)}/lint`, body, lintResult);
+}
+
+export function useLintVersionPrompt(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string; v: string }; body: z.input<typeof lintRequest> }) => lintVersionPrompt(api, vars.params, vars.body) });
 }
 
 /** PUT /agents/:id/versions/:v/prompt — Advanced — manual prompt edit creates a new version (roles: owner, admin, editor) — §9.4. */
@@ -242,13 +260,22 @@ export function useListActiveAlerts(api: ApiClient, options: QueryHookOptions = 
   return useQuery({ queryKey: ['listActiveAlerts'], queryFn: () => listActiveAlerts(api), ...options });
 }
 
-/** GET /calls — D2 — calls, newest first. */
+/** GET /calls — D2 — calls, filtered and sorted, with the total for the pager. */
 export function listCalls(api: ApiClient, query?: z.input<typeof callsQuery>) {
   return api.get(`/calls${qs(query)}`, paginated(callSummary));
 }
 
 export function useListCalls(api: ApiClient, query?: z.input<typeof callsQuery>, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['listCalls', query ?? null], queryFn: () => listCalls(api, query), ...options });
+}
+
+/** PATCH /calls — D2 — mark several calls handled (or not) in one statement (roles: owner, admin, editor). */
+export function bulkUpdateCalls(api: ApiClient, body: z.input<typeof callsBulkPatch>) {
+  return api.patch(`/calls`, body, callsBulkResponse);
+}
+
+export function useBulkUpdateCalls(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof callsBulkPatch> }) => bulkUpdateCalls(api, vars.body) });
 }
 
 /** GET /calls/:id — D2 detail: transcript, analysis, charge. */
@@ -546,6 +573,15 @@ export function createCheckout(api: ApiClient, body: z.input<typeof checkoutRequ
 
 export function useCreateCheckout(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { body: z.input<typeof checkoutRequest> }) => createCheckout(api, vars.body) });
+}
+
+/** POST /wallet/checkout/confirm — §13.7 — back from Stripe: verify the session with Stripe and credit the pack if the webhook has not (roles: owner, admin). */
+export function confirmCheckout(api: ApiClient, body: z.input<typeof checkoutConfirmRequest>) {
+  return api.post(`/wallet/checkout/confirm`, body, checkoutConfirmResponse);
+}
+
+export function useConfirmCheckout(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof checkoutConfirmRequest> }) => confirmCheckout(api, vars.body) });
 }
 
 /** GET /wallet/invoices — Stripe invoices mirrored for the workspace. */

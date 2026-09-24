@@ -21,6 +21,8 @@ export interface RedisLike {
   hsetnx(key: string, field: string, value: string): Promise<number>;
   hdel(key: string, ...fields: string[]): Promise<number>;
   expire(key: string, seconds: number): Promise<number>;
+  /** `INCR` — the fixed-window counter behind the §13.4 test-call limit (RedisCache.increment). */
+  incr(key: string): Promise<number>;
   /** SSE fan-out (modules/events). Returns the number of subscribers that received it. */
   publish(channel: string, message: string): Promise<number>;
   /**
@@ -216,6 +218,15 @@ export class InMemoryRedis implements RedisLike {
       return 1;
     }
     return 0;
+  }
+
+  async incr(key: string): Promise<number> {
+    this.guard('incr');
+    const entry = this.live(key);
+    const next = Number(entry?.value ?? 0) + 1;
+    // INCR keeps the key's TTL; a fresh key has none until EXPIRE / SET EX gives it one.
+    this.store.set(key, { value: String(next), ...(entry?.expiresAt !== undefined ? { expiresAt: entry.expiresAt } : {}) });
+    return next;
   }
 
   async publish(channel: string, message: string): Promise<number> {

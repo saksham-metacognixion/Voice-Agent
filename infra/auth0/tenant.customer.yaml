@@ -99,7 +99,9 @@ databases:
   - name: Username-Password-Authentication
     strategy: auth0
     enabled_clients:
-      - Portal Web
+      # The SPA by its tenant name (see `clients:`). "Portal Web" was never a client here,
+      # and a0deploy would have enabled the connection for no application at all.
+      - Voice Agent
     options:
       requires_username: false
       disable_signup: false
@@ -116,7 +118,9 @@ connections:
   - name: google-oauth2
     strategy: google-oauth2
     enabled_clients:
-      - Portal Web
+      # The SPA by its tenant name (see `clients:`). "Portal Web" was never a client here,
+      # and a0deploy would have enabled the connection for no application at all.
+      - Voice Agent
 
 attackProtection:
   bruteForceProtection:
@@ -135,6 +139,32 @@ attackProtection:
     shields:
       - admin_notification
       - block
+
+# §6.2 / A5 — opt-in two-factor. The policy is empty on purpose: MFA is never forced by
+# the tenant. customer-post-login.js asks for it when A5 requests it (enrolment) and on
+# every sign-in of someone already enrolled. Without an enabled factor Auth0 has nothing
+# to enrol, the A5 button signs the person straight back in, and the status stays "Not
+# enabled" — the 24 Sep 2026 bug. Recovery codes so a lost phone is not a locked account.
+guardianPolicies:
+  policies: []
+
+guardianFactors:
+  - name: otp
+    enabled: true
+  - name: recovery-code
+    enabled: true
+  - name: sms
+    enabled: false
+  - name: email
+    enabled: false
+  - name: push-notification
+    enabled: false
+  - name: webauthn-platform
+    enabled: false
+  - name: webauthn-roaming
+    enabled: false
+  - name: duo
+    enabled: false
 
 actions:
   # §13.2 step 1 — the normal path into `users`.

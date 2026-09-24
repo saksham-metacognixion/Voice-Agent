@@ -13,8 +13,10 @@ BasicDNS — decided 22 Sep 2026, ADR 0015). Staging hosts carry a `-staging` su
 Everything the backend needs on AWS is one CloudFormation template,
 `infra/aws/backend-stack.yaml`, deployed once per environment. **The record of the real staging
 run — what exists, what broke and why — is [staging-deploy-log.md](staging-deploy-log.md); keep
-it current as steps complete.** As of 22 Sep 2026 **the stack
-has not been created** — see "Where we stand" at the end.
+it current as steps complete.** Staging is live since 23 Sep 2026, backend and portal; the
+order it was actually built in, with the real values and the traps, is
+[staging-deployment-steps.md](staging-deployment-steps.md). "Where we stand" at the end is the
+22 Sep snapshot.
 
 ## What runs
 

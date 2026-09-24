@@ -139,6 +139,14 @@ per-number `inbound_webhook_url` itself. If the hostname does change, re-point e
 objects with `pnpm --filter @portal/api spike:retell number mode allow` (numbers) and a
 re-publish (agents), or tear them down and recreate.
 
+Stripe needs no tunnel but it does need the forwarder **running**: `pnpm dev:stripe`
+(`stripe listen --forward-to localhost:4000/webhooks/stripe`), whose printed `whsec_…` must be
+the `.env` `STRIPE_WEBHOOK_SECRET`. The only endpoint registered on the Stripe account is
+staging's, so with the forwarder stopped a local Checkout is paid on Stripe and `pending` here
+until W7's `POST /wallet/checkout/confirm` or the 15-minute `auto-topup` sweep asks Stripe
+(ADR 0013 §9). A stuck one can also be pushed through by hand:
+`stripe events resend <evt_…>` while the forwarder is up.
+
 Verify the round trip without a phone: `spike:retell setup`, `setup-caller`, `phone-call`,
 `wait` — the caller number dials the spike number and the fixtures land in
 `backend/api/test/fixtures/retell/`. Delete everything with `spike:retell teardown` (numbers are

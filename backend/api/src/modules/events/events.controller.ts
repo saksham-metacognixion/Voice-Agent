@@ -1,4 +1,4 @@
-import { Controller, Get, Query, Req, Res } from '@nestjs/common';
+import { type BeforeApplicationShutdown, Controller, Get, Logger, Query, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { eventsQuery } from '@portal/schemas';
 import { Ctx } from '../auth';
@@ -20,10 +20,25 @@ export const SSE_HEARTBEAT_MS = 20_000;
  *
  * The reply is hijacked from Fastify so the connection stays open and frames are written
  * straight to the socket. Headers Fastify already set (CORS) are carried over.
+ *
+ * Every open stream is ended on shutdown. Fastify's close waits for its connections and
+ * only forces the *idle* ones; a hijacked stream is never idle, so one open dashboard tab
+ * kept the old process alive for ever and the `nest --watch` restart — and a deploy's
+ * graceful stop — behind it (24 Sep). The client's `retry: 3000` reconnects to the new
+ * process on its own.
  */
 @Controller('events')
-export class EventsController {
+export class EventsController implements BeforeApplicationShutdown {
+  private readonly log = new Logger(EventsController.name);
+  private readonly open = new Set<() => void>();
+
   constructor(private readonly events: EventsService) {}
+
+  beforeApplicationShutdown(): void {
+    if (!this.open.size) return;
+    this.log.log(`closing ${this.open.size} SSE stream(s) for shutdown`);
+    for (const close of [...this.open]) close();
+  }
 
   @Get()
   stream(
@@ -60,10 +75,12 @@ export class EventsController {
     const close = () => {
       if (closed) return;
       closed = true;
+      this.open.delete(close);
       clearInterval(heartbeat);
       unsubscribe();
       if (!reply.raw.writableEnded) reply.raw.end();
     };
+    this.open.add(close);
     request.raw.on('close', close);
     request.raw.on('error', close);
     reply.raw.on('close', close);

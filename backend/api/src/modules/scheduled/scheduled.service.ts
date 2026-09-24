@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { adminDb } from '@portal/db';
 import { AgentEvents } from '../agents';
 import { OpsAlertService } from '../alerts';
-import { AutoTopupService } from '../billing';
+import { AutoTopupService, BillingService } from '../billing';
 import { CallReconciliationService, ConcurrencyMonitorService } from '../calls';
 import { EventsService } from '../events';
 import { JobRecordsService, LOST_JOB_REASON, type LostJob, type ScheduleSpec, scheduleLockTtlS } from '../jobs';
@@ -12,7 +12,7 @@ import { RedisCache, redisKeys } from '../redis';
 import { RuntimeCacheService } from '../runtime-cache';
 import { VoicesService } from '../voices';
 import { WalletService } from '../wallet';
-import { WebhookProcessingService } from '../webhooks';
+import { CallRecoveryService, type CallRecoveryOutcome, WebhookProcessingService } from '../webhooks';
 
 /** What one guarded tick reports back to BullMQ (and the e2e suite). */
 export type TickOutcome =
@@ -51,6 +51,7 @@ export class ScheduledJobsService {
     private readonly jobs: JobRecordsService,
     private readonly events: EventsService,
     private readonly topups: AutoTopupService,
+    private readonly billing: BillingService,
     private readonly rental: NumberRentalService,
     private readonly lowBalance: LowBalanceAlertsService,
     private readonly notifications: NotificationsService,
@@ -59,6 +60,7 @@ export class ScheduledJobsService {
     private readonly concurrency: ConcurrencyMonitorService,
     private readonly cache: RedisCache,
     private readonly ops: OpsAlertService,
+    private readonly callRecoveryService: CallRecoveryService,
   ) {}
 
   /** Consecutive skips per schedule, this process. A tick that runs resets its entry. */
@@ -141,6 +143,11 @@ export class ScheduledJobsService {
     return { status: run.status, drift_pct: run.metrics?.drift_pct ?? null, missing: run.metrics?.missing.length ?? 0, extra: run.metrics?.extra.length ?? 0, alerted: run.alerted };
   }
 
+  /** §13.11 `call-recovery`, every 5 min: calls whose call_ended / call_analyzed never arrived (ADR 0011 §7). */
+  callRecovery(): Promise<CallRecoveryOutcome> {
+    return this.callRecoveryService.recover();
+  }
+
   /** §13.11 `concurrency-monitor`, every 5 min: live calls against each plan cap. */
   async concurrencyMonitor(): Promise<{ workspaces: number; live: number; opened: number; resolved: number; platform: string }> {
     const tick = await this.concurrency.tick();
@@ -154,9 +161,16 @@ export class ScheduledJobsService {
 
   // ------------------------------------------------------------------ D4–D6
 
-  /** §13.11 `auto-topup` (D6): reconcile pending top-ups with Stripe, then evaluate every enabled workspace. */
-  autoTopup(): Promise<{ reconciled: number; evaluated: number; charged: number }> {
-    return this.topups.sweep();
+  /**
+   * §13.11 `auto-topup` (D6): reconcile pending top-ups with Stripe, then evaluate every
+   * enabled workspace. Since D10 the same tick asks Stripe about Checkout purchases still
+   * `pending` five minutes on — the lost-webhook path for a pack bought in a tab that was
+   * closed before `POST /wallet/checkout/confirm` could run.
+   */
+  async autoTopup(): Promise<{ reconciled: number; evaluated: number; charged: number; checkouts: { checked: number; credited: number } }> {
+    const checkouts = await this.billing.reconcilePendingCheckouts();
+    const topups = await this.topups.sweep();
+    return { ...topups, checkouts };
   }
 
   /** Periodic full refresh — the backstop for any mutating path that forgot to refresh (architecture §8). */
