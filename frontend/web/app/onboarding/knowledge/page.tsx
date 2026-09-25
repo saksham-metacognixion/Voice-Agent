@@ -1,7 +1,7 @@
 'use client';
 
 import { useApi, useGetFlags, useGetPricing } from '@portal/api-client';
-import type { AgentDetail } from '@portal/schemas';
+import { knowledgeRolesFor, type AgentDetail } from '@portal/schemas';
 import { Alert, Button, Skeleton } from '@portal/ui';
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -9,6 +9,8 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { KnowledgeSources } from '@/src/components/wizard/knowledge-sources';
+import { MenuUpload } from '@/src/components/wizard/menu-upload';
+import { AgentContextBanner } from '@/src/components/wizard/template-context';
 import { WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
 import { routes } from '@/src/routes';
@@ -55,7 +57,12 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
     <>
       <WizardHeading
         title={tk('title')}
-        subtitle={tk('subtitle')}
+        subtitle={
+          <>
+            {tk('subtitle')}
+            <AgentContextBanner agent={agent} className="mt-2" />
+          </>
+        }
         aside={
           <Button size="lg" onClick={() => void next()} loading={leaving} disabled={leaving} variant={locked ? 'outline' : 'primary'}>
             {locked ? tk('skip') : tk('continue')} {leaving ? null : <ArrowRight />}
@@ -70,6 +77,7 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
               {unlock ? tk('lockedBody', { pack: unlock.name }) : tk('lockedBodyGeneric')}
             </Alert>
           ) : null}
+          {knowledgeRolesFor(agent).includes('menu') ? <MenuUpload agentId={agent.id} locked={locked} published={Boolean(agent.published_version)} /> : null}
           <KnowledgeSources agentId={agent.id} locked={locked} />
         </div>
         <aside className="flex flex-col gap-3 text-sm text-muted-foreground lg:sticky lg:top-24 lg:self-start">

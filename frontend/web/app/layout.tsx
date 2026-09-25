@@ -15,6 +15,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
+  // Lets `env(safe-area-inset-bottom)` report the home indicator, which the §12.5 bottom tab bar pads for.
+  viewportFit: 'cover',
   themeColor: [
     // Soft White and Deep Navy — the two brand surfaces (docs/brand.md).
     { media: '(prefers-color-scheme: light)', color: '#f7f8fb' },

@@ -6,7 +6,7 @@ import { Coins } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
-import { formatCreditsValue, formatDateTime } from '@/src/lib/format';
+import { formatCreditsValue, formatDate } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
@@ -58,8 +58,8 @@ export function CreditsCard() {
             ) : null}
             <dl className="grid grid-cols-2 gap-3">
               <Fact label={t('usedToday')}>{today.isPending ? <Skeleton className="h-4 w-12" /> : today.isError ? '–' : formatCreditsValue(today.data.credits_used)}</Fact>
-              <Fact label={t('expiring')}>
-                {wallet.data.expiring_next ? t('expiringValue', { credits: formatCreditsValue(wallet.data.expiring_next.credits), date: formatDateTime(wallet.data.expiring_next.expires_at, ws.workspace?.timezone) }) : t('nothingExpiring')}
+              <Fact label={t('expiring')} wrap>
+                {wallet.data.expiring_next ? t('expiringValue', { credits: formatCreditsValue(wallet.data.expiring_next.credits), date: formatDate(wallet.data.expiring_next.expires_at, ws.workspace?.timezone) }) : t('nothingExpiring')}
               </Fact>
             </dl>
             {wallet.data.auto_topup?.enabled ? <p className="text-xs text-muted-foreground">{t('autoTopupOn', { threshold: formatCreditsValue(wallet.data.auto_topup.threshold ?? 0) })}</p> : null}

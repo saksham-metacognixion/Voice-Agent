@@ -9,6 +9,7 @@
 #   NEXT_PUBLIC_API_URL        https://api-staging.oraly.ai
 #   NEXT_PUBLIC_AUTH0_DOMAIN, NEXT_PUBLIC_AUTH0_CLIENT_ID, NEXT_PUBLIC_AUTH0_AUDIENCE
 #   NEXT_PUBLIC_POSTHOG_KEY, NEXT_PUBLIC_POSTHOG_HOST   (optional)
+#   NEXT_PUBLIC_SUPPORT_EMAIL, NEXT_PUBLIC_STATUS_PAGE_URL   (optional, D7 Help)
 # Plus AWS credentials for the CI user (s3 sync + cloudfront invalidation only).
 #
 # Two sync passes, one per cache policy: /_next/static/* is content-hashed and immutable

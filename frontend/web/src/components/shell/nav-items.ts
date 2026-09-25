@@ -32,3 +32,14 @@ export const NAV_GROUPS: Array<{ key: 'build' | 'operate' | 'account'; items: Na
     ],
   },
 ];
+
+export const NAV_ITEMS: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
+
+/** §12.5 bottom tab bar: the screens that get a tab; the rest go behind "More". */
+export const TAB_BAR_KEYS: ReadonlyArray<NavItem['key']> = ['home', 'calls', 'agents', 'numbers'];
+
+/** Home matches only itself; every other item matches its subtree (`/app/agents/detail/`). */
+export function isNavActive(item: NavItem, pathname: string): boolean {
+  if (item.href === routes.app.home) return pathname === routes.app.home || pathname === '/app';
+  return pathname.startsWith(item.href);
+}

@@ -258,7 +258,9 @@ export class JobQueues implements OnApplicationShutdown {
   enqueueKnowledgeSync(job: KnowledgeSyncJob, options: { delayMs?: number } = {}): Promise<EnqueueResult> {
     // A completed job keeps its id for an hour (DEFAULT_JOB_OPTIONS), so the delete of a
     // source that synced fine must not reuse the sync's id — it would be refused silently.
-    const suffix = job.poll ? `-p${job.poll}` : job.purpose === 'delete' ? '-del' : '';
+    // A deferred delete keeps `-del` in front of its `-p<n>`: the source's own sync may
+    // have polled under `-p<n>` minutes earlier, and that id is still held.
+    const suffix = `${job.purpose === 'delete' ? '-del' : ''}${job.poll ? `-p${job.poll}` : ''}`;
     return this.add<KnowledgeSyncJob>(
       QUEUES.provisioning,
       JOBS.knowledgeSync,

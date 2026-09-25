@@ -145,7 +145,9 @@ export class GenerationWorker {
       languages: context.settings.languages,
       tier: context.settings.tier,
       businessName: context.tenant.name,
+      industry: context.agent.industry,
       timezone: context.tenant.timezone,
+      knowledge: context.knowledge,
       skeleton: stack.prompts.skeleton,
       alwaysAnalysisFields: stack.prompts.alwaysAnalysisFields,
       previousFeedback: context.previousFeedback,
@@ -418,7 +420,16 @@ export class GenerationWorker {
         select: { feedbackText: true },
       });
 
-      return { agent, tenant, draft, previousFeedback: feedback.map((row) => row.feedbackText!).reverse() };
+      // What the agent can look up (W4, the menu): named in the prompt so the script
+      // says to answer from it. A source still being read counts — it will be there by
+      // the time this version is on a call — and a failed or vanishing one does not.
+      const knowledge = await db.knowledgeSource.findMany({
+        where: { agentId: data.agentId, tenantId: data.workspaceId, status: { in: ['pending', 'syncing', 'ready'] } },
+        orderBy: { createdAt: 'asc' },
+        select: { name: true, role: true },
+      });
+
+      return { agent, tenant, draft, knowledge, previousFeedback: feedback.map((row) => row.feedbackText!).reverse() };
     });
 
     return {
@@ -427,6 +438,7 @@ export class GenerationWorker {
       brief: parseBrief(loaded.draft.briefJson),
       settings: settingsOf(loaded.draft, loaded.agent),
       baseVersion: loaded.draft,
+      knowledge: loaded.knowledge.map((source) => ({ name: source.name, role: source.role })),
       previousFeedback: data.mode === 'regenerate' ? loaded.previousFeedback : undefined,
       stack,
     };

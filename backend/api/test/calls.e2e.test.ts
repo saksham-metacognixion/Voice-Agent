@@ -708,6 +708,31 @@ describe('POST /webhooks/retell — lifecycle and metering (§13.10, §14.2)', (
     expect(await ledgerSum(ws.tenantId)).toBe(29);
   });
 
+  it('never bills the caller’s own leg to the workspace it rang', async () => {
+    // A number on the same platform account (not ours) dials a customer's number. The
+    // platform posts two calls: the customer's inbound leg, and the caller's outbound leg —
+    // from its own number, with its own agent, and no metadata of ours. Matching the caller
+    // leg on `to_number` billed the caller's minutes to the customer (seen live 25 Sep 2026).
+    const ws = await readyWorkspace('caller-leg', 30);
+    const callerLeg = callId();
+    const inboundLeg = callId();
+    const start = Date.now() - 60_000;
+    const ended = { start_timestamp: start, end_timestamp: start + 60_000, disconnection_reason: 'user_hangup', call_status: 'ended', from_number: '+16204459730', to_number: ws.e164 };
+    await post('/webhooks/retell', lifecycleEvent('call_ended', { ...ended, call_id: callerLeg, direction: 'outbound', agent_id: 'agent_not_ours_000000000000', metadata: { test: true, source: 'spike-outbound' } }));
+    await post('/webhooks/retell', lifecycleEvent('call_ended', { ...ended, call_id: inboundLeg, direction: 'inbound' }));
+
+    const stored = await waitFor('the caller leg to be processed', async () => {
+      const row = await adminDb.webhookEvent.findFirst({ where: { provider: 'retell', externalId: callerLeg, eventType: 'call_ended' } });
+      return row?.processedAt ? row : null;
+    });
+    expect(stored.error).toBeNull();
+    expect(await adminDb.call.findUnique({ where: { id: callerLeg } })).toBeNull();
+
+    const inbound = await waitForBilled(inboundLeg);
+    expect(inbound).toMatchObject({ tenantId: ws.tenantId, numberId: ws.numberId });
+    expect(await ledgerSum(ws.tenantId)).toBe(29); // one minute, the customer's own leg only
+  });
+
   it('bills a metadata-less call identified by the Retell agent that took it', async () => {
     const ws = await readyWorkspace('fail-open-agent', 30);
     const id = callId();

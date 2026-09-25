@@ -14,6 +14,7 @@ import { WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
+import { industriesOf, industryConflicts } from '@/src/wizard/template-fit';
 import { useAdvanceOnboarding, useOnboardingAgent } from '@/src/wizard/use-onboarding-agent';
 
 /**
@@ -61,6 +62,16 @@ function TemplateInner() {
   const keepExisting = agent && selected === agent.template_id;
   const busy = create.isPending;
 
+  // The chosen industry against the chosen template. A mismatch — Restaurant for a
+  // dental practice — is said out loud with the template that would fit, and left to
+  // the person: nothing is guessed from a business name and nothing is refused.
+  const selectedTemplate = templates.data?.find((x) => x.id === selected) ?? null;
+  const conflict = industryConflicts(selectedTemplate, industry);
+  const fitting = React.useMemo(() => {
+    if (!conflict || !industry) return [];
+    return (templates.data ?? []).filter((tpl) => tpl.id !== selected && tpl.industry_tags.includes(industry)).map((tpl) => tpl.name);
+  }, [conflict, industry, templates.data, selected]);
+
   async function next() {
     if (!selected) return;
     setError(null);
@@ -102,6 +113,12 @@ function TemplateInner() {
 
         {agentQuery.isError ? <Alert variant="warning">{errorMessage(agentQuery.error, t)}</Alert> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
+        {conflict && selectedTemplate ? (
+          <Alert variant="warning" title={t('wizard.w1.conflictTitle')} data-testid="template-conflict">
+            {t('wizard.w1.conflictBody', { template: selectedTemplate.name, industries: industriesOf(selectedTemplate).join(', '), industry })}
+            {fitting.length ? ` ${t('wizard.w1.conflictSuggest', { industry, templates: fitting.join(', ') })}` : ''}
+          </Alert>
+        ) : null}
 
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 shadow-card sm:flex-row sm:items-end sm:justify-between">
           <Field id="industry" label={t('wizard.w1.industry')} description={t('wizard.w1.industryHint')} className="w-full sm:max-w-xs">

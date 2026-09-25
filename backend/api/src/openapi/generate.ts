@@ -201,6 +201,8 @@ export function buildClient(joined: readonly Joined[]): string {
     '  enabled?: boolean;',
     '  staleTime?: number;',
     '  refetchInterval?: number | false;',
+    '  /** Overrides the client’s default retry rule; `false` for a probe whose error is the answer. */',
+    '  retry?: boolean | number;',
     '}',
     '',
   ];

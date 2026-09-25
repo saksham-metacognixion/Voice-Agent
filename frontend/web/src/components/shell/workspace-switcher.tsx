@@ -25,7 +25,8 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
             {active?.name.slice(0, 1) ?? '?'}
           </span>
           <span className="flex min-w-0 flex-col items-start">
-            <span className="max-w-[10rem] truncate text-sm font-medium leading-tight">{active?.name ?? t('nav.workspace')}</span>
+            {/* `max-w-full` against the column, not only 10rem: on a phone the header gives the name what is left. */}
+            <span className="max-w-full truncate text-sm font-medium leading-tight sm:max-w-[10rem]">{active?.name ?? t('nav.workspace')}</span>
             {active ? <span className="text-[11px] leading-tight text-muted-foreground">{t(`shell.role.${active.role}` as never)}</span> : null}
           </span>
           <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />

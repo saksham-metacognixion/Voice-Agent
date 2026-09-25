@@ -670,7 +670,8 @@
                             "transfer_tool_missing",
                             "absolute_language",
                             "language_mismatch",
-                            "guardrails_missing"
+                            "guardrails_missing",
+                            "platform_named"
                           ],
                           "type": "string"
                         },
@@ -1367,7 +1368,8 @@
                             "transfer_tool_missing",
                             "absolute_language",
                             "language_mismatch",
-                            "guardrails_missing"
+                            "guardrails_missing",
+                            "platform_named"
                           ],
                           "type": "string"
                         },
@@ -2640,7 +2642,8 @@
                         "transfer_tool_missing",
                         "absolute_language",
                         "language_mismatch",
-                        "guardrails_missing"
+                        "guardrails_missing",
+                        "platform_named"
                       ],
                       "type": "string"
                     },
@@ -2994,6 +2997,71 @@
           "is_draft",
           "changes",
           "has_prompt"
+        ],
+        "type": "object"
+      },
+      "auditEntryResponse": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actor": {
+            "nullable": true,
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              },
+              "user_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "user_id",
+              "email",
+              "name"
+            ],
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ip": {
+            "nullable": true,
+            "type": "string"
+          },
+          "meta": {
+            "additionalProperties": {},
+            "nullable": true,
+            "type": "object"
+          },
+          "target_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "target_type": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "target_type",
+          "target_id",
+          "actor",
+          "ip",
+          "meta",
+          "created_at"
         ],
         "type": "object"
       },
@@ -3768,6 +3836,12 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "role": {
+                "enum": [
+                  "menu"
+                ],
+                "type": "string"
+              },
               "type": {
                 "enum": [
                   "url"
@@ -3791,6 +3865,12 @@
               "name": {
                 "maxLength": 120,
                 "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "menu"
+                ],
                 "type": "string"
               },
               "text": {
@@ -3833,6 +3913,12 @@
               "name": {
                 "maxLength": 120,
                 "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "menu"
+                ],
                 "type": "string"
               },
               "type": {
@@ -3871,6 +3957,12 @@
                 "minLength": 1,
                 "type": "string"
               },
+              "role": {
+                "enum": [
+                  "menu"
+                ],
+                "type": "string"
+              },
               "type": {
                 "enum": [
                   "url"
@@ -3894,6 +3986,12 @@
               "name": {
                 "maxLength": 120,
                 "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "menu"
+                ],
                 "type": "string"
               },
               "text": {
@@ -3936,6 +4034,12 @@
               "name": {
                 "maxLength": 120,
                 "minLength": 1,
+                "type": "string"
+              },
+              "role": {
+                "enum": [
+                  "menu"
+                ],
                 "type": "string"
               },
               "type": {
@@ -4701,6 +4805,13 @@
           "name": {
             "type": "string"
           },
+          "role": {
+            "enum": [
+              "menu"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
           "size_bytes": {
             "nullable": true,
             "type": "integer"
@@ -4741,6 +4852,7 @@
           "id",
           "agent_id",
           "type",
+          "role",
           "name",
           "url",
           "content_type",
@@ -4845,7 +4957,8 @@
                     "transfer_tool_missing",
                     "absolute_language",
                     "language_mismatch",
-                    "guardrails_missing"
+                    "guardrails_missing",
+                    "platform_named"
                   ],
                   "type": "string"
                 },
@@ -4988,6 +5101,9 @@
                 },
                 "type": "array"
               },
+              "calls_7d": {
+                "type": "integer"
+              },
               "country": {
                 "nullable": true,
                 "type": "string"
@@ -5116,6 +5232,27 @@
               "rental_credits": {
                 "type": "integer"
               },
+              "sip": {
+                "nullable": true,
+                "properties": {
+                  "has_password": {
+                    "type": "boolean"
+                  },
+                  "host": {
+                    "type": "string"
+                  },
+                  "username": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "host",
+                  "username",
+                  "has_password"
+                ],
+                "type": "object"
+              },
               "status": {
                 "enum": [
                   "provisioning",
@@ -5173,6 +5310,8 @@
               "allowed_countries",
               "blocklist",
               "forwarding",
+              "sip",
+              "calls_7d",
               "rental_credits",
               "next_rental_at",
               "error",
@@ -5210,6 +5349,9 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "calls_7d": {
+            "type": "integer"
           },
           "country": {
             "nullable": true,
@@ -5339,6 +5481,27 @@
           "rental_credits": {
             "type": "integer"
           },
+          "sip": {
+            "nullable": true,
+            "properties": {
+              "has_password": {
+                "type": "boolean"
+              },
+              "host": {
+                "type": "string"
+              },
+              "username": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "host",
+              "username",
+              "has_password"
+            ],
+            "type": "object"
+          },
           "status": {
             "enum": [
               "provisioning",
@@ -5396,6 +5559,8 @@
           "allowed_countries",
           "blocklist",
           "forwarding",
+          "sip",
+          "calls_7d",
           "rental_credits",
           "next_rental_at",
           "error",
@@ -6401,7 +6566,8 @@
                         "transfer_tool_missing",
                         "absolute_language",
                         "language_mismatch",
-                        "guardrails_missing"
+                        "guardrails_missing",
+                        "platform_named"
                       ],
                       "type": "string"
                     },
@@ -6811,6 +6977,14 @@
               "premium"
             ],
             "type": "string"
+          },
+          "example_texts": {
+            "additionalProperties": {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            "default": {},
+            "type": "object"
           },
           "id": {
             "enum": [
@@ -9111,6 +9285,19 @@
               "NOT_FOUND"
             ]
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
           "422": {
             "content": {
               "application/json": {
@@ -9130,7 +9317,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "W4 — add a URL, file or text; synced by a job (202)",
+        "summary": "W4 — add a URL, file or text (role `menu` for a restaurant’s menu, one per agent); synced by a job (202)",
         "tags": [
           "knowledge"
         ],
@@ -10641,6 +10828,147 @@
           "notifications"
         ],
         "x-auth": "workspace"
+      }
+    },
+    "/audit-log": {
+      "get": {
+        "description": "Spec §6.2, §16.",
+        "operationId": "listAuditLog",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "area",
+            "required": false,
+            "schema": {
+              "pattern": "^[a-z_]{2,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/auditEntryResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 — workspace activity, newest first, narrowed by area",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
       }
     },
     "/calls": {
@@ -12349,6 +12677,19 @@
             "description": "Error envelope; `code` ∈ {NOT_FOUND}",
             "x-error-codes": [
               "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
             ]
           },
           "422": {

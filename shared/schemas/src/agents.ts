@@ -196,7 +196,11 @@ export const agentTemplate = z.object({
 });
 export type AgentTemplate = z.infer<typeof agentTemplate>;
 
-/** The W1 card list. Never exposes `brief_prefill` — that lands when the agent is created. */
+/**
+ * The W1 card list. Never exposes `brief_prefill` — that lands when the agent is created.
+ * `example_texts` rides along so W2 can show the placeholder copy of the industry the
+ * agent was made for, rather than one fixed example for every template.
+ */
 export const templateSummary = agentTemplate.pick({
   id: true,
   name: true,
@@ -205,6 +209,7 @@ export const templateSummary = agentTemplate.pick({
   industry_tags: true,
   default_tier: true,
   sample_audio_url: true,
+  example_texts: true,
   version: true,
 });
 export type TemplateSummary = z.infer<typeof templateSummary>;
@@ -295,6 +300,7 @@ export const lintRule = z.enum([
   'absolute_language',
   'language_mismatch',
   'guardrails_missing',
+  'platform_named',
 ]);
 export type LintRule = z.infer<typeof lintRule>;
 

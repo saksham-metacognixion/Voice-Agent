@@ -13,6 +13,15 @@ const MAX_POLLS = 10;
 const POLL_DELAY_MS = 20_000;
 /** The per-agent KB creation lock: long enough for one create round trip, short enough to self-heal. */
 const KB_LOCK_TTL_S = 120;
+/**
+ * A delete of the last synced source waits for a sibling that is still being read (a
+ * replace: "remove the old menu, upload the new one"), so the newcomer lands in the
+ * existing knowledge base and only the old source is removed. Bounded: after this many
+ * deferrals the base goes regardless — the sibling has failed, or is stuck, and will
+ * create its own base when it finally syncs.
+ */
+const DELETE_DEFER_MS = 5_000;
+const MAX_DELETE_DEFERRALS = 24;
 
 /** One sentence the customer may read. Nothing here comes from a provider message. */
 export const KNOWLEDGE_REASONS = {
@@ -61,7 +70,7 @@ export class KnowledgeSyncWorker {
     if (!row) return { outcome: 'ignored', reason: 'source no longer exists' };
     if (row.tenantId !== job.data.workspaceId) return { outcome: 'ignored', reason: 'workspace mismatch' };
 
-    if (row.status === 'deleting') return this.delete(row);
+    if (row.status === 'deleting') return this.delete(row, job.data);
     if (row.status !== 'pending' && row.status !== 'syncing') return { outcome: 'ignored', reason: `status is ${row.status}` };
     if (row.agent.deletedAt) {
       await this.fail(row.id, 'agent_gone', KNOWLEDGE_REASONS.agent_gone, 'agent was deleted');
@@ -73,8 +82,9 @@ export class KnowledgeSyncWorker {
       data: { status: 'syncing', syncJson: merge(row.syncJson, { attempt: job.attemptsMade + 1, started_at: new Date().toISOString() }) },
     });
 
+    let kbId: string | null = null;
     try {
-      const kbId = await this.ensureKnowledgeBase(row, job.id ?? sourceId);
+      kbId = await this.ensureKnowledgeBase(row, job.id ?? sourceId);
       const retellSourceId = row.retellSourceId ?? (await this.ensureSource(row, kbId));
       const status = await this.pollUntilSettled(kbId);
 
@@ -100,8 +110,20 @@ export class KnowledgeSyncWorker {
       return { outcome: 'polling', reason: status };
     } catch (error) {
       const status = retellErrorStatus(error);
-      const permanent = status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
       const detail = describe(error);
+      // The base vanished under this sync: a delete of the previous last source took it
+      // (the menu's replace flow, DELETE then POST in the same second — 25 Sep 2026). A
+      // 404 here is not "this source cannot be read"; forget the base and try again, and
+      // the retry creates a fresh one through the usual look-before-you-buy path.
+      if (kbId && isRetellNotFound(error) && attemptsLeft > 0) {
+        await adminDb.agent.updateMany({ where: { id: row.agentId, retellKbId: kbId }, data: { retellKbId: null } });
+        await adminDb.knowledgeSource
+          .update({ where: { id: row.id }, data: { retellSourceId: null, syncJson: merge(row.syncJson, { last_error: `knowledge base ${kbId} vanished mid-sync; retrying`, attempts_left: attemptsLeft }) } })
+          .catch(() => undefined);
+        this.log.warn(`knowledge ${row.id}: knowledge base ${kbId} vanished mid-sync (${detail}); retrying with a fresh one`);
+        throw error;
+      }
+      const permanent = status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 429;
       if (permanent || attemptsLeft === 0) {
         await this.fail(row.id, permanent ? 'rejected' : 'exhausted', permanent ? KNOWLEDGE_REASONS.unreadable : KNOWLEDGE_REASONS.unavailable, detail);
         this.log.error(`knowledge ${row.id}: sync failed for good (${detail})`);
@@ -176,7 +198,7 @@ export class KnowledgeSyncWorker {
     return status;
   }
 
-  private async delete(row: SourceRow): Promise<{ outcome: string; reason?: string }> {
+  private async delete(row: SourceRow, data: KnowledgeSyncJob): Promise<{ outcome: string; reason?: string }> {
     const kbId = row.agent.retellKbId;
     if (row.retellSourceId && kbId) {
       // The platform refuses to empty a knowledge base ("400 cannot delete the last
@@ -184,6 +206,20 @@ export class KnowledgeSyncWorker {
       // last synced source takes the base with it; the next add creates a fresh one
       // through the usual look-before-you-buy path.
       const others = await adminDb.knowledgeSource.count({ where: { agentId: row.agentId, id: { not: row.id }, retellSourceId: { not: null }, status: { not: 'deleting' } } });
+      if (others === 0) {
+        // …unless a sibling is on its way (the menu's replace flow: DELETE then POST in the
+        // same second). Deleting the base now would race that sibling's sync — it finds
+        // the base by name, adds to it, and the base vanishes under it, leaving the new
+        // source `failed` on the real platform (25 Sep 2026). Wait for it instead.
+        const arriving = await adminDb.knowledgeSource.count({ where: { agentId: row.agentId, id: { not: row.id }, status: { in: ['pending', 'syncing'] } } });
+        const deferrals = data.poll ?? 0;
+        if (arriving > 0 && deferrals < MAX_DELETE_DEFERRALS) {
+          const queued = await this.queues.enqueueKnowledgeSync({ ...data, purpose: 'delete', poll: deferrals + 1 }, { delayMs: DELETE_DEFER_MS });
+          if (queued === 'failed') throw new Error('could not queue the deferred delete');
+          this.log.log(`knowledge ${row.id}: last synced source, ${arriving} sibling(s) still being read; deleting again in ${DELETE_DEFER_MS / 1000} s (${deferrals + 1}/${MAX_DELETE_DEFERRALS})`);
+          return { outcome: 'deferred', reason: 'sibling syncing' };
+        }
+      }
       try {
         if (others === 0) {
           await this.retell.deleteKnowledgeBase(kbId);

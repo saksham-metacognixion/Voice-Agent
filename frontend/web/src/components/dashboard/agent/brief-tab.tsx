@@ -9,6 +9,7 @@ import * as React from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
 import { BriefCard } from '@/src/components/wizard/brief-card';
 import { BriefFields, SaveIndicator, storableBrief } from '@/src/components/wizard/brief-form';
+import { useBriefPlaceholders } from '@/src/components/wizard/template-context';
 import { errorMessage } from '@/src/lib/errors';
 import { useBriefAutosave } from '@/src/wizard/use-brief-autosave';
 import { useGeneration } from '@/src/wizard/use-generation';
@@ -28,6 +29,7 @@ export function BriefTab({ agent, canEdit }: { agent: AgentDetail; canEdit: bool
   const autosave = useBriefAutosave(canEdit ? agent.id : null, initial);
   const generation = useGeneration(agent);
   const [genError, setGenError] = React.useState<string | null>(null);
+  const placeholders = useBriefPlaceholders(agent);
 
   const form = useForm<Brief>({
     resolver: zodResolver(briefSchema) as unknown as Resolver<Brief>,
@@ -72,7 +74,7 @@ export function BriefTab({ agent, canEdit }: { agent: AgentDetail; canEdit: bool
           <p className="text-sm text-muted-foreground">{canEdit ? t('hint', { n: version?.version_no ?? 1 }) : t('viewerHint')}</p>
           <SaveIndicator state={autosave.state} error={autosave.error} onRetry={autosave.retry} />
         </div>
-        <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} />
+        <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} placeholders={placeholders} />
       </div>
       <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
         {canEdit ? (

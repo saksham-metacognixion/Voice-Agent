@@ -93,7 +93,23 @@ export function VersionsTab({ agent, canEdit }: { agent: AgentDetail; canEdit: b
           <GitCompare /> {compare.length === 2 ? t('compareThese', { a: Math.min(...compare), b: Math.max(...compare) }) : t('compare')}
         </Button>
       </div>
-      <div className="overflow-x-auto rounded-lg border border-border bg-card">
+      {/* §12.5: cards below 640 px, the table above. */}
+      <ul className="flex flex-col gap-3 sm:hidden" aria-label={t('version')}>
+        {versions.data.map((v) => (
+          <VersionCard
+            key={v.version_no}
+            version={v}
+            timeZone={ws.workspace?.timezone}
+            picked={compare.includes(v.version_no)}
+            onPick={() => toggleCompare(v.version_no)}
+            onView={() => setViewing(v.version_no)}
+            onRestore={canEdit && !v.is_draft ? () => void restore(v.version_no) : undefined}
+            onPublish={canEdit && !v.is_published && v.has_prompt ? () => void publishVersion(v.version_no) : undefined}
+            busy={busy}
+          />
+        ))}
+      </ul>
+      <div className="hidden overflow-x-auto rounded-lg border border-border bg-card sm:block">
         <table className="w-full min-w-0 text-left text-sm md:min-w-[40rem]">
           <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
@@ -129,7 +145,60 @@ export function VersionsTab({ agent, canEdit }: { agent: AgentDetail; canEdit: b
   );
 }
 
-function VersionRow({ version: v, timeZone, picked, onPick, onView, onRestore, onPublish, busy }: { version: AgentVersionSummary; timeZone: string | undefined; picked: boolean; onPick: () => void; onView: () => void; onRestore?: () => void; onPublish?: () => void; busy: string | null }) {
+type VersionItemProps = { version: AgentVersionSummary; timeZone: string | undefined; picked: boolean; onPick: () => void; onView: () => void; onRestore?: () => void; onPublish?: () => void; busy: string | null };
+
+/** The phone layout of one version: the same facts and actions as the row, stacked. */
+function VersionCard({ version: v, timeZone, picked, onPick, onView, onRestore, onPublish, busy }: VersionItemProps) {
+  const t = useTranslations('dashboard.agents.versions');
+  return (
+    <li className={cn('flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-card', picked && 'border-primary/50 bg-accent/40')}>
+      <div className="flex items-start justify-between gap-3">
+        <label className="flex min-w-0 items-center gap-3">
+          <input type="checkbox" className="size-5 shrink-0 accent-primary" checked={picked} onChange={onPick} aria-label={t('pickVersion', { n: v.version_no })} />
+          <span className="flex min-w-0 flex-col">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold">v{v.version_no}</span>
+              {v.is_published ? <Badge variant="success">{t('live')}</Badge> : null}
+              {v.is_draft ? <Badge variant="info">{t('draft')}</Badge> : null}
+              {!v.has_prompt ? <Badge variant="outline">{t('noPrompt')}</Badge> : null}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {t(`sources.${v.source}`)} · {formatDateTime(v.created_at, timeZone)}
+            </span>
+          </span>
+        </label>
+      </div>
+      {v.published_at ? <p className="text-xs text-muted-foreground">{t('publishedAt', { when: formatDateTime(v.published_at, timeZone) })}</p> : null}
+      {v.changes?.length ? (
+        <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+          {v.changes.slice(0, 3).map((c, i) => (
+            <li key={i} className="break-words">
+              {c}
+            </li>
+          ))}
+          {v.changes.length > 3 ? <li>{t('moreChanges', { n: v.changes.length - 3 })}</li> : null}
+        </ul>
+      ) : null}
+      <div className="flex flex-wrap gap-2 border-t border-border pt-3 [&_button]:min-h-10">
+        <Button size="sm" variant="ghost" onClick={onView}>
+          <Eye /> {t('view')}
+        </Button>
+        {onRestore ? (
+          <Button size="sm" variant="outline" loading={busy === `restore-${v.version_no}`} onClick={onRestore}>
+            {t('restore')}
+          </Button>
+        ) : null}
+        {onPublish ? (
+          <Button size="sm" variant="outline" loading={busy === `publish-${v.version_no}`} onClick={onPublish}>
+            <Rocket /> {t('publish')}
+          </Button>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function VersionRow({ version: v, timeZone, picked, onPick, onView, onRestore, onPublish, busy }: VersionItemProps) {
   const t = useTranslations('dashboard.agents.versions');
   return (
     <tr className={cn(picked && 'bg-accent/40')}>

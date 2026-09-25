@@ -46,12 +46,16 @@ export type AnalyticsEvent =
   | 'generation_started'
   | 'generation_completed'
   | 'generation_failed'
+  | 'script_editor_opened'
   | 'voice_selected'
   | 'language_selected'
   | 'voice_preview_played'
   // W4–W7 (D9). §12 names test_call_started/ended, pack_selected, checkout_completed.
   | 'knowledge_added'
   | 'knowledge_removed'
+  | 'menu_uploaded'
+  | 'menu_replaced'
+  | 'menu_removed'
   | 'test_call_started'
   | 'test_call_ended'
   | 'test_call_failed'
@@ -79,7 +83,20 @@ export type AnalyticsEvent =
   | 'agent_settings_saved'
   | 'agent_deleted'
   | 'prompt_saved'
-  | 'version_restored';
+  | 'version_restored'
+  // D11 dashboard
+  | 'number_added'
+  | 'number_updated'
+  | 'number_released'
+  | 'auto_topup_saved'
+  | 'payment_portal_opened'
+  | 'workspace_settings_saved'
+  | 'member_invited'
+  | 'member_role_changed'
+  | 'member_removed'
+  | 'ownership_transferred'
+  | 'notification_settings_saved'
+  | 'call_reported';
 
 export function track(event: AnalyticsEvent, props: Record<string, string | number | boolean | null | undefined> = {}) {
   if (!initialised) return;

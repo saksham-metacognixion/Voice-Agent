@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, revokedResponse, selectVersionRequest, statsQuery, statsResponse, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, revokedResponse, selectVersionRequest, statsQuery, statsResponse, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -24,6 +24,8 @@ export interface QueryHookOptions {
   enabled?: boolean;
   staleTime?: number;
   refetchInterval?: number | false;
+  /** Overrides the client’s default retry rule; `false` for a probe whose error is the answer. */
+  retry?: boolean | number;
 }
 
 /** GET /activations/:id — One activation job. */
@@ -134,7 +136,7 @@ export function useListAgentKnowledge(api: ApiClient, params: { id: string }, op
   return useQuery({ queryKey: ['listAgentKnowledge', params], queryFn: () => listAgentKnowledge(api, params), ...options });
 }
 
-/** POST /agents/:id/knowledge — W4 — add a URL, file or text; synced by a job (202) (roles: owner, admin, editor). */
+/** POST /agents/:id/knowledge — W4 — add a URL, file or text (role `menu` for a restaurant’s menu, one per agent); synced by a job (202) (roles: owner, admin, editor). */
 export function addAgentKnowledge(api: ApiClient, params: { id: string }, body: z.input<typeof createKnowledgeSourceRequest>) {
   return api.post(`/agents/${enc(params.id)}/knowledge`, body, knowledgeSourceResponse);
 }
@@ -258,6 +260,15 @@ export function listActiveAlerts(api: ApiClient) {
 
 export function useListActiveAlerts(api: ApiClient, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['listActiveAlerts'], queryFn: () => listActiveAlerts(api), ...options });
+}
+
+/** GET /audit-log — D6 — workspace activity, newest first, narrowed by area (roles: owner, admin) — §6.2, §16. */
+export function listAuditLog(api: ApiClient, query?: z.input<typeof auditLogQuery>) {
+  return api.get(`/audit-log${qs(query)}`, paginated(auditEntryResponse));
+}
+
+export function useListAuditLog(api: ApiClient, query?: z.input<typeof auditLogQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['listAuditLog', query ?? null], queryFn: () => listAuditLog(api, query), ...options });
 }
 
 /** GET /calls — D2 — calls, filtered and sorted, with the total for the pager. */

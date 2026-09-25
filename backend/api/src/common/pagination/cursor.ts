@@ -40,7 +40,7 @@ export function decodeCursor(cursor: string): CursorPosition {
   return { id, ...(sortedAt ? { sortedAt } : {}) };
 }
 
-function invalidCursor(): AppError {
+export function invalidCursor(): AppError {
   return new AppError(
     'INVALID_CURSOR',
     'That page link is no longer valid. Start from the first page.',

@@ -257,7 +257,10 @@ export class CallsQueryService {
         db.call.aggregate({ where, _count: { _all: true }, _sum: { durationS: true, creditsCharged: true } }),
         db.call.groupBy({ by: ['declineReason'], where: { ...where, status: 'declined' }, _count: { _all: true } }),
         db.$queryRaw<Array<{ day: string; calls: bigint; missed: bigint; seconds: number | null; credits: Prisma.Decimal | null }>>`
-          SELECT to_char(date_trunc('day', started_at AT TIME ZONE ${tenant.timezone}), 'YYYY-MM-DD') AS day,
+          -- started_at is a UTC wall time without a zone: pin it to UTC first, then read it in
+          -- the workspace's zone. A bare AT TIME ZONE would treat the UTC value as local and
+          -- shift it the wrong way (an 18:48 Toronto call landed on the next day's bar).
+          SELECT to_char((started_at AT TIME ZONE 'UTC') AT TIME ZONE ${tenant.timezone}, 'YYYY-MM-DD') AS day,
                  count(*)                                                        AS calls,
                  count(*) FILTER (WHERE status = 'declined')                     AS missed,
                  coalesce(sum(duration_s), 0)                                    AS seconds,

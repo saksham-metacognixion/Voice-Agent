@@ -28,8 +28,15 @@ type NumberRow = {
   updatedAt: Date;
 };
 
+/** What the row alone cannot say: the plan's SIP credentials (redacted) and the D4 seven-day call count. */
+export interface NumberExtras {
+  plan?: { sipJson: unknown } | null;
+  calls7d?: number;
+}
+
 /** Row → wire. No `type` (it names the telephony vendor), no platform metadata, no token. */
-export function toNumberResponse(row: NumberRow): PhoneNumberResponse {
+export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.calls7d ?? 0): PhoneNumberResponse {
+  const sip = row.type === 'custom_sip' ? SipCredentialsCipher.redact(row.plan?.sipJson) : null;
   return {
     id: row.id,
     agent_id: row.agentId,
@@ -53,6 +60,8 @@ export function toNumberResponse(row: NumberRow): PhoneNumberResponse {
           carrier: (row.carrier as NonNullable<PhoneNumberResponse['forwarding']>['carrier']) ?? null,
         }
       : null,
+    sip: sip ? { host: sip.host, username: sip.username, has_password: sip.has_password } : null,
+    calls_7d: calls7d,
     rental_credits: row.rentalCredits,
     next_rental_at: row.nextRentalAt?.toISOString() ?? null,
     error: row.status === 'failed' ? row.error : null,

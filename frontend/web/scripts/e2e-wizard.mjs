@@ -76,6 +76,7 @@ try {
   // 6. W2 — fields, autosave, restore
   await waitFor(`document.querySelector('#about_business')`, 10000);
   ok('W2 prefilled from template (agent name)', (await b.evaluate(`document.querySelector('#agent_name')?.value`)) === 'Sophie');
+  ok('W2 says which template for which business', /Building a Receptionist agent for Bright Smile Dental/.test(await b.evaluate(`document.querySelector('[data-testid="agent-context"]')?.innerText`) ?? ''));
   await setInput('#about_business', 'We are a family dental practice in Toronto with three dentists. We see adults and children for check-ups, cleanings, fillings and emergencies.');
   await setInput('#goal', 'Book the caller into the next free slot, or take a message with their name and number if the request needs a person.');
   await setInput('#address', '120 King St W, Toronto, ON');
@@ -126,6 +127,10 @@ try {
   await b.goto(`${BASE}/onboarding/brief/`, 3000);
   ok('can revisit W2', (await path()) === '/onboarding/brief/', await path());
   ok('W2 revisit shows Regenerate', Boolean(await waitFor(`document.body.innerText.includes('Regenerate')`, 10000)));
+  // The generated script is editable on W2 itself: the panel's button opens the D3 editor under the brief.
+  await b.evaluate(`document.querySelector('[data-testid="edit-script"]')?.click()`);
+  const scriptShown = await waitFor(`(() => { const ta = document.querySelector('#prompt-body'); return ta && ta.offsetParent !== null && ta.value.length > 50; })()`, 10000);
+  ok('W2 "Edit the script" opens the script editor with the generated prompt', Boolean(scriptShown));
 
   // 10. W4 — a trial workspace: the form is shown, the plan gate is explained, skip works
   await b.goto(`${BASE}/onboarding/knowledge/`, 3000);

@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, adminDb, withWorkspace, type WorkspaceDb } from '@portal/db';
+import { Prisma, adminDb, isUniqueViolation, withWorkspace, type WorkspaceDb } from '@portal/db';
 import {
   KNOWLEDGE_MAX_FILE_BYTES,
   KNOWLEDGE_MAX_SOURCES_PER_AGENT,
+  knowledgeRolesFor,
   type CreateKnowledgeSourceRequest,
   type KnowledgeSourceResponse,
 } from '@portal/schemas';
@@ -16,6 +17,7 @@ const PRIVATE_HOST_RE = /^(localhost|.*\.local|.*\.internal|127\.\d+\.\d+\.\d+|1
 
 /** What the customer reads when a sync could not start or has failed for good. */
 export const KNOWLEDGE_NOT_QUEUED = 'We could not start reading this source. Try again in a moment.';
+
 
 /**
  * W4 "what your agent knows" — the request half (§13.1 `knowledge`, §16).
@@ -41,6 +43,7 @@ export class KnowledgeService {
 
   async create(ctx: WorkspaceContext, agentId: string, input: CreateKnowledgeSourceRequest): Promise<KnowledgeSourceResponse> {
     const decoded = decodeSource(input);
+    const role = input.role ?? null;
     const [flags, caps] = await Promise.all([this.config.flagsFor(ctx.workspaceId), this.config.capsFor(ctx.workspaceId)]);
     if (!flags.gates.knowledge_base) {
       throw new AppError('PLAN_LIMIT', 'Your plan does not include knowledge sources yet. Buy a pack that does to unlock them.');
@@ -49,6 +52,20 @@ export class KnowledgeService {
     const row = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
       if (agent.deletedAt) throw AppError.notFound('Agent');
+      // The menu is a restaurant thing (`knowledgeRolesFor` in @portal/schemas — the same
+      // predicate the portal uses to show the Menu section, so the two cannot disagree).
+      if (role && !knowledgeRolesFor({ template_id: agent.templateId, industry: agent.industry }).includes(role)) {
+        throw new AppError('BAD_REQUEST', 'Only a restaurant agent has a menu. Add this as an ordinary source instead.', [
+          { field: 'role', message: 'Not available for this agent' },
+        ]);
+      }
+      if (role) {
+        // One menu per agent (`knowledge_sources_agent_role_idx`). The portal deletes the
+        // old one before uploading the new one; a second tab racing it lands on the index
+        // below and is answered with a conflict rather than a second menu.
+        const holder = await db.knowledgeSource.findFirst({ where: { agentId, tenantId: ctx.workspaceId, role, status: { not: 'deleting' } }, select: { id: true } });
+        if (holder) throw new AppError('CONFLICT', 'This agent already has a menu. Remove or replace it instead of adding a second one.');
+      }
 
       const [forAgent, agentsWithKnowledge] = await Promise.all([
         db.knowledgeSource.count({ where: { agentId, tenantId: ctx.workspaceId, status: { not: 'deleting' } } }),
@@ -67,21 +84,29 @@ export class KnowledgeService {
         );
       }
 
-      const created = await db.knowledgeSource.create({
-        data: {
-          tenantId: ctx.workspaceId,
-          agentId,
-          type: input.type,
-          name: decoded.name,
-          url: decoded.url,
-          contentType: decoded.contentType,
-          payload: decoded.payload ? new Uint8Array(decoded.payload) : null,
-          sizeBytes: decoded.sizeBytes,
-          status: 'pending',
-          syncJson: { requested_by: ctx.userId, requested_at: new Date().toISOString() } as Prisma.InputJsonValue,
-        },
-      });
-      await this.audit(db, ctx, 'knowledge.added', created.id, { agent_id: agentId, type: input.type, name: decoded.name, size_bytes: decoded.sizeBytes });
+      const created = await db.knowledgeSource
+        .create({
+          data: {
+            tenantId: ctx.workspaceId,
+            agentId,
+            type: input.type,
+            role,
+            name: decoded.name,
+            url: decoded.url,
+            contentType: decoded.contentType,
+            payload: decoded.payload ? new Uint8Array(decoded.payload) : null,
+            sizeBytes: decoded.sizeBytes,
+            status: 'pending',
+            syncJson: { requested_by: ctx.userId, requested_at: new Date().toISOString() } as Prisma.InputJsonValue,
+          },
+        })
+        .catch((error: unknown) => {
+          if (role && isUniqueViolation(error)) {
+            throw new AppError('CONFLICT', 'This agent already has a menu. Remove or replace it instead of adding a second one.');
+          }
+          throw error;
+        });
+      await this.audit(db, ctx, 'knowledge.added', created.id, { agent_id: agentId, type: input.type, role, name: decoded.name, size_bytes: decoded.sizeBytes });
       return created;
     });
 
@@ -143,7 +168,10 @@ export class KnowledgeService {
   }
 
   private async loadAgent(db: WorkspaceDb, ctx: WorkspaceContext, agentId: string) {
-    const agent = await db.agent.findFirst({ where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null }, select: { id: true, deletedAt: true } });
+    const agent = await db.agent.findFirst({
+      where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null },
+      select: { id: true, deletedAt: true, templateId: true, industry: true },
+    });
     if (!agent) throw AppError.notFound('Agent');
     return agent;
   }
@@ -195,6 +223,7 @@ export function toResponse(row: {
   id: string;
   agentId: string;
   type: string;
+  role: string | null;
   name: string;
   url: string | null;
   contentType: string | null;
@@ -209,6 +238,7 @@ export function toResponse(row: {
     id: row.id,
     agent_id: row.agentId,
     type: row.type as KnowledgeSourceResponse['type'],
+    role: (row.role ?? null) as KnowledgeSourceResponse['role'],
     name: row.name,
     url: row.url,
     content_type: row.contentType,

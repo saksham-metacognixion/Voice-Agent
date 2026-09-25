@@ -67,6 +67,26 @@ describe('AllExceptionsFilter', () => {
     );
   });
 
+  it('turns a ZodError from another copy of zod (the ESM schemas package) into 422, not 500', () => {
+    // What the compiled API sees: same name and shape, a different class than this file's `zod`.
+    class ForeignZodError extends Error {
+      issues = [{ code: 'invalid_string', path: ['session_id'], message: 'Invalid' }];
+      constructor() {
+        super('[]');
+        this.name = 'ZodError';
+      }
+    }
+    const { status, body } = capture(new ForeignZodError());
+    expect(status).toBe(422);
+    expect(body).toEqual({ code: 'VALIDATION_FAILED', message: 'Some fields need attention.', fields: [{ field: 'session_id', message: 'Invalid' }] });
+  });
+
+  it('does not mistake an ordinary error named ZodError without issues for one', () => {
+    const odd = new Error('boom');
+    odd.name = 'ZodError';
+    expect(capture(odd).status).toBe(500);
+  });
+
   it.each([
     [new NotFoundException('nope'), 404, 'NOT_FOUND'],
     [new ForbiddenException('nope'), 403, 'FORBIDDEN_ROLE'],

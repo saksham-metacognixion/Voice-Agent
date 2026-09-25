@@ -9,7 +9,7 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { LoadError } from '@/src/components/dashboard/query-states';
 import { CallStatusBadge, SentimentBadge } from '@/src/components/dashboard/status-badges';
-import { formatCreditsValue, formatDateTime, formatDuration } from '@/src/lib/format';
+import { formatCreditsValue, formatDateTime, formatDuration, formatPhone } from '@/src/lib/format';
 import { callPath, routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
@@ -64,7 +64,7 @@ function RecentCallRow({ call, agent, timeZone }: { call: CallSummary; agent: st
     <li>
       <Link href={callPath(call.id)} className="flex items-center gap-3 py-2.5 transition-colors hover:bg-muted/60 sm:gap-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{call.channel === 'web' ? tc('browserTest') : (call.from_number ?? tc('unknownCaller'))}</p>
+          <p className="truncate text-sm font-medium">{call.channel === 'web' ? tc('browserTest') : call.from_number ? formatPhone(call.from_number) : tc('unknownCaller')}</p>
           <p className="truncate text-xs text-muted-foreground">
             {formatDateTime(call.started_at ?? call.created_at, timeZone)}
             {agent ? ` · ${agent}` : ''}

@@ -26,5 +26,5 @@ export async function launch({ port = 9333, dark = false, args = [] } = {}) {
   const shot = async (path, full = false) => { const { data } = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: full }); await import('node:fs').then(fs => fs.writeFileSync(path, Buffer.from(data, 'base64'))); };
   const url = async () => evaluate('location.href');
   const close = () => { try { chrome.kill(); } catch {} };
-  return { send, goto, evaluate, shot, url, logs, navs, close };
+  return { send, on, goto, evaluate, shot, url, logs, navs, close };
 }

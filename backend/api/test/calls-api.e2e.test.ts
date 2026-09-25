@@ -503,6 +503,20 @@ describe('GET /stats', () => {
     expect((await get('/stats?range=decade')).statusCode).toBe(422);
   });
 
+  it('puts a call on the local day it happened, not the UTC one', async () => {
+    // 01:30 UTC is the previous evening in Toronto. Bucketing the zoneless UTC column with a
+    // bare AT TIME ZONE read it as Toronto time and put the call on the day after.
+    const evening = await createCallWorkspace('stats-evening');
+    const startedAt = new Date(Date.now() - 3 * DAY);
+    startedAt.setUTCHours(1, 30, 0, 0);
+    await adminDb.call.create({ data: { id: callId(), tenantId: evening.tenantId, channel: 'phone', direction: 'inbound', startedAt, endedAt: new Date(startedAt.getTime() + 60_000), durationS: 60, rate: new Prisma.Decimal(1), creditsCharged: new Prisma.Decimal(1), status: 'ended' } });
+
+    const body = (await get('/stats?range=7d', await headers(evening.sub, evening.tenantId))).json();
+    const local = new Intl.DateTimeFormat('en-CA', { timeZone: body.timezone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(startedAt);
+    expect(local).not.toBe(startedAt.toISOString().slice(0, 10));
+    expect(body.by_day).toEqual([expect.objectContaining({ date: local, calls: 1 })]);
+  });
+
   it('is all zeroes for a workspace with no calls, and needs a workspace', async () => {
     const empty = await createCallWorkspace('no-stats');
     const res = await get('/stats', await headers(empty.sub, empty.tenantId));

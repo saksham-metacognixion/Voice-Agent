@@ -20,9 +20,14 @@ export function useUrlQuery(): [URLSearchParams, (update: (next: URLSearchParams
     // The first render on an export happens before `window.location` reflects the
     // link (and on the server, with none at all): read again once mounted.
     setParams(readLocationQuery());
-    const onPop = () => setParams(readLocationQuery());
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    followHistory();
+    const onChange = () => setParams((current) => (current.toString() === window.location.search.replace(/^\?/, '') ? current : readLocationQuery()));
+    window.addEventListener('popstate', onChange);
+    window.addEventListener(LOCATION_EVENT, onChange);
+    return () => {
+      window.removeEventListener('popstate', onChange);
+      window.removeEventListener(LOCATION_EVENT, onChange);
+    };
   }, []);
 
   const set = React.useCallback((update: (next: URLSearchParams) => void, mode: 'push' | 'replace' = 'push') => {
@@ -37,6 +42,31 @@ export function useUrlQuery(): [URLSearchParams, (update: (next: URLSearchParams
   }, []);
 
   return [params, set];
+}
+
+const LOCATION_EVENT = 'portal:locationchange';
+let following = false;
+
+/**
+ * A Next `<Link>` or `router.push` to the page already on screen with another query (the
+ * bottom tab bar's "Numbers" while a number is open, "Calls" while the D2 drawer is) is a
+ * `history.pushState` that fires no `popstate` and does not remount the page. Wrapping
+ * the two History methods once makes every such change an event this hook follows.
+ *
+ * The event goes out on a microtask, never inline: Next calls these methods from a
+ * `useInsertionEffect`, where React refuses any state update — an inline dispatch reached
+ * `setParams` there and crashed the page.
+ */
+function followHistory(): void {
+  if (following || typeof window === 'undefined') return;
+  following = true;
+  for (const method of ['pushState', 'replaceState'] as const) {
+    const original = window.history[method].bind(window.history);
+    window.history[method] = (...args: Parameters<History['pushState']>) => {
+      original(...args);
+      queueMicrotask(() => window.dispatchEvent(new Event(LOCATION_EVENT)));
+    };
+  }
 }
 
 function readLocationQuery(): URLSearchParams {

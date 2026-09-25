@@ -33,6 +33,9 @@ export const MAX_GREETING_WORDS = 25;
  *   no_greeting           `begin_message` is what the caller hears first; silence is broken
  *   transfer_tool_missing the brief promises a transfer the agent has no way to perform
  *   guardrails_missing    §9.4 is not optional
+ *   platform_named        the voice platform is never named to a customer (CLAUDE.md, Retell
+ *                         isolation) — an agent that says it is from the vendor is that
+ *                         rule broken out loud, on the first ring
  * Everything else is advice. Notably `prompt_too_long` is a warning: it costs latency and
  * money (§9.5's own reason for the rule) but a long prompt still runs, and blocking a
  * customer's publish over 6,010 characters would be the wrong trade.
@@ -47,6 +50,7 @@ export const DEFAULT_SEVERITIES: Record<LintRule, LintSeverity> = {
   absolute_language: 'warning',
   language_mismatch: 'warning',
   guardrails_missing: 'error',
+  platform_named: 'error',
 };
 
 export interface LintConfig {
@@ -158,6 +162,15 @@ export function lintPrompt(input: LintInput, config: LintConfig = DEFAULT_LINT_C
     );
   }
 
+  // --- the vendor's name
+  if (namesPlatform(`${stripGuardrails(prompt)}\n${greeting}`)) {
+    add(
+      'platform_named',
+      'The script names the voice platform behind your agent. Your agent should only ever speak for your business; regenerate it or remove the name under Advanced.',
+      'prompt',
+    );
+  }
+
   // --- language
   // Detected on the body, not the stored prompt: the §9.4 block is written in one
   // language and appended to every prompt, so a fr-CA agent's prompt always contains a
@@ -194,6 +207,17 @@ function wordCount(text: string): number {
 }
 
 const HANDOFF_WORDS = /\b(transfer|transfert|put you through|hand (?:you )?off|patch you through|forward(?:ing)? (?:you|the call)|connect you)\b/i;
+
+/**
+ * The vendor's name as a model, a customer or a sample clip might write it — including
+ * the homophone a transcript produces when the name is *said* ("Retail AI"). Plain
+ * "retail" on its own is a customer's own word (a retail store) and is not matched.
+ */
+const PLATFORM_NAMES = /\bretell\b|\bretail\s*ai\b/i;
+
+export function namesPlatform(text: string): boolean {
+  return PLATFORM_NAMES.test(text);
+}
 
 function mentionsHandoff(prompt: string): boolean {
   return HANDOFF_WORDS.test(prompt);

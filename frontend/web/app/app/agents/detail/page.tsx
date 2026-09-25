@@ -17,6 +17,7 @@ import { TestTab } from '@/src/components/dashboard/agent/test-tab';
 import { VersionsTab } from '@/src/components/dashboard/agent/versions-tab';
 import { VoiceTab } from '@/src/components/dashboard/agent/voice-tab';
 import { AgentStatusBadge, TierBadge } from '@/src/components/dashboard/status-badges';
+import { TemplateBadge } from '@/src/components/wizard/template-context';
 import { PageHeader } from '@/src/components/shell/portal-shell';
 import { useDashboardLive } from '@/src/dashboard/use-dashboard-live';
 import { errorMessage } from '@/src/lib/errors';
@@ -86,6 +87,7 @@ export default function AgentDetailPage() {
           title={
             <span className="flex flex-wrap items-center gap-2">
               {data.name}
+              <TemplateBadge agent={data} />
               <TierBadge tier={data.draft?.settings.tier ?? data.tier} />
               <AgentStatusBadge status={data.status} />
             </span>

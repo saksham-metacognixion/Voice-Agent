@@ -20,8 +20,12 @@ type Pack = PricingResponse['packs'][number];
  * asks the API for a Checkout session (`POST /wallet/checkout {pack_id, agent_id,
  * auto_topup}`), which creates the pending purchase, and the browser goes to Stripe's
  * hosted page. Whether it was paid is decided by the webhook, not by this page.
+ *
+ * D5 "Buy credits" uses the same selector without an agent: Stripe then returns to
+ * `/app/wallet` instead of W7, and there is no activation to remember. `compact` lays the
+ * packs out two across for a dialog.
  */
-export function PackageSelector({ agentId }: { agentId: string }) {
+export function PackageSelector({ agentId, compact = false }: { agentId?: string; compact?: boolean }) {
   const t = useTranslations();
   const tp = useTranslations('wizard.w7.packs');
   const api = useApi();
@@ -53,11 +57,11 @@ export function PackageSelector({ agentId }: { agentId: string }) {
     try {
       const res = await createCheckout(api, {
         pack_id: selected.id,
-        agent_id: agentId,
+        ...(agentId ? { agent_id: agentId } : {}),
         ...(threshold !== null ? { auto_topup: { enabled: topupOn, ...(topupOn ? { threshold } : {}) } } : {}),
       });
-      checkoutMarker.set({ purchaseId: res.purchase_id, agentId, packId: selected.id, startedAt: Date.now() });
-      track('pack_selected', { pack_id: selected.id, agent_id: agentId, auto_topup: topupOn });
+      if (agentId) checkoutMarker.set({ purchaseId: res.purchase_id, agentId, packId: selected.id, startedAt: Date.now() });
+      track('pack_selected', { pack_id: selected.id, ...(agentId ? { agent_id: agentId } : {}), auto_topup: topupOn, from: agentId ? 'wizard' : 'wallet' });
       window.location.assign(res.checkout_url);
       // Stay in the redirecting state: the page is being replaced.
     } catch (e) {
@@ -75,7 +79,7 @@ export function PackageSelector({ agentId }: { agentId: string }) {
       {!canBuy ? <Alert variant="warning" title={tp('roleTitle')}>{tp('roleBody')}</Alert> : null}
 
       {pricing.isPending ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2 xl:grid-cols-4'}>
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-40 w-full" />
           ))}
@@ -83,7 +87,7 @@ export function PackageSelector({ agentId }: { agentId: string }) {
       ) : packs.length === 0 ? (
         <Alert variant="warning">{tp('none')}</Alert>
       ) : (
-        <RadioGroup value={packId ?? ''} onValueChange={setPackId} className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label={tp('label')} disabled={redirecting}>
+        <RadioGroup value={packId ?? ''} onValueChange={setPackId} className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2 xl:grid-cols-4'} aria-label={tp('label')} disabled={redirecting}>
           {packs.map((p) => (
             <RadioCard key={p.id} value={p.id} title={<PackTitle pack={p} />} description={<PackBody pack={p} />} className="h-full" />
           ))}

@@ -1,11 +1,11 @@
 {
-  "captured_at": "2026-09-15T05:40:59.682Z",
+  "captured_at": "2026-09-25T07:43:32.904Z",
   "data": {
-    "call_id": "call_3156d5a9baa0f5c1148e62ac8b2",
+    "call_id": "call_5d7cbe8cfd78bf584430b2e1cc3",
     "call_type": "phone_call",
-    "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
-    "agent_version": 0,
-    "agent_name": "dev-spike-caller",
+    "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+    "agent_version": 1,
+    "agent_name": "dev-spike-receptionist",
     "contact_dynamic_variables": {},
     "custom_sip_headers": {},
     "call_status": "registered",
@@ -22,8 +22,8 @@
     },
     "data_storage_setting": "everything",
     "opt_in_signed_url": true,
-    "from_number": "+19377293562",
-    "to_number": "+16204459730",
+    "from_number": "+16204459730",
+    "to_number": "+18198005350",
     "direction": "outbound"
   }
 }

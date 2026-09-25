@@ -158,7 +158,7 @@ try {
   ok('D2 clicking a row opens the drawer and writes ?call=', (await path()).includes('call=') && Boolean(await waitFor(`!!document.querySelector('#call-note')`, 8000)), await path());
   await waitFor(`document.body.innerText.includes('Call ID')`, 10000);
   const drawer = await bodyText();
-  ok('D2 drawer shows the summary', typeof drawer === 'string' && /asked to book a table|Summary/.test(drawer));
+  ok('D2 drawer shows the summary', typeof drawer === 'string' && /asked to book a table|Summary/i.test(drawer));
   ok('D2 drawer shows the captured fields', typeof drawer === 'string' && drawer.includes('Customer name') && drawer.includes('Party size'));
   ok('D2 drawer shows the transcript as turns', typeof drawer === 'string' && drawer.includes('Thanks for calling Bright Smile') && drawer.includes('Caller'));
   ok('D2 drawer shows the facts', typeof drawer === 'string' && drawer.includes('Call ID') && drawer.includes('Rate') && drawer.includes('Started'));

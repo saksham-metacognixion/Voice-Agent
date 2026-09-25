@@ -252,3 +252,35 @@ describe('lintConfigFrom', () => {
     expect(result.publishable).toBe(false);
   });
 });
+
+/*
+ * `platform_named` (25 Sep 2026): the voice platform is never named to a customer, and an
+ * agent that says it is "from <vendor>" is that rule broken on the first ring. Blocks a
+ * publish. "Retail" on its own is a customer's word and must not fire.
+ */
+describe('platform_named', () => {
+  it('blocks a prompt or a greeting that names the vendor, however it is spelt', () => {
+    const body = CLEAN_BODY.replace('the receptionist for Maple Dental', 'the receptionist from Retell AI for Maple Dental');
+    const result = lintPrompt({ prompt: applyGuardrails(body), greeting: GREETING, brief: brief(), primaryLanguage: 'en-US' });
+    expect(result.findings.map((f) => f.rule)).toContain('platform_named');
+    expect(result.publishable).toBe(false);
+    expect(lintErrors(result).map((f) => f.rule)).toEqual(['platform_named']);
+
+    const spoken = lintPrompt({ prompt: CLEAN_PROMPT, greeting: 'Hi, this is Sophie from Retail AI, how can I help?', brief: brief(), primaryLanguage: 'en-US' });
+    expect(spoken.findings.map((f) => f.rule)).toContain('platform_named');
+    // The finding's own text never repeats the name.
+    expect(spoken.findings.find((f) => f.rule === 'platform_named')?.message).not.toMatch(/retell|retail/i);
+  });
+
+  it('leaves a retail business alone', () => {
+    const body = CLEAN_BODY.replace('a family clinic in Laval', 'a retail store in Laval that sells AI gadgets');
+    const result = lintPrompt({ prompt: applyGuardrails(body), greeting: GREETING, brief: brief(), primaryLanguage: 'en-US' });
+    expect(result.findings.map((f) => f.rule)).not.toContain('platform_named');
+  });
+
+  it('can be softened from the stack row like any other rule', () => {
+    const config = lintConfigFrom({ severities: { platform_named: 'warning' } });
+    expect(config.severities.platform_named).toBe('warning');
+    expect(DEFAULT_LINT_CONFIG.severities.platform_named).toBe('error');
+  });
+});

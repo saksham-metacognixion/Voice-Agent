@@ -396,6 +396,15 @@ Found by driving W5 in headless Chrome against the dev workspace; each is fixed 
   `transcript_updated` and `call_ended`, reduced to `{id, role, content, time_sec}` for
   agent/user lines. One relay per call; either side closing closes both. Browser origin
   must be `PORTAL_URL`'s. The key never leaves the server. New dependency: `ws`.
+- **The platform's close code goes down the relay unchanged** (25 Sep). The SDK opens the
+  monitor the moment its audio session is live, which is a beat before the platform lists
+  the call: the monitor answers `4004 Call not live`, and the SDK retries that code up to
+  eight times (500 ms doubling to 15 s) and reconnects on any 1xxx but 1000. The relay used
+  to close the browser with 1000 whatever the platform sent, which the SDK reads as "the
+  call is over" — one early ask and the transcript stayed blank for the whole call while
+  the after-call card had all of it. `relayedCloseCode()`: 1000 and 3000–4999 pass through,
+  a codeless close is 1000, a dropped upstream (1006) or an error is 1011, so the SDK
+  reconnects and the relay opens a fresh upstream. Pinned in `live-transcript.relay.test.ts`.
 - **Only the monitor address moves.** The SDK derives WebRTC signalling
   (`${baseURL}/webrtc-proxy/…`) and the monitor socket from one `baseURL`, so `baseURL`
   stays the platform default and W5 replaces `client.api.monitorSocket` on the instance
@@ -417,3 +426,11 @@ Found by driving W5 in headless Chrome against the dev workspace; each is fixed 
   The sync worker now deletes the base with its last source and clears
   `agents.retell_kb_id`; the next add creates a new one. `FakeRetellGateway` refuses the
   same way.
+
+## Addendum, 25 Sep 2026 — §9's vendor clips reached staging
+
+`VOICE_VENDOR_SAMPLES` defaulted to `allow` everywhere but prod, and a design partner on
+staging pressed play on a catalogue clip that says "I'm … from Retell AI". Default is now
+`allow` under `APP_ENV=dev` only (an explicit `allow` still wins); ADR 0020 §5. The
+generation prompt and a lint rule (`platform_named`) now also keep the name out of the
+agent's own script.

@@ -466,14 +466,13 @@ export class CallsService {
 
   /** Our phone number in this call: `to_number` inbound, `from_number` outbound. `e164` is unique, so a hit is ours. */
   private async numberOf(call: RetellCallFacts, workspaceId?: string) {
-    for (const e164 of dialledNumbers(call)) {
-      const row = await adminDb.phoneNumber.findUnique({
-        where: { e164 },
-        select: { id: true, e164: true, tenantId: true, agentId: true, agent: { select: { tier: true } } },
-      });
-      if (row && (workspaceId === undefined || row.tenantId === workspaceId)) return row;
-    }
-    return null;
+    const e164 = ourEnd(call);
+    if (!e164) return null;
+    const row = await adminDb.phoneNumber.findUnique({
+      where: { e164 },
+      select: { id: true, e164: true, tenantId: true, agentId: true, agent: { select: { tier: true } } },
+    });
+    return row && (workspaceId === undefined || row.tenantId === workspaceId) ? row : null;
   }
 
   private load(callId: string) {
@@ -604,12 +603,16 @@ interface CallOrigin {
 
 const UNIDENTIFIED = 'no workspace on the row, in the metadata, on the agent or on the number';
 
-/** The numbers worth looking up, ours first: inbound we are `to`, outbound we are `from`. */
-function dialledNumbers(call: RetellCallFacts): string[] {
-  const to = call.to_number?.trim();
-  const from = call.from_number?.trim();
-  const ordered = directionOf(call.direction) === 'outbound' ? [from, to] : [to, from];
-  return ordered.filter((n): n is string => Boolean(n));
+/**
+ * The end of the call that would be ours: inbound we are `to`, outbound we are `from`.
+ * Only that end. The other end of an outbound call is whoever it dialled, and when that is
+ * a customer's number the leg is still the caller's: a platform number ringing one of ours
+ * posts its own outbound leg here without our metadata, and matching it on `to` billed the
+ * caller's minutes to the workspace that was called.
+ */
+function ourEnd(call: RetellCallFacts): string | null {
+  const e164 = (directionOf(call.direction) === 'outbound' ? call.from_number : call.to_number)?.trim();
+  return e164 ? e164 : null;
 }
 
 function metadataOf(call: RetellCallFacts): Record<string, unknown> {

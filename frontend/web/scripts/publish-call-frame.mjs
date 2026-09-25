@@ -13,11 +13,16 @@ function redisUrl() {
   const line = env.split('\n').find((l) => l.startsWith('REDIS_URL='));
   return (line ?? 'REDIS_URL=redis://localhost:6379').slice('REDIS_URL='.length).trim().replace(/\s+#.*$/, '');
 }
-export async function publishCallFrame(workspaceId, callId, type, data) {
+/** Any topic: `wallet`, `alerts`, `call:{id}`… The frame is not validated here; the browser's parser is what is under test. */
+export async function publishFrame(workspaceId, topic, type, data) {
   const Redis = require(fileURLToPath(new URL('../../../backend/api/node_modules/ioredis/built/index.js', import.meta.url))).default;
   const client = new Redis(redisUrl());
-  const event = { id: `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`, topic: `call:${callId}`, type, ts: new Date().toISOString(), data };
+  const event = { id: `e2e-${Date.now()}-${Math.random().toString(36).slice(2)}`, topic, type, ts: new Date().toISOString(), data };
   await client.publish(`events:{${workspaceId}}`, JSON.stringify(event));
   await client.quit();
   return event;
+}
+
+export function publishCallFrame(workspaceId, callId, type, data) {
+  return publishFrame(workspaceId, `call:${callId}`, type, data);
 }

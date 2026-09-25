@@ -40,7 +40,9 @@ export function KnowledgeSources({ agentId, locked }: { agentId: string; locked:
   const api = useApi();
   const queryClient = useQueryClient();
   const list = useListAgentKnowledge(api, { id: agentId }, { staleTime: 0 });
-  const sources = list.data ?? [];
+  // The menu has its own section (`MenuUpload`); here are the ordinary sources. The
+  // per-agent limit still counts every row, menu included.
+  const sources = (list.data ?? []).filter((s) => s.role !== 'menu');
   const settled = isKnowledgeSettled(list.data);
   const [removing, setRemoving] = React.useState<string | null>(null);
 
@@ -67,7 +69,7 @@ export function KnowledgeSources({ agentId, locked }: { agentId: string; locked:
     }
   }
 
-  const full = sources.filter((s) => s.status !== 'deleting').length >= KNOWLEDGE_MAX_SOURCES_PER_AGENT;
+  const full = (list.data ?? []).filter((s) => s.status !== 'deleting').length >= KNOWLEDGE_MAX_SOURCES_PER_AGENT;
 
   return (
     <div className="flex flex-col gap-6">
@@ -267,7 +269,7 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
   );
 }
 
-function toBase64(file: File): Promise<string> {
+export function toBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
@@ -279,7 +281,7 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
-function formatBytes(bytes: number): string {
+export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;

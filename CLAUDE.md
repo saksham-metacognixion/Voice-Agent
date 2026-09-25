@@ -85,7 +85,13 @@ together, the local stand-in issuer and the wizard end-to-end script (D8), 0018 
 customer dashboard — sort/total/`sentiment` on `GET /calls`, `PATCH /calls` bulk handled,
 `POST /calls/export` streamed CSV, the lint dry-run route, first-frame `call:` payloads,
 `?id=&tab=` / `?call=` routes, URL-held D2 state, shared wizard form bodies, the inline
-SVG chart and phone-width tables (D10). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+SVG chart and phone-width tables (D10), 0019 the rest of the dashboard — one SSE stream
+opened by the shell and closed on `pagehide`, the bottom tab bar, tables as cards below
+640 px, `GET /audit-log`, `sip` + `calls_7d` on numbers, D4 as `?id=&tab=`, and what
+D4–D7 deliberately do not offer (D11), 0020 the restaurant menu as a knowledge `role`
+(one per agent, restaurant agents only), the category shown on W2/W4/D3 with a W1
+warning that never refuses, the identity block + `platform_named` lint, and vendor
+voice clips denied outside `APP_ENV=dev` (25 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -100,7 +106,7 @@ frontend/                         → S3 + CloudFront (static export, ADR 0008)
                                       app/ = routes (A1–A8, onboarding/W1–W7, app/D1–D7, app/agents/detail = D3 tabs);
                                       src/ = auth, guards, workspace, wizard hooks, dashboard hooks + pure
                                       modules (src/dashboard), shell + wizard + dashboard components, i18n,
-                                      analytics; scripts/ = serve-export, e2e-wizard (D8), e2e-dashboard (D10)
+                                      analytics; scripts/ = serve-export, e2e-wizard (D8), e2e-dashboard (D10), e2e-dashboard-d11 (D11)
   admin/          @portal/admin       Next.js staff console        admin.<domain>
   ui/             @portal/ui          shadcn components + shared domain widgets
   api-client/     @portal/api-client  typed fetch wrapper + TanStack Query hooks
@@ -182,7 +188,13 @@ job settles.
   the vendor's name aloud and are served from its bucket, so `VOICE_VENDOR_SAMPLES` withholds
   both (`deny` is the default under `APP_ENV=prod`). `voices.sample_url`, a clip of ours, is
   played whatever the switch says and the daily `voice-cache` job never writes it. There is no
-  text-to-speech route to make one with (ADR 0003 §9 + the D8 addendum).
+  text-to-speech route to make one with (ADR 0003 §9 + the D8 addendum). **The default is
+  `deny` everywhere but `APP_ENV=dev`** — a design partner on staging heard a clip say the
+  vendor's name (25 Sep, ADR 0020 §5). The agent's own script is kept clean the same way:
+  `identitySection()` in the generation user turn names the business and forbids any other
+  name, and lint rule `platform_named` blocks a publish whose prompt or greeting names the
+  platform (as spelt, or as a transcript hears it). Nothing here is a hard-coded business
+  name.
 
 **Webhooks (§13.10, §14.2)**
 
@@ -279,6 +291,9 @@ job settles.
 - A call let through by any fail-open carries **no metadata**, so the lifecycle handlers resolve the
   workspace from `metadata.tenant_id`, then the Retell agent, then the number it was dialled on.
   Without that fallback `call_ended` cannot bill it and the call is free and invisible (ADR 0011 §2).
+  The number is **our end only** — `to_number` inbound, `from_number` outbound (`ourEnd()`), never
+  the other party's: a platform number ringing a customer posts its own outbound leg with `to` =
+  the customer's number, and matching that billed the caller's minutes to the callee (25 Sep).
 - A reservation in `active:{ws}` is sized to what the call can actually spend — min(the agent's
   `max_call_duration_s`, the wallet after the other live calls) — never Retell's 2 h ceiling, which
   would decline other callers on `balance` while the credits are still there (ADR 0011 §1).
@@ -439,6 +454,19 @@ job settles.
   sites only: `PhonePlansService`/`NumbersService.import` seal, `importSip` opens on the stack
   immediately before `import-phone-number`. Nothing returns, logs or audits the plaintext;
   responses carry `has_password`.
+- **The restaurant menu is a knowledge source with `role = menu`** (ADR 0020): the same
+  row, body, validation, sync job and platform KB as any source, plus
+  `knowledge_sources_agent_role_idx` (one menu per agent; a race is `409 CONFLICT`, a
+  replace removes the old row first). Only a restaurant agent may hold one —
+  `knowledgeRolesFor()` in `@portal/schemas` (`template_id` or `industry` = `restaurant`)
+  is what the API refuses on (`400`, field `role`) and what the portal shows the Menu
+  section from. The generation worker passes every pending/syncing/ready source to
+  `knowledgeSection()`, which tells the model to answer from the menu and to say when a
+  dish is not on it. Images are not accepted (the platform ingests documents). **Replace
+  (DELETE then POST in the same second) is settled by the worker, not the portal**: a delete
+  of the last synced source defers (5 s × ≤ 24, `-del-p<n>`) while a sibling is pending or
+  syncing, and a sync whose base answers 404 mid-flight clears the stale `retell_kb_id` and
+  retries — on the real platform the newcomer otherwise ended `failed` (ADR 0020 §2).
 - Knowledge: one platform KB per agent (`agents.retell_kb_id`), `knowledge_sources.status ∈
 {pending, syncing, ready, failed, deleting}`, file/text bytes held in `payload` only until
   ingested. Gated by `knowledge_base` and `caps.kb_allowance` (one KB per agent counts), ≤ 20
@@ -636,12 +664,65 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   read-only. Unsaved edits survive a background refetch and warn on `beforeunload`.
 - `BriefFields` and `VoiceSettings` (`src/components/wizard/`) are the W2/W3 bodies and the
   D3 Brief/Voice tabs at once. Change a field there, not in a page.
+- **The script is editable on W2 too.** Once the draft has a prompt, the Generate panel shows
+  "Edit the script", which opens `PromptTab` (the D3 Advanced editor, same lint and
+  `PUT …/versions/:v/prompt`) in a section under the brief; it stays mounted while hidden
+  so edits survive "Hide", and Continue is disabled while it holds unsaved edits
+  (`onDirtyChange`). `WizardHeading`'s subtitle is a `<div>`: `AgentContextBanner` is a
+  `<p>`, and `<p>` inside `<p>` is a hydration error.
+- **The category is `agents.template_id` + `agents.industry`, shown wherever the agent is
+  edited** (ADR 0020 §1): `AgentContextBanner` under the W2/W4 headings, `TemplateBadge`
+  in the D3 header, the template's `example_texts` as the W2 placeholder
+  (`useBriefPlaceholders`). W1 warns through `industryConflicts()` when the industry is
+  not one the template was written for and never refuses; the workspace name is never
+  read as a category. `MenuUpload` appears where `knowledgeRolesFor(agent)` says so.
+  Exit check: `pnpm --filter @portal/web e2e:restaurant` (same stack as `e2e:wizard`,
+  plus `DASHBOARD_SUB` for the D3 part).
 - Tables drop secondary columns below `sm` (`hidden sm:table-cell`) instead of carrying a
   `min-width`: Chrome sizes the mobile layout viewport from a table's minimum width even
   inside an `overflow-x-auto` wrapper. The 30-day chart is inline SVG, one series, one hue.
 - D10 exit check: `pnpm --filter @portal/web e2e:dashboard` against the export, the API
   and worker it was built for, and the local issuer minting the owner of a **live**
   workspace (`docs/decisions/0018-customer-dashboard.md`, Consequences).
+- **The dashboard has one SSE stream, opened by the shell** (`DashboardLiveProvider` in
+  `PortalShell`, ADR 0019 §1). `useDashboardLive()` registers a page's `onNewCall` and
+  returns the state; it opens nothing. A `wallet` frame's `balance_after` is written into
+  every `getWallet` cache entry (the pill and D5 move on the frame) and then re-read;
+  `walletFrame()` refuses anything without a finite number and an older frame never
+  overwrites a newer balance. Nothing else subscribes to `GET /events` under `/app`.
+- **The stream closes on `pagehide` and reopens on a persisted `pageshow`** (ADR 0019
+  §2): a document in Chrome's back/forward cache keeps its fetches, six cached dashboard
+  documents held the six HTTP/1.1 sockets a host gets, and the seventh page's first
+  request hung for ever. `sse.test.ts` pins the abort. Keep `openWhenHidden: true`.
+- **Below `lg` the nav is a bottom tab bar** — Home, Calls, Agents, Numbers, More (a
+  bottom sheet with Wallet, Settings, Help) — padded for `env(safe-area-inset-bottom)`
+  (`viewportFit: 'cover'`), with `<main>` padded to match. The pill lives at the foot of
+  the desktop sidebar and compact in the phone header. No hamburger sheet.
+- **A list is `DataTable`** (`src/components/dashboard/data-table.tsx`): the table at
+  `sm`+, cards below, both rendered and CSS picks. A column names its card slot (`title`,
+  `subtitle`, `badge`, `field`, `actions`); nothing important is hidden on a phone. D2 and
+  D3 keep their bespoke tables and carry their own card lists. A destructive action is
+  `ConfirmDialog` (consequences, optional typed confirmation, busy state). Role gating in
+  the UI is `useRole()`; the API enforces it again.
+- **D4 is `/app/numbers/?id=&tab=`** (`numberPath()`, `NUMBER_TABS`; Forwarding only for
+  a forward target, SIP only for SIP). `useUrlQuery` observes same-route
+  `pushState`/`replaceState` (dispatched on a microtask — inline crashed React) so the
+  tab bar's Numbers closes an open number; list ↔ detail go through `NumbersNavContext`.
+  Routing, hand-off and callers are `PATCH /numbers/:id` (editor+); release is
+  owner/admin with the number typed. SIP is read-only (`sip.host`, masked username,
+  `has_password`) — provider identity is not on the PATCH shape. D6 is
+  `/app/settings/?tab=` (`SETTINGS_TABS`); the audit tab is owner/admin only.
+- **What the dashboard does not offer, on purpose** (ADR 0019 §8): payment methods are
+  the Stripe Customer Portal only; export/delete workspace is a `mailto:` to support
+  (staff job, §17); status page and support chat are `NEXT_PUBLIC_STATUS_PAGE_URL`
+  (`https:` only, optional) and `NEXT_PUBLIC_SUPPORT_EMAIL` (default `support@oraly.ai`)
+  in `src/config.ts`; SMS and the weekly summary have no sender and are not shown;
+  Help's status is `GET /health/ready`. Pricing copy on Help comes from `GET /pricing`.
+- The balance pill is amber under 20 % of the last pack and red at or below 0
+  (`balanceTone()`, §7.2), 20 credits before the first pack.
+- D11 exit check: `pnpm --filter @portal/web e2e:dashboard-d11` (124 checks incl. every
+  screen, tab and dialog at 390 px) after `e2e:dashboard`, same stack. The D10 suite
+  needs its `d10seed_*` calls and ≥ 6 versions on the live workspace's agent.
 
 **Configuration**
 
@@ -719,7 +800,7 @@ throws and never waits past its budget (ADR 0010 §6).
 
 ## API conventions (§16)
 
-- Errors: `{code, message, fields?[]}`. Known codes include `402 NO_CREDITS`, `403 EMAIL_UNVERIFIED`,
+- Errors: `{code, message, fields?[]}`. A zod failure is 422 `VALIDATION_FAILED` with `fields`; the filter matches `ZodError` by shape as well as by class (`isZodError`), because the ESM `@portal/schemas` and the CJS API load two zod builds — `instanceof` alone made every validation error a 500 in `dist/` while tests saw 422 (ADR 0019 §10). Check new error handling against the compiled server, not only vitest. Known codes include `402 NO_CREDITS`, `403 EMAIL_UNVERIFIED`,
   `429 TEST_RATE_LIMIT`.
 - Pagination: `?cursor=&limit=`.
 - Long operations return `202 {job_id}`; the client subscribes to SSE and falls back to
@@ -755,6 +836,10 @@ throws and never waits past its budget (ADR 0010 §6).
 - D10 routes: `PATCH /calls {ids, handled}` (owner/admin/editor), `POST /calls/export`
   (owner/admin/editor, `text/csv`), `POST /agents/:id/versions/:v/lint` (any role);
   `GET /calls` takes `sort`, `order`, `handled` and answers `total`.
+- D11 routes: `GET /audit-log` (owner/admin, `?area=&cursor=&limit=`, a §16 page of
+  `auditEntryResponse` — action, target, actor or null, IP, `meta`, time; `area` is the
+  part of `action` before the dot). `phoneNumberResponse` carries `sip` (host, username,
+  `has_password` — never the password) and `calls_7d`.
 - D9 routes: `POST /agents/:id/test/web` (201, editor+, verified email; §13.4:
   `402 NO_CREDITS`, `429 TEST_RATE_LIMIT` at 10/h per workspace — a **fixed** window
   (`RedisCache.increment`, `SET NX` + `INCR`, counted only after the platform minted),
@@ -768,7 +853,9 @@ throws and never waits past its budget (ADR 0010 §6).
   **only WebSocket** on the API is `LiveTranscriptRelay` at
   `/test-calls/v2/monitor-call/:call_id` (bearer subprotocol = `live_token`, a
   `RecordingSigner` token with purpose `live`; `main.ts` attaches it, the worker never
-  does). Stripe's success/cancel URLs depend on the session: with `agent_id` (W7) both go
+  does). It forwards the platform's close code (`relayedCloseCode`): the SDK asks for the
+  monitor a beat before the platform lists the call live and retries a `4004`, but reads
+  a bare `1000` as "call over" and never asks again (25 Sep). Stripe's success/cancel URLs depend on the session: with `agent_id` (W7) both go
   to `/onboarding/activate` (`?session_id=` / `?checkout=cancelled`), without it to
   `/app/wallet`.
 - Recordings: `GET /calls/:id/recording` mints a signed one-hour link to
@@ -917,8 +1004,13 @@ knowledge W4 → auto top-up → team and invites.
   total, `handled`/`sentiment`, bulk handled (foreign id, viewer) and the CSV export
   (columns, filters, ids, isolation, formula-safe cells) in `test/calls-api.e2e.test.ts`
   and `modules/calls/csv.test.ts`, plus the portal's URL state, 30-day series, transcript
-  and analysis parsers and line diff (`frontend/web/src/dashboard/*.test.ts`). Other areas
-  are best-effort.
+  and analysis parsers and line diff (`frontend/web/src/dashboard/*.test.ts`); from D11 —
+  the audit-log route (newest first, cursor, area filter, roles, isolation, a departed
+  actor), the redacted `sip` and `calls_7d` on every numbers route
+  (`test/workspaces.e2e.test.ts`, `test/d6-numbers.e2e.test.ts`), the SSE `pagehide`
+  abort (`frontend/api-client/src/sse.test.ts`) and the wallet-frame parser plus the
+  D4–D7 view logic (`frontend/web/src/dashboard/{wallet-frame,wallet-view,numbers-view,audit-view}.test.ts`).
+  Other areas are best-effort.
 - The §13.9 latency SLO is asserted, not eyeballed: `pnpm --filter @portal/api load:setup` then
   `load:inbound` runs k6 with `p(95)<300` as a threshold, so the run exits non-zero if it regresses.
   `load:reset` frees the slots a previous run reserved; `load:teardown` pauses the number afterwards.

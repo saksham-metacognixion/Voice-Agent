@@ -1,13 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, adminDb, withWorkspace } from '@portal/db';
 import {
+  type AuditEntryResponse,
+  type AuditLogQuery,
   type CreateWorkspaceRequest,
+  type Page,
   type UpdateWorkspaceRequest,
   type WorkspaceChecklist,
   type WorkspaceResponse,
   businessHours as businessHoursSchema,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
+import { decodeCursor, invalidCursor, toPage } from '../../common/pagination';
 import type { AuthenticatedUser, WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { RuntimeCacheService } from '../runtime-cache';
@@ -221,6 +225,47 @@ export class WorkspacesService {
   }
 
   /** Every workspace the signed-in user belongs to — the A7 switcher. */
+  /**
+   * D6 Audit log (§6.2, §16 `GET /audit-log`), newest first. Read under RLS like every
+   * customer read; the actor comes through `users_read_co_members`, so someone who has
+   * left the workspace reads as no actor rather than leaking their profile.
+   */
+  async auditLog(ctx: WorkspaceContext, query: AuditLogQuery): Promise<Page<AuditEntryResponse>> {
+    // The cursor is an explicit keyset predicate, like `GET /calls` (ADR 0018): Prisma's
+    // `cursor` answers a malformed id with a P2023 (a 500) and an id this workspace cannot
+    // see — or one the area filter no longer includes — with a silent empty page. The
+    // position row is read under RLS, so a foreign id is "not there" and the page link
+    // is refused, never a leak; a value that is not a UUID never reaches Postgres.
+    const cursorId = query.cursor ? decodeCursor(query.cursor).id : null;
+    if (cursorId !== null && !UUID_RE.test(cursorId)) throw invalidCursor();
+    const filter: Prisma.AuditLogWhereInput = { tenantId: ctx.workspaceId, ...(query.area ? { action: { startsWith: `${query.area}.` } } : {}) };
+    const rows = await withWorkspace(ctx, async (db) => {
+      const position = cursorId ? await db.auditLog.findFirst({ where: { id: cursorId, tenantId: ctx.workspaceId }, select: { id: true, createdAt: true } }) : null;
+      if (cursorId && !position) throw invalidCursor();
+      const after: Prisma.AuditLogWhereInput | null = position ? { OR: [{ createdAt: { lt: position.createdAt } }, { createdAt: position.createdAt, id: { lt: position.id } }] } : null;
+      return db.auditLog.findMany({
+        take: query.limit + 1,
+        where: after ? { AND: [filter, after] } : filter,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: { actor: { select: { id: true, email: true, name: true } } },
+      });
+    });
+    const page = toPage(rows, query);
+    return {
+      next_cursor: page.next_cursor,
+      items: page.items.map((row) => ({
+        id: row.id,
+        action: row.action,
+        target_type: row.targetType,
+        target_id: row.targetId,
+        actor: row.actor ? { user_id: row.actor.id, email: row.actor.email, name: row.actor.name } : null,
+        ip: row.ip,
+        meta: row.metaJson && typeof row.metaJson === 'object' && !Array.isArray(row.metaJson) ? (row.metaJson as Record<string, unknown>) : null,
+        created_at: row.createdAt.toISOString(),
+      })),
+    };
+  }
+
   async listForUser(userId: string): Promise<Array<{ id: string; name: string; role: string }>> {
     const rows = await adminDb.membership.findMany({
       where: { userId },
@@ -230,6 +275,8 @@ export class WorkspacesService {
     return rows.map((row) => ({ id: row.tenant.id, name: row.tenant.name, role: row.role }));
   }
 }
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function toResponse(
   tenant: {

@@ -71,6 +71,7 @@ export const LINT_CONFIG_V1 = {
     absolute_language: 'warning',
     language_mismatch: 'warning',
     guardrails_missing: 'error',
+    platform_named: 'error',
   },
 } as const;
 
@@ -90,6 +91,7 @@ export const GENERATION_PROMPTS_V1 = {
     '- Use only facts from the brief. Where the brief is silent, instruct the agent to say it does not have that information and offer to take a message.',
     '- Never add a number, limit, threshold or policy the brief does not state. If the brief names a condition without one ("hand off large parties"), keep the brief\'s own words in the prompt and the summary, and add a warning asking the customer to set it.',
     '- Never write a rule that tells the agent to claim to be human, to quote invented prices, or to collect card or health details.',
+    '- The agent speaks only for the business named in the settings. It introduces itself by its own name and that business, and it never names, or claims to be from, any other company, software product or voice or AI vendor.',
     '- Write the greeting as one sentence of at most 25 words, in the primary language.',
     '',
     'Return only the structured object you were asked for.',

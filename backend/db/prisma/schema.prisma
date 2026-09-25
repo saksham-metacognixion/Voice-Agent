@@ -97,6 +97,14 @@ enum KnowledgeStatus {
   @@map("knowledge_status")
 }
 
+/// What a source is for beyond its bytes. `menu` = the restaurant's menu, one per agent
+/// (`knowledge_sources_agent_role_idx`, partial). Plain sources carry NULL.
+enum KnowledgeRole {
+  menu
+
+  @@map("knowledge_role")
+}
+
 /// Spec §11. A = buy new, B = forward an existing number, C = BYO SIP, D = port.
 enum PhonePlanOption {
   new
@@ -606,6 +614,8 @@ model KnowledgeSource {
   tenantId       String          @map("tenant_id") @db.Uuid
   agentId        String          @map("agent_id") @db.Uuid
   type           KnowledgeType
+  /// `menu` for the restaurant's menu; null for an ordinary source. One menu per agent.
+  role           KnowledgeRole?
   name           String
   /// type = url
   url            String?

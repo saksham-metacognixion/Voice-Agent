@@ -94,3 +94,22 @@ export function agentPath(agentId: string, tab: AgentTab = 'overview'): string {
 export function callPath(callId: string): string {
   return `${routes.app.calls}?call=${encodeURIComponent(callId)}`;
 }
+
+/** D4 detail sections (spec p. 37). Forwarding and SIP only exist for numbers of that type. */
+export const NUMBER_TABS = ['routing', 'handoff', 'callers', 'forwarding', 'sip', 'danger'] as const;
+export type NumberTab = (typeof NUMBER_TABS)[number];
+
+/** `/app/numbers/[id]` in the spec (D4); `?id=&tab=` in the export, like D3. */
+export function numberPath(numberId: string, tab: NumberTab = 'routing'): string {
+  const query = new URLSearchParams({ id: numberId });
+  if (tab !== 'routing') query.set('tab', tab);
+  return `${routes.app.numbers}?${query.toString()}`;
+}
+
+/** D6 sub-pages (spec p. 39), in the order the spec lists them. `/app/settings/*` → `?tab=`. */
+export const SETTINGS_TABS = ['workspace', 'team', 'notifications', 'security', 'privacy', 'audit'] as const;
+export type SettingsTab = (typeof SETTINGS_TABS)[number];
+
+export function settingsPath(tab: SettingsTab = 'workspace'): string {
+  return tab === 'workspace' ? routes.app.settings : `${routes.app.settings}?tab=${tab}`;
+}

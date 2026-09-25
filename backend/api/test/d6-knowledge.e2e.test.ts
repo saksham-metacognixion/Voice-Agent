@@ -75,12 +75,81 @@ describe('knowledge sources', () => {
     const items = list.body as unknown as Array<Record<string, unknown>>;
     expect(items).toHaveLength(3);
     for (const item of items) {
-      expect(Object.keys(item).sort()).toEqual(['agent_id', 'content_type', 'created_at', 'error', 'id', 'name', 'size_bytes', 'status', 'synced_at', 'type', 'updated_at', 'url']);
+      expect(Object.keys(item).sort()).toEqual(['agent_id', 'content_type', 'created_at', 'error', 'id', 'name', 'role', 'size_bytes', 'status', 'synced_at', 'type', 'updated_at', 'url']);
+      expect(item.role).toBeNull();
       expect(JSON.stringify(item)).not.toMatch(/retell|knowledge_base_|source_id/i);
     }
     const wide = await call('GET', `/knowledge?agent_id=${agentId}`, headers);
     expect((wide.body as unknown as unknown[]).length).toBe(3);
   }, 60_000);
+
+  it('the menu: one per restaurant agent, replaced by removing the old one, refused on any other agent, and invisible to another workspace', async () => {
+    // Scale: knowledge for three agents (§5.2) — the café below is a second agent with a menu.
+    const ws = await paidWorkspace(app, 'kb-menu', 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const created = await call('POST', '/agents', headers, { template_id: 'restaurant', industry: 'restaurant', name: "Joe's" });
+    expect(created.status).toBe(201);
+    const agentId = created.body.id as string;
+    const pdf = (text: string) => Buffer.from(`%PDF-1.4 ${text}`).toString('base64');
+
+    // Upload: the row carries the role and is ingested like any file.
+    const first = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'file', name: 'Spring menu.pdf', content_type: 'application/pdf', content_base64: pdf('spring'), role: 'menu' });
+    expect(first.status).toBe(202);
+    expect(first.body).toMatchObject({ role: 'menu', type: 'file', name: 'Spring menu.pdf', status: 'pending' });
+    const firstRow = await waitForSource(first.body.id as string);
+    expect('gone' in firstRow ? null : firstRow.status).toBe('ready');
+
+    // A second menu is a conflict, not a second menu.
+    const second = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'text', name: 'Menu', text: 'Soup $6', role: 'menu' });
+    expect(second.status).toBe(409);
+    expect(second.body.code).toBe('CONFLICT');
+
+    // Replace = remove the old one (platform copy first), then upload the new one.
+    const removed = await call('DELETE', `/agents/${agentId}/knowledge/${first.body.id}`, headers);
+    expect(removed.status).toBe(200);
+    expect(removed.body).toEqual({ deleted: false, pending: true });
+    const gone = await waitForSource(first.body.id as string);
+    expect('gone' in gone).toBe(true);
+    const replacement = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'file', name: 'Summer menu.pdf', content_type: 'application/pdf', content_base64: pdf('summer'), role: 'menu' });
+    expect(replacement.status).toBe(202);
+    const replacementRow = await waitForSource(replacement.body.id as string);
+    expect('gone' in replacementRow ? null : replacementRow.status).toBe('ready');
+    const listed = (await call('GET', `/agents/${agentId}/knowledge`, headers)).body as unknown as Array<{ role: string | null; name: string }>;
+    expect(listed.filter((s) => s.role === 'menu').map((s) => s.name)).toEqual(['Summer menu.pdf']);
+
+    // Replace at once — DELETE and POST in the same breath, as the portal does. The delete
+    // must not take the knowledge base away under the newcomer's sync.
+    expect((await call('DELETE', `/agents/${agentId}/knowledge/${replacement.body.id}`, headers)).body).toEqual({ deleted: false, pending: true });
+    const third = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'file', name: 'Autumn menu.pdf', content_type: 'application/pdf', content_base64: pdf('autumn'), role: 'menu' });
+    expect(third.status).toBe(202);
+    const thirdRow = await waitForSource(third.body.id as string);
+    expect('gone' in thirdRow ? null : thirdRow.status).toBe('ready');
+    expect('gone' in (await waitForSource(replacement.body.id as string, 60_000))).toBe(true);
+    // Converged: one base for the agent, holding the new menu only, and the row points at it.
+    const agentAfter = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    expect(agentAfter.retellKbId).toBeTruthy();
+    const bases = [...retell.knowledgeBases.values()].filter((kb) => kb.knowledge_base_name.endsWith(`kb-${agentId.replace(/-/g, '').slice(0, 20)}`));
+    expect(bases.map((kb) => kb.knowledge_base_id)).toEqual([agentAfter.retellKbId]);
+    expect(bases[0]!.knowledge_base_sources.map((s) => (s.type === 'document' ? s.filename : ''))).toEqual([expect.stringMatching(/Autumn-menu/)]);
+
+    // Only a restaurant agent has a menu.
+    const dental = await publishedAgent(call, headers, { publish: false, name: 'Dental' });
+    const refused = await call('POST', `/agents/${dental}/knowledge`, headers, { type: 'text', name: 'Menu', text: 'Soup $6', role: 'menu' });
+    expect(refused.status).toBe(400);
+    expect(refused.body.code).toBe('BAD_REQUEST');
+    expect(refused.body.fields).toEqual([{ field: 'role', message: 'Not available for this agent' }]);
+    // …and a receptionist tagged `restaurant` on W1 is a restaurant agent too.
+    const cafe = await call('POST', '/agents', headers, { template_id: 'receptionist', industry: 'restaurant', name: 'Café' });
+    expect((await call('POST', `/agents/${cafe.body.id}/knowledge`, headers, { type: 'text', name: 'Menu', text: 'Soup $6', role: 'menu' })).status).toBe(202);
+
+    // Another workspace cannot see, fetch or remove the menu.
+    const other = await paidWorkspace(app, 'kb-menu-other', 'growth');
+    const otherAuth = await auth(other.sub, other.workspaceId);
+    expect((await call('GET', `/agents/${agentId}/knowledge`, otherAuth)).status).toBe(404);
+    expect((await call('GET', `/knowledge/${replacement.body.id}`, otherAuth)).status).toBe(404);
+    expect((await call('DELETE', `/knowledge/${replacement.body.id}`, otherAuth)).status).toBe(404);
+    expect((await call('GET', '/knowledge', otherAuth)).body).toEqual([]);
+  });
 
   it('a workspace cannot read, add to or delete another workspace\'s sources', async () => {
     const owner = await paidWorkspace(app, 'kb-owner', 'growth');

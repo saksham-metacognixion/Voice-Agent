@@ -35,7 +35,20 @@
       "system": "System",
       "toggle": "Change theme"
     },
-    "stepOf": "Step {n} of {total}"
+    "stepOf": "Step {n} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "pageN": "Page {n}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "show": "Show",
+    "hide": "Hide",
+    "yes": "Yes",
+    "no": "No",
+    "none": "None",
+    "actions": "Actions",
+    "open": "Open",
+    "unsavedChanges": "You have unsaved changes."
   },
   "nav": {
     "home": "Home",
@@ -54,7 +67,19 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "openNavigation": "Open navigation",
-    "signedInAs": "Signed in as"
+    "signedInAs": "Signed in as",
+    "main": "Main",
+    "more": "More",
+    "moreHint": "The rest of the dashboard.",
+    "short": {
+      "home": "Home",
+      "calls": "Calls",
+      "agents": "Agents",
+      "numbers": "Numbers",
+      "wallet": "Wallet",
+      "settings": "Settings",
+      "help": "Help"
+    }
   },
   "shell": {
     "balance": "{credits} credits",
@@ -82,7 +107,8 @@
       "scale": "Scale",
       "pro": "Pro",
       "volume": "Volume"
-    }
+    },
+    "balanceAria": "Balance: {credits} credits. Open the wallet."
   },
   "auth": {
     "brand": "From conversation to action.",
@@ -268,7 +294,10 @@
       "empty": "No templates are available right now.",
       "existing": "You already started an agent from the {template} template. Continue with it, or pick another template to start over.",
       "startOver": "Start over with this template",
-      "premiumHint": "Uses the Premium voice stack (1.5 credits per minute)."
+      "premiumHint": "Uses the Premium voice stack (1.5 credits per minute).",
+      "conflictTitle": "Check the template",
+      "conflictBody": "The {template} template is written for {industries}, and you chose {industry}. You can continue — the agent will still use what you write about your business — but a closer template gives a better first script.",
+      "conflictSuggest": "For {industry}, try: {templates}."
     },
     "w2": {
       "title": "Tell us about your business",
@@ -291,6 +320,15 @@
       "scenarios": "How a call might go",
       "continue": "Choose a voice",
       "editAfter": "Changed something? Regenerate to update the script.",
+      "editScript": "Edit the script",
+      "scriptUnsaved": "Save or undo your script edits before continuing.",
+      "script": {
+        "title": "Your agent’s script",
+        "hint": "The instructions the agent follows on every call, written from your brief. Edit it here like a document, or regenerate it from the brief.",
+        "show": "Open the script",
+        "hide": "Hide the script",
+        "regenerateNote": "Regenerating rewrites the script from your brief and replaces any edits made here."
+      },
       "restored": "Your saved answers were restored.",
       "sections": {
         "basics": "The basics",
@@ -429,7 +467,14 @@
           "sun": "Sun"
         }
       },
-      "slow": "This is taking longer than usual. Your answers are saved — leave this page open and it will finish on its own."
+      "slow": "This is taking longer than usual. Your answers are saved — leave this page open and it will finish on its own.",
+      "templateCopy": {
+        "restaurant": {
+          "goal": "Take reservation requests with party size, date and time, answer questions about the menu, prices and hours, and hand off parties over eight to the manager.",
+          "services": "Dine-in, takeout, private dining, catering…",
+          "pricing": "Mains $18–$34. Lunch prix fixe $22. Corkage $15. Say prices come from the menu and may change."
+        }
+      }
     },
     "w3": {
       "title": "Choose a voice and languages",
@@ -536,7 +581,38 @@
       },
       "add": "Add source",
       "adding": "Adding…",
-      "added": "Source added. We are reading it now."
+      "added": "Source added. We are reading it now.",
+      "menu": {
+        "title": "Your menu",
+        "body": "Upload the menu your agent should answer from: what is on it, what it costs, what is in it. Callers who ask for something that is not on it are told so — nothing is invented.",
+        "none": "No menu uploaded yet.",
+        "choose": "Choose a menu file",
+        "upload": "Upload menu",
+        "replace": "Replace menu",
+        "remove": "Remove",
+        "accepts": "PDF, Word, text or CSV, up to {mb} MB.",
+        "inUse": "In use",
+        "uploaded": "Menu uploaded. We are reading it now.",
+        "replaced": "Menu replaced. We are reading the new one now.",
+        "removed": "Menu removed.",
+        "failedDefault": "We could not read this menu.",
+        "liveHint": "Saved as soon as it is uploaded. Your agent uses it on the next test call, and on every call once you go live.",
+        "publishedHint": "Saved as soon as it is uploaded. A menu uploaded now reaches your live agent at the next publish; test calls use it right away.",
+        "removeTitle": "Remove the menu?",
+        "removeBody": "Your agent will stop answering menu questions from it.",
+        "removeConsequence": "Callers asking about dishes or prices will be told the agent does not have that information.",
+        "stage": {
+          "idle": "",
+          "reading": "Reading the file…",
+          "replacing": "Removing the old menu…",
+          "uploading": "Uploading…"
+        },
+        "errors": {
+          "fileType": "That file type is not supported. Upload the menu as PDF, Word, text or CSV.",
+          "fileSize": "That file is larger than {mb} MB.",
+          "empty": "That file is empty."
+        }
+      }
     },
     "w5": {
       "title": "Test your agent",
@@ -820,6 +896,9 @@
         "confirmed": "Thanks — forwarding is marked as on.",
         "ready": "Calls to {from} are forwarded to your agent."
       }
+    },
+    "context": {
+      "building": "Building a {template} agent for {business}."
     }
   },
   "dashboard": {
@@ -1266,13 +1345,327 @@
     },
     "numbers": {
       "title": "Phone numbers",
-      "empty": "No phone numbers yet. Attach one when you go live."
+      "subtitle": "The numbers callers dial to reach your agents.",
+      "empty": "No phone numbers yet.",
+      "emptyHint": "Add a number and point it at a live agent to start taking calls.",
+      "emptyViewer": "An owner or admin can add one.",
+      "add": "Add number",
+      "settingUp": "Setting up…",
+      "back": "All numbers",
+      "loadFailed": "We could not load your numbers.",
+      "notFound": "This number is not in this workspace.",
+      "rename": "Rename",
+      "changeAgent": "Change agent",
+      "release": "Release",
+      "openNumber": "Open",
+      "moreActions": "More actions for {number}",
+      "listLabel": "Phone numbers",
+      "columns": {
+        "number": "Number",
+        "label": "Label",
+        "type": "Type",
+        "country": "Country",
+        "agent": "Agent",
+        "status": "Status",
+        "calls7d": "Calls (7 days)",
+        "rental": "Rental"
+      },
+      "type": {
+        "new": "New",
+        "forward": "Forward target",
+        "sip": "SIP"
+      },
+      "status": {
+        "provisioning": "Provisioning",
+        "active": "Active",
+        "paused": "Paused",
+        "releasing": "Releasing",
+        "released": "Released",
+        "failed": "Failed"
+      },
+      "rentalValue": "{credits} cr/mo",
+      "rentalNone": "—",
+      "nextRental": "Next rental {date}",
+      "noAgent": "No agent",
+      "unknownAgent": "Removed agent",
+      "releasedNote": "This number was released. It no longer answers calls and nothing is charged for it.",
+      "failedNote": "Setting up this number failed: {reason}",
+      "renameDialog": {
+        "title": "Rename number",
+        "label": "Label",
+        "hint": "Only you see this, for example “Front desk”.",
+        "save": "Save label",
+        "saved": "Label saved.",
+        "clear": "Remove label"
+      },
+      "tabs": {
+        "label": "Number settings",
+        "routing": "Routing",
+        "handoff": "Hand-off",
+        "callers": "Callers",
+        "forwarding": "Forwarding",
+        "sip": "SIP",
+        "danger": "Danger zone"
+      },
+      "readOnly": "You can view this number. An owner, admin or editor can change it.",
+      "saved": "Saved.",
+      "routing": {
+        "title": "Routing",
+        "body": "Which agent answers this number, and when.",
+        "agent": "Agent",
+        "agentHint": "Only published agents can answer calls.",
+        "agentNone": "Publish an agent first — none is live yet.",
+        "active": "Answer calls on this number",
+        "activeHint": "Off pauses this number: callers hear a busy tone and nothing is charged.",
+        "hours": "When to answer",
+        "modes": {
+          "always": "Around the clock",
+          "business": "During business hours",
+          "custom": "On a schedule for this number"
+        },
+        "modeHints": {
+          "always": "Your agent answers every call, day and night.",
+          "business": "Your agent answers during the workspace’s business hours. Outside them callers hear a busy tone and the call shows as missed.",
+          "custom": "Your agent answers during the hours below. Outside them callers hear a busy tone and the call shows as missed."
+        },
+        "noBusinessHours": "The workspace has no business hours yet, so this number would never answer.",
+        "setBusinessHours": "Set business hours",
+        "customEmpty": "Open at least one day, or this number never answers.",
+        "save": "Save routing"
+      },
+      "handoff": {
+        "title": "Hand-off",
+        "body": "The people your agent can transfer a caller to when they ask for a person or the agent cannot help.",
+        "save": "Save hand-off",
+        "fix": "Fix the highlighted rows first."
+      },
+      "callers": {
+        "countriesTitle": "Allowed caller countries",
+        "countriesBody": "Calls from anywhere else are refused. Leave empty to accept what your plan allows.",
+        "countriesAdd": "Add a country",
+        "countriesEmpty": "Any country your plan allows.",
+        "countriesMax": "Up to {max} countries.",
+        "removeCountry": "Remove {country}",
+        "blockTitle": "Blocked callers",
+        "blockBody": "Calls from these numbers are declined before your agent answers and cost nothing.",
+        "blockPlaceholder": "+15145550123, then Enter",
+        "blockInvalid": "Not a phone number in international format: {entries}",
+        "blockMax": "Up to {max} numbers.",
+        "save": "Save callers",
+        "recentTitle": "Recent callers",
+        "recentBody": "Who called this number, newest first.",
+        "recentEmpty": "Nobody has called this number yet.",
+        "recentLabel": "Recent callers on this number",
+        "columns": {
+          "caller": "Caller",
+          "when": "When",
+          "status": "Status",
+          "length": "Length",
+          "action": "Action"
+        },
+        "block": "Block",
+        "blocked": "Blocked",
+        "blockedToast": "{number} is blocked on this number.",
+        "unknown": "Unknown caller"
+      },
+      "forwarding": {
+        "title": "Forward your existing line",
+        "body": "Callers keep dialling {from}. Your carrier forwards those calls to {to}, which your agent answers.",
+        "bodyPending": "Callers keep dialling {from}. Your carrier forwards those calls to this number once it is set up.",
+        "status": {
+          "waiting_for_customer": "Waiting for you",
+          "ready": "Forwarding on",
+          "failed": "Needs attention"
+        },
+        "confirm": "I have switched forwarding on",
+        "confirmHint": "Tell us once your carrier forwards the calls, so we stop reminding you.",
+        "confirmed": "Marked as forwarding.",
+        "unconfirm": "Mark as not forwarding yet"
+      },
+      "sip": {
+        "title": "SIP connection",
+        "body": "The phone system this number arrives from.",
+        "number": "Number",
+        "host": "Termination URI",
+        "username": "Username",
+        "password": "Password",
+        "passwordStored": "Stored encrypted",
+        "passwordNone": "None",
+        "showUsername": "Show username",
+        "hideUsername": "Hide username",
+        "missing": "We could not read the connection details for this number.",
+        "change": "To change the host or credentials, release this number and import it again with the new details.",
+        "inbound": "For calls to reach your agent, your phone system must send them for this number to the address our team gives you. Ask support if you do not have it yet."
+      },
+      "danger": {
+        "title": "Release this number",
+        "body": "Releasing gives the number back. It stops answering at once and its monthly rental stops.",
+        "consequences": [
+          "Callers who dial it will no longer reach your agent.",
+          "There is no undo — we cannot get the same number back for you.",
+          "Past calls stay in your call history."
+        ],
+        "consequencesSip": [
+          "Calls from your phone system will no longer reach your agent.",
+          "You can import the same SIP number again later.",
+          "Past calls stay in your call history."
+        ],
+        "button": "Release number",
+        "confirmTitle": "Release {number}?",
+        "typeLabel": "Type {number} to confirm",
+        "done": "{number} was released.",
+        "adminOnly": "Only an owner or admin can release a number.",
+        "released": "This number has already been released."
+      },
+      "addDialog": {
+        "title": "Add a phone number",
+        "body": "Choose how callers will reach your agent.",
+        "agent": "Agent that answers",
+        "agentNone": "Publish an agent before adding a number.",
+        "submitNew": "Get this number",
+        "submitSip": "Connect this line",
+        "balanceLow": "A number costs {credits} credits a month and your balance is {balance}. Buy credits first.",
+        "buyCredits": "Buy credits",
+        "adminOnly": "Only an owner or admin can add a number.",
+        "started": "We are setting up your number. It appears here as soon as it is ready.",
+        "sipLocked": "Bringing your own line is part of a bigger pack."
+      }
     },
     "wallet": {
       "title": "Wallet & billing",
+      "subtitle": "Credits, what they paid for, and how you pay.",
       "empty": "Your credit history will appear here.",
       "paused": {
         "banner": "Purchases are paused right now."
+      },
+      "viewerNote": "You can see the balance and history. An owner or admin manages payments.",
+      "balance": {
+        "title": "Balance",
+        "credits": "credits",
+        "plan": "{tier} plan · {concurrency, plural, one {# call} other {# calls}} at once · {kb, plural, =0 {no agent knowledge} one {knowledge for # agent} other {knowledge for # agents}}",
+        "expiring": "Expiring next: {credits} on {date}",
+        "nothingExpiring": "Nothing expiring soon.",
+        "minutes": "About {minutes} minutes on a standard agent",
+        "buy": "Buy credits",
+        "live": "Updates live"
+      },
+      "buy": {
+        "title": "Buy credits",
+        "body": "Credits are added as soon as the payment clears."
+      },
+      "checkout": {
+        "confirming": "Confirming your payment…",
+        "credited": "Payment received. Your credits are in.",
+        "pending": "Payment received. Credits appear here within a minute.",
+        "cancelled": "Checkout was cancelled. Nothing was charged.",
+        "failed": "We could not confirm the payment yet. If you paid, the credits arrive shortly."
+      },
+      "autoTopup": {
+        "title": "Auto top-up",
+        "body": "Buy a pack automatically when the balance runs low, so your agent never stops mid-day.",
+        "enabled": "Auto top-up",
+        "on": "On",
+        "off": "Off",
+        "pack": "Pack",
+        "packPlaceholder": "Choose a pack",
+        "threshold": "When the balance falls below",
+        "thresholdHint": "In credits, at least 10.",
+        "thresholdError": "Enter at least 10 credits.",
+        "packError": "Choose the pack to buy.",
+        "card": "Card",
+        "cardValue": "•••• {last4}",
+        "noCard": "No saved card yet. A card is saved when you buy a pack with auto top-up switched on.",
+        "addCard": "Add a card",
+        "save": "Save auto top-up",
+        "saved": "Auto top-up saved.",
+        "summaryOn": "Buys {pack} when the balance falls below {threshold} credits.",
+        "summaryOff": "Off. Your agent stops answering when the credits run out."
+      },
+      "expiring": {
+        "title": "Expiring soon",
+        "body": "Credits expire {months} months after purchase and the oldest are used first.",
+        "empty": "Nothing expires in the next 60 days.",
+        "row": "{credits} credits on {date}",
+        "bodyNoPolicy": "The oldest credits are used first."
+      },
+      "usage": {
+        "title": "Usage",
+        "subtitle": "Credits used by calls per day, last 30 days",
+        "summary": "{total} cr used · {perDay}/day",
+        "empty": "No credits used in the last 30 days.",
+        "emptyHint": "Each day with calls shows up here."
+      },
+      "ledger": {
+        "title": "Credit history",
+        "body": "Every credit in and out of the wallet, newest first.",
+        "filter": "Show",
+        "all": "Everything",
+        "empty": "Nothing here yet.",
+        "emptyFiltered": "No movements of this kind.",
+        "label": "Credit history",
+        "columns": {
+          "date": "Date",
+          "type": "Type",
+          "description": "Description",
+          "amount": "Amount",
+          "balance": "Balance"
+        },
+        "reason": {
+          "trial": "Free trial",
+          "purchase": "Pack purchase",
+          "call": "Call",
+          "rental": "Number rental",
+          "kb": "Agent knowledge",
+          "adjustment": "Adjustment",
+          "expiry": "Expired credits",
+          "refund": "Refund",
+          "topup": "Auto top-up"
+        },
+        "describe": {
+          "trial": "Welcome credits",
+          "purchase": "Credits added",
+          "call": "Call charge",
+          "rental": "Monthly number rental",
+          "kb": "Monthly charge for what an agent knows",
+          "adjustment": "Adjusted by our team",
+          "expiry": "Credits reached their expiry",
+          "refund": "Refunded",
+          "topup": "Automatic top-up"
+        },
+        "viewCall": "View call"
+      },
+      "invoices": {
+        "title": "Invoices",
+        "body": "Receipts for every payment, hosted by our payment provider.",
+        "empty": "No invoices yet. One is issued for every pack you buy.",
+        "label": "Invoices",
+        "columns": {
+          "date": "Date",
+          "number": "Invoice",
+          "amount": "Amount",
+          "status": "Status",
+          "actions": "Actions"
+        },
+        "status": {
+          "draft": "Draft",
+          "open": "Open",
+          "paid": "Paid",
+          "payment_failed": "Payment failed",
+          "void": "Void",
+          "uncollectible": "Uncollectible"
+        },
+        "view": "View",
+        "pdf": "PDF",
+        "noNumber": "—"
+      },
+      "payment": {
+        "title": "Payment methods",
+        "body": "Cards, billing address and tax ID are managed securely on our payment provider’s page.",
+        "card": "Card on file",
+        "none": "No saved card.",
+        "manage": "Manage payment methods",
+        "opening": "Opening…",
+        "needPurchase": "Buy a pack first — that is what creates your billing account."
       }
     },
     "settings": {
@@ -1281,11 +1674,284 @@
       "themeHint": "Choose how Oraly looks to you on this device.",
       "workspace": "Workspace",
       "security": "Security",
-      "members": "Team"
+      "members": "Team",
+      "tabs": {
+        "label": "Settings sections",
+        "workspace": "Workspace",
+        "team": "Team",
+        "notifications": "Notifications",
+        "security": "Security",
+        "privacy": "Data & privacy",
+        "audit": "Audit log"
+      },
+      "adminOnly": "Only an owner or admin can change this.",
+      "saved": "Settings saved.",
+      "ws": {
+        "title": "Business details",
+        "body": "Used by your agents and in every date and time we show you.",
+        "name": "Business name",
+        "nameError": "Between 2 and 80 characters.",
+        "country": "Country",
+        "countryHint": "Fixed once the workspace exists.",
+        "timezone": "Time zone",
+        "timezoneHint": "“Today”, business hours and the daily digest follow this zone.",
+        "website": "Website",
+        "websiteError": "Enter a full address, like https://example.com.",
+        "hoursTitle": "Default business hours",
+        "hoursBody": "Numbers set to “during business hours” answer on this schedule.",
+        "hoursClear": "No business hours",
+        "save": "Save workspace"
+      },
+      "team": {
+        "title": "Members",
+        "body": "Everyone who can open this workspace.",
+        "label": "Workspace members",
+        "you": "You",
+        "columns": {
+          "name": "Name",
+          "email": "Email",
+          "role": "Role",
+          "joined": "Joined",
+          "actions": "Actions"
+        },
+        "roleLabel": "Role for {name}",
+        "roleChanged": "{name} is now {role}.",
+        "remove": "Remove",
+        "removeTitle": "Remove {name}?",
+        "removeBody": "They lose access to this workspace at once. Their past activity stays in the audit log.",
+        "removed": "{name} was removed.",
+        "transfer": "Make owner",
+        "transferTitle": "Make {name} the owner?",
+        "transferBody": "There is exactly one owner. You become an admin and {name} can then change or remove you.",
+        "transferType": "Type {email} to confirm",
+        "transferred": "{name} is now the owner.",
+        "invitesTitle": "Pending invitations",
+        "invitesEmpty": "No pending invitations.",
+        "invitesLabel": "Pending invitations",
+        "inviteColumns": {
+          "email": "Email",
+          "role": "Role",
+          "expires": "Expires",
+          "actions": "Actions"
+        },
+        "revoke": "Revoke",
+        "revoked": "Invitation revoked.",
+        "inviteTitle": "Invite someone",
+        "inviteBody": "They get a link to join with this role.",
+        "email": "Email",
+        "emailError": "Enter a valid email address.",
+        "role": "Role",
+        "invite": "Send invite",
+        "invited": "Invitation created for {email}.",
+        "linkTitle": "Share this link with {email}",
+        "linkBody": "Only its holder can join, and only when signed in as {email}. It is shown once and expires on {date}.",
+        "roles": {
+          "owner": "Owner",
+          "admin": "Admin",
+          "editor": "Editor",
+          "viewer": "Viewer"
+        },
+        "roleHints": {
+          "admin": "Everything except transferring ownership.",
+          "editor": "Builds agents, edits routing, reads calls.",
+          "viewer": "Reads calls and agents; changes nothing."
+        }
+      },
+      "notifications": {
+        "title": "Your notifications",
+        "body": "These are your own preferences; each member sets theirs.",
+        "defaultNote": "You are on the workspace defaults. Saving creates your own preferences.",
+        "newMessage": "When a caller leaves a message",
+        "newMessageHint": "A message is anything a caller asked your agent to pass on.",
+        "modes": {
+          "instant": "Email me right away",
+          "daily": "One daily digest",
+          "off": "Don’t email me"
+        },
+        "lowBalance": "Low balance emails",
+        "lowBalanceHint": "At 20 %, 5 % and 0 of your last pack.",
+        "save": "Save notifications"
+      },
+      "sec": {
+        "mfaTitle": "Two-step verification",
+        "passwordTitle": "Password",
+        "passwordBody": "We email you a link to choose a new password.",
+        "passwordButton": "Email me a reset link",
+        "passwordSent": "Check {email} for the reset link.",
+        "passwordSocial": "If you sign in with Google, your password is managed by Google.",
+        "signOutTitle": "Sign out",
+        "signOutBody": "Signs you out of Oraly on this device.",
+        "signOut": "Sign out"
+      },
+      "privacy": {
+        "recordingTitle": "Recordings",
+        "recording": "Record calls on new agents",
+        "recordingHint": "Each agent can still switch recording on or off in its own settings.",
+        "retention": "Keep recordings and transcripts for",
+        "retentionHint": "Older recordings and transcripts are deleted automatically.",
+        "days": "{n, plural, one {# day} other {# days}}",
+        "save": "Save privacy settings",
+        "requestsTitle": "Export or delete your data",
+        "requestsBody": "A full export of this workspace, or deleting it, is handled by our team so nothing billable is lost by mistake. Deleting releases every number and forfeits remaining credits.",
+        "requestsCta": "Email {email}",
+        "requestsSubject": "Data request for workspace {workspace}"
+      },
+      "audit": {
+        "title": "Audit log",
+        "body": "What changed in this workspace, who did it and from where.",
+        "area": "Area",
+        "allAreas": "Everything",
+        "areas": {
+          "agent": "Agents",
+          "number": "Numbers",
+          "knowledge": "Knowledge",
+          "member": "Members",
+          "invite": "Invitations",
+          "workspace": "Workspace",
+          "phone_plan": "Phone plans",
+          "billing": "Billing",
+          "auto_topup": "Auto top-up"
+        },
+        "empty": "Nothing recorded yet.",
+        "emptyFiltered": "Nothing in this area yet.",
+        "label": "Audit log",
+        "columns": {
+          "time": "Time",
+          "actor": "Who",
+          "action": "What",
+          "details": "Details",
+          "ip": "IP address"
+        },
+        "system": "Oraly",
+        "formerMember": "Former member",
+        "adminOnly": "Only an owner or admin can see the audit log.",
+        "actions": {
+          "agent_created": "Created an agent",
+          "agent_deleted": "Deleted an agent",
+          "agent_draft_selected": "Restored a version as the draft",
+          "agent_paused": "Paused an agent",
+          "agent_prompt_edited": "Edited an agent’s instructions",
+          "agent_published": "Published an agent",
+          "agent_resumed": "Resumed an agent",
+          "agent_activated": "Took an agent live",
+          "number_buy_requested": "Requested a new number",
+          "number_import_requested": "Connected a SIP number",
+          "number_updated": "Changed a number’s settings",
+          "number_release_requested": "Released a number",
+          "number_released_unpaid": "Released a number after unpaid rental",
+          "knowledge_added": "Added to what an agent knows",
+          "knowledge_removed": "Removed from what an agent knows",
+          "knowledge_removal_requested": "Asked to remove knowledge",
+          "member_role_changed": "Changed a member’s role",
+          "member_removed": "Removed a member",
+          "invite_created": "Invited someone",
+          "invite_revoked": "Revoked an invitation",
+          "invite_accepted": "Joined the workspace",
+          "workspace_created": "Created the workspace",
+          "workspace_updated": "Changed workspace settings",
+          "workspace_ownership_transferred": "Transferred ownership of the workspace",
+          "phone_plan_created": "Chose a phone number option",
+          "phone_plan_updated": "Changed the phone number option",
+          "billing_portal_session": "Opened payment settings",
+          "auto_topup_enabled": "Turned auto top-up on",
+          "auto_topup_disabled": "Turned auto top-up off"
+        },
+        "meta": {
+          "agent_id": "Agent",
+          "version_no": "Version",
+          "name": "Name",
+          "role": "Role",
+          "email": "Email",
+          "user_id": "Member",
+          "number_id": "Number",
+          "e164": "Number",
+          "has_password": "Password set",
+          "has_sip_password": "Password set",
+          "host": "SIP host",
+          "from_user_id": "From",
+          "to_user_id": "To",
+          "paused": "Paused",
+          "toll_free": "Toll-free",
+          "country": "Country",
+          "area_code": "Area code",
+          "forward_from": "Forwarded from",
+          "template_id": "Template",
+          "industry": "Industry",
+          "type": "Type",
+          "size_bytes": "Size (bytes)",
+          "status": "Status",
+          "status_before": "Previous status",
+          "was": "Was",
+          "fields": "Changed",
+          "option": "Option",
+          "days_overdue": "Days overdue",
+          "overdue_since": "Overdue since",
+          "timezone": "Timezone",
+          "trial_credits": "Trial credits",
+          "lint_warnings": "Warnings",
+          "existing_agents": "Agents before"
+        }
+      }
     },
     "help": {
       "title": "Help",
-      "body": "Guides and support are on the way. For now, email support@oraly.ai."
+      "subtitle": "Guides, support and the state of the service.",
+      "body": "Guides and support are on the way. For now, email support@oraly.ai.",
+      "guidesTitle": "Guides",
+      "guides": {
+        "forwarding": {
+          "title": "Forward your existing number",
+          "body": "The codes to dial on your carrier to send calls to your agent’s number."
+        },
+        "sip": {
+          "title": "Connect your own phone system (SIP)",
+          "body": "What to have ready before you import a SIP line.",
+          "steps": [
+            "The phone number your system delivers, in international format (+1…).",
+            "The termination URI of your trunk, for example sip.example.com or sip:pbx.example.com:5060.",
+            "A username and password if your trunk uses them. The password is encrypted as soon as it arrives and never shown again.",
+            "A pack that includes bringing your own line."
+          ],
+          "cta": "Add a SIP number"
+        },
+        "billing": {
+          "title": "Credits and billing",
+          "body": "How credits are charged."
+        }
+      },
+      "faq": {
+        "rate": "A minute on a standard agent costs {standard} credits; on a premium agent, {premium}. Calls are metered per second.",
+        "missed": "Calls that never connect — busy, no answer, declined — cost nothing.",
+        "expiry": "Credits expire {months} months after purchase and the oldest are used first.",
+        "rental": "Each phone number costs {credits} credits a month. A number on your own SIP line costs nothing.",
+        "grace": "Your balance can dip {grace} credits below zero so a call is never cut off mid-sentence.",
+        "refund": "Credits are non-refundable."
+      },
+      "faqUnavailable": "Pricing could not be loaded right now.",
+      "supportTitle": "Contact support",
+      "supportBody": "Write to us and a person answers, usually within one business day.",
+      "supportCta": "Email {email}",
+      "reportTitle": "Report a call",
+      "reportBody": "Something went wrong on a call? Pick it and we get its details straight away.",
+      "reportEmpty": "No calls to report yet.",
+      "report": "Report",
+      "reportSubject": "Call report {id}",
+      "reportLine": "Call {id} at {when} from {caller}.",
+      "reportPrompt": "What went wrong:",
+      "allCalls": "All calls",
+      "statusTitle": "Service status",
+      "status": {
+        "ok": "All systems operational",
+        "degraded": "Some systems are degraded",
+        "unknown": "Status unavailable",
+        "checked": "Checked {time}",
+        "calls": "Answering calls",
+        "background": "Background tasks (numbers, emails, agent writing)",
+        "up": "Operational",
+        "down": "Degraded",
+        "refresh": "Check again",
+        "page": "Open the status page"
+      }
     },
     "comingSoon": "This page arrives in the next release.",
     "live": {

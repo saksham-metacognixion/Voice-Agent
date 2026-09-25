@@ -1,56 +1,75 @@
 'use client';
 
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, ThemeSegment, Button } from '@portal/ui';
-import { ShieldCheck } from 'lucide-react';
-import Link from 'next/link';
+import { PageLoader, Tabs, TabsContent, TabsList, TabsTrigger } from '@portal/ui';
 import { useTranslations } from 'next-intl';
-import { useAuth } from '@/src/auth/auth-provider';
+import { NotificationsTab, PrivacyTab, SecurityTab } from '@/src/components/dashboard/settings/account-tabs';
+import { AuditTab } from '@/src/components/dashboard/settings/audit-tab';
+import { TeamTab } from '@/src/components/dashboard/settings/team-tab';
+import { WorkspaceTab } from '@/src/components/dashboard/settings/workspace-tab';
 import { PageHeader } from '@/src/components/shell/portal-shell';
-import { routes } from '@/src/routes';
+import { setParam, useUrlQuery } from '@/src/lib/use-url-query';
+import { SETTINGS_TABS, type SettingsTab } from '@/src/routes';
+import { useRole } from '@/src/workspace/use-role';
+import { useWorkspace } from '@/src/workspace/workspace-provider';
 
-/** D6 Settings — appearance and security entry points now; the rest lands in D11. */
+/**
+ * D6 Settings (spec p. 39): Workspace · Team · Notifications · Security · Data &
+ * privacy · Audit log. `/app/settings/*` in the spec; one page with `?tab=` in the
+ * export. The audit log is owner/admin only and is not offered to anyone else.
+ */
 export default function SettingsPage() {
-  const t = useTranslations();
-  // Same source as A5's badge: the `mfa_enrolled` ID-token claim, or `amr` on the
-  // sign-in that enrolled. Without it this card offered setup to people already enrolled.
-  const mfaOn = useAuth().user?.mfa === true;
+  const t = useTranslations('dashboard.settings');
+  const ws = useWorkspace();
+  const { canAdmin } = useRole();
+  const [params, setParams] = useUrlQuery();
+  const tabs = SETTINGS_TABS.filter((tab) => tab !== 'audit' || canAdmin);
+  const requested = params.get('tab');
+  const active: SettingsTab = (tabs as readonly string[]).includes(requested ?? '') ? (requested as SettingsTab) : 'workspace';
+  const workspace = ws.workspace;
+
   return (
     <>
-      <PageHeader title={t('dashboard.settings.title')} />
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('dashboard.settings.theme')}</CardTitle>
-            <CardDescription>{t('dashboard.settings.themeHint')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ThemeSegment labels={{ light: t('common.theme.light'), dark: t('common.theme.dark'), system: t('common.theme.system'), toggle: t('common.theme.toggle') }} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between gap-3">
-              <CardTitle>{t('dashboard.settings.security')}</CardTitle>
-              <Badge variant={mfaOn ? 'success' : 'outline'}>{mfaOn ? t('auth.mfa.enabled') : t('auth.mfa.notEnabled')}</Badge>
-            </div>
-            <CardDescription>{mfaOn ? t('auth.mfa.onHint') : t('auth.mfa.body')}</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button variant="outline" asChild>
-              <Link href={routes.mfa}>
-                <ShieldCheck /> {t('auth.mfa.title')}
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>{t('dashboard.settings.workspace')}</CardTitle>
-            <CardDescription>{t('dashboard.comingSoon')}</CardDescription>
-          </CardHeader>
-          <CardContent />
-        </Card>
-      </div>
+      <PageHeader title={t('title')} />
+      {!workspace ? (
+        <PageLoader />
+      ) : (
+        <Tabs
+          value={active}
+          onValueChange={(v) =>
+            setParams((next) => {
+              setParam(next, 'tab', v === 'workspace' ? null : v);
+            }, 'replace')
+          }
+        >
+          <TabsList aria-label={t('tabs.label')}>
+            {tabs.map((key) => (
+              <TabsTrigger key={key} value={key}>
+                {t(`tabs.${key}`)}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          <TabsContent value="workspace">
+            <WorkspaceTab workspace={workspace} />
+          </TabsContent>
+          <TabsContent value="team">
+            <TeamTab />
+          </TabsContent>
+          <TabsContent value="notifications">
+            <NotificationsTab />
+          </TabsContent>
+          <TabsContent value="security">
+            <SecurityTab />
+          </TabsContent>
+          <TabsContent value="privacy">
+            <PrivacyTab workspace={workspace} />
+          </TabsContent>
+          {canAdmin ? (
+            <TabsContent value="audit">
+              <AuditTab />
+            </TabsContent>
+          ) : null}
+        </Tabs>
+      )}
     </>
   );
 }

@@ -5,10 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { templatesDir } from '@portal/db';
 import {
   APPENDIX_B_SKELETON,
+  DEFAULT_SYSTEM_PROMPT,
   briefForModel,
   buildFeedbackPrompt,
   buildUserPrompt,
   describeHours,
+  identitySection,
+  knowledgeSection,
   normaliseAnalysisFields,
 } from './prompt-builder';
 
@@ -257,3 +260,59 @@ function loadTemplate(id: string): AgentTemplate {
   if (!dir) throw new Error('templates/ not found');
   return agentTemplate.parse(JSON.parse(readFileSync(join(dir, `${id}.json`), 'utf8')));
 }
+
+/*
+ * The business identity and what the agent can look up (25 Sep 2026). A tester heard an
+ * agent introduce itself as being "from Retail AI"; the prompt now states outright whom
+ * the agent speaks for, and the system prompt forbids naming anyone else. The knowledge
+ * section is what turns an uploaded menu into "answer from it, and say when a dish is
+ * not on it" rather than a document the model never mentions.
+ */
+describe('identity and knowledge in the user turn', () => {
+  it('names the business and the agent, and forbids any other name', () => {
+    const user = buildUserPrompt(CONTEXT);
+    expect(user).toContain('# Identity');
+    expect(user).toContain('The agent works for Maple Dental and speaks only for it.');
+    expect(user).toContain('It introduces itself as Sophie from Maple Dental.');
+    expect(user).toMatch(/never names, or claims to be from, any other company/);
+    expect(user).not.toMatch(/retell/i);
+    expect(DEFAULT_SYSTEM_PROMPT).toMatch(/never names, or claims to be from, any other company/);
+  });
+
+  it('falls back to "the assistant for <business>" when the brief has no agent name', () => {
+    const lines = identitySection({ businessName: "Joe's Restaurant", brief: briefSchema.parse({}) });
+    expect(lines).toContain("It introduces itself as the assistant for Joe's Restaurant.");
+  });
+
+  it('carries the W1 industry when there is one and nothing when there is not', () => {
+    expect(buildUserPrompt({ ...CONTEXT, industry: 'restaurant' })).toContain('- Industry: restaurant');
+    expect(buildUserPrompt({ ...CONTEXT, industry: null })).not.toContain('- Industry:');
+    expect(buildUserPrompt({ ...CONTEXT, industry: '  ' })).not.toContain('- Industry:');
+  });
+
+  it('says nothing about knowledge when the agent has none', () => {
+    expect(knowledgeSection([])).toEqual([]);
+    expect(buildUserPrompt(CONTEXT)).not.toContain('# What the agent can look up');
+  });
+
+  it('names the menu, the rules for it, and the other sources', () => {
+    const user = buildUserPrompt({
+      ...CONTEXT,
+      knowledge: [
+        { name: 'Opening hours', role: null },
+        { name: 'Summer menu.pdf', role: 'menu' },
+      ],
+    });
+    expect(user).toContain('# What the agent can look up');
+    expect(user).toContain('  - The menu (Summer menu.pdf)');
+    expect(user).toContain('  - Opening hours');
+    expect(user).toMatch(/not on the menu, say it is not on the menu/);
+    expect(user).toMatch(/never invent a dish, a price or an ingredient/);
+  });
+
+  it('lists ordinary sources without the menu rules', () => {
+    const lines = knowledgeSection([{ name: 'FAQ page', role: null }]);
+    expect(lines.join('\n')).toContain('  - FAQ page');
+    expect(lines.join('\n')).not.toMatch(/menu/i);
+  });
+});

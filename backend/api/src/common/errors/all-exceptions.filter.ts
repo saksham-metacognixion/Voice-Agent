@@ -52,7 +52,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
     }
 
-    if (exception instanceof ZodError) {
+    if (isZodError(exception)) {
       return {
         status: ERROR_STATUS.VALIDATION_FAILED,
         body: {
@@ -96,6 +96,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
       logAs: 'error',
     };
   }
+}
+
+/**
+ * `instanceof ZodError` alone is not enough in the compiled API: `@portal/schemas` is an
+ * ES module and loads zod's ESM build, while this CommonJS build `require`s `index.cjs`
+ * — two ZodError classes, so every schema parse error thrown from a shared schema fell
+ * through to the 500 branch in production while the vitest suites (one module graph)
+ * saw 422 (D11 QA, 25 Sep). Recognise the shape as well as the class.
+ */
+export function isZodError(exception: unknown): exception is ZodError {
+  if (exception instanceof ZodError) return true;
+  return exception instanceof Error && exception.name === 'ZodError' && Array.isArray((exception as { issues?: unknown }).issues);
 }
 
 function toFieldErrors(error: ZodError): FieldError[] {

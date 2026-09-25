@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -197,6 +198,13 @@ describe('POST /numbers/import (Option C)', () => {
     expect(JSON.stringify(await adminDb.auditLog.findMany({ where: { tenantId: ws.workspaceId } }))).not.toContain('Imp0rt-pa55');
     // The double recorded the call with the password redacted, so even the test log is clean.
     expect(JSON.stringify(retell.calls.filter((c) => c.method === 'importPhoneNumber'))).not.toContain('Imp0rt-pa55');
+
+    // D4 SIP section: host and username come back, the password only as a flag.
+    const read = await call('GET', `/numbers/${row.id}`, headers);
+    expect(read.body.sip).toEqual({ host: 'sip:pbx.example.com:5060', username: 'trunk', has_password: true });
+    const listed = await call('GET', '/numbers', headers);
+    expect(JSON.stringify(listed.body)).not.toContain('Imp0rt-pa55');
+    expect(JSON.stringify(read.body)).not.toContain('Imp0rt-pa55');
   }, 30_000);
 });
 
@@ -217,7 +225,22 @@ describe('PATCH and DELETE /numbers/:id', () => {
       transfer_targets: [{ label: 'Owner', number: '+15145550001' }],
     });
     expect(edited.status).toBe(200);
-    expect(edited.body).toMatchObject({ nickname: 'Reception', hours_mode: 'custom', blocklist: ['+15145550666'] });
+    expect(edited.body).toMatchObject({ nickname: 'Reception', hours_mode: 'custom', blocklist: ['+15145550666'], sip: null, calls_7d: 0 });
+
+    // D4 "calls 7d": this week's calls on this number, declined ones included; last month's
+    // are not. Counted on when the call started, not on when the row was written: a call
+    // `call-recovery` learned about late still belongs to the day it rang.
+    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 3_600_000);
+    await adminDb.call.createMany({
+      data: [
+        { tenantId: ws.workspaceId, numberId: row.id, id: `c7-${randomUUID()}`, channel: 'phone', status: 'ended', direction: 'inbound', startedAt: new Date() },
+        { tenantId: ws.workspaceId, numberId: row.id, id: `c7-${randomUUID()}`, channel: 'phone', status: 'declined', direction: 'inbound', startedAt: new Date() },
+        { tenantId: ws.workspaceId, numberId: row.id, id: `c7-${randomUUID()}`, channel: 'phone', status: 'ended', direction: 'inbound', startedAt: tenDaysAgo, createdAt: tenDaysAgo },
+        { tenantId: ws.workspaceId, numberId: row.id, id: `c7-${randomUUID()}`, channel: 'phone', status: 'ended', direction: 'inbound', startedAt: tenDaysAgo, createdAt: new Date() },
+      ],
+    });
+    expect((await call('GET', `/numbers/${row.id}`, headers)).body.calls_7d).toBe(2);
+    expect(((await call('GET', '/numbers', headers)).body as unknown as Array<{ id: string; calls_7d: number }>).find((n) => n.id === row.id)?.calls_7d).toBe(2);
     // The record merges the number's list with the global phone blocklist (SA12), so "contains", not "equals".
     const cachedAfterEdit = await cache.getJson<{ blocklist: string[]; hours_mode: string; hours: unknown }>(redisKeys.number(row.e164!));
     expect(cachedAfterEdit?.blocklist).toContain('+15145550666');

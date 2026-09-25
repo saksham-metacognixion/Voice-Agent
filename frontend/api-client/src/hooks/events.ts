@@ -21,6 +21,17 @@ export function useWorkspaceEvents(topics: string[] | undefined, handler: (event
   handlerRef.current = handler;
   const key = topics ? topics.join(',') : '*';
 
+  // `subscribeEvents` closes the stream on `pagehide` (a cached document must not hold
+  // a socket); a page restored from the back/forward cache gets a fresh one here.
+  const [generation, setGeneration] = React.useState(0);
+  React.useEffect(() => {
+    const onShow = (event: PageTransitionEvent) => {
+      if (event.persisted) setGeneration((g) => g + 1);
+    };
+    window.addEventListener('pageshow', onShow);
+    return () => window.removeEventListener('pageshow', onShow);
+  }, []);
+
   React.useEffect(() => {
     if (!enabled) {
       setState('offline');
@@ -34,7 +45,7 @@ export function useWorkspaceEvents(topics: string[] | undefined, handler: (event
       onError: () => setState('offline'),
     });
     return unsubscribe;
-  }, [api, key, enabled]);
+  }, [api, key, enabled, generation]);
 
   return state;
 }

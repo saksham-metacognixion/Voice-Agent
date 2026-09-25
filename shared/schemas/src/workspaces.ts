@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { businessHours } from './business-hours.js';
-import { e164, isoDateTime, uuid } from './common.js';
+import { e164, isoDateTime, paginationQuery, uuid } from './common.js';
 import { memberRole, planTier } from './enums.js';
 
 /*
@@ -134,6 +134,33 @@ export type UpdateMemberRequest = z.infer<typeof updateMemberRequest>;
 /** POST /workspace/transfer-ownership — owner only, target must already be a member. */
 export const transferOwnershipRequest = z.object({ user_id: uuid });
 export type TransferOwnershipRequest = z.infer<typeof transferOwnershipRequest>;
+
+// ---------------------------------------------------------------------------
+// GET /audit-log — D6 Audit log (§6.2, §16)
+// ---------------------------------------------------------------------------
+
+/** Narrow by the part before the dot of `action` (`agent`, `number`, `member`, …). */
+export const auditLogQuery = paginationQuery.extend({
+  area: z.string().regex(/^[a-z_]{2,32}$/).optional(),
+});
+export type AuditLogQuery = z.infer<typeof auditLogQuery>;
+
+/**
+ * One `audit_log` row as an owner or admin reads it. `meta` is what the writing service
+ * recorded — ids, field names and booleans such as `has_password`, never a secret.
+ * `actor` is null for the system (a schedule, a webhook) or a user who has since left.
+ */
+export const auditEntryResponse = z.object({
+  id: uuid,
+  action: z.string(),
+  target_type: z.string().nullable(),
+  target_id: z.string().nullable(),
+  actor: z.object({ user_id: uuid, email: z.string(), name: z.string().nullable() }).nullable(),
+  ip: z.string().nullable(),
+  meta: z.record(z.string(), z.unknown()).nullable(),
+  created_at: isoDateTime,
+});
+export type AuditEntryResponse = z.infer<typeof auditEntryResponse>;
 
 // ---------------------------------------------------------------------------
 // POST /webhooks/auth (§13.2)

@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import WebSocket, { WebSocketServer } from 'ws';
 import type { RetellGateway } from '../retell';
-import { LiveTranscriptRelay, forwardable } from './live-transcript.relay';
+import { LiveTranscriptRelay, forwardable, relayedCloseCode } from './live-transcript.relay';
 import { RecordingSigner } from './recording';
 
 const SECRET = 'x'.repeat(40);
@@ -129,6 +129,25 @@ describe('LiveTranscriptRelay', () => {
     await secondUpClosed;
   });
 
+  it('forwards the platform close code, so the SDK retries a "not live yet" 4004 instead of giving up', async () => {
+    // The browser SDK opens the monitor the moment the audio session is live, which can
+    // be a beat before the platform lists the call; it retries on 4004 and reconnects on
+    // 1011, but reads a bare 1000 as the end of the call.
+    const first = await connect('/test-calls/v2/monitor-call/call_nl', ['bearer', liveToken('call_nl')]);
+    await until(() => upstreamSockets.length === 1);
+    const firstClosed = new Promise<{ code: number; reason: string }>((resolve) => first.ws.once('close', (code, reason) => resolve({ code, reason: String(reason) })));
+    upstreamSockets[0]!.close(4004, 'Call not live');
+    expect(await firstClosed).toEqual({ code: 4004, reason: 'Call not live' });
+
+    // The retry is an ordinary new connection, which opens a fresh upstream.
+    const second = await connect('/test-calls/v2/monitor-call/call_nl', ['bearer', liveToken('call_nl')]);
+    expect(second.status).toBe(101);
+    await until(() => upstreamSockets.length === 2);
+    const secondClosed = new Promise<number>((resolve) => second.ws.once('close', (code) => resolve(code)));
+    upstreamSockets[1]!.terminate(); // a dropped upstream (1006) cannot be sent as-is
+    expect(await secondClosed).toBe(1011);
+  });
+
   it('a recording link and a live token are not interchangeable', () => {
     const live = liveToken('call_z');
     const recording = liveToken('call_z', 'recording');
@@ -136,6 +155,12 @@ describe('LiveTranscriptRelay', () => {
     expect(signer.verify(recording, new Date(), 'live')).toBeNull();
     expect(signer.verify(recording)?.callId).toBe('call_z');
     expect(signer.verify(live, new Date(), 'live')?.callId).toBe('call_z');
+  });
+});
+
+describe('relayedCloseCode', () => {
+  it('passes 1000 and 3000–4999 through, reads a codeless close as 1000 and maps the rest to 1011', () => {
+    expect([1000, 3000, 4004, 4999, 1001, 1005, 1006, 1011, 5000].map(relayedCloseCode)).toEqual([1000, 3000, 4004, 4999, 1011, 1000, 1011, 1011, 1011]);
   });
 });
 

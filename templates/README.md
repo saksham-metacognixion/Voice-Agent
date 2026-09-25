@@ -30,6 +30,11 @@ layout where that does not work (see `.env.example`).
 | `sample_audio_url` | the 20-second "hear sample" clip in W1; a static asset, no credits |
 | `example_texts` | industry → placeholder copy for the W2 "About your business" box |
 
+`restaurant` (version 2, ADR 0020) expects a **menu**: a `knowledge_sources` row with `role = menu`, one
+per agent, uploaded from the Menu section of W4 / D3 Knowledge. Its steps and rules tell the agent to
+answer dishes, prices and ingredients from it and to say when something is not on it; the generation
+prompt names the menu whenever the agent has one.
+
 Platform guardrails are **not** in here. They are §9.4, they live in
 `agent_stack_configs.guardrails_text` with a compiled-in fallback, and they are appended by the backend
 after the model's answer is validated — see ADR 0012 §1.

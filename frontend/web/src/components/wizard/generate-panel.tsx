@@ -2,7 +2,7 @@
 
 import type { AgentDetail } from '@portal/schemas';
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Progress, cn } from '@portal/ui';
-import { ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
+import { ArrowRight, FileText, RefreshCw, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { GenerationState } from '@/src/wizard/use-generation';
 
@@ -15,13 +15,17 @@ export interface GeneratePanelProps {
   saving: boolean;
   onGenerate: (mode: 'generate' | 'regenerate') => void;
   onContinue: () => void;
+  /** Opens the script editor under the brief (W2 only; absent = no button). */
+  onEditScript?: () => void;
+  /** The script editor holds unsaved edits: Continue waits for a save. */
+  scriptDirty?: boolean;
   error: string | null;
 }
 
 const STAGE_PCT: Record<GenerationState['stage'], number> = { idle: 0, queued: 8, started: 25, writing: 65, done: 100, failed: 100 };
 
 /** The right-hand column of W2: the Generate button, the progress, the result. */
-export function GeneratePanel({ agent, generation, slow, ready, saving, onGenerate, onContinue, error }: GeneratePanelProps) {
+export function GeneratePanel({ agent, generation, slow, ready, saving, onGenerate, onContinue, onEditScript, scriptDirty = false, error }: GeneratePanelProps) {
   const t = useTranslations('wizard.w2');
   const active = generation.stage === 'queued' || generation.stage === 'started' || generation.stage === 'writing';
   const hasPrompt = Boolean(agent?.draft?.has_prompt);
@@ -71,9 +75,15 @@ export function GeneratePanel({ agent, generation, slow, ready, saving, onGenera
           <div className="flex flex-col gap-2">
             {hasPrompt ? (
               <>
-                <Button size="lg" onClick={onContinue}>
+                <Button size="lg" onClick={onContinue} disabled={scriptDirty}>
                   {t('continue')} <ArrowRight />
                 </Button>
+                {scriptDirty ? <p className="text-xs text-warning-emphasis">{t('scriptUnsaved')}</p> : null}
+                {onEditScript ? (
+                  <Button variant="outline" onClick={onEditScript} data-testid="edit-script">
+                    <FileText /> {t('editScript')}
+                  </Button>
+                ) : null}
                 <Button variant="outline" onClick={() => onGenerate('regenerate')} disabled={!ready || saving}>
                   <RefreshCw /> {t('regenerate')}
                 </Button>

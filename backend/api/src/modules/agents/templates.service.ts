@@ -38,7 +38,7 @@ export class TemplatesService {
     }
 
     return [...merged.values()]
-      .map(({ id, name, tagline, best_for, industry_tags, default_tier, sample_audio_url, version }) => ({
+      .map(({ id, name, tagline, best_for, industry_tags, default_tier, sample_audio_url, example_texts, version }) => ({
         id,
         name,
         tagline,
@@ -46,6 +46,7 @@ export class TemplatesService {
         industry_tags,
         default_tier,
         sample_audio_url,
+        example_texts,
         version,
       }))
       .sort((a, b) => a.name.localeCompare(b.name));

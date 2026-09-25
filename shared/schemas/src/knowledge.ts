@@ -20,6 +20,30 @@ export type KnowledgeType = z.infer<typeof knowledgeType>;
 export const knowledgeStatus = z.enum(['pending', 'syncing', 'ready', 'failed', 'deleting']);
 export type KnowledgeStatus = z.infer<typeof knowledgeStatus>;
 
+/**
+ * What a source *is for*, beyond its bytes. A plain source has no role. `menu` is the
+ * restaurant's menu: one per agent (replacing it deletes the previous one), shown in its
+ * own section of W4 and the D3 Knowledge tab, and named in the generated prompt so the
+ * agent answers dish, price and availability questions from it and says when something
+ * is not on it. Only a restaurant agent (`template_id` or `industry` = `restaurant`)
+ * may hold one.
+ */
+export const knowledgeRole = z.enum(['menu']);
+export type KnowledgeRole = z.infer<typeof knowledgeRole>;
+
+/** A restaurant agent: the Restaurant template, or any template tagged `restaurant` on W1. */
+export function isRestaurantAgent(agent: { template_id: string | null; industry: string | null }): boolean {
+  return agent.template_id === 'restaurant' || (agent.industry ?? '').trim().toLowerCase() === 'restaurant';
+}
+
+/**
+ * The roles an agent may hold — what the API accepts and what the portal shows a section
+ * for. One function so the two cannot disagree on which agent gets a Menu section.
+ */
+export function knowledgeRolesFor(agent: { template_id: string | null; industry: string | null }): KnowledgeRole[] {
+  return isRestaurantAgent(agent) ? ['menu'] : [];
+}
+
 /** ADR 0003 §8: files ≤ 20 MB, ≤ 20 sources per agent, URLs as single pages. */
 export const KNOWLEDGE_MAX_FILE_BYTES = 20 * 1024 * 1024;
 export const KNOWLEDGE_MAX_TEXT_CHARS = 200_000;
@@ -50,15 +74,18 @@ export const knowledgeUrl = z
  * travels as base64 in JSON — the portal is a static export with no upload service of
  * its own, and the bytes are held only until the platform has ingested them.
  */
+const role = knowledgeRole.optional();
+
 export const createKnowledgeSourceRequest = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('url'), name: name.optional(), url: knowledgeUrl }),
-  z.object({ type: z.literal('text'), name, text: z.string().min(1).max(KNOWLEDGE_MAX_TEXT_CHARS) }),
+  z.object({ type: z.literal('url'), name: name.optional(), url: knowledgeUrl, role }),
+  z.object({ type: z.literal('text'), name, text: z.string().min(1).max(KNOWLEDGE_MAX_TEXT_CHARS), role }),
   z.object({
     type: z.literal('file'),
     name,
     content_type: knowledgeFileType,
     /** Standard base64, no data: prefix. Size is checked after decoding. */
     content_base64: z.string().min(1).regex(/^[A-Za-z0-9+/=\r\n]+$/, 'Not base64'),
+    role,
   }),
 ]);
 export type CreateKnowledgeSourceRequest = z.infer<typeof createKnowledgeSourceRequest>;
@@ -71,6 +98,8 @@ export const knowledgeSourceResponse = z.object({
   id: uuid,
   agent_id: uuid,
   type: knowledgeType,
+  /** `menu` for the restaurant's menu, else null. */
+  role: knowledgeRole.nullable(),
   name: z.string(),
   url: z.string().nullable(),
   content_type: z.string().nullable(),

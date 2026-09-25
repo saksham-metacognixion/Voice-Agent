@@ -60,7 +60,7 @@ export function ActivityChart() {
           <EmptyState className="py-10" icon={<BarChart3 />} title={t('empty')} description={t('emptyHint')} />
         ) : (
           <>
-            <Bars series={series} metric={metric} />
+            <ActivityBars series={series} metric={metric} />
             <details className="text-xs">
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t('table')}</summary>
               <div className="mt-2 max-h-56 overflow-auto rounded-md border border-border">
@@ -99,7 +99,8 @@ const W = 600;
 const H = 180;
 const PAD = { top: 8, right: 4, bottom: 22, left: 30 };
 
-function Bars({ series, metric }: { series: ActivityPoint[]; metric: ActivityMetric }) {
+/** The bars alone, shared with the D5 usage chart. */
+export function ActivityBars({ series, metric, label }: { series: ActivityPoint[]; metric: ActivityMetric; label?: string }) {
   const t = useTranslations('dashboard.home.activity');
   const [hover, setHover] = React.useState<number | null>(null);
   const max = Math.max(1, ...series.map((p) => p[metric]));
@@ -116,7 +117,7 @@ function Bars({ series, metric }: { series: ActivityPoint[]; metric: ActivityMet
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" role="img" aria-label={t('title')} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" role="img" aria-label={label ?? t('title')} onMouseLeave={() => setHover(null)}>
         {ticks.map((v) => (
           <g key={v}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} className="stroke-border" strokeWidth={1} />

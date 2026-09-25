@@ -24,13 +24,26 @@ export interface GenerationContext {
   languages: string[];
   tier: 'standard' | 'premium';
   businessName: string;
+  /** `agents.industry` — the W1 pick, e.g. `restaurant`, `dental`. Null when not given. */
+  industry?: string | null;
   timezone: string;
+  /**
+   * What the agent can look up during a call: the knowledge sources attached to it,
+   * including a `menu`. Named in the prompt so the model writes the "answer from the
+   * menu, say when something is not on it" behaviour instead of inventing dishes.
+   */
+  knowledge?: KnowledgeForPrompt[];
   /** The skeleton from `agent_stack_configs.generation_prompts_json`, else Appendix B. */
   skeleton: string;
   /** Extra analysis fields every agent gets (§9.8: caller_intent, follow_up_required). */
   alwaysAnalysisFields: AnalysisField[];
   /** Carried into a regenerate so the rewrite keeps what the customer liked (W2). */
   previousFeedback?: string[];
+}
+
+export interface KnowledgeForPrompt {
+  name: string;
+  role: 'menu' | null;
 }
 
 /** Appendix B, used when the stack row carries no skeleton. */
@@ -73,6 +86,7 @@ export const DEFAULT_SYSTEM_PROMPT = [
   '- Use only facts from the brief. Where the brief is silent, instruct the agent to say it does not have that information and offer to take a message.',
   '- Never add a number, limit, threshold or policy the brief does not state. If the brief names a condition without one ("hand off large parties"), keep the brief\'s own words in the prompt and the summary, and add a warning asking the customer to set it.',
   '- Never write a rule that tells the agent to claim to be human, to quote invented prices, or to collect card or health details.',
+  '- The agent speaks only for the business named in the settings. It introduces itself by its own name and that business, and it never names, or claims to be from, any other company, software product or voice or AI vendor.',
   '- Write the greeting as one sentence of at most 25 words, in the primary language.',
   '',
   'Return only the structured object you were asked for.',
@@ -99,10 +113,13 @@ export function buildUserPrompt(context: GenerationContext): string {
     '',
     '# Settings',
     `- Business: ${context.businessName}`,
+    ...(context.industry?.trim() ? [`- Industry: ${context.industry.trim()}`] : []),
     `- Primary language: ${context.primaryLanguage}`,
     `- Also speaks: ${context.languages.length ? context.languages.join(', ') : 'nothing else'}`,
     `- Timezone: ${context.timezone}`,
     `- Agent tier: ${context.tier}`,
+    '',
+    ...identitySection(context),
   ];
 
   if (template) {
@@ -117,6 +134,9 @@ export function buildUserPrompt(context: GenerationContext): string {
       sections.push('Business rules that come with this template:', ...template.rules.map((rule) => `  - ${rule}`));
     }
   }
+
+  const knowledge = knowledgeSection(context.knowledge ?? []);
+  if (knowledge.length) sections.push('', ...knowledge);
 
   // Only the *additions* are asked for. The template's fields and the §9.8 constants are
   // merged in by the worker whatever the model returns (template first, duplicates
@@ -143,6 +163,50 @@ export function buildUserPrompt(context: GenerationContext): string {
   sections.push('', '# The brief', '```json', JSON.stringify(briefForModel(brief), null, 2), '```');
 
   return sections.join('\n');
+}
+
+/**
+ * Who the agent is, stated outright rather than left to the skeleton's placeholders.
+ *
+ * A model filling `{business_name}` from a brief that never repeats the name can drift to
+ * a name it saw elsewhere — a vendor's, a sample's — and a phone agent introducing itself
+ * as someone else's is the one prompt bug a customer hears on the first ring. The
+ * business name comes from the workspace (`tenants.name`), the agent name from the brief;
+ * nothing here is a constant.
+ */
+export function identitySection(context: Pick<GenerationContext, 'businessName' | 'brief'>): string[] {
+  const agentName = context.brief.agent_name?.trim();
+  return [
+    '# Identity',
+    `The agent works for ${context.businessName} and speaks only for it.`,
+    agentName
+      ? `It introduces itself as ${agentName} from ${context.businessName}.`
+      : `It introduces itself as the assistant for ${context.businessName}.`,
+    'It never names, or claims to be from, any other company, product, voice platform or AI vendor.',
+  ];
+}
+
+/**
+ * What the agent can look up during a call. The sources are attached to the agent on
+ * the voice platform and searched automatically; the prompt has to say what to do with
+ * them — and, for a menu, what to say when a dish is *not* there.
+ */
+export function knowledgeSection(knowledge: KnowledgeForPrompt[]): string[] {
+  if (knowledge.length === 0) return [];
+  const menu = knowledge.find((source) => source.role === 'menu');
+  const others = knowledge.filter((source) => source.role !== 'menu');
+  const lines = ['# What the agent can look up', 'These documents are attached to the agent and searched during the call:'];
+  if (menu) lines.push(`  - The menu (${menu.name})`);
+  lines.push(...others.map((source) => `  - ${source.name}`));
+  if (menu) {
+    lines.push(
+      'Menu rules to write into the prompt: answer questions about dishes, prices, ingredients, portions and dietary details from the menu;',
+      'when a caller asks for something that is not on the menu, say it is not on the menu and offer what is; never invent a dish, a price or an ingredient;',
+      'if the menu marks an item unavailable or seasonal, say so.',
+    );
+  }
+  lines.push('For anything these documents do not cover, the agent says it does not have that information and offers to take a message.');
+  return lines;
 }
 
 /** The §9.6 feedback turn: current brief + current prompt + what the customer said. */

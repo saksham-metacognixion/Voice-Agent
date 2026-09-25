@@ -1,11 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import {
   type AcceptInviteResponse,
+  type AuditEntryResponse,
+  type Page,
   type InviteResponse,
   type MemberResponse,
   type WorkspaceChecklist,
   type WorkspaceResponse,
+  auditLogQuery,
   createWorkspaceRequest,
   inviteRequest,
   transferOwnershipRequest,
@@ -77,6 +80,13 @@ export class WorkspacesController {
   @Roles('owner')
   transfer(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<MemberResponse[]> {
     return this.members.transferOwnership(ctx, transferOwnershipRequest.parse(body).user_id);
+  }
+
+  /** D6 Audit log — "Owner/Admin" (spec p. 39). */
+  @Get('audit-log')
+  @Roles('owner', 'admin')
+  auditLog(@Ctx() ctx: WorkspaceContext, @Query() query: unknown): Promise<Page<AuditEntryResponse>> {
+    return this.workspaces.auditLog(ctx, auditLogQuery.parse(query));
   }
 
   // ------------------------------------------------------------------ members

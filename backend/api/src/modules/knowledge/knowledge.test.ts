@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createKnowledgeSourceRequest, phonePlanRequest } from '@portal/schemas';
+import { createKnowledgeSourceRequest, knowledgeRolesFor, phonePlanRequest } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { findSource, kbName, sourceFilename, sourceTitle } from './knowledge-sync.worker';
 import { decodeSource } from './knowledge.service';
@@ -14,6 +14,22 @@ describe('createKnowledgeSourceRequest', () => {
     expect(createKnowledgeSourceRequest.safeParse({ type: 'url', url: 'ftp://example.com' }).success).toBe(false);
     expect(createKnowledgeSourceRequest.safeParse({ type: 'file', name: 'a.exe', content_type: 'application/x-msdownload', content_base64: 'AA==' }).success).toBe(false);
     expect(createKnowledgeSourceRequest.safeParse({ type: 'text', name: 'x', text: '' }).success).toBe(false);
+  });
+});
+
+describe('the menu role', () => {
+  it('rides on every source kind and accepts nothing but `menu`', () => {
+    expect(createKnowledgeSourceRequest.safeParse({ type: 'file', name: 'menu.pdf', content_type: 'application/pdf', content_base64: 'JVBERi0=', role: 'menu' }).success).toBe(true);
+    expect(createKnowledgeSourceRequest.safeParse({ type: 'text', name: 'Menu', text: 'Soup $6', role: 'menu' }).success).toBe(true);
+    expect(createKnowledgeSourceRequest.safeParse({ type: 'url', url: 'https://example.com/menu', role: 'menu' }).success).toBe(true);
+    expect(createKnowledgeSourceRequest.safeParse({ type: 'text', name: 'Menu', text: 'Soup $6', role: 'wine_list' }).success).toBe(false);
+  });
+
+  it('belongs to restaurant agents only — by template or by the W1 industry', () => {
+    expect(knowledgeRolesFor({ template_id: 'restaurant', industry: null })).toEqual(['menu']);
+    expect(knowledgeRolesFor({ template_id: 'receptionist', industry: 'Restaurant ' })).toEqual(['menu']);
+    expect(knowledgeRolesFor({ template_id: 'receptionist', industry: 'dental' })).toEqual([]);
+    expect(knowledgeRolesFor({ template_id: null, industry: null })).toEqual([]);
   });
 });
 

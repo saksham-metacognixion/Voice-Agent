@@ -22,8 +22,11 @@ const MAX_PROMPT = 20_000;
  * save and a publish run) and the findings point at the field they concern. Save is
  * `PUT …/versions/:v/prompt`: a **new immutable version** (`source: manual`) that becomes
  * the draft; the version it was based on is kept. Leaving with unsaved changes asks first.
+ *
+ * Also the W2 "script" section: the wizard hosts the same editor under the brief once a
+ * script exists, and listens to `onDirtyChange` so Continue waits for a save.
  */
-export function PromptTab({ agent, canEdit }: { agent: AgentDetail; canEdit: boolean }) {
+export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetail; canEdit: boolean; onDirtyChange?: (dirty: boolean) => void }) {
   const t = useTranslations('dashboard.agents.prompt');
   const tc = useTranslations();
   const api = useApi();
@@ -51,6 +54,10 @@ export function PromptTab({ agent, canEdit }: { agent: AgentDetail; canEdit: boo
 
   const dirty = Boolean(base) && (prompt !== (base?.editable_prompt ?? '') || greeting !== (base?.greeting ?? '') || closing !== (base?.closing ?? ''));
   dirtyRef.current = dirty;
+  React.useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   React.useEffect(() => {
     if (!dirty) return;

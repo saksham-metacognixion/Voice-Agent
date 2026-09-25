@@ -27,6 +27,15 @@ export function subscribeEvents(api: ApiClient, opts: SubscribeOptions): () => v
   const signal = opts.signal ? anySignal([opts.signal, controller.signal]) : controller.signal;
   const query = opts.topics && opts.topics.length > 0 ? `?topics=${encodeURIComponent(opts.topics.join(','))}` : '';
 
+  // A document the browser keeps in its back/forward cache keeps its fetches too, and
+  // this one never ends on its own. Six cached dashboard documents held six streams —
+  // the HTTP/1.1 per-host limit — and the seventh page's first request queued for ever
+  // (D11, 25 Sep). Close on `pagehide`; `useWorkspaceEvents` reopens on a persisted
+  // `pageshow`, so a restored page is live again.
+  const onPageHide = () => controller.abort();
+  const win = typeof window !== 'undefined' ? window : null;
+  win?.addEventListener('pagehide', onPageHide);
+
   class FatalError extends Error {}
 
   void fetchEventSource(`${api.baseUrl}/events${query}`, {
@@ -72,7 +81,10 @@ export function subscribeEvents(api: ApiClient, opts: SubscribeOptions): () => v
     /* aborted or fatal; either way the caller's unsubscribe/onError has the story */
   });
 
-  return () => controller.abort();
+  return () => {
+    win?.removeEventListener('pagehide', onPageHide);
+    controller.abort();
+  };
 }
 
 function anySignal(signals: AbortSignal[]): AbortSignal {

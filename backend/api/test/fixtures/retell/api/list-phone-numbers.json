@@ -1,7 +1,49 @@
 {
-  "captured_at": "2026-09-15T05:47:22.349Z",
+  "captured_at": "2026-09-25T07:45:59.444Z",
   "data": {
     "items": [
+      {
+        "phone_number": "+12525946525",
+        "phone_number_type": "retell-twilio",
+        "phone_number_pretty": "(252) 594-6525",
+        "nickname": "dev-num-177d08c0d9eb483ba327",
+        "inbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_47dbdde4001627620936bc57fa",
+            "agent_version": "latest_published"
+          }
+        ],
+        "area_code": 252,
+        "inbound_webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell/inbound/tok_2cecaf8e5f5cfd2a612e167fff6c32705875d47f",
+        "last_modification_timestamp": 1790245958494,
+        "toll_free": false,
+        "country_code": "US",
+        "custom_sms_enabled": false,
+        "creation_timestamp": 1790245958494,
+        "sip_outbound_trunk_config": "[redacted]"
+      },
+      {
+        "phone_number": "+13203177860",
+        "phone_number_type": "retell-twilio",
+        "phone_number_pretty": "(320) 317-7860",
+        "nickname": "dev-postman",
+        "inbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_2ead4963bcbbb3cb1e0e6561c3",
+            "agent_version": "latest_published"
+          }
+        ],
+        "area_code": 320,
+        "inbound_webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell/inbound/spike_x1afrsrwgek",
+        "last_modification_timestamp": 1789459138210,
+        "toll_free": false,
+        "country_code": "US",
+        "custom_sms_enabled": false,
+        "creation_timestamp": 1789459138210,
+        "sip_outbound_trunk_config": "[redacted]"
+      },
       {
         "phone_number": "+16204459730",
         "phone_number_type": "retell-twilio",
@@ -10,17 +52,38 @@
         "inbound_agents": [
           {
             "weight": 1,
-            "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+            "agent_id": "agent_2ead4963bcbbb3cb1e0e6561c3",
             "agent_version": "latest_published"
           }
         ],
         "area_code": 620,
         "inbound_webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell/inbound/spike_x1afrsrwgek?mode=allow",
-        "last_modification_timestamp": 1789450932855,
+        "last_modification_timestamp": 1789459121796,
         "toll_free": false,
         "country_code": "US",
         "custom_sms_enabled": false,
         "creation_timestamp": 1789450017526,
+        "sip_outbound_trunk_config": "[redacted]"
+      },
+      {
+        "phone_number": "+12562910769",
+        "phone_number_type": "retell-twilio",
+        "phone_number_pretty": "(256) 291-0769",
+        "nickname": "dev-postman",
+        "inbound_agents": [
+          {
+            "weight": 1,
+            "agent_id": "agent_2ead4963bcbbb3cb1e0e6561c3",
+            "agent_version": "latest_published"
+          }
+        ],
+        "area_code": 256,
+        "inbound_webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell/inbound/spike_x1afrsrwgek",
+        "last_modification_timestamp": 1789457943487,
+        "toll_free": false,
+        "country_code": "US",
+        "custom_sms_enabled": false,
+        "creation_timestamp": 1789457943487,
         "sip_outbound_trunk_config": "[redacted]"
       },
       {

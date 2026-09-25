@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration, formatPhone, localDate, shiftDate, startOfLocalDay } from './format';
+import { formatDate, formatDuration, formatPhone, localDate, shiftDate, startOfLocalDay } from './format';
 
 describe('format helpers', () => {
   it('formats durations', () => {
@@ -7,6 +7,12 @@ describe('format helpers', () => {
     expect(formatDuration(65)).toBe('1:05');
     expect(formatDuration(3725)).toBe('1:02:05');
     expect(formatDuration(null)).toBe('–');
+  });
+  it('keeps the year on a date that can be months away', () => {
+    // 04:57 UTC on 25 Sep 2027 is still the 25th in Toronto; the year is what D1 lost.
+    expect(formatDate('2027-09-25T04:57:02Z', 'America/Toronto')).toMatch(/2027/);
+    expect(formatDate('2027-09-25T02:00:00Z', 'America/Toronto')).toMatch(/24/);
+    expect(formatDate(null)).toBe('–');
   });
   it('spaces NANP numbers and leaves others alone', () => {
     expect(formatPhone('+14165550100')).toBe('+1 416 555 0100');

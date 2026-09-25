@@ -243,7 +243,7 @@ describe('POST /voices/:id/preview', () => {
 
   it('withholds the vendor clip — name and hostname — where policy says deny', async () => {
     // The platform's catalogue clips say its name out loud, and their URLs are its own
-    // bucket. `deny` is the default under APP_ENV=prod, and it withholds both until
+    // bucket. `deny` is the default everywhere but a dev box, and it withholds both until
     // `voices.sample_url` holds a clip of ours (ADR 0003 §9).
     const previous = process.env.VOICE_VENDOR_SAMPLES;
     process.env.VOICE_VENDOR_SAMPLES = 'deny';
@@ -265,10 +265,16 @@ describe('POST /voices/:id/preview', () => {
     }
   });
 
-  it('defaults to deny under prod and allow elsewhere', () => {
-    expect(vendorSamplePolicy({ APP_ENV: 'prod' } as NodeJS.ProcessEnv)).toBe('deny');
+  it('defaults to allow on a dev box only — staging, ci, prod and an unset APP_ENV all deny', () => {
+    // A design partner on staging heard a vendor clip say "from Retail AI" (25 Sep 2026):
+    // the old default was deny-under-prod-only.
     expect(vendorSamplePolicy({ APP_ENV: 'dev' } as NodeJS.ProcessEnv)).toBe('allow');
+    expect(vendorSamplePolicy({ APP_ENV: 'staging' } as NodeJS.ProcessEnv)).toBe('deny');
+    expect(vendorSamplePolicy({ APP_ENV: 'ci' } as NodeJS.ProcessEnv)).toBe('deny');
+    expect(vendorSamplePolicy({ APP_ENV: 'prod' } as NodeJS.ProcessEnv)).toBe('deny');
+    expect(vendorSamplePolicy({} as NodeJS.ProcessEnv)).toBe('deny');
     expect(vendorSamplePolicy({ APP_ENV: 'prod', VOICE_VENDOR_SAMPLES: 'allow' } as NodeJS.ProcessEnv)).toBe('allow');
+    expect(vendorSamplePolicy({ APP_ENV: 'dev', VOICE_VENDOR_SAMPLES: 'deny' } as NodeJS.ProcessEnv)).toBe('deny');
   });
 
   it('never lets the daily refresh overwrite a clip of ours', async () => {

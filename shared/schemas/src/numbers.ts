@@ -190,6 +190,10 @@ export const phoneNumberResponse = z.object({
   forwarding: z
     .object({ from: z.string(), status: forwardingStatus, carrier: carrier.nullable() })
     .nullable(),
+  /** Option C: the trunk's host and username. The password is never returned, only whether one is stored. */
+  sip: z.object({ host: z.string(), username: z.string().nullable(), has_password: z.boolean() }).nullable(),
+  /** Calls that reached this number in the last seven days (D4 list). */
+  calls_7d: z.number().int(),
   rental_credits: z.number().int(),
   next_rental_at: isoDateTime.nullable(),
   /** Customer-safe reason when `status = failed`. */

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { adminDb } from '@portal/db';
+import { Prisma, adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WalletService } from '../src/modules/wallet';
@@ -649,6 +649,106 @@ describe('the workspace header cannot be spoofed', () => {
     const res = await get('/members', await auth(mine.sub));
     expect(res.statusCode).toBe(400);
     expect(res.json().code).toBe('WORKSPACE_REQUIRED');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('GET /audit-log (D6, §6.2)', () => {
+  async function seed(workspaceId: string, actorUserId: string | null, action: string, at: Date, meta?: Record<string, unknown>) {
+    await adminDb.auditLog.create({ data: { tenantId: workspaceId, actorUserId, action, targetType: 'agent', targetId: randomUUID(), ip: '203.0.113.9', metaJson: (meta ?? {}) as Prisma.InputJsonValue, createdAt: at } });
+  }
+
+  it('lists the workspace’s own rows newest first, with the actor, and pages by cursor', async () => {
+    const owner = await createWorkspace('audit');
+    const base = Date.now() - 60_000;
+    await seed(owner.workspaceId, owner.userId, 'agent.created', new Date(base));
+    await seed(owner.workspaceId, owner.userId, 'agent.published', new Date(base + 1_000), { version_no: 2 });
+    await seed(owner.workspaceId, null, 'number.released_unpaid', new Date(base + 2_000));
+
+    const first = await get('/audit-log?limit=2', await auth(owner.sub, owner.workspaceId));
+    expect(first.statusCode).toBe(200);
+    const page = first.json();
+    expect(page.items.map((r: { action: string }) => r.action)).toEqual(['number.released_unpaid', 'agent.published']);
+    expect(page.items[0].actor).toBeNull();
+    expect(page.items[1]).toMatchObject({ actor: { user_id: owner.userId, email: owner.email }, ip: '203.0.113.9', meta: { version_no: 2 } });
+    expect(page.next_cursor).toEqual(expect.any(String));
+
+    const second = await get(`/audit-log?limit=2&cursor=${encodeURIComponent(page.next_cursor)}`, await auth(owner.sub, owner.workspaceId));
+    expect(second.json().items.map((r: { action: string }) => r.action)).toEqual(['agent.created']);
+    expect(second.json().next_cursor).toBeNull();
+  });
+
+  it('refuses a malformed cursor, a non-UUID id and another workspace’s row as an invalid page link, not a page', async () => {
+    const mine = await createWorkspace('audit-cursor');
+    const theirs = await createWorkspace('audit-cursor-theirs');
+    await seed(mine.workspaceId, mine.userId, 'agent.created', new Date());
+    const foreign = await adminDb.auditLog.create({ data: { tenantId: theirs.workspaceId, actorUserId: theirs.userId, action: 'agent.created', targetType: 'agent', targetId: randomUUID() } });
+    const encode = (id: string) => encodeURIComponent(Buffer.from(JSON.stringify([1, id, null]), 'utf8').toString('base64url'));
+
+    for (const cursor of ['not-a-cursor', encode('abc'), encode(randomUUID()), encode(foreign.id)]) {
+      const res = await get(`/audit-log?cursor=${cursor}`, await auth(mine.sub, mine.workspaceId));
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('INVALID_CURSOR');
+    }
+  });
+
+  it('resumes from the cursor row even when the area filter no longer includes it', async () => {
+    const owner = await createWorkspace('audit-cursor-area');
+    const base = Date.now() - 60_000;
+    await seed(owner.workspaceId, owner.userId, 'member.role_changed', new Date(base));
+    await seed(owner.workspaceId, owner.userId, 'agent.created', new Date(base + 1_000));
+    await seed(owner.workspaceId, owner.userId, 'member.removed', new Date(base + 2_000));
+
+    const first = await get('/audit-log?limit=2', await auth(owner.sub, owner.workspaceId));
+    expect(first.json().items.map((r: { action: string }) => r.action)).toEqual(['member.removed', 'agent.created']);
+    const second = await get(`/audit-log?limit=2&area=member&cursor=${encodeURIComponent(first.json().next_cursor)}`, await auth(owner.sub, owner.workspaceId));
+    expect(second.statusCode).toBe(200);
+    expect(second.json().items.map((r: { action: string }) => r.action)).toEqual(['member.role_changed']);
+  });
+
+  it('narrows by area — the part of the action before the dot', async () => {
+    const owner = await createWorkspace('audit-area');
+    await seed(owner.workspaceId, owner.userId, 'agent.created', new Date());
+    await seed(owner.workspaceId, owner.userId, 'member.role_changed', new Date());
+
+    const res = await get('/audit-log?area=member', await auth(owner.sub, owner.workspaceId));
+    expect(res.json().items.map((r: { action: string }) => r.action)).toEqual(['member.role_changed']);
+    expect((await get('/audit-log?area=Bad-Area', await auth(owner.sub, owner.workspaceId))).statusCode).toBe(422);
+  });
+
+  it('never shows another workspace’s rows', async () => {
+    const mine = await createWorkspace('audit-mine');
+    const theirs = await createWorkspace('audit-theirs');
+    await seed(theirs.workspaceId, theirs.userId, 'agent.deleted', new Date());
+
+    const res = await get('/audit-log', await auth(mine.sub, mine.workspaceId));
+    expect(res.json().items.every((r: { action: string }) => r.action !== 'agent.deleted')).toBe(true);
+    expect((await get('/audit-log', await auth(mine.sub, theirs.workspaceId))).statusCode).toBe(403);
+  });
+
+  it('is owner/admin only (spec p. 39)', async () => {
+    const owner = await createWorkspace('audit-roles');
+    const admin = await addMember(owner.workspaceId, 'audit-admin', 'admin');
+    const editor = await addMember(owner.workspaceId, 'audit-editor', 'editor');
+    const viewer = await addMember(owner.workspaceId, 'audit-viewer', 'viewer');
+
+    expect((await get('/audit-log', await auth(admin.sub, owner.workspaceId))).statusCode).toBe(200);
+    for (const who of [editor, viewer]) {
+      const res = await get('/audit-log', await auth(who.sub, owner.workspaceId));
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe('FORBIDDEN_ROLE');
+    }
+  });
+
+  it('reads a member who has since left as no actor rather than leaking their profile', async () => {
+    const owner = await createWorkspace('audit-left');
+    const leaver = await addMember(owner.workspaceId, 'audit-leaver', 'editor');
+    await seed(owner.workspaceId, leaver.userId, 'agent.prompt_edited', new Date());
+    await adminDb.membership.delete({ where: { tenantId_userId: { tenantId: owner.workspaceId, userId: leaver.userId } } });
+
+    const res = await get('/audit-log', await auth(owner.sub, owner.workspaceId));
+    const row = res.json().items.find((r: { action: string }) => r.action === 'agent.prompt_edited');
+    expect(row.actor).toBeNull();
   });
 });
 

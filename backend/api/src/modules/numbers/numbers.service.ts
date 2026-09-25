@@ -15,6 +15,8 @@ import { toNumberResponse } from './number-response';
 import { NumberProvisioningService } from './number-provisioning.service';
 
 const PROVISIONING_STATUSES = ['provisioning', 'active', 'paused'] as const;
+/** The plan's stored SIP credentials, which `toNumberResponse` redacts to host, username and a has-password flag. */
+const WITH_PLAN_SIP = { plan: { select: { sipJson: true } } } as const;
 
 /**
  * D4 Numbers and the two out-of-wizard entry points (§16): `GET /numbers · POST
@@ -43,13 +45,19 @@ export class NumbersService {
   ) {}
 
   async list(ctx: WorkspaceContext): Promise<PhoneNumberResponse[]> {
-    const rows = await withWorkspace(ctx, (db) => db.phoneNumber.findMany({ where: { tenantId: ctx.workspaceId }, orderBy: { createdAt: 'asc' } }));
-    return rows.map(toNumberResponse);
+    return withWorkspace(ctx, async (db) => {
+      const rows = await db.phoneNumber.findMany({ where: { tenantId: ctx.workspaceId }, orderBy: { createdAt: 'asc' }, include: WITH_PLAN_SIP });
+      const counts = await this.calls7d(db, ctx, rows.map((r) => r.id));
+      return rows.map((row) => toNumberResponse(row, counts.get(row.id) ?? 0));
+    });
   }
 
   async get(ctx: WorkspaceContext, numberId: string): Promise<PhoneNumberResponse> {
-    const row = await withWorkspace(ctx, (db) => this.loadNumber(db, ctx, numberId));
-    return toNumberResponse(row);
+    return withWorkspace(ctx, async (db) => {
+      const row = await this.loadNumber(db, ctx, numberId);
+      const counts = await this.calls7d(db, ctx, [row.id]);
+      return toNumberResponse(row, counts.get(row.id) ?? 0);
+    });
   }
 
   guide(carrier: Carrier, destination: string | null): ForwardingGuide {
@@ -181,9 +189,10 @@ export class NumbersService {
         if (current.e164 && current.status !== 'provisioning') repoint = { retellAgentId: agent.retellAgentId };
       }
 
-      const updated = await db.phoneNumber.update({ where: { id: current.id }, data });
+      const updated = await db.phoneNumber.update({ where: { id: current.id }, data, include: WITH_PLAN_SIP });
       await this.audit(db, ctx, 'number.updated', current.id, { fields: Object.keys(patch), agent_id: patch.agent_id ?? null, paused: patch.paused ?? null });
-      return { row: updated, repoint };
+      const counts = await this.calls7d(db, ctx, [current.id]);
+      return { row: { ...updated, calls7d: counts.get(current.id) ?? 0 }, repoint };
     });
 
     if (repoint && row.e164) {
@@ -224,7 +233,7 @@ export class NumbersService {
       await this.provisioning.markFailed(row.id, 'We could not start setting up this number. Try again in a moment.', 'enqueue failed').catch(() => undefined);
       throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not start setting up this number. Try again in a moment.');
     }
-    const fresh = await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id } });
+    const fresh = await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id }, include: WITH_PLAN_SIP });
     this.log.log(`number ${row.id}: provisioning queued (${queued}) in workspace ${ctx.workspaceId}`);
     return { number: toNumberResponse(fresh), job_id: row.id };
   }
@@ -245,8 +254,21 @@ export class NumbersService {
     }
   }
 
+  /**
+   * D4 "calls 7d": one grouped count for the numbers on the page, declined calls included.
+   * Counted on `started_at` — when the call reached the number, which is what the column
+   * says, and the column the `(number_id, started_at)` index covers; a row `created_at`
+   * counts when we learned of it, which `call-recovery` can set days later.
+   */
+  private async calls7d(db: WorkspaceDb, ctx: WorkspaceContext, numberIds: string[]): Promise<Map<string, number>> {
+    if (numberIds.length === 0) return new Map();
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const groups = await db.call.groupBy({ by: ['numberId'], where: { tenantId: ctx.workspaceId, numberId: { in: numberIds }, startedAt: { gte: since } }, _count: { _all: true } });
+    return new Map(groups.filter((g) => g.numberId).map((g) => [g.numberId as string, g._count._all]));
+  }
+
   private async loadNumber(db: WorkspaceDb, ctx: WorkspaceContext, numberId: string) {
-    const row = await db.phoneNumber.findFirst({ where: { id: numberId, tenantId: ctx.workspaceId } });
+    const row = await db.phoneNumber.findFirst({ where: { id: numberId, tenantId: ctx.workspaceId }, include: WITH_PLAN_SIP });
     if (!row) throw AppError.notFound('Phone number');
     return row;
   }

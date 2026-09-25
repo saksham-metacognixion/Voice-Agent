@@ -107,7 +107,11 @@ export class LiveTranscriptRelay implements OnModuleDestroy {
       const frame = forwardable(data);
       if (frame && client.readyState === WebSocket.OPEN) client.send(frame);
     });
-    upstream.on('close', () => this.close(callId, 1000, 'ended', entry));
+    // The platform's close code travels down as it came: the SDK retries a `4004 Call not
+    // live` (the monitor is asked for a beat before the platform lists the call as live)
+    // and reconnects on a dropped stream, but reads a bare 1000 as "the call is over" and
+    // gives up on the transcript for the rest of the call.
+    upstream.on('close', (code, reason) => this.close(callId, relayedCloseCode(code), String(reason) || 'ended', entry));
     upstream.on('error', (error) => {
       this.log.warn(`call ${callId}: monitor socket error: ${error.message}`);
       this.close(callId, 1011, 'unavailable', entry);
@@ -164,6 +168,19 @@ function lines(value: unknown): Array<Record<string, unknown>> {
     .filter((u): u is Record<string, unknown> => Boolean(u) && typeof u === 'object')
     .filter((u) => u.role === 'agent' || u.role === 'user')
     .map((u) => ({ id: u.id, role: u.role, content: typeof u.content === 'string' ? u.content : '', time_sec: typeof u.time_sec === 'number' ? u.time_sec : 0 }));
+}
+
+/**
+ * The close code the browser is given for an upstream close. 1000 and 3000–4999 pass
+ * through (the SDK reads 4004 as "not live yet, retry" and other 4xxx as a rejection);
+ * a clean close with no code (1005) is a clean end, 1000; anything else — 1006 for a
+ * dropped connection, a server error — becomes 1011, which the SDK treats as a lost
+ * stream and reconnects.
+ */
+export function relayedCloseCode(code: number): number {
+  if (code === 1000 || code === 1005) return 1000;
+  if (code >= 3000 && code <= 4999) return code;
+  return 1011;
 }
 
 function safeOrigin(url: string): string | null {

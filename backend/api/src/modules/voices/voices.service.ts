@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { adminDb, withWorkspace } from '@portal/db';
 import type { AgentTier, VoicePreviewRequest, VoicePreviewResponse, VoiceResponse, VoicesQuery, VoicesResponse } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { isProdEnv } from '../../common/env';
+import { isDevEnv } from '../../common/env';
 import type { WorkspaceContext } from '../auth';
 import { RedisCache } from '../redis';
 import { RetellGateway } from '../retell';
@@ -32,8 +32,11 @@ import { isMultilingualFrom, languageRank, nativeLanguages } from './voice-langu
  * `deny` also keeps the vendor's hostname out of the browser: the clip URLs are
  * `retell-utils-public.s3…`, which is the vendor's name in a devtools panel.
  *
- * Default: `deny` under APP_ENV=prod, `allow` everywhere else, so a dev box still has a
- * usable picker while nothing branded can reach a customer. `voices.sample_url` — a clip
+ * Default: `deny` everywhere except a dev box (APP_ENV=dev, test, ci), so a developer
+ * still has a usable picker while nothing branded can reach a customer — and "a
+ * customer" includes a design partner on staging, which used to default to `allow`: the
+ * agent a tester heard "from Retail AI" on 25 Sep 2026 was one of these clips. Set it to
+ * `allow` explicitly to hear them on a shared environment. `voices.sample_url` — a clip
  * of our own — is played whatever this says.
  */
 export type VendorSamplePolicy = 'allow' | 'deny';
@@ -41,7 +44,7 @@ export type VendorSamplePolicy = 'allow' | 'deny';
 export function vendorSamplePolicy(env: NodeJS.ProcessEnv = process.env): VendorSamplePolicy {
   const raw = env.VOICE_VENDOR_SAMPLES?.trim().toLowerCase();
   if (raw === 'allow' || raw === 'deny') return raw;
-  return isProdEnv(env) ? 'deny' : 'allow';
+  return isDevEnv(env) ? 'allow' : 'deny';
 }
 
 /** A cache older than this is served with `stale: true`. Two missed daily runs. */

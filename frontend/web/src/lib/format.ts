@@ -22,6 +22,18 @@ export function formatDateTime(iso: string | null | undefined, timeZone?: string
   }
 }
 
+/** A calendar date with its year, for dates that can be months away (a lot's expiry). */
+export function formatDate(iso: string | null | undefined, timeZone?: string): string {
+  if (!iso) return '–';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '–';
+  try {
+    return new Intl.DateTimeFormat(undefined, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(date);
+  } catch {
+    return date.toISOString().slice(0, 10);
+  }
+}
+
 export function formatTime(iso: string | null | undefined, timeZone?: string): string {
   if (!iso) return '–';
   const date = new Date(iso);

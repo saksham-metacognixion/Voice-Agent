@@ -33,11 +33,12 @@ export function Lines({ count = 3, className }: { count?: number; className?: st
 }
 
 /** `<dt>/<dd>` pair used by every facts grid. */
-export function Fact({ label, children, className }: { label: React.ReactNode; children: React.ReactNode; className?: string }) {
+/** `wrap` lets a value that must be read whole (a date with its year) break onto a second line instead of truncating. */
+export function Fact({ label, children, className, wrap = false }: { label: React.ReactNode; children: React.ReactNode; className?: string; wrap?: boolean }) {
   return (
     <div className={`flex min-w-0 flex-col gap-0.5 ${className ?? ''}`}>
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="truncate text-sm font-medium">{children}</dd>
+      <dd className={`${wrap ? 'break-words' : 'truncate'} text-sm font-medium`}>{children}</dd>
     </div>
   );
 }

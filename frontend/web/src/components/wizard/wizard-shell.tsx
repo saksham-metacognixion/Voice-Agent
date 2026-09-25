@@ -69,7 +69,8 @@ export function WizardHeading({ title, subtitle, aside }: { title: React.ReactNo
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{title}</h1>
-        {subtitle ? <p className="mt-2 text-sm text-muted-foreground sm:text-base">{subtitle}</p> : null}
+        {/* A <div>, not a <p>: W2 and W4 put the AgentContextBanner (a <p>) inside it, and <p> in <p> is a hydration error. */}
+        {subtitle ? <div className="mt-2 text-sm text-muted-foreground sm:text-base">{subtitle}</div> : null}
       </div>
       {aside}
     </div>
