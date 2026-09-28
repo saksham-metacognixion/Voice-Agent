@@ -12,6 +12,8 @@ export const routes = {
   mfa: '/mfa/',
   /** `/invite/[token]` in the spec; a static export cannot serve an arbitrary segment, so the token is `?token=`. */
   invite: '/invite/',
+  /** Admin §7.4 (D12): where the console's "View as" lands — `#session=&key=` (the fragment, never logged), kept for the tab. */
+  impersonate: '/impersonate/',
   selectWorkspace: '/select-workspace/',
   setupWorkspace: '/setup/workspace/',
   onboarding: {

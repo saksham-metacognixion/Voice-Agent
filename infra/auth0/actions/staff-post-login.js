@@ -1,10 +1,19 @@
 /**
  * Staff tenant — Post Login (admin §2.1).
  *
- * Two jobs: refuse anyone outside the Workspace domain, and record whether MFA was
- * actually completed in this session. AuthGuard.authenticateStaff() throws MFA_REQUIRED
- * on any staff token without https://portal/mfa === true, so a tenant-policy change that
- * silently stops challenging shows up as a locked-out console, not as a quiet downgrade.
+ * Two jobs: refuse anyone outside the Workspace domain, and make MFA happen on every
+ * interactive staff sign-in, stamping https://portal/mfa for AuthGuard.authenticateStaff(),
+ * which throws MFA_REQUIRED on any staff token without the claim set to true.
+ *
+ * Why the Action asks for MFA itself (28 Sep fix): Post-Login Actions run *before* a
+ * tenant-policy MFA challenge, so `event.authentication.methods` does not contain `mfa` on
+ * a fresh sign-in and a claim derived from it was always false — every staff member was
+ * locked out. `api.multifactor.enable()` makes Auth0 challenge after this Action and issue
+ * the tokens only once the second factor succeeds, so the claim is true exactly when MFA
+ * passed: a sign-in that fails the challenge gets no token at all.
+ *
+ * Refresh-token grants cannot be challenged. They only exist because an interactive sign-in
+ * that passed MFA issued the refresh token, so they keep the claim.
  *
  * Secrets: ALLOWED_EMAIL_DOMAIN (matches STAFF_ALLOWED_EMAIL_DOMAIN in .env).
  * Claim name must stay in lockstep with CLAIM_MFA in shared/schemas/src/enums.ts.
@@ -18,8 +27,16 @@ exports.onExecutePostLogin = async (event, api) => {
     return;
   }
 
-  const methods = event.authentication?.methods ?? [];
-  const mfaCompleted = methods.some((method) => method.name === 'mfa');
+  const refreshGrant = Boolean(
+    event.transaction && event.transaction.protocol === 'oauth2-refresh-token',
+  );
+  const methods = (event.authentication && event.authentication.methods) || [];
+  const alreadyPassed = methods.some((method) => method && method.name === 'mfa');
 
-  api.accessToken.setCustomClaim('https://portal/mfa', mfaCompleted);
+  if (!refreshGrant && !alreadyPassed) {
+    // Enrols on first use (One-time Password must be enabled on the tenant), challenges after.
+    api.multifactor.enable('any', { allowRememberBrowser: false });
+  }
+
+  api.accessToken.setCustomClaim('https://portal/mfa', true);
 };

@@ -55,6 +55,11 @@ export class WorkspacesController {
   @Get('workspaces')
   @NoWorkspace()
   mine(@Req() request: FastifyRequest): Promise<Array<{ id: string; name: string; role: string }>> {
+    // Admin §7.4 (D12): a view-as session sees exactly the workspace it was opened for,
+    // not every workspace the owner belongs to — the switcher must not become a way in.
+    if (request.impersonation) {
+      return Promise.resolve([{ id: request.impersonation.tenantId, name: request.impersonation.tenantName, role: 'owner' }]);
+    }
     return this.workspaces.listForUser(authOf(request).userId);
   }
 

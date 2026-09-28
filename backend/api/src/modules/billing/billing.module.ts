@@ -10,6 +10,7 @@ import { InvoicesService } from './invoices.service';
 import { StripeEventHandler } from './stripe-events.handler';
 import { StripeConfig } from './stripe.config';
 import { StripeGateway } from './stripe.gateway';
+import { StripePriceSyncService } from './stripe-price-sync.service';
 
 /**
  * Spec §13.1 `billing`: Stripe Checkout, fulfilment, and the event router the webhooks
@@ -22,8 +23,8 @@ import { StripeGateway } from './stripe.gateway';
   // fails to resolve AutoTopupService — the exact failure worker-module.e2e guards against.
   imports: [forwardRef(() => WalletModule), PlatformConfigModule, AlertsModule],
   controllers: [BillingController],
-  providers: [{ provide: StripeConfig, useFactory: () => new StripeConfig() }, StripeGateway, BillingService, AutoTopupService, InvoicesService, StripeEventHandler],
-  exports: [StripeGateway, StripeConfig, BillingService, AutoTopupService, InvoicesService, StripeEventHandler],
+  providers: [{ provide: StripeConfig, useFactory: () => new StripeConfig() }, StripeGateway, StripePriceSyncService, BillingService, AutoTopupService, InvoicesService, StripeEventHandler],
+  exports: [StripeGateway, StripeConfig, StripePriceSyncService, BillingService, AutoTopupService, InvoicesService, StripeEventHandler],
 })
 export class BillingModule implements OnModuleInit {
   constructor(

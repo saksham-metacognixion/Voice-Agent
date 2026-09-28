@@ -91,7 +91,11 @@ opened by the shell and closed on `pagehide`, the bottom tab bar, tables as card
 D4–D7 deliberately do not offer (D11), 0020 the restaurant menu as a knowledge `role`
 (one per agent, restaurant agents only), the category shown on W2/W4/D3 with a W1
 warning that never refuses, the identity block + `platform_named` lint, and vendor
-voice clips denied outside `APP_ENV=dev` (25 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+voice clips denied outside `APP_ENV=dev` (25 Sep), 0021 the admin console — the `admin`
+module on `adminDb` in front of the same services, `staff_audit_log` inside the write's
+transaction, pricing publish as insert-unpublished → Stripe sync → effective, jobs keeping
+their payload for a staff retry, SA3 through the Auth0 Management API, and read-only view-as
+as an API-minted `imp_` credential (D12, 28 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -107,7 +111,10 @@ frontend/                         → S3 + CloudFront (static export, ADR 0008)
                                       src/ = auth, guards, workspace, wizard hooks, dashboard hooks + pure
                                       modules (src/dashboard), shell + wizard + dashboard components, i18n,
                                       analytics; scripts/ = serve-export, e2e-wizard (D8), e2e-dashboard (D10), e2e-dashboard-d11 (D11)
-  admin/          @portal/admin       Next.js staff console        admin.<domain>
+  admin/          @portal/admin       Next.js staff console        admin.<domain> (D12: static export like the portal,
+                                      no next-intl, every mutation behind a reason-code dialog; app/ = overview, customers
+                                      (+detail/?id=&tab=), users, pricing, telephony, calls, system, audit; src/ = auth,
+                                      shell (search, health strip, impersonation banner), lib)
   ui/             @portal/ui          shadcn components + shared domain widgets
   api-client/     @portal/api-client  typed fetch wrapper + TanStack Query hooks
 backend/                          → AWS EC2 (Docker Compose)
@@ -145,7 +152,10 @@ Backend modules mirror §13.1: `auth, workspaces, agents, prompting, voices, kno
 wallet, billing, webhooks, notifications, events, jobs, admin`, plus `config` (pricing/flags/caps),
 `redis`, `retell`, `runtime-cache` (the Redis projection the inbound path reads), `scheduled`,
 and since D6 `activation` (§13.8), `crypto` (envelope encryption, global) and `alerts` (ops
-alerts, global); since D7 `notifications` (§13.1: the outbox, the email sender, the customer
+alerts, global); since D12 `admin` (admin §9: every `/admin/*` route, `StaffAuditService`,
+`StaffLimitsService`, `ImpersonationService`, plus the customer-namespace `/impersonation`
+routes) — the top of the graph, imports wallet/runtime-cache/billing/webhooks/config/agents/
+events/calls and nothing imports it; since D7 `notifications` (§13.1: the outbox, the email sender, the customer
 alert state in `alerts`, low-balance alerts, the daily digest, `GET /alerts/active`) and
 `openapi` (the route manifest and the generator — not a Nest module). The arrows run one way: `prompting` → `agents` → `retell`;
 `activation` → `agents` + `numbers` + `billing`; nothing depends on `activation`. Billing does
@@ -333,7 +343,8 @@ job settles.
   abandoned. W7 posts it on every return from Stripe and on "Check again". The
   `auto-topup` tick runs `BillingService.reconcilePendingCheckouts()` first — pending
   Checkout purchases whose session is older than 5 min and younger than 48 h — so a tab
-  closed before the confirm is covered too. Whichever of the three lands first credits;
+  closed before the confirm is covered too. A session Stripe answers `resource_missing` for is
+  abandoned (`failure_reason = session_not_found`) rather than retried; only an outage is retried. Whichever of the three lands first credits;
   the others are no-ops. **Local dev needs `pnpm dev:stripe`** (`stripe listen` forwarding
   to `/webhooks/stripe`, the same `whsec_` as `STRIPE_WEBHOOK_SECRET`): the only endpoint
   registered on the Stripe account points at staging, so without it no local purchase is
@@ -724,6 +735,82 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   screen, tab and dialog at 390 px) after `e2e:dashboard`, same stack. The D10 suite
   needs its `d10seed_*` calls and ≥ 6 versions on the live workspace's agent.
 
+**Admin console (admin spec §2–§10 — ADR 0021, D12)**
+
+- `/admin/*` is verified against the staff tenant only and a staff token needs the
+  `https://portal/mfa` claim (`AuthGuard`); `@StaffRoles(...)` is the admin §2.2 matrix per
+  route and `StaffLimitsService` reads `staff_role_limits` on every write (`403
+  STAFF_LIMIT_EXCEEDED`, naming who could). Support pauses a workspace only with a ticket
+  that exists and belongs to that workspace.
+- **Every customer-affecting staff write carries a `staffActionRequest`** (`reason_code`,
+  note required for `other`, optional ticket) and lands in `staff_audit_log` **inside the
+  write's transaction** (`StaffAuditService.record(input, tx)`: staff, `<area>.<verb>`,
+  target, workspace, reason, redacted before/after, IP, request id) plus the workspace's own
+  `audit_log` row with `actor_user_id = NULL`, `meta.by = 'staff'`. No audit row, no write.
+  That includes `DELETE /admin/flags/:key` (a body on a DELETE, `api.del(path, schema,
+  {body})`), both directions of a kill switch and starting a view-as session — none of
+  them defaults the reason. A write that ends in something no transaction can hold — a
+  queue enqueue, a webhook replay, the identity provider after a force logout — records
+  its request in the transaction and the outcome as a second row (`job.retry_failed`,
+  `webhook.replay_requested` → `webhook.replayed`, `user.force_logout_provider[_failed]`).
+  `redact()` blanks credential-named fields (`secret`, `password`, `token`, `api_key`…),
+  never the substring `key`: a flag's `key` and an `idempotency_key` are identifiers.
+- Reads cross workspaces on `adminDb`; writes reuse the customer path's services: credits
+  through `WalletService.withWallet` (a `credit_adjustments` row references the ledger row,
+  same transaction), pause/resume through `runtime-cache.refresh`, switches through
+  `PlatformConfigService.setKillSwitch`, replay through `WebhookProcessingService.replay`
+  (the handlers are idempotent — that is what makes a replay safe), retry through
+  `JobQueues` with the payload `jobs.payload_json` kept by the two enqueue sites.
+- **Pricing publish is insert-unpublished → Stripe sync → effective → archive.** The new
+  `pricing_configs` row starts with `effective_at = NULL` (never served); `StripePriceSyncService`
+  runs the pure `planPriceSync()` (reuse / create / archive, Products keyed by `pack_id`
+  metadata, Prices found by lookup key `<env>_pack_<id>_<currency>_v<n>` — one test account serves several environments — before they are created,
+  rows persisted as Stripe answers); a failure keeps the version unpublished with the error in
+  `stripe_sync_json`, keeps the draft and answers `503 STRIPE_SYNC_FAILED` — publishing again
+  resumes that version. Success sets `effective_at` in one transaction with the audit row
+  and the draft's deletion, then `invalidateAll()`; `GET /pricing` is the new version on the
+  next request (the 60 s SLA is the TTL's bound on a missed drop). **The sync archives
+  nothing**: the Prices it supersedes are what checkout sells until the flip, and a sync
+  that archived them and then died left every purchase failing on an inactive Price.
+  `archiveSuperseded(current)` runs after the flip (and at the start of the next publish or
+  rollback, for a version dated ahead) and archives, on Stripe and in `stripe_price_map`,
+  only rows of *earlier effective* versions the current one does not sell. The plan is
+  always against the version in effect **now** — a rollback planned against its target's
+  own rows copied Price ids the abandoned version had archived. `apply_now` caps are refused
+  with a future `effective_at` (they would move every tenant's caps today). Blockers: a pack bought in
+  the last 12 months cannot be removed; a tier under the margin floor (`retell_cost_inputs`)
+  is `422 MARGIN_FLOOR` unless a super admin overrides with a note. Rollback inserts a new
+  version with the old config; history is never rewritten. A keyless dev box records
+  `skipped`, never `synced`.
+- **View-as is an API-minted credential** (`ImpersonationTokenService`, `imp_<payload>.<hmac>`,
+  `IMPERSONATION_SIGNING_SECRET` → `RECORDING_SIGNING_SECRET`), one hour, one open session per
+  staff member and workspace. On the customer namespace `AuthGuard` reads the session row on
+  every request and makes the request look like the workspace owner; `WorkspaceGuard` pins the
+  workspace, refuses every non-GET with `403 IMPERSONATION_READ_ONLY` and refuses recordings.
+  The only write allowed is `POST /impersonation/end` (`@AllowImpersonationWrite()`). Portal:
+  `/impersonate/#session=&key=` (the fragment — a query string reaches CloudFront and S3
+  access logs, and the key is an hour of customer reads) keeps it in sessionStorage,
+  `POST /admin/impersonations/:id/open` re-mints the link for the console banner once the
+  portal tab is gone, `AuthProvider` never touches Auth0
+  under it, `ImpersonationBanner` sits in `Providers` above every screen. Both ends are audited
+  (`impersonation.started` / `.ended`, `ended_via`), and so is every re-minted key
+  (`.reused` for "View as" on an open session, `.reopened` from the banner). Act-as is P2 and has no code path.
+- SA3 actions go through `Auth0ManagementService` (customer tenant, `AUTH0_CUSTOMER_M2M_*`) and
+  our row: `users.locked_at` is what `AuthGuard` refuses with `403 ACCOUNT_LOCKED`. Unconfigured
+  answers `provider: skipped`, never a silent success.
+  **Force logout and lock set `users.sessions_revoked_at`**, and `AuthGuard` refuses any token
+  issued before that second (401), so a logout ends the session already in a browser, provider
+  or no provider; the portal signs out on a 401. Force logout revokes locally **first**; an
+  identity-provider failure is `200 {provider: 'failed'}`, not a 503. The customer M2M app needs
+  `delete:guardian_enrollments` `delete:sessions` `delete:refresh_tokens` (runbook §1).
+- Credit adjustments take an `idempotency_key` (the console makes one per opened dialog; it is
+  the adjustment id): a double click, a retry or a second tab moves credits once. A ticket number
+  is linked only when `support_tickets` holds it and is otherwise kept in the audit row.
+- Local console sign-in without Auth0: `pnpm dev:issuer:staff` (port 9998, stamps the MFA
+  claim), API with `AUTH0_STAFF_DOMAIN=http://localhost:9998`, `pnpm db:seed` creates the
+  matching super-admin row. Exit check: `pnpm --filter @portal/api test:e2e` →
+  `test/d12-admin.e2e.test.ts` (26 cases: the boundary, limits, audit rows, credits, pauses,
+  users, jobs, webhooks, flags, the pricing publish/failure/resume/rollback, view-as).
 **Configuration**
 
 - Pricing, feature flags, kill switches, templates and the agent stack live in versioned tables and are
@@ -794,6 +881,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `lock:schedule:{name}`       | one worker per running §13.11 tick, `SET NX`, TTL 2× the interval (D7)                                                  |
 | `worker:heartbeat`           | the worker's liveness beacon, refreshed every 30 s, read by `GET /health/ready` (D7)                                    |
 | `alert:platform_concurrency` | the open platform-wide concurrency incident, so ops is paged once per incident; held a day at most (D7)                 |
+| `admin:health:{provider}`    | the health strip's cached Retell / Stripe probe, 60 s (D12)                                                            |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
 throws and never waits past its budget (ADR 0010 §6).
@@ -867,6 +955,25 @@ throws and never waits past its budget (ADR 0010 §6).
   be played" (24 Sep). The proxy also relabels a `.wav` the CDN serves as
   `application/octet-stream` to `audio/wav` (`recordingContentType`); Firefox refuses the
   former outright.
+- D12 routes (`docs/api/openapi.json`, tags `admin*`): `GET /admin/me`, `/admin/kpis`,
+  `/admin/kpis/funnel`, `/admin/search`, `/admin/system/health`, `/admin/audit`;
+  `/admin/customers` (+ `:id`, `/members`, `/wallet`, `/purchases`, `/agents`, `/numbers`,
+  `/calls`, `/jobs`, `/webhook-events`, `/audit`, `POST …/pause|resume|credits/adjust|impersonate`);
+  `/admin/impersonations` (+ `DELETE :id`); `/admin/users` (+ `POST :id/verify-email|reset-mfa|lock|unlock|force-logout`);
+  `/admin/agents` and `/admin/numbers` (+ `POST :id/pause|resume`); `/admin/calls`;
+  `/admin/jobs` (+ `POST :id/retry|discard`); `/admin/webhook-events` (+ `POST :id/replay`);
+  `/admin/flags` (+ `PUT|DELETE :key`), `PUT /admin/kill-switches/:key`; `/admin/pricing/draft`
+  (GET/PUT/DELETE), `/preview`, `POST /publish`, `/versions` (+ `:version`), `POST /rollback/:version`,
+  `/admin/retell-costs` (GET/PUT). Customer side: `GET /impersonation`, `POST /impersonation/end`.
+  Staff roles per route are in the manifest (`staffRoles`) and `x-staff-roles`.
+- Admin QA rules (28 Sep): a feature flag resolves `default_on || bucket < rollout_pct`,
+  so **default off with rollout 100 % is on for everyone** — the console shows an "Effective"
+  column and starts a new flag at 0 %; a NUL byte in any text answers `422` (Postgres 22021,
+  mapped in the exception filter), never 500; `GET /admin/calls` and `GET /admin/numbers` search
+  the customer's and the agent's name as well as ids and digits; SA1 "Needs attention" carries
+  `failed_activations_24h`, `failed_topups_24h` and `onboarding_stuck` (paid, > 7 d, wizard
+  unfinished) beside the original five; the health strip's counters are `lg:` only (they pushed the
+  header past a 768 px viewport).
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 
@@ -935,6 +1042,7 @@ pnpm doctor            # which env vars are unset, what is reachable
 pnpm dev               # api, worker, portal, admin. The worker is not optional: without it
                        # every 202 job (generate, provision, activate) sits in `queued` for
                        # ever. `GET /health/ready` reports it as "no heartbeat".
+pnpm dev:issuer:staff  # D12: a stand-in *staff* tenant on :9998 that stamps the MFA claim, for the console
 pnpm dev:stripe        # stripe listen → localhost:4000/webhooks/stripe. The Stripe account's only
                        # registered endpoint is staging's; without this no local purchase is credited
                        # by webhook (W7's confirm and the 15-minute sweep still credit it, later).

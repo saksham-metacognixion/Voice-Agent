@@ -11,6 +11,7 @@ import { PlatformConfigModule } from './modules/config';
 import { EventsModule } from './modules/events';
 import { JobsModule } from './modules/jobs';
 import { ActivationModule } from './modules/activation';
+import { AdminModule } from './modules/admin';
 import { AgentsModule } from './modules/agents';
 import { AlertsModule } from './modules/alerts';
 import { CryptoModule } from './modules/crypto';
@@ -71,6 +72,7 @@ import { WorkspacesModule } from './modules/workspaces';
     VoicesModule,
     WebhooksModule,
     ScheduledModule,
+    AdminModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },

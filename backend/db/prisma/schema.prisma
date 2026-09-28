@@ -335,6 +335,12 @@ model User {
   avatarUrl      String?   @map("avatar_url")
   mfaEnabled     Boolean   @default(false) @map("mfa_enabled")
   tosAcceptedAt  DateTime? @map("tos_accepted_at")
+  /// SA3 (D12): staff locked this sign-in. AuthGuard refuses a locked user; Auth0 is blocked too.
+  lockedAt       DateTime? @map("locked_at")
+  lockedReason   String?   @map("locked_reason")
+  /// SA3 "Force logout" (D12): an access token issued at or before this instant is refused by
+  /// AuthGuard, so a logout holds for tokens already in a browser, not only after they expire.
+  sessionsRevokedAt DateTime? @map("sessions_revoked_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   memberships          Membership[]
@@ -943,6 +949,9 @@ model Job {
   type      String
   status    JobStatus @default(queued)
   stepsJson Json?     @map("steps_json")
+  /// D12 SA12: the BullMQ payload the job was enqueued with, so a staff retry re-enqueues
+  /// exactly what the customer asked for rather than reconstructing it.
+  payloadJson Json?   @map("payload_json")
   error     String?
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @default(now()) @updatedAt @map("updated_at")
@@ -1117,6 +1126,8 @@ model StaffAuditLog {
   afterJson       Json?       @map("after_json")
   ip              String?     @db.Inet
   impersonationId String?     @map("impersonation_id") @db.Uuid
+  /// D12: the Fastify request id, so a row can be matched to a log line.
+  requestId       String?     @map("request_id")
   createdAt       DateTime    @default(now()) @map("created_at")
 
   staff         StaffUser             @relation(fields: [staffId], references: [id])
@@ -1151,6 +1162,9 @@ model PricingConfig {
   effectiveAt     DateTime? @map("effective_at")
   changeSummary   String?   @map("change_summary")
   grandfatherMode String?   @map("grandfather_mode")
+  /// D12 SA5: the Stripe price sync outcome (`stripeSyncResult` in @portal/schemas). A
+  /// version whose sync failed keeps `effective_at` NULL and is never served.
+  stripeSyncJson  Json?     @map("stripe_sync_json")
 
   stripePrices StripePriceMap[]
 
@@ -1402,6 +1416,8 @@ model ImpersonationSession {
   startedAt  DateTime          @default(now()) @map("started_at")
   expiresAt  DateTime          @map("expires_at")
   endedAt    DateTime?         @map("ended_at")
+  /// D12: `admin` (the console's Exit), `portal` (the banner's Exit) or `expired`.
+  endedVia   String?           @map("ended_via")
 
   staff    StaffUser       @relation(fields: [staffId], references: [id])
   tenant   Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)

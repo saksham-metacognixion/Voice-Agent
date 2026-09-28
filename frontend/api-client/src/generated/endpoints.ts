@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, revokedResponse, selectVersionRequest, statsQuery, statsResponse, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminCallResponse, adminCallsQuery, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerWallet, adminCustomersQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminMemberResponse, adminNumberResponse, adminNumbersQuery, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminPurchaseResponse, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminSystemHealthResponse, adminTenantStatusResponse, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, endedResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, selectVersionRequest, staffActionRequest, staffMeResponse, statsQuery, statsResponse, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -35,6 +35,564 @@ export function getActivation(api: ApiClient, params: { id: string }) {
 
 export function useGetActivation(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getActivation', params], queryFn: () => getActivation(api, params), ...options });
+}
+
+/** GET /admin/agents — Agents across workspaces. */
+export function adminListAgents(api: ApiClient, query?: z.input<typeof adminAgentsQuery>) {
+  return api.get(`/admin/agents${qs(query)}`, paginated(adminAgentResponse));
+}
+
+export function useAdminListAgents(api: ApiClient, query?: z.input<typeof adminAgentsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListAgents', query ?? null], queryFn: () => adminListAgents(api, query), ...options });
+}
+
+/** GET /admin/agents/:id — One agent with its customer and numbers. */
+export function adminGetAgent(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/agents/${enc(params.id)}`, adminAgentResponse);
+}
+
+export function useAdminGetAgent(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetAgent', params], queryFn: () => adminGetAgent(api, params), ...options });
+}
+
+/** POST /admin/agents/:id/pause — Take the agent off every number (local state; the platform is not called) (staff: super_admin, ops, support). */
+export function adminPauseAgent(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/agents/${enc(params.id)}/pause`, body, adminAgentResponse);
+}
+
+export function useAdminPauseAgent(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminPauseAgent(api, vars.params, vars.body) });
+}
+
+/** POST /admin/agents/:id/resume — Put a paused, published agent back on the phone (staff: super_admin, ops, support). */
+export function adminResumeAgent(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/agents/${enc(params.id)}/resume`, body, adminAgentResponse);
+}
+
+export function useAdminResumeAgent(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminResumeAgent(api, vars.params, vars.body) });
+}
+
+/** GET /admin/audit — SA14 — the staff audit log, newest first — admin §10. */
+export function adminAudit(api: ApiClient, query?: z.input<typeof adminAuditQuery>) {
+  return api.get(`/admin/audit${qs(query)}`, paginated(adminAuditEntry));
+}
+
+export function useAdminAudit(api: ApiClient, query?: z.input<typeof adminAuditQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminAudit', query ?? null], queryFn: () => adminAudit(api, query), ...options });
+}
+
+/** GET /admin/calls — SA8 — calls across workspaces — admin §4 SA8. */
+export function adminListCalls(api: ApiClient, query?: z.input<typeof adminCallsQuery>) {
+  return api.get(`/admin/calls${qs(query)}`, paginated(adminCallResponse));
+}
+
+export function useAdminListCalls(api: ApiClient, query?: z.input<typeof adminCallsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListCalls', query ?? null], queryFn: () => adminListCalls(api, query), ...options });
+}
+
+/** GET /admin/calls/:id — One call with its customer and platform cost. */
+export function adminGetCall(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/calls/${enc(params.id)}`, adminCallResponse);
+}
+
+export function useAdminGetCall(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetCall', params], queryFn: () => adminGetCall(api, params), ...options });
+}
+
+/** GET /admin/customers — SA2 — customers with status, balance, usage and owner — admin §4 SA2. */
+export function adminListCustomers(api: ApiClient, query?: z.input<typeof adminCustomersQuery>) {
+  return api.get(`/admin/customers${qs(query)}`, paginated(adminCustomerSummary));
+}
+
+export function useAdminListCustomers(api: ApiClient, query?: z.input<typeof adminCustomersQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListCustomers', query ?? null], queryFn: () => adminListCustomers(api, query), ...options });
+}
+
+/** GET /admin/customers/:id — SA2 — the customer 360 header and overview. */
+export function adminGetCustomer(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/customers/${enc(params.id)}`, adminCustomerDetail);
+}
+
+export function useAdminGetCustomer(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetCustomer', params], queryFn: () => adminGetCustomer(api, params), ...options });
+}
+
+/** GET /admin/customers/:id/agents — SA2 Agents tab. */
+export function adminCustomerAgents(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/agents${qs(query)}`, paginated(adminAgentResponse));
+}
+
+export function useAdminCustomerAgents(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerAgents', params, query ?? null], queryFn: () => adminCustomerAgents(api, params, query), ...options });
+}
+
+/** GET /admin/customers/:id/audit — SA2 Audit tab: the workspace’s own audit_log. */
+export function adminCustomerAudit(api: ApiClient, params: { id: string }, query?: z.input<typeof adminCustomerAuditQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/audit${qs(query)}`, paginated(adminCustomerAuditEntry));
+}
+
+export function useAdminCustomerAudit(api: ApiClient, params: { id: string }, query?: z.input<typeof adminCustomerAuditQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerAudit', params, query ?? null], queryFn: () => adminCustomerAudit(api, params, query), ...options });
+}
+
+/** GET /admin/customers/:id/calls — SA2 Calls tab. */
+export function adminCustomerCalls(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/calls${qs(query)}`, paginated(adminCallResponse));
+}
+
+export function useAdminCustomerCalls(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerCalls', params, query ?? null], queryFn: () => adminCustomerCalls(api, params, query), ...options });
+}
+
+/** POST /admin/customers/:id/credits/adjust — Add or remove credits: a ledger row plus a credit_adjustments record, under the role’s limits (staff: super_admin, ops, finance, support) — admin §4 SA2, §7.3. */
+export function adminAdjustCredits(api: ApiClient, params: { id: string }, body: z.input<typeof adminCreditAdjustRequest>) {
+  return api.post(`/admin/customers/${enc(params.id)}/credits/adjust`, body, adminCreditAdjustResponse);
+}
+
+export function useAdminAdjustCredits(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminCreditAdjustRequest> }) => adminAdjustCredits(api, vars.params, vars.body) });
+}
+
+/** POST /admin/customers/:id/impersonate — Start a read-only view-as session; answers the portal link (staff: super_admin, ops, finance, support) — admin §7.4. */
+export function adminImpersonate(api: ApiClient, params: { id: string }, body: z.input<typeof adminImpersonateRequest>) {
+  return api.post(`/admin/customers/${enc(params.id)}/impersonate`, body, impersonationResponse);
+}
+
+export function useAdminImpersonate(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminImpersonateRequest> }) => adminImpersonate(api, vars.params, vars.body) });
+}
+
+/** GET /admin/customers/:id/jobs — SA2 — this workspace’s jobs. */
+export function adminCustomerJobs(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/jobs${qs(query)}`, paginated(adminJobResponse));
+}
+
+export function useAdminCustomerJobs(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerJobs', params, query ?? null], queryFn: () => adminCustomerJobs(api, params, query), ...options });
+}
+
+/** GET /admin/customers/:id/members — SA2 Members tab. */
+export function adminCustomerMembers(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/customers/${enc(params.id)}/members`, adminMemberResponse.array());
+}
+
+export function useAdminCustomerMembers(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerMembers', params], queryFn: () => adminCustomerMembers(api, params), ...options });
+}
+
+/** GET /admin/customers/:id/numbers — SA2 Numbers tab. */
+export function adminCustomerNumbers(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/numbers${qs(query)}`, paginated(adminNumberResponse));
+}
+
+export function useAdminCustomerNumbers(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerNumbers', params, query ?? null], queryFn: () => adminCustomerNumbers(api, params, query), ...options });
+}
+
+/** POST /admin/customers/:id/pause — Pause the workspace (every number declines, generation and publish refuse) (staff: super_admin, ops, support) — admin §4 SA2. */
+export function adminPauseCustomer(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/customers/${enc(params.id)}/pause`, body, adminTenantStatusResponse);
+}
+
+export function useAdminPauseCustomer(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminPauseCustomer(api, vars.params, vars.body) });
+}
+
+/** GET /admin/customers/:id/purchases — SA2 Purchases tab. */
+export function adminCustomerPurchases(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/purchases${qs(query)}`, paginated(adminPurchaseResponse));
+}
+
+export function useAdminCustomerPurchases(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerPurchases', params, query ?? null], queryFn: () => adminCustomerPurchases(api, params, query), ...options });
+}
+
+/** POST /admin/customers/:id/resume — Resume a paused workspace (staff: super_admin, ops, support). */
+export function adminResumeCustomer(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/customers/${enc(params.id)}/resume`, body, adminTenantStatusResponse);
+}
+
+export function useAdminResumeCustomer(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminResumeCustomer(api, vars.params, vars.body) });
+}
+
+/** GET /admin/customers/:id/wallet — SA2 Wallet tab: balance, lots, ledger page, staff adjustments. */
+export function adminGetCustomerWallet(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/wallet${qs(query)}`, adminCustomerWallet);
+}
+
+export function useAdminGetCustomerWallet(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetCustomerWallet', params, query ?? null], queryFn: () => adminGetCustomerWallet(api, params, query), ...options });
+}
+
+/** GET /admin/customers/:id/webhook-events — SA2 — webhook events that name this workspace. */
+export function adminCustomerWebhookEvents(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>) {
+  return api.get(`/admin/customers/${enc(params.id)}/webhook-events${qs(query)}`, paginated(adminWebhookEventResponse));
+}
+
+export function useAdminCustomerWebhookEvents(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminCustomerWebhookEvents', params, query ?? null], queryFn: () => adminCustomerWebhookEvents(api, params, query), ...options });
+}
+
+/** GET /admin/flags — SA12 — feature flags and kill switches with who set them — admin §5.3. */
+export function adminListFlags(api: ApiClient) {
+  return api.get(`/admin/flags`, adminFlagsResponse);
+}
+
+export function useAdminListFlags(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListFlags'], queryFn: () => adminListFlags(api), ...options });
+}
+
+/** DELETE /admin/flags/:key — Remove a feature flag (with a reason code) (staff: super_admin, ops). */
+export function adminDeleteFlag(api: ApiClient, params: { key: string }, body: z.input<typeof staffActionRequest>) {
+  return api.del(`/admin/flags/${enc(params.key)}`, deletedResponse, { body });
+}
+
+export function useAdminDeleteFlag(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { key: string }; body: z.input<typeof staffActionRequest> }) => adminDeleteFlag(api, vars.params, vars.body) });
+}
+
+/** PUT /admin/flags/:key — Create or change a feature flag (staff: super_admin, ops). */
+export function adminUpsertFlag(api: ApiClient, params: { key: string }, body: z.input<typeof adminUpsertFlagRequest>) {
+  return api.put(`/admin/flags/${enc(params.key)}`, body, adminFeatureFlag);
+}
+
+export function useAdminUpsertFlag(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { key: string }; body: z.input<typeof adminUpsertFlagRequest> }) => adminUpsertFlag(api, vars.params, vars.body) });
+}
+
+/** GET /admin/impersonations — Open view-as sessions, every staff member. */
+export function adminListImpersonations(api: ApiClient) {
+  return api.get(`/admin/impersonations`, impersonationResponse.array());
+}
+
+export function useAdminListImpersonations(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListImpersonations'], queryFn: () => adminListImpersonations(api), ...options });
+}
+
+/** DELETE /admin/impersonations/:id — End a view-as session from the console (staff: super_admin, ops, finance, support). */
+export function adminEndImpersonation(api: ApiClient, params: { id: string }) {
+  return api.del(`/admin/impersonations/${enc(params.id)}`, endedResponse);
+}
+
+export function useAdminEndImpersonation(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string } }) => adminEndImpersonation(api, vars.params) });
+}
+
+/** POST /admin/impersonations/:id/open — A fresh portal link for one’s own open view-as session (the banner’s "Open portal") (staff: super_admin, ops, finance, support) — admin §7.4. */
+export function adminOpenImpersonation(api: ApiClient, params: { id: string }) {
+  return api.post(`/admin/impersonations/${enc(params.id)}/open`, {}, impersonationResponse);
+}
+
+export function useAdminOpenImpersonation(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string } }) => adminOpenImpersonation(api, vars.params) });
+}
+
+/** GET /admin/jobs — SA12 — jobs with their queue state — admin §4 SA12. */
+export function adminListJobs(api: ApiClient, query?: z.input<typeof adminJobsQuery>) {
+  return api.get(`/admin/jobs${qs(query)}`, paginated(adminJobResponse));
+}
+
+export function useAdminListJobs(api: ApiClient, query?: z.input<typeof adminJobsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListJobs', query ?? null], queryFn: () => adminListJobs(api, query), ...options });
+}
+
+/** GET /admin/jobs/:id — One job with its full step ledger. */
+export function adminGetJob(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/jobs/${enc(params.id)}`, adminJobResponse);
+}
+
+export function useAdminGetJob(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetJob', params], queryFn: () => adminGetJob(api, params), ...options });
+}
+
+/** POST /admin/jobs/:id/discard — Write a job off and drop it from the queue (staff: super_admin, ops). */
+export function adminDiscardJob(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/jobs/${enc(params.id)}/discard`, body, adminJobResponse);
+}
+
+export function useAdminDiscardJob(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminDiscardJob(api, vars.params, vars.body) });
+}
+
+/** POST /admin/jobs/:id/retry — Re-enqueue a failed job with the payload it was created with (staff: super_admin, ops). */
+export function adminRetryJob(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/jobs/${enc(params.id)}/retry`, body, adminJobResponse);
+}
+
+export function useAdminRetryJob(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminRetryJob(api, vars.params, vars.body) });
+}
+
+/** PUT /admin/kill-switches/:key — Flip one of the four kill switches (reject_inbound is republished to the hot path at once) (staff: super_admin, ops) — §13.9. */
+export function adminSetKillSwitch(api: ApiClient, params: { key: string }, body: z.input<typeof adminSetKillSwitchRequest>) {
+  return api.put(`/admin/kill-switches/${enc(params.key)}`, body, adminKillSwitch);
+}
+
+export function useAdminSetKillSwitch(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { key: string }; body: z.input<typeof adminSetKillSwitchRequest> }) => adminSetKillSwitch(api, vars.params, vars.body) });
+}
+
+/** GET /admin/kpis — SA1 — platform KPIs for a range — admin §4 SA1, Appendix A. */
+export function adminKpis(api: ApiClient, query?: z.input<typeof adminKpisQuery>) {
+  return api.get(`/admin/kpis${qs(query)}`, adminKpisResponse);
+}
+
+export function useAdminKpis(api: ApiClient, query?: z.input<typeof adminKpisQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminKpis', query ?? null], queryFn: () => adminKpis(api, query), ...options });
+}
+
+/** GET /admin/kpis/funnel — SA1 — sign-up → live funnel for the cohort created in range — admin §4 SA1. */
+export function adminFunnel(api: ApiClient, query?: z.input<typeof adminKpisQuery>) {
+  return api.get(`/admin/kpis/funnel${qs(query)}`, adminFunnelResponse);
+}
+
+export function useAdminFunnel(api: ApiClient, query?: z.input<typeof adminKpisQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminFunnel', query ?? null], queryFn: () => adminFunnel(api, query), ...options });
+}
+
+/** GET /admin/me — The signed-in staff member, role, limits and open view-as sessions — admin §2. */
+export function adminMe(api: ApiClient) {
+  return api.get(`/admin/me`, staffMeResponse);
+}
+
+export function useAdminMe(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminMe'], queryFn: () => adminMe(api), ...options });
+}
+
+/** GET /admin/numbers — SA7 — phone numbers across workspaces — admin §4 SA7. */
+export function adminListNumbers(api: ApiClient, query?: z.input<typeof adminNumbersQuery>) {
+  return api.get(`/admin/numbers${qs(query)}`, paginated(adminNumberResponse));
+}
+
+export function useAdminListNumbers(api: ApiClient, query?: z.input<typeof adminNumbersQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListNumbers', query ?? null], queryFn: () => adminListNumbers(api, query), ...options });
+}
+
+/** GET /admin/numbers/:id — One number with its customer and agent. */
+export function adminGetNumber(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/numbers/${enc(params.id)}`, adminNumberResponse);
+}
+
+export function useAdminGetNumber(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetNumber', params], queryFn: () => adminGetNumber(api, params), ...options });
+}
+
+/** POST /admin/numbers/:id/pause — Pause a number (inbound declines) (staff: super_admin, ops, support). */
+export function adminPauseNumber(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/numbers/${enc(params.id)}/pause`, body, adminNumberResponse);
+}
+
+export function useAdminPauseNumber(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminPauseNumber(api, vars.params, vars.body) });
+}
+
+/** POST /admin/numbers/:id/resume — Resume a paused number (staff: super_admin, ops, support). */
+export function adminResumeNumber(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/numbers/${enc(params.id)}/resume`, body, adminNumberResponse);
+}
+
+export function useAdminResumeNumber(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminResumeNumber(api, vars.params, vars.body) });
+}
+
+/** DELETE /admin/pricing/draft — Discard the pricing draft (staff: super_admin, finance). */
+export function adminDiscardPricingDraft(api: ApiClient) {
+  return api.del(`/admin/pricing/draft`, deletedResponse);
+}
+
+export function useAdminDiscardPricingDraft(api: ApiClient) {
+  return useMutation({ mutationFn: (_vars: void) => adminDiscardPricingDraft(api) });
+}
+
+/** GET /admin/pricing/draft — SA5 — the pricing draft (the current config when there is none) — admin §5. */
+export function adminPricingDraft(api: ApiClient) {
+  return api.get(`/admin/pricing/draft`, adminPricingDraftResponse);
+}
+
+export function useAdminPricingDraft(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminPricingDraft'], queryFn: () => adminPricingDraft(api), ...options });
+}
+
+/** PUT /admin/pricing/draft — Save the pricing draft (staff: super_admin, finance). */
+export function adminSavePricingDraft(api: ApiClient, body: z.input<typeof adminPricingDraftRequest>) {
+  return api.put(`/admin/pricing/draft`, body, adminPricingDraftResponse);
+}
+
+export function useAdminSavePricingDraft(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof adminPricingDraftRequest> }) => adminSavePricingDraft(api, vars.body) });
+}
+
+/** GET /admin/pricing/preview — Diff, margins, planned Stripe actions and blockers for the draft — admin §5.2, §5.4. */
+export function adminPricingPreview(api: ApiClient) {
+  return api.get(`/admin/pricing/preview`, adminPricingPreviewResponse);
+}
+
+export function useAdminPricingPreview(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminPricingPreview'], queryFn: () => adminPricingPreview(api), ...options });
+}
+
+/** POST /admin/pricing/publish — Publish the draft: new version, Stripe price sync, then effective + cache drop (staff: super_admin) — admin §5.2. */
+export function adminPublishPricing(api: ApiClient, body: z.input<typeof adminPricingPublishRequest>) {
+  return api.post(`/admin/pricing/publish`, body, adminPricingVersion);
+}
+
+export function useAdminPublishPricing(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof adminPricingPublishRequest> }) => adminPublishPricing(api, vars.body) });
+}
+
+/** POST /admin/pricing/rollback/:version — Publish an older version’s config as a new version (staff: super_admin) — admin §5. */
+export function adminRollbackPricing(api: ApiClient, params: { version: string }, body: z.input<typeof adminPricingRollbackRequest>) {
+  return api.post(`/admin/pricing/rollback/${enc(params.version)}`, body, adminPricingVersion);
+}
+
+export function useAdminRollbackPricing(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { version: string }; body: z.input<typeof adminPricingRollbackRequest> }) => adminRollbackPricing(api, vars.params, vars.body) });
+}
+
+/** GET /admin/pricing/versions — Every pricing version, newest first, with its Stripe sync state. */
+export function adminPricingVersions(api: ApiClient) {
+  return api.get(`/admin/pricing/versions`, adminPricingVersion.array());
+}
+
+export function useAdminPricingVersions(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminPricingVersions'], queryFn: () => adminPricingVersions(api), ...options });
+}
+
+/** GET /admin/pricing/versions/:version — One version with its full config. */
+export function adminGetPricingVersion(api: ApiClient, params: { version: string }) {
+  return api.get(`/admin/pricing/versions/${enc(params.version)}`, adminPricingVersionDetail);
+}
+
+export function useAdminGetPricingVersion(api: ApiClient, params: { version: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetPricingVersion', params], queryFn: () => adminGetPricingVersion(api, params), ...options });
+}
+
+/** GET /admin/retell-costs — The platform cost inputs behind the margin check — admin §5.4. */
+export function adminRetellCosts(api: ApiClient) {
+  return api.get(`/admin/retell-costs`, adminRetellCostsResponse);
+}
+
+export function useAdminRetellCosts(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminRetellCosts'], queryFn: () => adminRetellCosts(api), ...options });
+}
+
+/** PUT /admin/retell-costs — Set the platform cost inputs (a new version each time) (staff: super_admin, finance). */
+export function adminSaveRetellCosts(api: ApiClient, body: z.input<typeof retellCostInputs>) {
+  return api.put(`/admin/retell-costs`, body, adminRetellCostsResponse);
+}
+
+export function useAdminSaveRetellCosts(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof retellCostInputs> }) => adminSaveRetellCosts(api, vars.body) });
+}
+
+/** GET /admin/search — Global search: customers, users, agents, numbers, calls, purchases, jobs, webhook events — admin §3. */
+export function adminSearch(api: ApiClient, query?: z.input<typeof adminSearchQuery>) {
+  return api.get(`/admin/search${qs(query)}`, adminSearchResponse);
+}
+
+export function useAdminSearch(api: ApiClient, query?: z.input<typeof adminSearchQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminSearch', query ?? null], queryFn: () => adminSearch(api, query), ...options });
+}
+
+/** GET /admin/system/health — Health strip: Postgres, Redis, worker, Retell, Stripe, webhooks, jobs, concurrency, kill switches — admin §3. */
+export function adminSystemHealth(api: ApiClient) {
+  return api.get(`/admin/system/health`, adminSystemHealthResponse);
+}
+
+export function useAdminSystemHealth(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminSystemHealth'], queryFn: () => adminSystemHealth(api), ...options });
+}
+
+/** GET /admin/users — SA3 — people across workspaces — admin §4 SA3. */
+export function adminListUsers(api: ApiClient, query?: z.input<typeof adminUsersQuery>) {
+  return api.get(`/admin/users${qs(query)}`, paginated(adminUserResponse));
+}
+
+export function useAdminListUsers(api: ApiClient, query?: z.input<typeof adminUsersQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListUsers', query ?? null], queryFn: () => adminListUsers(api, query), ...options });
+}
+
+/** GET /admin/users/:id — SA3 — one person, with the identity provider’s verification state. */
+export function adminGetUser(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/users/${enc(params.id)}`, adminUserResponse);
+}
+
+export function useAdminGetUser(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetUser', params], queryFn: () => adminGetUser(api, params), ...options });
+}
+
+/** POST /admin/users/:id/force-logout — Revoke every session and refresh token (staff: super_admin, ops, support). */
+export function adminForceLogoutUser(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/users/${enc(params.id)}/force-logout`, body, adminUserActionResponse);
+}
+
+export function useAdminForceLogoutUser(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminForceLogoutUser(api, vars.params, vars.body) });
+}
+
+/** POST /admin/users/:id/lock — Lock the sign-in: blocked at the provider, refused by the API (staff: super_admin, ops, support). */
+export function adminLockUser(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/users/${enc(params.id)}/lock`, body, adminUserActionResponse);
+}
+
+export function useAdminLockUser(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminLockUser(api, vars.params, vars.body) });
+}
+
+/** POST /admin/users/:id/reset-mfa — Remove every enrolled second factor (staff: super_admin, ops, support). */
+export function adminResetUserMfa(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/users/${enc(params.id)}/reset-mfa`, body, adminUserActionResponse);
+}
+
+export function useAdminResetUserMfa(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminResetUserMfa(api, vars.params, vars.body) });
+}
+
+/** POST /admin/users/:id/unlock — Unlock the sign-in (staff: super_admin, ops, support). */
+export function adminUnlockUser(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/users/${enc(params.id)}/unlock`, body, adminUserActionResponse);
+}
+
+export function useAdminUnlockUser(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminUnlockUser(api, vars.params, vars.body) });
+}
+
+/** POST /admin/users/:id/verify-email — Mark the email verified at the identity provider (staff: super_admin, ops, support). */
+export function adminVerifyUserEmail(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/users/${enc(params.id)}/verify-email`, body, adminUserActionResponse);
+}
+
+export function useAdminVerifyUserEmail(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminVerifyUserEmail(api, vars.params, vars.body) });
+}
+
+/** GET /admin/webhook-events — SA12 — stored provider events and their processing state. */
+export function adminListWebhookEvents(api: ApiClient, query?: z.input<typeof adminWebhookEventsQuery>) {
+  return api.get(`/admin/webhook-events${qs(query)}`, paginated(adminWebhookEventResponse));
+}
+
+export function useAdminListWebhookEvents(api: ApiClient, query?: z.input<typeof adminWebhookEventsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListWebhookEvents', query ?? null], queryFn: () => adminListWebhookEvents(api, query), ...options });
+}
+
+/** GET /admin/webhook-events/:id — One event with its stored payload. */
+export function adminGetWebhookEvent(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/webhook-events/${enc(params.id)}`, adminWebhookEventDetail);
+}
+
+export function useAdminGetWebhookEvent(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetWebhookEvent', params], queryFn: () => adminGetWebhookEvent(api, params), ...options });
+}
+
+/** POST /admin/webhook-events/:id/replay — Run the stored event through its handler again (idempotent) (staff: super_admin, ops) — §13.10. */
+export function adminReplayWebhookEvent(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/webhook-events/${enc(params.id)}/replay`, body, adminWebhookReplayResponse);
+}
+
+export function useAdminReplayWebhookEvent(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminReplayWebhookEvent(api, vars.params, vars.body) });
 }
 
 /** GET /agents — D3 — agents in the workspace. */
@@ -341,6 +899,24 @@ export function getReadiness(api: ApiClient) {
 
 export function useGetReadiness(api: ApiClient, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getReadiness'], queryFn: () => getReadiness(api), ...options });
+}
+
+/** GET /impersonation — The active view-as session behind this credential, for the portal banner — admin §7.4. */
+export function getImpersonation(api: ApiClient) {
+  return api.get(`/impersonation`, impersonationContext);
+}
+
+export function useGetImpersonation(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['getImpersonation'], queryFn: () => getImpersonation(api), ...options });
+}
+
+/** POST /impersonation/end — End the view-as session from the portal banner (the one write a session may make) — admin §7.4. */
+export function endImpersonation(api: ApiClient) {
+  return api.post(`/impersonation/end`, {}, endedResponse);
+}
+
+export function useEndImpersonation(api: ApiClient) {
+  return useMutation({ mutationFn: (_vars: void) => endImpersonation(api) });
 }
 
 /** GET /invites — Pending invitations (roles: owner, admin). */

@@ -25,6 +25,21 @@ export interface StaffContext {
   role: StaffRole;
 }
 
+/**
+ * Admin §7.4 (D12): a staff member viewing a workspace read-only through the customer
+ * portal. Set beside `auth` by AuthGuard when the bearer is an impersonation token;
+ * WorkspaceGuard then pins `ctx` to this tenant and refuses every mutation.
+ */
+export interface ImpersonationContext {
+  id: string;
+  staffId: string;
+  staffEmail: string;
+  tenantId: string;
+  tenantName: string;
+  mode: 'view';
+  expiresAt: Date;
+}
+
 /** The two namespaces the API verifies tokens for. Chosen by route, never by the token. */
 export type AuthNamespace = 'customer' | 'staff';
 
@@ -33,5 +48,6 @@ declare module 'fastify' {
     auth?: AuthenticatedUser;
     ctx?: WorkspaceContext;
     staff?: StaffContext;
+    impersonation?: ImpersonationContext;
   }
 }

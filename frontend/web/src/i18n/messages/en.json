@@ -252,7 +252,9 @@
     "PROMO_INVALID": "That promo code cannot be used.",
     "NO_PAYMENT_METHOD": "There is no saved card for this workspace yet.",
     "LINT_FAILED": "Your agent's instructions need a fix before it can go live.",
-    "NUMBER_IN_USE": "That number is already in use."
+    "NUMBER_IN_USE": "That number is already in use.",
+    "IMPERSONATION_READ_ONLY": "This is a read-only staff view. Nothing can be changed here.",
+    "ACCOUNT_LOCKED": "This account has been locked. Contact support."
   },
   "validation": {
     "required": "Required",
@@ -1989,5 +1991,19 @@
         "cta": "Update card"
       }
     }
+  },
+  "impersonation": {
+    "title": "Staff view",
+    "invalidLink": "This view-as link is not valid. Start it again from the console.",
+    "expiredLink": "This view-as link has expired. Start it again from the console.",
+    "opening": "Opening the workspace…",
+    "banner": "Viewing {tenant} as read-only",
+    "bannerNoName": "Viewing a workspace as read-only",
+    "staff": "Staff: {email}",
+    "expires": "Ends {time}",
+    "hint": "Nothing can be changed from this view.",
+    "exit": "Exit view",
+    "exiting": "Ending…",
+    "ended": "The view-as session has ended."
   }
 }

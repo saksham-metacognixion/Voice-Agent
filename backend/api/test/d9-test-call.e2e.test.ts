@@ -160,6 +160,7 @@ describe('POST /agents/:id/test/web', () => {
     await redis.del(key);
     await redis.hset(key, 'call_stale', encodeActive(20, Date.now() - 1_000));
     expect((await call('POST', `/agents/${agentId}/test/web`, headers, {})).status).toBe(201);
+    await redis.del(key);
   });
 
   it(`allows ${TEST_CALLS_PER_HOUR} calls an hour per workspace, then 429 TEST_RATE_LIMIT — a fixed window that a refused mint does not spend`, async () => {

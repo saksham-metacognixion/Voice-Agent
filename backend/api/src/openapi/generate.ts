@@ -44,6 +44,11 @@ export function join(routes: readonly DiscoveredRoute[]): Joined[] {
       problems.push(`${k}: manifest roles ${JSON.stringify(spec.roles)} ≠ controller @Roles ${JSON.stringify(route.roles)}`);
     }
     if (!spec.roles && route.roles) problems.push(`${k}: controller has @Roles(${route.roles.join(', ')}) but the manifest lists none`);
+    if (spec.staffRoles && JSON.stringify([...spec.staffRoles].sort()) !== JSON.stringify([...(route.staffRoles ?? [])].sort())) {
+      problems.push(`${k}: manifest staffRoles ${JSON.stringify(spec.staffRoles)} ≠ controller @StaffRoles ${JSON.stringify(route.staffRoles)}`);
+    }
+    if (!spec.staffRoles && route.staffRoles) problems.push(`${k}: controller has @StaffRoles(${route.staffRoles.join(', ')}) but the manifest lists none`);
+    if (spec.staffRoles && !route.staff) problems.push(`${k}: staffRoles on a route outside /admin/*`);
     if (spec.webhook && !route.isPublic) problems.push(`${k}: a webhook must be @Public()`);
     for (const name of [spec.body, spec.query, ...schemaNames(spec.response)]) {
       if (name && !isZod((schemas as Record<string, unknown>)[name])) problems.push(`${k}: "${name}" is not a zod schema exported by @portal/schemas`);
@@ -62,6 +67,7 @@ export function join(routes: readonly DiscoveredRoute[]): Joined[] {
 const AUTH_CODES = {
   bearer: ['UNAUTHENTICATED', 'INVALID_TOKEN'] as ErrorCode[],
   workspace: ['WORKSPACE_REQUIRED', 'NOT_A_MEMBER', 'WORKSPACE_PAUSED'] as ErrorCode[],
+  staff: ['STAFF_ONLY', 'MFA_REQUIRED'] as ErrorCode[],
 };
 
 export function buildOpenApi(joined: readonly Joined[], version: string): Record<string, unknown> {
@@ -83,7 +89,7 @@ export function buildOpenApi(joined: readonly Joined[], version: string): Record
         parameters.push({ name, in: 'query', required: !field.isOptional(), schema: toOpenApi(field) });
       }
     }
-    const workspaceScoped = !route.isPublic && !route.noWorkspace;
+    const workspaceScoped = !route.isPublic && !route.noWorkspace && !route.staff;
     if (workspaceScoped) parameters.push({ $ref: '#/components/parameters/WorkspaceId' });
     if (spec.webhook) parameters.push({ $ref: `#/components/parameters/${spec.webhook === 'stripe' ? 'StripeSignature' : spec.webhook === 'retell' ? 'RetellSignature' : 'Auth0Secret'}` });
 
@@ -91,6 +97,8 @@ export function buildOpenApi(joined: readonly Joined[], version: string): Record
     if (!route.isPublic) for (const c of AUTH_CODES.bearer) errors.add(c);
     if (workspaceScoped) for (const c of AUTH_CODES.workspace) errors.add(c);
     if (route.roles) errors.add('FORBIDDEN_ROLE');
+    if (route.staff && !route.isPublic) for (const c of AUTH_CODES.staff) errors.add(c);
+    if (route.staffRoles) errors.add('FORBIDDEN_ROLE');
     if (route.requireEmailVerified) errors.add('EMAIL_UNVERIFIED');
     if (spec.body || spec.query) errors.add('VALIDATION_FAILED');
     const byStatus = new Map<number, ErrorCode[]>();
@@ -115,9 +123,10 @@ export function buildOpenApi(joined: readonly Joined[], version: string): Record
       ...(parameters.length ? { parameters } : {}),
       ...(spec.body ? { requestBody: { required: true, content: { 'application/json': { schema: use(spec.body) } } } } : {}),
       responses,
-      security: route.isPublic ? [] : [{ bearerAuth: [] }],
-      'x-auth': route.isPublic ? (spec.webhook ? `webhook:${spec.webhook}` : 'public') : route.noWorkspace ? 'user' : 'workspace',
+      security: route.isPublic ? [] : [{ [route.staff ? 'staffAuth' : 'bearerAuth']: [] }],
+      'x-auth': route.isPublic ? (spec.webhook ? `webhook:${spec.webhook}` : 'public') : route.staff ? 'staff' : route.noWorkspace ? 'user' : 'workspace',
       ...(route.roles ? { 'x-roles': route.roles } : {}),
+      ...(route.staffRoles ? { 'x-staff-roles': route.staffRoles } : {}),
       ...(route.requireEmailVerified ? { 'x-email-verified': true } : {}),
       ...(spec.client === false ? { 'x-client': false } : {}),
     };
@@ -139,7 +148,10 @@ export function buildOpenApi(joined: readonly Joined[], version: string): Record
     tags: [...new Set(joined.map((j) => j.spec.tag))].sort().map((name) => ({ name })),
     paths,
     components: {
-      securitySchemes: { bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Auth0 access token (customer tenant). ADR 0002.' } },
+      securitySchemes: {
+        bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Auth0 access token (customer tenant). ADR 0002.' },
+        staffAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'Auth0 access token (staff tenant) carrying `https://portal/mfa: true`. Admin §2.1.' },
+      },
       parameters: {
         WorkspaceId: { name: 'X-Workspace-Id', in: 'header', required: true, schema: { type: 'string', format: 'uuid' }, description: 'The workspace the request acts in; the caller must be a member (§6.2).' },
         RetellSignature: { name: 'x-retell-signature', in: 'header', required: true, schema: { type: 'string' }, description: 'HMAC-SHA256 over the raw body, keyed with the Retell API key (ADR 0003).' },
@@ -217,8 +229,11 @@ export function buildClient(joined: readonly Joined[]): string {
     if (spec.query) args.push(`query?: z.input<typeof ${spec.query}>`);
     if (spec.body) args.push(`body: z.input<typeof ${spec.body}>`);
     const verb = spec.method === 'DELETE' ? 'del' : spec.method.toLowerCase();
-    const callArgs = spec.method === 'GET' || spec.method === 'DELETE' ? `${url}, ${responseExpr}` : `${url}, ${spec.body ? 'body' : '{}'}, ${responseExpr}`;
-    const doc = [`/** ${spec.method} ${spec.path} — ${spec.summary}${route.roles ? ` (roles: ${route.roles.join(', ')})` : ''}${spec.spec ? ` — ${spec.spec}` : ''}. */`];
+    const callArgs =
+      spec.method === 'GET' ? `${url}, ${responseExpr}`
+      : spec.method === 'DELETE' ? `${url}, ${responseExpr}${spec.body ? ', { body }' : ''}`
+      : `${url}, ${spec.body ? 'body' : '{}'}, ${responseExpr}`;
+    const doc = [`/** ${spec.method} ${spec.path} — ${spec.summary}${route.roles ? ` (roles: ${route.roles.join(', ')})` : ''}${route.staffRoles ? ` (staff: ${route.staffRoles.join(', ')})` : ''}${spec.spec ? ` — ${spec.spec}` : ''}. */`];
     lines.push(...doc, `export function ${spec.operationId}(${args.join(', ')}) {`, `  return api.${verb}(${callArgs});`, '}', '');
 
     const hookName = `use${spec.operationId[0]!.toUpperCase()}${spec.operationId.slice(1)}`;

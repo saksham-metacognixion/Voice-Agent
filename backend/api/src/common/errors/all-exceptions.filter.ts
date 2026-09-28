@@ -74,6 +74,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
       };
     }
 
+    // Postgres refuses a NUL byte in any text (22021). It reaches here as a Prisma error
+    // from a search term or a body field, and it is the caller's input, not our fault
+    // (D13 QA: `?q=%00` answered 500).
+    if (isEncodingViolation(exception)) {
+      return {
+        status: ERROR_STATUS.VALIDATION_FAILED,
+        body: {
+          code: ErrorCode.VALIDATION_FAILED,
+          message: 'Some fields need attention.',
+          fields: [{ field: 'q', message: 'Text contains a character we cannot store.' }],
+        },
+        logAs: 'none',
+      };
+    }
+
     if (isUniqueViolation(exception)) {
       return {
         status: ERROR_STATUS.CONFLICT,
@@ -158,4 +173,13 @@ const STATUS_FALLBACK: Record<number, ErrorCode> = {
 
 function statusToCode(status: number): ErrorCode {
   return STATUS_FALLBACK[status] ?? (status >= 500 ? ErrorCode.INTERNAL : ErrorCode.BAD_REQUEST);
+}
+
+/** Prisma surfaces Postgres 22021 ("invalid byte sequence for encoding") as a message, not a code. */
+export function isEncodingViolation(exception: unknown): boolean {
+  // Only a Prisma error, and only the SQLSTATE as a whole token: a bare substring match
+  // turned any 500 whose message held an id like `5a22021b-…` into an unlogged 422.
+  // Matched by name, not class, for the same two-builds reason as `isZodError`.
+  if (!(exception instanceof Error) || !exception.name.startsWith('PrismaClient')) return false;
+  return /(?<![\w-])22021(?![\w-])|invalid byte sequence for encoding/i.test(exception.message);
 }

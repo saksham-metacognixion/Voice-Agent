@@ -112,4 +112,21 @@ describe('AllExceptionsFilter', () => {
     expect(capture('something odd').status).toBe(500);
     spy.mockRestore();
   });
+
+  it('answers a NUL byte Postgres refused (22021, via Prisma) with 422', () => {
+    const err = new Error(
+      'Error occurred during query execution:\nConnectorError(... PostgresError { code: "22021", message: "invalid byte sequence for encoding \\"UTF8\\": 0x00" ... })',
+    );
+    err.name = 'PrismaClientUnknownRequestError';
+    expect(capture(err).status).toBe(422);
+  });
+
+  it('does not read an id that happens to contain 22021 as a NUL byte (review, 28 Sep)', () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(capture(new Error('job 5a22021b-0c1d-4e2f-8a9b-1234567890ab vanished')).status).toBe(500);
+    const prisma = new Error('Record 5a22021b-0c1d-4e2f-8a9b-1234567890ab not found');
+    prisma.name = 'PrismaClientKnownRequestError';
+    expect(capture(prisma).status).toBe(500);
+    spy.mockRestore();
+  });
 });

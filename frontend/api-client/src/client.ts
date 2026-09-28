@@ -47,6 +47,8 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Send no X-Workspace-Id even when one is selected (`GET /workspaces`, invite accept). */
   noWorkspace?: boolean;
+  /** A DELETE with a body (a staff write that carries its reason code); `del` sends it as JSON. */
+  body?: unknown;
 }
 
 export interface ApiClient {
@@ -117,6 +119,6 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     post: (p, b, s, o) => request('POST', p, s, b, o),
     patch: (p, b, s, o) => request('PATCH', p, s, b, o),
     put: (p, b, s, o) => request('PUT', p, s, b, o),
-    del: (p, s, o) => request('DELETE', p, s, undefined, o),
+    del: (p, s, o) => request('DELETE', p, s, o?.body, o),
   };
 }

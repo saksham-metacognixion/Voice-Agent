@@ -10,12 +10,35 @@ import { callIdOf, channelOf, directionOf, parseRetellWebhook } from './retell-w
 
 const FIXTURES = path.resolve(__dirname, '../../../test/fixtures/retell');
 
+function fixture(file: string): { body: unknown; headers?: Record<string, string> } {
+  return JSON.parse(readFileSync(path.join(FIXTURES, file), 'utf8')) as {
+    body: unknown;
+    headers?: Record<string, string>;
+  };
+}
+
 function body(file: string): unknown {
-  return (JSON.parse(readFileSync(path.join(FIXTURES, file), 'utf8')) as { body: unknown }).body;
+  return fixture(file).body;
+}
+
+/**
+ * A raw capture the platform delivered, as opposed to one a local tool posted to the API
+ * itself: the D11 QA seed, Postman and the test harness all sign and post synthetic
+ * lifecycle events at `localhost`, and `FixtureWriter` records those too. They prove
+ * nothing about Retell's payload shape, and the seed's `qa11seed_*` call ids failed the
+ * platform-id assertion below for three days (28 Sep). Curated fixtures carry no
+ * timestamp and are always read.
+ */
+function deliveredByPlatform(file: string): boolean {
+  if (!/-20\d\d-\d\d-\d\dT/.test(file)) return true;
+  const host = fixture(file).headers?.host ?? '';
+  return !/^(localhost|127\.0\.0\.1)(:|$)/.test(host);
 }
 
 describe('parseRetellWebhook against the D2 fixtures', () => {
-  const lifecycleFiles = readdirSync(FIXTURES).filter((f) => /^call_(started|ended|analyzed)/.test(f));
+  const lifecycleFiles = readdirSync(FIXTURES)
+    .filter((f) => /^call_(started|ended|analyzed)/.test(f))
+    .filter(deliveredByPlatform);
 
   it('reads every captured lifecycle payload', () => {
     expect(lifecycleFiles.length).toBeGreaterThan(5);

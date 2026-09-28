@@ -494,6 +494,30 @@ describe('POST /wallet/checkout/confirm — the return path when the webhook is 
     expect((await adminDb.purchase.findUniqueOrThrow({ where: { id: fresh.purchase.id } })).status).toBe('pending');
     expect(await ledgerSum(ws.tenantId)).toBe(before + 500);
   });
+
+  it('a session Stripe has never heard of is abandoned once, not retried for two days; an outage is still retried', async () => {
+    const ghost = await pendingWithSession();
+    const outage = await pendingWithSession();
+    for (const p of [ghost, outage]) await adminDb.purchase.update({ where: { id: p.purchase.id }, data: { createdAt: new Date(Date.now() - 10 * 60_000) } });
+    const missing = Object.assign(new Error(`No such checkout.session: ${ghost.sessionId}`), { statusCode: 404, code: 'resource_missing' });
+    const retrieve = vi.spyOn(stripe, 'retrieveCheckoutSession').mockImplementation(async (id) => {
+      if (id === ghost.sessionId) throw missing;
+      if (id === outage.sessionId) throw Object.assign(new Error('connect ETIMEDOUT'), { type: 'StripeConnectionError' });
+      const row = await adminDb.purchase.findFirstOrThrow({ where: { stripeSessionId: id } });
+      return stripeSays(row, id, { status: 'open', payment_status: 'unpaid', payment_intent: null });
+    });
+
+    await app.get(BillingService).reconcilePendingCheckouts();
+    const g = await adminDb.purchase.findUniqueOrThrow({ where: { id: ghost.purchase.id } });
+    expect(g.status).toBe('abandoned');
+    expect(g.failureReason).toBe('session_not_found');
+    expect((await adminDb.purchase.findUniqueOrThrow({ where: { id: outage.purchase.id } })).status).toBe('pending');
+
+    retrieve.mockClear();
+    await app.get(BillingService).reconcilePendingCheckouts();
+    expect(retrieve).not.toHaveBeenCalledWith(ghost.sessionId);
+    expect(retrieve).toHaveBeenCalledWith(outage.sessionId);
+  });
 });
 
 describe('GET /pricing and GET /flags', () => {

@@ -154,6 +154,9 @@ importers:
 
   frontend/admin:
     dependencies:
+      '@auth0/auth0-spa-js':
+        specifier: ^2.27.0
+        version: 2.27.0
       '@portal/api-client':
         specifier: workspace:*
         version: link:../api-client
@@ -166,15 +169,24 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.80.0
         version: 5.102.8(react@19.3.0)
+      lucide-react:
+        specifier: ^0.525.0
+        version: 0.525.0(react@19.3.0)
       next:
         specifier: ^15.4.0
         version: 15.5.25(@types/node@22.20.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      next-themes:
+        specifier: ^0.4.6
+        version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       react:
         specifier: ^19.1.0
         version: 19.3.0
       react-dom:
         specifier: ^19.1.0
         version: 19.3.0(react@19.3.0)
+      sonner:
+        specifier: ^2.0.8
+        version: 2.0.8(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       zod:
         specifier: ^3.25.0
         version: 3.25.76

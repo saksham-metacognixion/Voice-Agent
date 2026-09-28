@@ -515,5 +515,6 @@ describe('concurrency monitor (§14.3, §13.11 concurrency-monitor)', () => {
     const tick = await concurrency.tick(Date.now(), 80);
     expect(tick.opened).not.toContain(ws.workspaceId);
     expect(await openAlerts(ws.workspaceId)).toHaveLength(0);
+    await redis.del(key);
   });
 });

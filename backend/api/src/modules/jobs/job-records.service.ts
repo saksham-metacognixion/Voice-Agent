@@ -118,6 +118,15 @@ export class JobRecordsService {
   }
 
   /**
+   * D12 SA12: keeps the BullMQ payload on the row so a staff retry re-enqueues exactly
+   * what the customer asked for. Written by the two enqueue sites (prompting, activation)
+   * right before `add()`; a row without one cannot be retried from the console.
+   */
+  async recordPayload(jobId: string, payload: Record<string, unknown>): Promise<void> {
+    await adminDb.job.update({ where: { id: jobId }, data: { payloadJson: payload as Prisma.InputJsonValue } });
+  }
+
+  /**
    * Marks a job running, unless it has already finished.
    *
    * `updateMany` with the status in the predicate rather than a read-then-write: a job

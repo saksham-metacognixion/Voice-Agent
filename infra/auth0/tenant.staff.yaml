@@ -87,9 +87,10 @@ connections:
     enabled_clients:
       - Admin Console
 
-# admin §2.1 — MFA on every login. staff-post-login.js only *records* whether MFA
-# happened; without this policy the claim is always false and AuthGuard rejects every
-# staff token. The policy is the half that actually challenges.
+# admin §2.1 — MFA on every login. staff-post-login.js challenges itself
+# (api.multifactor.enable): Actions run before a policy-triggered challenge, so a claim read
+# from event.authentication.methods was always false (fixed 28 Sep). The policy stays on as a
+# second line; a factor (otp below) must be enabled for either to work.
 guardianPolicies:
   policies:
     - all-applications

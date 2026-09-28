@@ -61,7 +61,9 @@ export class ActivationService {
       return { job_id: jobId };
     }
 
-    const queued = await this.queues.enqueueActivation({ jobId, workspaceId: input.workspaceId, agentId: input.agentId, userId: input.userId, versionNo: input.versionNo });
+    const payload = { jobId, workspaceId: input.workspaceId, agentId: input.agentId, userId: input.userId, versionNo: input.versionNo };
+    await this.jobs.recordPayload(jobId, payload);
+    const queued = await this.queues.enqueueActivation(payload);
     if (queued === 'failed') {
       await this.jobs.fail(jobId, 'Could not queue the activation job.', { ...steps, activation_status: 'failed', customer_reason: NOT_QUEUED }, 0);
       throw new AppError('UPSTREAM_UNAVAILABLE', NOT_QUEUED);

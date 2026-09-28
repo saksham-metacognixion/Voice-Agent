@@ -24,6 +24,11 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0014](0014-recurring-operations-and-staging.md)       | Recurring operations, notifications, the API contract and the staging stack (D7)            | accepted                      |
 | [0015](0015-domain-and-aws-account-bootstrap.md)       | The domain (oraly.ai) and the AWS backend stack as one CloudFormation template              | accepted                      |
 | [0016](0016-postgres-on-rds.md)                        | Postgres on Amazon RDS, private, in the environment stack (supersedes the Neon row of 0001) | accepted                      |
+| [0017](0017-portal-foundation.md)                      | The portal foundation: session, §6.4 gating, theme tokens, SSE + polling (D8)               | accepted                      |
+| [0018](0018-customer-dashboard.md)                     | The customer dashboard D1–D3 (D10)                                                          | accepted                      |
+| [0019](0019-dashboard-d4-d7-mobile.md)                 | The dashboard D4–D7, one SSE stream, the bottom tab bar (D11)                               | accepted                      |
+| [0020](0020-restaurant-menu-and-agent-identity.md)     | The restaurant menu as a knowledge role, the agent identity block                           | accepted                      |
+| [0021](0021-admin-console.md)                          | The admin console: staff API, audit, pricing publish with Stripe sync, view-as (D12)        | accepted                      |
 
 Template:
 

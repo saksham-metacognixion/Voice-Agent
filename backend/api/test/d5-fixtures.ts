@@ -8,6 +8,7 @@ import Retell from 'retell-sdk';
 import { adminDb } from '@portal/db';
 import { AllExceptionsFilter } from '../src/common/errors/all-exceptions.filter';
 import { ActivationModule } from '../src/modules/activation';
+import { AdminModule } from '../src/modules/admin';
 import { AgentsModule } from '../src/modules/agents';
 import { AlertsModule, OpsAlertService, type OpsAlert } from '../src/modules/alerts';
 import { AuthModule } from '../src/modules/auth';
@@ -567,6 +568,7 @@ export class CapturingAlerts {
     VoicesModule,
     WebhooksModule,
     ScheduledModule,
+    AdminModule,
   ],
   providers: [
     { provide: APP_PIPE, useClass: ZodValidationPipe },
@@ -578,6 +580,8 @@ export class D5TestModule {}
 export interface D5Harness {
   app: NestFastifyApplication;
   customerTenant: FakeAuth0Tenant;
+  /** D12: the staff tenant, for `/admin/*` tokens (mint with `{ mfa: true }`). */
+  staffTenant: FakeAuth0Tenant;
   retell: FakeRetellGateway;
   provider: ScriptedPromptProvider;
   /** D6: every ops alert the app raised, in order. */
@@ -618,6 +622,7 @@ export async function startD5Harness(options: { listen?: boolean; workers?: bool
   return {
     app,
     customerTenant,
+    staffTenant,
     retell,
     provider,
     alerts,

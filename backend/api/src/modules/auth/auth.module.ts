@@ -2,6 +2,8 @@ import { Global, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthConfig } from './auth.config';
 import { AuthGuard, StaffRolesGuard } from './auth.guard';
+import { Auth0ManagementService } from './auth0-management.service';
+import { ImpersonationTokenService } from './impersonation-token';
 import { JwtVerifier } from './jwt-verifier.service';
 import { UsersService } from './users.service';
 import { WorkspaceGuard } from './workspace.guard';
@@ -25,10 +27,15 @@ import { WorkspaceGuard } from './workspace.guard';
     // The `users` mirror. Here rather than in `workspaces` because AuthGuard provisions a
     // row for a verified sign-in whose registration webhook never arrived (§13.2).
     UsersService,
+    // D12: mints and checks the view-as credential (admin §7.4). Same shape as the
+    // recording signer — the constructor reads the environment, so a factory.
+    { provide: ImpersonationTokenService, useFactory: () => new ImpersonationTokenService(process.env) },
+    // D12 SA3: the customer tenant's Management API (verify email, reset MFA, block, revoke sessions).
+    { provide: Auth0ManagementService, useFactory: () => new Auth0ManagementService(process.env) },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: WorkspaceGuard },
     { provide: APP_GUARD, useClass: StaffRolesGuard },
   ],
-  exports: [AuthConfig, JwtVerifier, UsersService],
+  exports: [AuthConfig, JwtVerifier, UsersService, ImpersonationTokenService, Auth0ManagementService],
 })
 export class AuthModule {}

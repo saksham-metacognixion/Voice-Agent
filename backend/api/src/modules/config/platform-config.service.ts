@@ -184,12 +184,31 @@ export class PlatformConfigService {
   }
 
   async setKillSwitch(key: KillSwitchKey, input: { on: boolean; reason?: string; setBy?: string; expiresAt?: Date | null }): Promise<void> {
+    await this.writeKillSwitch(key, input);
+    await this.publishKillSwitch(key, input);
+  }
+
+  /**
+   * The row only, on `tx` when the caller holds a transaction (the SA12 write commits with
+   * its `staff_audit_log` row). The cache is not touched here: `refreshRejectInbound()`
+   * reads the switch back from Postgres, and inside an open transaction it would read —
+   * and republish — the value being replaced. Call `publishKillSwitch()` after the commit.
+   */
+  async writeKillSwitch(
+    key: KillSwitchKey,
+    input: { on: boolean; reason?: string; setBy?: string; expiresAt?: Date | null },
+    tx: Prisma.TransactionClient | typeof adminDb = adminDb,
+  ): Promise<void> {
     if (!isKillSwitchKey(key)) throw new Error(`unknown kill switch ${key}`);
-    await adminDb.killSwitch.upsert({
+    await tx.killSwitch.upsert({
       where: { key },
       create: { key, on: input.on, reason: input.reason, setBy: input.setBy, expiresAt: input.expiresAt ?? null },
       update: { on: input.on, reason: input.reason, setBy: input.setBy, expiresAt: input.expiresAt ?? null },
     });
+  }
+
+  /** Drops `flags:*` and republishes `kill:reject_inbound`; runs after the row is committed. */
+  async publishKillSwitch(key: KillSwitchKey, input: { on: boolean; reason?: string }): Promise<void> {
     await this.cache.delPattern(redisKeys.flagsPattern);
     // The one switch with a reader that cannot fall back to Postgres. Republish it now so
     // an operator flipping it during an incident is obeyed by the next call, not by the

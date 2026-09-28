@@ -14,6 +14,7 @@ export const NO_WORKSPACE = 'auth:no-workspace';
 export const REQUIRED_ROLES = 'auth:roles';
 export const REQUIRED_STAFF_ROLES = 'auth:staff-roles';
 export const REQUIRE_EMAIL_VERIFIED = 'auth:email-verified';
+export const ALLOW_IMPERSONATION_WRITE = 'auth:allow-impersonation-write';
 
 /** No token at all: webhooks (§16), health, and the public pricing/flags reads. */
 export const Public = (): CustomDecorator => SetMetadata(IS_PUBLIC, true);
@@ -32,6 +33,13 @@ export const StaffRoles = (...roles: StaffRole[]): CustomDecorator =>
 /** Spec §6.2: email verification is mandatory before any test call or purchase. */
 export const RequireEmailVerified = (): CustomDecorator =>
   SetMetadata(REQUIRE_EMAIL_VERIFIED, true);
+
+/**
+ * Admin §7.4: a view-as session may call this mutating route. Exactly one route carries
+ * it — `POST /impersonation/end`, the banner's Exit — and it exists so that ending the
+ * session is not itself refused as a write.
+ */
+export const AllowImpersonationWrite = (): CustomDecorator => SetMetadata(ALLOW_IMPERSONATION_WRITE, true);
 
 /** ctx = {userId, workspaceId, role} — the §6.2 request context. */
 export const Ctx = createParamDecorator(

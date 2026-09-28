@@ -215,6 +215,17 @@ async function main() {
   }
   console.log(`seeded ${STAFF_ROLE_LIMITS.length} staff_role_limits (admin §2.2)`);
 
+  // D12: the staff member the local stand-in issuer signs in as (`pnpm dev:issuer:staff`).
+  // Dev boxes only — staging and prod get their staff rows from the real tenant (SA13).
+  if ((process.env.APP_ENV ?? 'dev') === 'dev') {
+    await db.staffUser.upsert({
+      where: { authProviderId: 'google-oauth2|local-staff' },
+      create: { authProviderId: 'google-oauth2|local-staff', email: 'staff@metacognixion.com', name: 'Local Staff', role: StaffRole.super_admin },
+      update: { active: true },
+    });
+    console.log('seeded the local staff user (dev only, admin §2.1)');
+  }
+
   for (const pack of PACKS) {
     await db.pack.upsert({
       where: { id: pack.id },

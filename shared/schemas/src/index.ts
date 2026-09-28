@@ -19,3 +19,4 @@ export * from './numbers.js';
 export * from './activation.js';
 export * from './notifications.js';
 export * from './responses.js';
+export * from './admin.js';

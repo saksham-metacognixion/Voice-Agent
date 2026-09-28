@@ -175,7 +175,7 @@ export class PromptingService {
       return { job_id: jobId };
     }
 
-    const queued = await this.queues.enqueuePrompting({
+    const payload = {
       jobId,
       workspaceId: ctx.workspaceId,
       agentId: input.agentId,
@@ -183,7 +183,9 @@ export class PromptingService {
       mode: input.mode,
       feedbackText: input.feedbackText,
       baseVersionNo: input.baseVersionNo,
-    });
+    };
+    await this.jobs.recordPayload(jobId, payload);
+    const queued = await this.queues.enqueuePrompting(payload);
 
     if (queued === 'failed') {
       // Redis is the queue; without it there is no worker to pick this up and no sweeper

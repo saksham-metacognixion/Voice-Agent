@@ -5,6 +5,8 @@ import { adminDb } from '@portal/db';
 import type { StaffRole } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { IS_PUBLIC, REQUIRED_STAFF_ROLES, REQUIRE_EMAIL_VERIFIED } from './auth.decorators';
+import { IMPERSONATION_PREFIX, ImpersonationTokenService } from './impersonation-token';
+
 import { JwtVerifier, type VerifiedToken } from './jwt-verifier.service';
 import { UsersService } from './users.service';
 import type { AuthNamespace } from './auth.types';
@@ -37,6 +39,7 @@ export class AuthGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly verifier: JwtVerifier,
     private readonly users: UsersService,
+    private readonly impersonation: ImpersonationTokenService,
   ) {}
 
   async canActivate(host: ExecutionContext): Promise<boolean> {
@@ -51,6 +54,13 @@ export class AuthGuard implements CanActivate {
     const request = host.switchToHttp().getRequest<FastifyRequest>();
     const namespace = namespaceForPath(request.url);
     const token = bearerToken(request);
+
+    // Admin §7.4 (D12): a staff member's read-only view of a workspace presents the
+    // API-minted impersonation credential, never an Auth0 token. Customer namespace only:
+    // on /admin/* the prefix is simply not a JWT and fails like any other garbage.
+    if (namespace === 'customer' && token.startsWith(IMPERSONATION_PREFIX)) {
+      return this.authenticateImpersonation(request, token);
+    }
 
     const verified = await this.verifier.verify(token, namespace);
 
@@ -69,6 +79,7 @@ export class AuthGuard implements CanActivate {
       throw new AppError('MFA_REQUIRED', 'Staff sign-in requires multi-factor authentication.');
     }
 
+    // Read on every request, never cached, so a deactivated row refuses the next call.
     const staff = await adminDb.staffUser.findUnique({
       where: { authProviderId: verified.subject },
       select: { id: true, email: true, role: true, active: true },
@@ -102,7 +113,7 @@ export class AuthGuard implements CanActivate {
     const user =
       (await adminDb.user.findUnique({
         where: { authProviderId: verified.subject },
-        select: { id: true, email: true },
+        select: { id: true, email: true, lockedAt: true, sessionsRevokedAt: true },
       })) ?? (await this.provision(verified));
 
     if (!user) {
@@ -110,6 +121,18 @@ export class AuthGuard implements CanActivate {
       // Post-User-Registration Action (§13.2) has not landed and the Post-Login Action is
       // an older build. Nothing to do but say so.
       throw new AppError('UNAUTHENTICATED', 'We have no account for this sign-in yet.');
+    }
+    // SA3 "Lock" (D12). The identity provider is blocked too, but a token minted before
+    // the lock is still valid for its lifetime; the row is what refuses it now.
+    if (user.lockedAt) {
+      throw new AppError('ACCOUNT_LOCKED', 'This account has been locked. Contact support.');
+    }
+    // SA3 "Force logout" (D12). Revoking at the provider stops new tokens; this refuses the
+    // ones already issued. `iat` is whole seconds, so the comparison is on whole seconds and
+    // strict: a sign-in right after an unlock is never refused, at the cost of a token minted
+    // earlier in the very second of the revocation surviving it (under a second of exposure).
+    if (user.sessionsRevokedAt && typeof verified.payload.iat === 'number' && verified.payload.iat < Math.floor(user.sessionsRevokedAt.getTime() / 1000)) {
+      throw new AppError('INVALID_TOKEN', 'Your session was ended. Sign in again.');
     }
 
     const needsVerifiedEmail = this.reflector.getAllAndOverride<boolean>(REQUIRE_EMAIL_VERIFIED, [
@@ -131,6 +154,61 @@ export class AuthGuard implements CanActivate {
   }
 
   /**
+   * Admin §7.4 view-as (D12). The token names one `impersonation_sessions` row; the row
+   * is read on every request so an ended session (the console's Exit, the banner's Exit,
+   * or expiry) is refused immediately rather than when the HMAC lapses. The request then
+   * looks like the workspace *owner* to every read — `ctx.userId` is the owner's, because
+   * D5/D6 read "my" settings by it — and `request.impersonation` is what WorkspaceGuard
+   * uses to pin the workspace and refuse every write.
+   */
+  private async authenticateImpersonation(request: FastifyRequest, token: string): Promise<boolean> {
+    const claims = this.impersonation.verify(token);
+    if (!claims) throw new AppError('INVALID_TOKEN', 'This view-as link has expired. Start it again from the console.');
+
+    const session = await adminDb.impersonationSession.findUnique({
+      where: { id: claims.sessionId },
+      select: {
+        id: true,
+        staffId: true,
+        tenantId: true,
+        mode: true,
+        endedAt: true,
+        expiresAt: true,
+        staff: { select: { email: true, active: true } },
+        tenant: { select: { name: true, memberships: { where: { role: 'owner' }, select: { userId: true }, take: 1 } } },
+      },
+    });
+    if (!session || session.staffId !== claims.staffId || session.tenantId !== claims.tenantId) {
+      throw new AppError('INVALID_TOKEN', 'This view-as link is not valid.');
+    }
+    if (session.endedAt || session.expiresAt.getTime() <= Date.now()) {
+      throw new AppError('INVALID_TOKEN', 'This view-as session has ended.');
+    }
+    if (session.mode !== 'view') throw new AppError('INVALID_TOKEN', 'Only read-only sessions can use this link.');
+    if (!session.staff.active) throw new AppError('STAFF_ONLY', 'This staff account is disabled.');
+    const owner = session.tenant.memberships[0];
+    if (!owner) throw new AppError('NOT_A_MEMBER', 'This workspace has no owner to view as.');
+
+    request.auth = {
+      userId: owner.userId,
+      subject: `staff:${session.staffId}`,
+      email: session.staff.email,
+      emailVerified: true,
+      mfa: true,
+    };
+    request.impersonation = {
+      id: session.id,
+      staffId: session.staffId,
+      staffEmail: session.staff.email,
+      tenantId: session.tenantId,
+      tenantName: session.tenant.name,
+      mode: 'view',
+      expiresAt: session.expiresAt,
+    };
+    return true;
+  }
+
+  /**
    * §13.2's last line of defence. The registration webhook is fire-and-forget on Auth0's
    * side and the Post-Login webhook is best-effort too, so a verified token for a `sub`
    * we have never heard of is a real customer, not an intruder: the signature, issuer and
@@ -141,7 +219,7 @@ export class AuthGuard implements CanActivate {
    * Only the namespaced claim is trusted. A standard `email` claim is not: nothing in our
    * pipeline vouches for it, and a row is what every membership points at.
    */
-  private async provision(verified: VerifiedToken): Promise<{ id: string; email: string } | null> {
+  private async provision(verified: VerifiedToken): Promise<{ id: string; email: string; lockedAt: Date | null; sessionsRevokedAt: Date | null } | null> {
     if (!verified.email) return null;
     const outcome = await this.users.upsert({
       event_type: 'user.login',
@@ -153,7 +231,7 @@ export class AuthGuard implements CanActivate {
     if (outcome.outcome === 'created') {
       this.logger.warn(`users row for ${verified.subject} provisioned from the access token — the registration webhook never arrived`);
     }
-    return adminDb.user.findUnique({ where: { id: outcome.userId }, select: { id: true, email: true } });
+    return adminDb.user.findUnique({ where: { id: outcome.userId }, select: { id: true, email: true, lockedAt: true, sessionsRevokedAt: true } });
   }
 }
 

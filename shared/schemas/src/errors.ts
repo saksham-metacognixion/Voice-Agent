@@ -46,6 +46,10 @@ export const ErrorCode = {
   STAFF_ONLY: 'STAFF_ONLY',
   STAFF_LIMIT_EXCEEDED: 'STAFF_LIMIT_EXCEEDED',
   WORKSPACE_PAUSED: 'WORKSPACE_PAUSED',
+  /** A staff view-as session (admin §7.4) tried a write. Every mutation is refused under it. */
+  IMPERSONATION_READ_ONLY: 'IMPERSONATION_READ_ONLY',
+  /** Staff locked this sign-in (SA3). */
+  ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
   // 404
   NOT_FOUND: 'NOT_FOUND',
   // 409
@@ -66,6 +70,8 @@ export const ErrorCode = {
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   LINT_FAILED: 'LINT_FAILED',
   GENERATION_FAILED: 'GENERATION_FAILED',
+  /** A pricing publish below the margin floor without an override (admin §5.4). */
+  MARGIN_FLOOR: 'MARGIN_FLOOR',
   // 429
   TEST_RATE_LIMIT: 'TEST_RATE_LIMIT',
   RATE_LIMITED: 'RATE_LIMITED',
@@ -74,6 +80,8 @@ export const ErrorCode = {
   UPSTREAM_UNAVAILABLE: 'UPSTREAM_UNAVAILABLE',
   /** A platform configuration row (the agent stack, admin SA6) is missing or invalid. */
   NOT_CONFIGURED: 'NOT_CONFIGURED',
+  /** Stripe refused the price sync; the version stays unpublished (admin §5.2 step 3). */
+  STRIPE_SYNC_FAILED: 'STRIPE_SYNC_FAILED',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -101,6 +109,8 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   STAFF_ONLY: 403,
   STAFF_LIMIT_EXCEEDED: 403,
   WORKSPACE_PAUSED: 403,
+  IMPERSONATION_READ_ONLY: 403,
+  ACCOUNT_LOCKED: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
   PURCHASES_PAUSED: 409,
@@ -116,9 +126,11 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   VALIDATION_FAILED: 422,
   LINT_FAILED: 422,
   GENERATION_FAILED: 422,
+  MARGIN_FLOOR: 422,
   TEST_RATE_LIMIT: 429,
   RATE_LIMITED: 429,
   INTERNAL: 500,
   UPSTREAM_UNAVAILABLE: 503,
   NOT_CONFIGURED: 503,
+  STRIPE_SYNC_FAILED: 503,
 };

@@ -41,6 +41,12 @@ In the tenant's dashboard:
    | attack protection                                            | `read:attack_protection` `update:attack_protection`                                         |
    | users (session revoke, and the probe user in `verify:auth0`) | `read:users` `create:users` `update:users` `delete:users`                                   |
    | **staff tenant only** — MFA (admin §2.1)                     | `read:guardian_factors` `update:guardian_factors` `read:mfa_policies` `update:mfa_policies` |
+   | **customer tenant** — console SA3 (D12): reset MFA, force logout | `delete:guardian_enrollments` `delete:sessions` `delete:refresh_tokens`                  |
+
+   Grant them under the application's **API Access** tab → Auth0 Management API → **Edit** on the
+   **Client Access** side (the User-delegated side reading "All permissions granted" is a different
+   policy). Without them the console's Reset MFA answers 503, and Force logout ends the session in
+   the API but reports `provider: failed`. Verified on the dev tenant 28 Sep (28 scopes).
 
    No `delete:` scopes for clients, connections or resource servers: the wrapper runs with
    `AUTH0_ALLOW_DELETE=false` and nothing in this repo removes an Auth0 object.
@@ -184,10 +190,13 @@ All of these fail silently.
   the YAML does that; `pnpm auth0:validate` fails if an action is not bound.
 - **Claims go on the access token** (`api.accessToken.setCustomClaim`). On the ID token
   only, the API sees `undefined` and every gated route answers `EMAIL_UNVERIFIED`.
-- **The MFA claim needs the tenant policy too.** `staff-post-login.js` only records whether
-  MFA happened. Without the `all-applications` Guardian policy — in
-  `tenant.staff.yaml` — the claim is always `false` and `AuthGuard` rejects every staff
-  token.
+- **The staff Action is what challenges.** `staff-post-login.js` calls
+  `api.multifactor.enable('any')` on every interactive sign-in and stamps
+  `https://portal/mfa: true`; Auth0 issues the token only after the second factor succeeds.
+  It used to read `event.authentication.methods`, which never contains `mfa` on a fresh
+  sign-in (Actions run before a policy-triggered challenge), so every staff token was
+  refused with `MFA_REQUIRED` (fixed 28 Sep). One-time Password must be enabled on the
+  tenant; the `all-applications` policy in `tenant.staff.yaml` stays on as a second line.
 - **Customer two-factor needs an enabled factor, and the Action is the policy.** The
   tenant MFA policy stays "Never" (`guardianPolicies: []` in `tenant.customer.yaml`);
   `customer-post-login.js` calls `api.multifactor.enable` when A5 asks (`acr_values`

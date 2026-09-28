@@ -1,8 +1,9 @@
 import 'reflect-metadata';
 import { RequestMethod } from '@nestjs/common';
 import { HTTP_CODE_METADATA, METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
-import type { MemberRole } from '@portal/schemas';
-import { IS_PUBLIC, NO_WORKSPACE, REQUIRED_ROLES, REQUIRE_EMAIL_VERIFIED } from '../modules/auth/auth.decorators';
+import type { MemberRole, StaffRole } from '@portal/schemas';
+import { IS_PUBLIC, NO_WORKSPACE, REQUIRED_ROLES, REQUIRED_STAFF_ROLES, REQUIRE_EMAIL_VERIFIED } from '../modules/auth/auth.decorators';
+import { namespaceForPath } from '../modules/auth/auth.guard';
 
 /** What a controller says about a route through its decorators. */
 export interface DiscoveredRoute {
@@ -15,6 +16,9 @@ export interface DiscoveredRoute {
   noWorkspace: boolean;
   requireEmailVerified: boolean;
   roles: MemberRole[] | null;
+  /** `/admin/*` (admin §2.1): verified against the staff tenant, `@StaffRoles` from the handler or the class. */
+  staff: boolean;
+  staffRoles: StaffRole[] | null;
   /** From `@HttpCode`, else Nest's default: 201 for POST, 200 otherwise. */
   status: number;
 }
@@ -39,6 +43,7 @@ export function discoverRoutes(controllers: readonly (new (...args: never[]) => 
     const prefixes = asArray(Reflect.getMetadata(PATH_METADATA, controller) as string | string[] | undefined);
     const classPublic = Reflect.getMetadata(IS_PUBLIC, controller) === true;
     const classNoWorkspace = Reflect.getMetadata(NO_WORKSPACE, controller) === true;
+    const classStaffRoles = Reflect.getMetadata(REQUIRED_STAFF_ROLES, controller) as StaffRole[] | undefined;
     const proto = controller.prototype as Record<string, unknown>;
     for (const name of Object.getOwnPropertyNames(proto)) {
       if (name === 'constructor') continue;
@@ -51,11 +56,16 @@ export function discoverRoutes(controllers: readonly (new (...args: never[]) => 
       const subPaths = asArray(Reflect.getMetadata(PATH_METADATA, handler) as string | string[] | undefined);
       const httpCode = Reflect.getMetadata(HTTP_CODE_METADATA, handler) as number | undefined;
       const roles = Reflect.getMetadata(REQUIRED_ROLES, handler) as MemberRole[] | undefined;
+      // Same precedence as Reflector.getAllAndOverride: the handler's decorator wins.
+      const staffRoles = (Reflect.getMetadata(REQUIRED_STAFF_ROLES, handler) as StaffRole[] | undefined) ?? classStaffRoles;
       for (const prefix of prefixes) {
         for (const sub of subPaths) {
+          const path = join(prefix, sub);
           routes.push({
             method,
-            path: join(prefix, sub),
+            path,
+            staff: namespaceForPath(path) === 'staff',
+            staffRoles: staffRoles ?? null,
             controller: controller.name,
             handler: name,
             isPublic: classPublic || Reflect.getMetadata(IS_PUBLIC, handler) === true,

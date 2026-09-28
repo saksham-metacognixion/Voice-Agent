@@ -174,6 +174,58 @@ export class StripeGateway {
     return { id: session.id, url: session.url };
   }
 
+  // ---------------------------------------------------------------- SA5 price sync (admin §5.2 step 3, D12)
+
+  /**
+   * The Stripe Product for a pack, found by the `pack_id` we stamp in its metadata, else
+   * created. Products outlive prices: a re-priced pack keeps its Product and gets a new
+   * Price (Stripe prices are immutable).
+   */
+  async ensureProduct(pack: PricingPack): Promise<string> {
+    // Scoped to this environment for the same reason as the lookup keys: one test account, several environments.
+    const found = await this.client.products.search({ query: `metadata['pack_id']:'${pack.id}' AND metadata['env']:'${this.config.env}' AND active:'true'`, limit: 1 });
+    if (found.data[0]) return found.data[0].id;
+    const product = await this.client.products.create({
+      name: `${pack.name} pack`,
+      description: `${(pack.credits + pack.bonus_credits).toLocaleString('en-US')} credits · 1 credit = 1 minute of a Standard agent`,
+      metadata: { pack_id: pack.id, env: this.config.env },
+    });
+    this.log.log(`stripe product ${product.id} created for pack ${pack.id}`);
+    return product.id;
+  }
+
+  /** Look before you buy: a Price already created under this key, or null. */
+  async findPriceByLookupKey(key: string): Promise<{ id: string; unitAmount: number | null; currency: string; productId: string } | null> {
+    const found = await this.client.prices.list({ lookup_keys: [key], limit: 1 });
+    const price = found.data[0];
+    if (!price) return null;
+    return { id: price.id, unitAmount: price.unit_amount, currency: price.currency, productId: typeof price.product === 'string' ? price.product : price.product.id };
+  }
+
+  async createPrice(input: { productId: string; pack: PricingPack; lookupKey: string; transferLookupKey?: boolean }): Promise<string> {
+    const price = await this.client.prices.create({
+      product: input.productId,
+      currency: input.pack.currency.toLowerCase(),
+      unit_amount: input.pack.price_cents,
+      lookup_key: input.lookupKey,
+      ...(input.transferLookupKey ? { transfer_lookup_key: true } : {}),
+      metadata: { pack_id: input.pack.id, credits: String(input.pack.credits + input.pack.bonus_credits), env: this.config.env },
+    });
+    this.log.log(`stripe price ${price.id} created: ${input.pack.id} ${input.pack.price_cents} ${input.pack.currency} (${input.lookupKey})`);
+    return price.id;
+  }
+
+  /** A Price that is no longer sold. Idempotent: archiving an archived Price is a no-op on Stripe's side. */
+  async archivePrice(priceId: string): Promise<void> {
+    await this.client.prices.update(priceId, { active: false });
+    this.log.log(`stripe price ${priceId} archived`);
+  }
+
+  /** Health strip (admin §3): one cheap authenticated call. Throws when Stripe or the key is wrong. */
+  async ping(): Promise<void> {
+    await this.client.balance.retrieve();
+  }
+
   /**
    * Verifies `stripe-signature` over the exact request bytes and parses the event. Throws
    * on a bad or stale signature; the controller turns that into 401. The default tolerance

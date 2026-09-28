@@ -45,7 +45,32 @@ export class WebhookProcessingService {
     if (!row) return { outcome: 'ignored', reason: `webhook_events ${eventId} does not exist` };
     if (row.processedAt) return { outcome: 'ignored', reason: 'already processed' };
 
-    const result = await this.events.process(row.id, async () => {
+    const result = await this.events.process(row.id, () => this.dispatch(row));
+    this.log.log(`${row.provider} ${row.eventType} ${row.externalId}: ${JSON.stringify(result)}`);
+    return result as { outcome: string; reason?: string };
+  }
+
+  /**
+   * SA12 "Replay" (D12): runs the stored event through its handler again whether or not
+   * it was processed. Safe because every handler is idempotent — the call debit collides
+   * on `credit_ledger (ref_id) WHERE reason = 'call'`, a Stripe fulfilment finds the
+   * purchase already `paid`, the auth upsert is keyed on the `sub` — so a replay is a way
+   * to re-derive state after a bug fix, never a way to bill twice. The outcome lands on
+   * the row like a first delivery.
+   */
+  async replay(eventId: string): Promise<{ outcome: string; reason?: string }> {
+    const row = await adminDb.webhookEvent.findUnique({
+      where: { id: eventId },
+      select: { id: true, provider: true, eventType: true, externalId: true, payloadJson: true, processedAt: true },
+    });
+    if (!row) return { outcome: 'ignored', reason: `webhook_events ${eventId} does not exist` };
+    const result = await this.events.process(row.id, () => this.dispatch(row));
+    this.log.warn(`replay ${row.provider} ${row.eventType} ${row.externalId}: ${JSON.stringify(result)}`);
+    return result as { outcome: string; reason?: string };
+  }
+
+  private async dispatch(row: { provider: string; payloadJson: unknown }): Promise<unknown> {
+    {
       switch (row.provider) {
         case 'retell':
           return this.retell.handle(row.payloadJson);
@@ -59,9 +84,7 @@ export class WebhookProcessingService {
         default:
           return { outcome: 'ignored' as const, reason: `no handler for provider ${row.provider}` };
       }
-    });
-    this.log.log(`${row.provider} ${row.eventType} ${row.externalId}: ${JSON.stringify(result)}`);
-    return result as { outcome: string; reason?: string };
+    }
   }
 
   /**

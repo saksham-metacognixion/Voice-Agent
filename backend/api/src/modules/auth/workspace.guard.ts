@@ -4,7 +4,7 @@ import type { FastifyRequest } from 'fastify';
 import { adminDb } from '@portal/db';
 import { type MemberRole, WORKSPACE_HEADER } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { IS_PUBLIC, NO_WORKSPACE, REQUIRED_ROLES } from './auth.decorators';
+import { ALLOW_IMPERSONATION_WRITE, IS_PUBLIC, NO_WORKSPACE, REQUIRED_ROLES } from './auth.decorators';
 import { namespaceForPath } from './auth.guard';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -42,6 +42,8 @@ export class WorkspaceGuard implements CanActivate {
       host.getHandler(),
       host.getClass(),
     ]);
+
+    if (request.impersonation) return this.impersonated(host, request, noWorkspace);
     if (noWorkspace) return true;
 
     const auth = request.auth;
@@ -70,6 +72,35 @@ export class WorkspaceGuard implements CanActivate {
     request.ctx = { userId: auth.userId, workspaceId, role: membership.role };
 
     this.assertRole(host, membership.role);
+    return true;
+  }
+
+  /**
+   * Admin §7.4 view-as (D12). Two rules, both server-side so the banner's "read-only" is
+   * a fact and not a UI convention: every mutating method is refused (the one exception
+   * is the route that ends the session), and the workspace is the session's — a header
+   * naming another one of the owner's workspaces is refused, not followed. Recordings
+   * are refused too: access to a recording is logged with a staff id and a ticket
+   * (admin §10), and the view-as path carries neither.
+   */
+  private impersonated(host: ExecutionContext, request: FastifyRequest, noWorkspace: boolean): boolean {
+    const imp = request.impersonation!;
+    const method = request.method.toUpperCase();
+    const allowWrite = this.reflector.getAllAndOverride<boolean>(ALLOW_IMPERSONATION_WRITE, [host.getHandler(), host.getClass()]) === true;
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !allowWrite) {
+      throw new AppError('IMPERSONATION_READ_ONLY', 'You are viewing this workspace read-only. Nothing can be changed from a view-as session.');
+    }
+    if (/\/recording(\/|\?|$)/.test(request.url)) {
+      throw new AppError('IMPERSONATION_READ_ONLY', 'Recordings are not available in a view-as session.');
+    }
+    if (noWorkspace) return true;
+
+    const workspaceId = headerValue(request, WORKSPACE_HEADER);
+    if (workspaceId && workspaceId !== imp.tenantId) {
+      throw new AppError('NOT_A_MEMBER', 'This view-as session is limited to one workspace.');
+    }
+    request.ctx = { userId: request.auth!.userId, workspaceId: imp.tenantId, role: 'owner' };
+    this.assertRole(host, 'owner');
     return true;
   }
 

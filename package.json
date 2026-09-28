@@ -34,6 +34,7 @@
     "auth0:deploy": "node infra/scripts/auth0.mjs deploy",
     "verify:auth0": "pnpm --filter @portal/api verify:auth0",
     "dev:issuer": "node infra/scripts/local-issuer.mjs",
+    "dev:issuer:staff": "LOCAL_ISSUER_MODE=staff node infra/scripts/local-issuer.mjs",
     "dev:stripe": "stripe listen --forward-to localhost:4000/webhooks/stripe"
   },
   "devDependencies": {

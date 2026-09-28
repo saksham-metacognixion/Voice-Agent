@@ -223,6 +223,14 @@ export class BillingService {
     try {
       session = await this.stripe.retrieveCheckoutSession(sessionId);
     } catch (error) {
+      // Stripe answered, and the session does not exist under this key: it can never be
+      // paid here, so asking again every tick for two days would only fill the logs. Close
+      // it like an expired session. Only an outage (no answer, 5xx, 429) is retried.
+      if (isStripeNotFound(error)) {
+        const updated = await adminDb.purchase.updateMany({ where: { id: purchaseId, status: 'pending' }, data: { status: 'abandoned', failureReason: 'session_not_found' } });
+        this.log.warn(`checkout ${sessionId}: Stripe has no such session; purchase ${purchaseId} ${updated.count ? 'abandoned' : 'was no longer pending'}`);
+        return updated.count ? { outcome: 'unpaid', purchaseId } : { outcome: 'ignored', reason: 'purchase not pending' };
+      }
       this.log.warn(`checkout ${sessionId}: retrieve failed: ${error instanceof Error ? error.message : String(error)}`);
       throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not reach the payment provider. Please try again in a moment.');
     }
@@ -440,4 +448,10 @@ function amountMismatch(session: CheckoutSessionFacts, purchase: { amountCents: 
     return `Stripe collected ${session.currency.toUpperCase()} but purchase is in ${currency}`;
   }
   return null;
+}
+
+/** Stripe's own "this object does not exist" (404 `resource_missing`), as opposed to not reaching Stripe at all. */
+export function isStripeNotFound(error: unknown): boolean {
+  const e = error as { statusCode?: number; code?: string; raw?: { code?: string } } | null;
+  return Boolean(e) && (e!.code === 'resource_missing' || e!.raw?.code === 'resource_missing' || e!.statusCode === 404);
 }

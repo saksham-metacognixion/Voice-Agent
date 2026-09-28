@@ -22,6 +22,11 @@ have renamed it to the behaviour it stands for. Curated files carry no timestamp
 them tracked. The D2 and D3 captures the tables below describe were pruned this way on 16 Sep 2026;
 42 unrenamed dumps went, and nothing read them.
 
+`retell-webhook.test.ts` reads every lifecycle capture in `retell/` as evidence of the platform's
+payload shape, so it skips a timestamped capture whose request arrived at `localhost`: a seed
+script, Postman or the test harness posting a synthetic event to the API is not Retell. The 25 Sep
+QA seed left 69 such `qa11seed_*` captures here and the test failed on them until 28 Sep.
+
 ## `retell/` — captured on D2, 15 Sep 2026
 
 Named by behaviour, one file each. Twilio SIDs and signed media URLs are redacted in `body` **and**

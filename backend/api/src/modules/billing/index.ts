@@ -1,5 +1,5 @@
 export { BillingModule } from './billing.module';
-export { BillingService } from './billing.service';
+export { BillingService, isStripeNotFound } from './billing.service';
 export { BillingController } from './billing.controller';
 export type { FulfilmentOutcome, PurchaseCreditedListener } from './billing.service';
 export { StripeGateway } from './stripe.gateway';
@@ -9,3 +9,5 @@ export type { TopupDecision, TopupAttemptOutcome, TopupSkipReason, TopupAbandone
 export { InvoicesService, invoiceStatusOf, STATUS_RANK } from './invoices.service';
 export { StripeConfig } from './stripe.config';
 export { StripeEventHandler } from './stripe-events.handler';
+export { StripePriceSyncService, planPriceSync, lookupKey } from './stripe-price-sync.service';
+export type { PlannedAction, PriceMapRow } from './stripe-price-sync.service';

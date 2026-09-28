@@ -1,5 +1,23 @@
 import { HealthController } from '../health/health.controller';
 import { ActivationController } from '../modules/activation/activation.controller';
+import {
+  AdminAgentsController,
+  AdminAuditController,
+  AdminCallsController,
+  AdminCustomersController,
+  AdminFlagsController,
+  AdminImpersonationsController,
+  AdminJobsController,
+  AdminKpisController,
+  AdminMeController,
+  AdminNumbersController,
+  AdminPricingController,
+  AdminSearchController,
+  AdminSystemController,
+  AdminUsersController,
+  AdminWebhooksController,
+} from '../modules/admin/admin.controllers';
+import { ImpersonationController } from '../modules/admin/impersonation.controller';
 import { AgentsController, TemplatesController } from '../modules/agents/agents.controller';
 import { BillingController } from '../modules/billing/billing.controller';
 import { CallsController, StatsController } from '../modules/calls/calls.controller';
@@ -45,4 +63,21 @@ export const CONTROLLERS = [
   EventsController,
   AlertsController,
   WebhooksController,
+  // D12 — the staff console (admin §9) and the view-as routes on the customer side.
+  ImpersonationController,
+  AdminMeController,
+  AdminKpisController,
+  AdminCustomersController,
+  AdminImpersonationsController,
+  AdminUsersController,
+  AdminAgentsController,
+  AdminNumbersController,
+  AdminCallsController,
+  AdminJobsController,
+  AdminWebhooksController,
+  AdminFlagsController,
+  AdminPricingController,
+  AdminSearchController,
+  AdminSystemController,
+  AdminAuditController,
 ] as const;

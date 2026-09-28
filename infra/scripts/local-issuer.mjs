@@ -13,6 +13,15 @@
  *   API:    AUTH0_CUSTOMER_DOMAIN=http://localhost:9999 (plus the usual .env)
  *   Portal: NEXT_PUBLIC_AUTH0_DOMAIN=http://localhost:9999 pnpm --filter @portal/web build
  *
+ * D12: a second instance stands in for the *staff* tenant (admin §2.1). `LOCAL_ISSUER_MODE=staff`
+ * stamps `https://portal/mfa: true` on every access token — the claim the staff Post-Login
+ * Action sets after a second factor — so the console's sign-in works with no Auth0 at all:
+ *
+ *   pnpm dev:issuer:staff                              # http://localhost:9998, sub google-oauth2|local-staff
+ *   API:    AUTH0_STAFF_DOMAIN=http://localhost:9998
+ *   Admin:  NEXT_PUBLIC_AUTH0_DOMAIN=http://localhost:9998 pnpm --filter @portal/admin build
+ *   `pnpm db:seed` creates the matching staff_users row (super_admin) on a dev box.
+ *
  * The signed-in identity is LOCAL_ISSUER_SUB / _EMAIL / _NAME / _EMAIL_VERIFIED, or a JSON
  * file named by LOCAL_ISSUER_USER_FILE (re-read on every request, so a test can switch
  * user without a restart).
@@ -20,7 +29,8 @@
 import { createServer } from 'node:http';
 import { createHash, createSign, generateKeyPairSync, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-const port = Number(process.env.LOCAL_ISSUER_PORT ?? 9999);
+const staffMode = process.env.LOCAL_ISSUER_MODE === 'staff';
+const port = Number(process.env.LOCAL_ISSUER_PORT ?? (staffMode ? 9998 : 9999));
 const issuer = `http://localhost:${port}/`;
 const userFile = process.env.LOCAL_ISSUER_USER_FILE;
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -29,9 +39,9 @@ const jwk = { ...publicKey.export({ format: 'jwk' }), kid, alg: 'RS256', use: 's
 const b64 = (x) => Buffer.from(typeof x === 'string' ? x : JSON.stringify(x)).toString('base64url');
 const sign = (payload) => { const head = b64({ alg: 'RS256', typ: 'JWT', kid }); const body = b64(payload); const sig = createSign('RSA-SHA256').update(`${head}.${body}`).sign(privateKey).toString('base64url'); return `${head}.${body}.${sig}`; };
 const envUser = () => ({
-  sub: process.env.LOCAL_ISSUER_SUB ?? 'auth0|local-dev-user',
-  email: process.env.LOCAL_ISSUER_EMAIL ?? 'dev@example.test',
-  name: process.env.LOCAL_ISSUER_NAME ?? 'Local Dev',
+  sub: process.env.LOCAL_ISSUER_SUB ?? (staffMode ? 'google-oauth2|local-staff' : 'auth0|local-dev-user'),
+  email: process.env.LOCAL_ISSUER_EMAIL ?? (staffMode ? 'staff@metacognixion.com' : 'dev@example.test'),
+  name: process.env.LOCAL_ISSUER_NAME ?? (staffMode ? 'Local Staff' : 'Local Dev'),
   email_verified: process.env.LOCAL_ISSUER_EMAIL_VERIFIED !== 'false',
 });
 const user = () => (userFile ? JSON.parse(readFileSync(userFile, 'utf8')) : envUser());
@@ -39,12 +49,15 @@ const codes = new Map(); const refreshTokens = new Map();
 const readBody = (req) => new Promise((r) => { let d = ''; req.on('data', (c) => (d += c)); req.on('end', () => r(d)); });
 const parseBody = (raw, type) => (type?.includes('json') ? JSON.parse(raw || '{}') : Object.fromEntries(new URLSearchParams(raw)));
 const now = () => Math.floor(Date.now() / 1000);
+// Access/ID token lifetime; `LOCAL_ISSUER_TTL_S=5` makes expiry testable in seconds (the SPA refreshes on its own).
+const ttl = Number(process.env.LOCAL_ISSUER_TTL_S ?? 3600);
 function tokens({ nonce, audience, clientId, mfa }) {
   const u = user(); const iat = now();
-  const access = sign({ iss: issuer, sub: u.sub, aud: [audience], iat, exp: iat + 3600, scope: 'openid profile email offline_access', azp: clientId, 'https://portal/email_verified': u.email_verified !== false, 'https://portal/email': u.email, 'https://portal/name': u.name });
-  const id = sign({ iss: issuer, sub: u.sub, aud: clientId, iat, exp: iat + 3600, ...(nonce ? { nonce } : {}), email: u.email, email_verified: u.email_verified !== false, name: u.name, picture: u.picture ?? null, amr: mfa ? ['mfa', 'pwd'] : ['pwd'] });
+  // Staff mode: the MFA claim is what AuthGuard requires on /admin/*; a customer-mode token never carries it.
+  const access = sign({ iss: issuer, sub: u.sub, aud: [audience], iat, exp: iat + ttl, scope: 'openid profile email offline_access', azp: clientId, 'https://portal/email_verified': u.email_verified !== false, 'https://portal/email': u.email, 'https://portal/name': u.name, ...(staffMode && u.mfa !== false ? { 'https://portal/mfa': true } : {}) });
+  const id = sign({ iss: issuer, sub: u.sub, aud: clientId, iat, exp: iat + ttl, ...(nonce ? { nonce } : {}), email: u.email, email_verified: u.email_verified !== false, name: u.name, picture: u.picture ?? null, amr: mfa ? ['mfa', 'pwd'] : ['pwd'] });
   const refresh = randomBytes(24).toString('base64url'); refreshTokens.set(refresh, { audience, clientId, mfa });
-  return { access_token: access, id_token: id, refresh_token: refresh, token_type: 'Bearer', expires_in: 3600, scope: 'openid profile email offline_access' };
+  return { access_token: access, id_token: id, refresh_token: refresh, token_type: 'Bearer', expires_in: ttl, scope: 'openid profile email offline_access' };
 }
 createServer(async (req, res) => {
   const url = new URL(req.url, issuer); const q = url.searchParams;
@@ -76,4 +89,4 @@ createServer(async (req, res) => {
   if (url.pathname === '/v2/logout') { res.writeHead(302, { location: q.get('returnTo') ?? '/' }); return res.end(); }
   if (url.pathname === '/dbconnections/change_password' && req.method === 'POST') { res.writeHead(200, { 'content-type': 'text/plain', 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }); return res.end("We've just sent you an email to reset your password."); }
   json(404, { error: 'not_found', path: url.pathname });
-}).listen(port, () => console.log(`fake issuer at ${issuer}`));
+}).listen(port, () => console.log(`fake issuer at ${issuer}${staffMode ? ' (staff mode: https://portal/mfa stamped)' : ''}`));

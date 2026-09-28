@@ -6,6 +6,9 @@ import { NextIntlClientProvider } from 'next-intl';
 import * as React from 'react';
 import { AnalyticsProvider, identify, resetAnalytics, track } from './analytics/posthog';
 import { AuthProvider, useAuth, type AuthUser } from './auth/auth-provider';
+import { ImpersonationBanner } from './components/shell/impersonation-banner';
+import { impersonationStore } from './auth/impersonation';
+import { routes } from './routes';
 import { config } from './config';
 import { DEFAULT_LOCALE, messages } from './i18n';
 import { storage } from './lib/storage';
@@ -25,7 +28,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <AuthProvider onSignedIn={onSignedIn}>
             <ApiBridge>
               <WorkspaceProvider>
-                <AnalyticsProvider>{children}</AnalyticsProvider>
+                <AnalyticsProvider>
+                  {/* Admin §7.4: above every screen — the wizard and the auth pages included — while a staff member views the workspace. */}
+                  <ImpersonationBanner />
+                  {children}
+                </AnalyticsProvider>
               </WorkspaceProvider>
             </ApiBridge>
           </AuthProvider>
@@ -55,6 +62,8 @@ function ApiBridge({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const getTokenRef = React.useRef(auth.getToken);
   getTokenRef.current = auth.getToken;
+  const logoutRef = React.useRef(auth.logout);
+  logoutRef.current = auth.logout;
 
   const [queryClient] = React.useState(createQueryClient);
   const [client] = React.useState(() =>
@@ -62,6 +71,18 @@ function ApiBridge({ children }: { children: React.ReactNode }) {
       baseUrl: config.apiUrl,
       getToken: () => getTokenRef.current(),
       getWorkspaceId: () => workspaceStore.get(),
+      // A view-as session ended from the console answers 401 on the next request; the
+      // tab forgets the key and goes to the sign-in page instead of looping on errors.
+      onUnauthorized: () => {
+        if (impersonationStore.get()) {
+          impersonationStore.clear();
+          window.location.replace(routes.login);
+          return;
+        }
+        // The API refused a token the SPA still holds (support ended the sessions, or the
+        // account was locked): sign out rather than leave the person on a page of errors.
+        void logoutRef.current();
+      },
     }),
   );
 
