@@ -22,8 +22,7 @@ import { publishFrame } from './publish-call-frame.mjs';
 const S = fileURLToPath(new URL('../.e2e', import.meta.url)); mkdirSync(S, { recursive: true });
 const BASE = (process.env.PORTAL_URL ?? 'http://localhost:3005').replace(/\/+$/, '');
 const API = (process.env.API_URL ?? 'http://localhost:4001').replace(/\/+$/, '');
-let b = await launch({ port: 9335 });
-let desktopLogs = [];
+const b = await launch({ port: 9335 });
 const results = [];
 const ok = (name, cond, extra = '') => { results.push(`${cond ? 'PASS' : 'FAIL'} ${name}${extra ? ' — ' + String(extra).slice(0, 300) : ''}`); console.log(results.at(-1)); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -249,16 +248,8 @@ try {
   const reportHref = await b.evaluate(`[...document.querySelectorAll('a')].find(a => a.textContent.trim() === 'Report')?.href ?? ''`);
   ok('D7 report link carries the call id', !reportHref || /mailto:.*subject=Call%20report/.test(reportHref), reportHref.slice(0, 120));
 
-  // 6. Phone width, every screen — in a fresh browser. A full-page capture (captureBeyondViewport)
-  // poisons Chrome's emulation for the rest of the session: the next setDeviceMetricsOverride
-  // reports clientWidth 390 but lays the initial containing block out at the old width, so D1's
-  // grid items overflowed by 49 px in a viewport no device has. Seen 25 Sep 2026, 2/2 runs.
-  desktopLogs = b.logs; b.close(); b = await launch({ port: 9336 });
+  // 6. Phone width, every screen.
   await b.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
-  await b.goto(`${BASE}/login/`, 2500); await clickText('Sign in'); await sleep(1500);
-  await waitFor(`location.pathname === '/app/' || location.pathname === '/select-workspace/'`, 20000);
-  if ((await path()).startsWith('/select-workspace/')) { await b.evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.includes('Bright Smile Health'))?.click()`); await sleep(2500); }
-  await waitFor(`location.pathname === '/app/'`, 15000);
   const screens = [['d1', '/app/'], ['d2', '/app/calls/'], ['d3-list', '/app/agents/'], ['d4-list', '/app/numbers/'], ['d5', '/app/wallet/'], ['d7', '/app/help/']];
   if (live) for (const tab of ['routing', 'handoff', 'callers', ...(live.forwarding ? ['forwarding'] : []), 'danger']) screens.push([`d4-${tab}`, `/app/numbers/?id=${live.id}${tab === 'routing' ? '' : `&tab=${tab}`}`]);
   for (const tab of ['workspace', 'team', 'notifications', 'security', 'privacy', 'audit']) screens.push([`d6-${tab}`, tab === 'workspace' ? '/app/settings/' : `/app/settings/?tab=${tab}`]);
@@ -297,7 +288,7 @@ try {
 } catch (e) {
   ok('script completed without an exception', false, e?.stack ?? String(e));
 }
-const errors = [...desktopLogs, ...b.logs].filter((l) => !/favicon|posthog|Download the React DevTools|net::ERR_ABORTED|status of 402|status of 409|NO_PAYMENT_METHOD/.test(l));
+const errors = b.logs.filter((l) => !/favicon|posthog|Download the React DevTools|net::ERR_ABORTED|status of 402|status of 409|NO_PAYMENT_METHOD/.test(l));
 ok('no unexpected console errors', errors.length === 0, errors.slice(0, 5).join(' | '));
 writeFileSync(`${S}/e2e-dashboard-d11-results.txt`, results.join('\n'));
 console.log(`\n${results.filter((r) => r.startsWith('PASS')).length}/${results.length} passed`);

@@ -124,7 +124,7 @@ export function SecurityTab() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">

@@ -44,12 +44,12 @@ export default function HomePage() {
         actions={<LiveDot state={stream} />}
       />
       <AlertBanner />
-      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         <CreditsCard />
         <TodayCard />
         <AgentsCard />
       </div>
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="xl:col-span-2">
           <ActivityChart />
         </div>

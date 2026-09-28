@@ -29,7 +29,7 @@ export default function HelpPage() {
   return (
     <>
       <PageHeader title={t('title')} description={t('subtitle')} />
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-6 lg:col-span-2">
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <BookOpen className="size-5 text-primary" aria-hidden /> {t('guidesTitle')}

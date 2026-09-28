@@ -32,14 +32,14 @@ export default function WalletPage() {
     <>
       <PageHeader title={t('title')} description={t('subtitle')} />
       {!canAdmin ? <Alert variant="neutral">{t('viewerNote')}</Alert> : null}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <BalanceCard />
         {/* The expiring card is the admin grid's below; here it is the viewer's second card, never a stand-in while the wallet loads. */}
         {canAdmin ? wallet.data ? <AutoTopupCard wallet={wallet.data} /> : wallet.isError ? null : <Skeleton className="h-48 w-full" aria-busy /> : <ExpiringCard />}
       </div>
       <UsageCard />
       {canAdmin ? (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <ExpiringCard />
           {wallet.data ? <PaymentMethodsCard wallet={wallet.data} /> : null}
         </div>

@@ -38,7 +38,7 @@ export default function AgentsPage() {
         }
       />
       {agents.isPending ? (
-        <div className="grid gap-4 md:grid-cols-2" aria-busy>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-busy>
           {Array.from({ length: 2 }, (_, i) => (
             <Skeleton key={i} className="h-36 w-full" />
           ))}
@@ -48,7 +48,7 @@ export default function AgentsPage() {
       ) : agents.data.items.length === 0 ? (
         <EmptyState icon={<BookOpen />} title={t('empty')} description={t('emptyHint')} action={canEdit ? <Button onClick={() => setCreating(true)}><Plus /> {t('new.button')}</Button> : undefined} />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {agents.data.items.map((agent) => (
             <AgentCard key={agent.id} agent={agent} timeZone={ws.workspace?.timezone} />
           ))}
