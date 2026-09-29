@@ -89,6 +89,10 @@ describe('scheduler registration (§13.11, architecture §12)', () => {
   it('registers every schedule exactly once across restarts and removes one the code no longer knows', async () => {
     const registrar = app.get(SchedulerRegistrar);
     const queue = app.get(JobQueues).queue(QUEUES.scheduled);
+    // An `every` schedule enqueues its first tick at once, and this harness runs a worker:
+    // unpaused, a real digest or low-balance sweep would run in the background and email
+    // workspaces the later tests are counting emails for.
+    await queue.pause();
 
     const first = await registrar.register();
     expect(first.registered.sort()).toEqual(SCHEDULES.map((s) => s.name).sort());
@@ -115,6 +119,8 @@ describe('scheduler registration (§13.11, architecture §12)', () => {
       await fresh.close();
       // Leave nothing ticking behind this suite.
       for (const spec of SCHEDULES) await queue.removeJobScheduler(spec.name);
+      await queue.drain(true);
+      await queue.resume();
     }
   });
 
