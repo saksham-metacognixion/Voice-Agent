@@ -149,7 +149,7 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
         aside={<SaveIndicator state={autosave.state} error={autosave.error} onRetry={autosave.retry} />}
       />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} placeholders={placeholders} />
+        <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} placeholders={placeholders} agentId={agentId} />
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
           <GeneratePanel
             agent={agent.data}

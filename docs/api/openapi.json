@@ -515,6 +515,275 @@
         ],
         "type": "object"
       },
+      "adminAutoTopupStatusResponse": {
+        "properties": {
+          "card_last4": {
+            "nullable": true,
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "pack_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "threshold": {
+            "nullable": true,
+            "type": "number"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "enabled",
+          "pack_id",
+          "threshold",
+          "card_last4"
+        ],
+        "type": "object"
+      },
+      "adminBillingPurchase": {
+        "properties": {
+          "amount_cents": {
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credits": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "failure_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invoice_url": {
+            "nullable": true,
+            "type": "string"
+          },
+          "is_auto_topup": {
+            "type": "boolean"
+          },
+          "pack_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "pack_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "refundable_cents": {
+            "type": "integer"
+          },
+          "refunded_cents": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "paid",
+              "abandoned",
+              "refunded"
+            ],
+            "type": "string"
+          },
+          "stripe_payment_intent": {
+            "nullable": true,
+            "type": "string"
+          },
+          "stripe_session_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "pack_id",
+          "amount_cents",
+          "currency",
+          "credits",
+          "status",
+          "is_auto_topup",
+          "failure_reason",
+          "stripe_session_id",
+          "stripe_payment_intent",
+          "invoice_url",
+          "created_at",
+          "updated_at",
+          "tenant_name",
+          "pack_name",
+          "refunded_cents",
+          "refundable_cents"
+        ],
+        "type": "object"
+      },
+      "adminBillingSummaryResponse": {
+        "properties": {
+          "failed_topups": {
+            "type": "integer"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "packs": {
+            "items": {
+              "properties": {
+                "amount_cents": {
+                  "type": "integer"
+                },
+                "credits": {
+                  "type": "integer"
+                },
+                "pack_id": {
+                  "type": "string"
+                },
+                "pack_name": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "purchases": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "pack_id",
+                "pack_name",
+                "purchases",
+                "credits",
+                "amount_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "range": {
+            "enum": [
+              "7d",
+              "30d",
+              "90d"
+            ],
+            "type": "string"
+          },
+          "refunds": {
+            "items": {
+              "properties": {
+                "amount_cents": {
+                  "type": "integer"
+                },
+                "count": {
+                  "type": "integer"
+                },
+                "credits_reversed": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "currency",
+                "count",
+                "amount_cents",
+                "credits_reversed"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "sales": {
+            "items": {
+              "properties": {
+                "amount_cents": {
+                  "type": "integer"
+                },
+                "credits": {
+                  "type": "integer"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "purchases": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "currency",
+                "purchases",
+                "amount_cents",
+                "credits"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "series": {
+            "items": {
+              "properties": {
+                "day": {
+                  "type": "string"
+                },
+                "purchases": {
+                  "type": "integer"
+                },
+                "refunds_cents": {
+                  "type": "integer"
+                },
+                "sales_cents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "day",
+                "sales_cents",
+                "refunds_cents",
+                "purchases"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "range",
+          "from",
+          "to",
+          "sales",
+          "refunds",
+          "failed_topups",
+          "packs",
+          "series"
+        ],
+        "type": "object"
+      },
       "adminCallResponse": {
         "properties": {
           "agent_id": {
@@ -686,6 +955,195 @@
           "tenant_name",
           "agent_name",
           "retell_cost_cents"
+        ],
+        "type": "object"
+      },
+      "adminCannedResponseRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "body"
+        ],
+        "type": "object"
+      },
+      "adminConcurrencyResponse": {
+        "properties": {
+          "alert_threshold_pct": {
+            "type": "integer"
+          },
+          "allowance": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "live": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "signal": {
+            "enum": [
+              "ok",
+              "warn",
+              "down",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "tenants": {
+            "items": {
+              "properties": {
+                "cap": {
+                  "nullable": true,
+                  "type": "integer"
+                },
+                "live": {
+                  "exclusiveMinimum": false,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "pct_of_cap": {
+                  "nullable": true,
+                  "type": "integer"
+                },
+                "plan_tier": {
+                  "enum": [
+                    "trial",
+                    "starter",
+                    "growth",
+                    "scale",
+                    "pro",
+                    "volume"
+                  ],
+                  "nullable": true,
+                  "type": "string"
+                },
+                "tenant_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "tenant_name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tenant_id",
+                "tenant_name",
+                "live",
+                "cap",
+                "plan_tier",
+                "pct_of_cap"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "allowance",
+          "live",
+          "signal",
+          "complete",
+          "alert_threshold_pct",
+          "checked_at",
+          "tenants"
+        ],
+        "type": "object"
+      },
+      "adminCreateTicketRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "type": "string"
+          },
+          "linked_call_ids": {
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "linked_purchase_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "priority": {
+            "default": "normal",
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "type": "string"
+          },
+          "requester_user_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "subject"
         ],
         "type": "object"
       },
@@ -1304,6 +1762,113 @@
         ],
         "type": "object"
       },
+      "adminFailedTopup": {
+        "properties": {
+          "alert_open": {
+            "type": "boolean"
+          },
+          "amount_cents": {
+            "type": "integer"
+          },
+          "auto_topup_enabled": {
+            "type": "boolean"
+          },
+          "card_last4": {
+            "nullable": true,
+            "type": "string"
+          },
+          "cooldown_until": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credits": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "failure_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invoice_url": {
+            "nullable": true,
+            "type": "string"
+          },
+          "is_auto_topup": {
+            "type": "boolean"
+          },
+          "last_notified": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "pack_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "paid",
+              "abandoned",
+              "refunded"
+            ],
+            "type": "string"
+          },
+          "stripe_payment_intent": {
+            "nullable": true,
+            "type": "string"
+          },
+          "stripe_session_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "pack_id",
+          "amount_cents",
+          "currency",
+          "credits",
+          "status",
+          "is_auto_topup",
+          "failure_reason",
+          "stripe_session_id",
+          "stripe_payment_intent",
+          "invoice_url",
+          "created_at",
+          "updated_at",
+          "tenant_name",
+          "auto_topup_enabled",
+          "card_last4",
+          "cooldown_until",
+          "alert_open",
+          "last_notified"
+        ],
+        "type": "object"
+      },
       "adminFeatureFlag": {
         "properties": {
           "default_on": {
@@ -1553,6 +2118,35 @@
         },
         "required": [
           "reason_code"
+        ],
+        "type": "object"
+      },
+      "adminInviteStaffRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "super_admin",
+              "ops",
+              "finance",
+              "support",
+              "read_only"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "role"
         ],
         "type": "object"
       },
@@ -3717,6 +4311,474 @@
         ],
         "type": "object"
       },
+      "adminProvisioningJob": {
+        "properties": {
+          "activation": {
+            "nullable": true,
+            "properties": {
+              "attempt": {
+                "exclusiveMinimum": false,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "error": {
+                "nullable": true,
+                "type": "string"
+              },
+              "max_attempts": {
+                "exclusiveMinimum": false,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "progress": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "enum": [
+                  "pending",
+                  "publishing",
+                  "provisioning",
+                  "binding",
+                  "marking_live",
+                  "live",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              "step": {
+                "enum": [
+                  "publish",
+                  "provision",
+                  "bind",
+                  "mark_live",
+                  "notify"
+                ],
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "step",
+              "progress",
+              "attempt",
+              "max_attempts",
+              "error"
+            ],
+            "type": "object"
+          },
+          "agent": {
+            "nullable": true,
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "number": {
+            "nullable": true,
+            "properties": {
+              "e164": {
+                "nullable": true,
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "provisioning",
+                  "active",
+                  "paused",
+                  "releasing",
+                  "released",
+                  "failed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "e164",
+              "status"
+            ],
+            "type": "object"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "tenant": {
+            "nullable": true,
+            "properties": {
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "type": "object"
+          },
+          "type": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "status",
+          "tenant",
+          "agent",
+          "number",
+          "activation",
+          "created_at",
+          "updated_at",
+          "retryable"
+        ],
+        "type": "object"
+      },
+      "adminPurchaseDetail": {
+        "properties": {
+          "amount_cents": {
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credits": {
+            "type": "integer"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "failure_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "invoice": {
+            "nullable": true,
+            "properties": {
+              "amount_paid_cents": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "hosted_url": {
+                "nullable": true,
+                "type": "string"
+              },
+              "number": {
+                "nullable": true,
+                "type": "string"
+              },
+              "pdf_url": {
+                "nullable": true,
+                "type": "string"
+              },
+              "status": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "number",
+              "status",
+              "amount_paid_cents",
+              "hosted_url",
+              "pdf_url"
+            ],
+            "type": "object"
+          },
+          "invoice_url": {
+            "nullable": true,
+            "type": "string"
+          },
+          "is_auto_topup": {
+            "type": "boolean"
+          },
+          "ledger": {
+            "items": {
+              "properties": {
+                "balance_after": {
+                  "type": "number"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "reason": {
+                  "enum": [
+                    "trial",
+                    "purchase",
+                    "call",
+                    "rental",
+                    "kb",
+                    "adjustment",
+                    "expiry",
+                    "refund",
+                    "topup"
+                  ],
+                  "type": "string"
+                },
+                "ref_id": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "ref_type": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "delta",
+                "balance_after",
+                "reason",
+                "ref_type",
+                "ref_id",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "lots": {
+            "items": {
+              "properties": {
+                "credits_remaining": {
+                  "type": "number"
+                },
+                "credits_total": {
+                  "type": "number"
+                },
+                "expires_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "credits_total",
+                "credits_remaining",
+                "expires_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pack_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "pack_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "refundable_cents": {
+            "type": "integer"
+          },
+          "refunded_cents": {
+            "type": "integer"
+          },
+          "refunds": {
+            "items": {
+              "properties": {
+                "amount_cents": {
+                  "type": "integer"
+                },
+                "created_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "credits_reversed": {
+                  "type": "number"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "purchase_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "reason_code": {
+                  "enum": [
+                    "goodwill",
+                    "service_issue",
+                    "billing_error",
+                    "promo",
+                    "partner_deal",
+                    "fraud_suspected",
+                    "abuse_policy",
+                    "customer_request",
+                    "chargeback",
+                    "expiry_extension",
+                    "testing_internal",
+                    "support_investigation",
+                    "legal_request",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "staff": {
+                  "properties": {
+                    "email": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "name": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "email"
+                  ],
+                  "type": "object"
+                },
+                "status": {
+                  "enum": [
+                    "pending",
+                    "succeeded",
+                    "failed"
+                  ],
+                  "type": "string"
+                },
+                "stripe_refund_id": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "purchase_id",
+                "amount_cents",
+                "credits_reversed",
+                "status",
+                "reason_code",
+                "staff",
+                "stripe_refund_id",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "paid",
+              "abandoned",
+              "refunded"
+            ],
+            "type": "string"
+          },
+          "stripe_payment_intent": {
+            "nullable": true,
+            "type": "string"
+          },
+          "stripe_session_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "pack_id",
+          "amount_cents",
+          "currency",
+          "credits",
+          "status",
+          "is_auto_topup",
+          "failure_reason",
+          "stripe_session_id",
+          "stripe_payment_intent",
+          "invoice_url",
+          "created_at",
+          "updated_at",
+          "tenant_name",
+          "pack_name",
+          "refunded_cents",
+          "refundable_cents",
+          "refunds",
+          "ledger",
+          "lots",
+          "invoice"
+        ],
+        "type": "object"
+      },
       "adminPurchaseResponse": {
         "properties": {
           "amount_cents": {
@@ -3792,6 +4854,52 @@
           "invoice_url",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "adminRefundRequest": {
+        "properties": {
+          "amount_cents": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code"
         ],
         "type": "object"
       },
@@ -3960,6 +5068,917 @@
         "required": [
           "on",
           "reason_code"
+        ],
+        "type": "object"
+      },
+      "adminStaffLimitsRequest": {
+        "properties": {
+          "limits": {
+            "properties": {
+              "finance": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "ops": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "read_only": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "super_admin": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "support": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "super_admin",
+              "ops",
+              "finance",
+              "support",
+              "read_only"
+            ],
+            "type": "object"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "limits"
+        ],
+        "type": "object"
+      },
+      "adminStaffLimitsResponse": {
+        "properties": {
+          "limits": {
+            "properties": {
+              "finance": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "ops": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "read_only": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "super_admin": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              },
+              "support": {
+                "properties": {
+                  "can_act_as_customer": {
+                    "type": "boolean"
+                  },
+                  "can_change_plan": {
+                    "type": "boolean"
+                  },
+                  "can_delete_customer_data": {
+                    "type": "boolean"
+                  },
+                  "can_edit_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_edit_pricing_draft": {
+                    "type": "boolean"
+                  },
+                  "can_export": {
+                    "type": "boolean"
+                  },
+                  "can_listen_recordings": {
+                    "type": "boolean"
+                  },
+                  "can_manage_flags": {
+                    "type": "boolean"
+                  },
+                  "can_manage_staff": {
+                    "type": "boolean"
+                  },
+                  "can_pause_tenant": {
+                    "type": "boolean"
+                  },
+                  "can_publish_agent_stack": {
+                    "type": "boolean"
+                  },
+                  "can_publish_pricing": {
+                    "type": "boolean"
+                  },
+                  "can_view_as_customer": {
+                    "type": "boolean"
+                  },
+                  "credit_adjust_max_per_action": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "credit_adjust_max_per_day": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "number"
+                  },
+                  "refund_max_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000000,
+                    "minimum": 0,
+                    "nullable": true,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "credit_adjust_max_per_action",
+                  "credit_adjust_max_per_day",
+                  "refund_max_cents",
+                  "can_listen_recordings",
+                  "can_change_plan",
+                  "can_pause_tenant",
+                  "can_edit_pricing_draft",
+                  "can_publish_pricing",
+                  "can_edit_agent_stack",
+                  "can_publish_agent_stack",
+                  "can_manage_flags",
+                  "can_view_as_customer",
+                  "can_act_as_customer",
+                  "can_delete_customer_data",
+                  "can_manage_staff",
+                  "can_export"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "super_admin",
+              "ops",
+              "finance",
+              "support",
+              "read_only"
+            ],
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "limits",
+          "updated_at"
         ],
         "type": "object"
       },
@@ -4309,6 +6328,1036 @@
           "paused_at",
           "paused_reason"
         ],
+        "type": "object"
+      },
+      "adminTicketDetail": {
+        "properties": {
+          "adjustments": {
+            "items": {
+              "properties": {
+                "created_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "customer_text": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "note": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "reason_code": {
+                  "enum": [
+                    "goodwill",
+                    "service_issue",
+                    "billing_error",
+                    "promo",
+                    "partner_deal",
+                    "fraud_suspected",
+                    "abuse_policy",
+                    "customer_request",
+                    "chargeback",
+                    "expiry_extension",
+                    "testing_internal",
+                    "support_investigation",
+                    "legal_request",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "staff_email": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "delta",
+                "reason_code",
+                "note",
+                "customer_text",
+                "staff_email",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "assignee": {
+            "nullable": true,
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "email"
+            ],
+            "type": "object"
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "closed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "first_responded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "linked_call_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linked_purchase_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "message_count": {
+            "type": "integer"
+          },
+          "messages": {
+            "items": {
+              "properties": {
+                "author": {
+                  "nullable": true,
+                  "properties": {
+                    "email": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "name": {
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "email"
+                  ],
+                  "type": "object"
+                },
+                "author_type": {
+                  "enum": [
+                    "customer",
+                    "staff",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "is_internal": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "author_type",
+                "author",
+                "body",
+                "is_internal",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "type": "string"
+          },
+          "requester": {
+            "nullable": true,
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email"
+            ],
+            "type": "object"
+          },
+          "resolved_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "sla_first_response_due": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "sla_resolution_due": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "pending",
+              "resolved",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tenant": {
+            "properties": {
+              "balance": {
+                "type": "number"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "paused_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "paused_at",
+              "balance"
+            ],
+            "type": "object"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "tenant_name",
+          "subject",
+          "category",
+          "priority",
+          "status",
+          "assignee",
+          "requester",
+          "message_count",
+          "last_message_at",
+          "first_responded_at",
+          "resolved_at",
+          "closed_at",
+          "sla_first_response_due",
+          "sla_resolution_due",
+          "tags",
+          "linked_call_ids",
+          "linked_purchase_ids",
+          "created_at",
+          "messages",
+          "tenant",
+          "adjustments"
+        ],
+        "type": "object"
+      },
+      "adminTicketMacroRequest": {
+        "properties": {
+          "call_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "credits": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "number"
+          },
+          "customer_text": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotency_key": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "type": "object"
+      },
+      "adminTicketMacroResponse": {
+        "properties": {
+          "adjustment": {
+            "nullable": true,
+            "properties": {
+              "adjustment_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "balance_after": {
+                "type": "number"
+              },
+              "delta": {
+                "type": "number"
+              },
+              "ledger_id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "adjustment_id",
+              "ledger_id",
+              "delta",
+              "balance_after"
+            ],
+            "type": "object"
+          },
+          "job_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "macro": {
+            "enum": [
+              "comp_credits",
+              "refund_call",
+              "rerun_activation"
+            ],
+            "type": "string"
+          },
+          "ticket": {
+            "properties": {
+              "adjustments": {
+                "items": {
+                  "properties": {
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "customer_text": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "delta": {
+                      "type": "number"
+                    },
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "note": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "reason_code": {
+                      "enum": [
+                        "goodwill",
+                        "service_issue",
+                        "billing_error",
+                        "promo",
+                        "partner_deal",
+                        "fraud_suspected",
+                        "abuse_policy",
+                        "customer_request",
+                        "chargeback",
+                        "expiry_extension",
+                        "testing_internal",
+                        "support_investigation",
+                        "legal_request",
+                        "other"
+                      ],
+                      "type": "string"
+                    },
+                    "staff_email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "delta",
+                    "reason_code",
+                    "note",
+                    "customer_text",
+                    "staff_email",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "assignee": {
+                "nullable": true,
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "name": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "email"
+                ],
+                "type": "object"
+              },
+              "category": {
+                "enum": [
+                  "billing",
+                  "calls",
+                  "agent",
+                  "numbers",
+                  "account",
+                  "other"
+                ],
+                "nullable": true,
+                "type": "string"
+              },
+              "closed_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "created_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "first_responded_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "id": {
+                "exclusiveMinimum": true,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "last_message_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "linked_call_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "linked_purchase_ids": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "message_count": {
+                "type": "integer"
+              },
+              "messages": {
+                "items": {
+                  "properties": {
+                    "author": {
+                      "nullable": true,
+                      "properties": {
+                        "email": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "id": {
+                          "format": "uuid",
+                          "type": "string"
+                        },
+                        "name": {
+                          "nullable": true,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "name",
+                        "email"
+                      ],
+                      "type": "object"
+                    },
+                    "author_type": {
+                      "enum": [
+                        "customer",
+                        "staff",
+                        "system"
+                      ],
+                      "type": "string"
+                    },
+                    "body": {
+                      "type": "string"
+                    },
+                    "created_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "is_internal": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "author_type",
+                    "author",
+                    "body",
+                    "is_internal",
+                    "created_at"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "priority": {
+                "enum": [
+                  "low",
+                  "normal",
+                  "high",
+                  "urgent"
+                ],
+                "type": "string"
+              },
+              "requester": {
+                "nullable": true,
+                "properties": {
+                  "email": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "format": "uuid",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "email"
+                ],
+                "type": "object"
+              },
+              "resolved_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "sla_first_response_due": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "sla_resolution_due": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "open",
+                  "pending",
+                  "resolved",
+                  "closed"
+                ],
+                "type": "string"
+              },
+              "subject": {
+                "type": "string"
+              },
+              "tags": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "tenant": {
+                "properties": {
+                  "balance": {
+                    "type": "number"
+                  },
+                  "id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "paused_at": {
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "id",
+                  "name",
+                  "paused_at",
+                  "balance"
+                ],
+                "type": "object"
+              },
+              "tenant_id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "tenant_name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "tenant_id",
+              "tenant_name",
+              "subject",
+              "category",
+              "priority",
+              "status",
+              "assignee",
+              "requester",
+              "message_count",
+              "last_message_at",
+              "first_responded_at",
+              "resolved_at",
+              "closed_at",
+              "sla_first_response_due",
+              "sla_resolution_due",
+              "tags",
+              "linked_call_ids",
+              "linked_purchase_ids",
+              "created_at",
+              "messages",
+              "tenant",
+              "adjustments"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "macro",
+          "ticket",
+          "adjustment",
+          "job_id"
+        ],
+        "type": "object"
+      },
+      "adminTicketMessageRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "is_internal": {
+            "default": false,
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "adminTicketSummary": {
+        "properties": {
+          "assignee": {
+            "nullable": true,
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "name": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "email"
+            ],
+            "type": "object"
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "closed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "first_responded_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "linked_call_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "linked_purchase_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "message_count": {
+            "type": "integer"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "type": "string"
+          },
+          "requester": {
+            "nullable": true,
+            "properties": {
+              "email": {
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "email"
+            ],
+            "type": "object"
+          },
+          "resolved_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "sla_first_response_due": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "sla_resolution_due": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "pending",
+              "resolved",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "tenant_name",
+          "subject",
+          "category",
+          "priority",
+          "status",
+          "assignee",
+          "requester",
+          "message_count",
+          "last_message_at",
+          "first_responded_at",
+          "resolved_at",
+          "closed_at",
+          "sla_first_response_due",
+          "sla_resolution_due",
+          "tags",
+          "linked_call_ids",
+          "linked_purchase_ids",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "adminTopupRetryResponse": {
+        "properties": {
+          "outcome": {
+            "enum": [
+              "charged",
+              "declined",
+              "skipped"
+            ],
+            "type": "string"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "reason": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "purchase_id",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "adminUpdateStaffRequest": {
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "mfa_enforced": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "super_admin",
+              "ops",
+              "finance",
+              "support",
+              "read_only"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "adminUpdateTicketRequest": {
+        "properties": {
+          "assignee_staff_id": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "enum": [
+                  "me"
+                ],
+                "type": "string"
+              }
+            ]
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "low",
+              "normal",
+              "high",
+              "urgent"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "pending",
+              "resolved",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "maxLength": 40,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "adminUpsertFlagRequest": {
@@ -4960,6 +8009,48 @@
                       }
                     },
                     "type": "object"
+                  },
+                  "documents": {
+                    "default": [],
+                    "items": {
+                      "properties": {
+                        "content_type": {
+                          "enum": [
+                            "application/pdf",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "text/plain",
+                            "text/markdown",
+                            "text/csv",
+                            "image/jpeg",
+                            "image/png",
+                            "image/webp"
+                          ],
+                          "type": "string"
+                        },
+                        "name": {
+                          "maxLength": 120,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "text": {
+                          "maxLength": 15000,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "default": false,
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "content_type",
+                        "text"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 3,
+                    "type": "array"
                   },
                   "faqs": {
                     "default": [],
@@ -5658,6 +8749,48 @@
                       }
                     },
                     "type": "object"
+                  },
+                  "documents": {
+                    "default": [],
+                    "items": {
+                      "properties": {
+                        "content_type": {
+                          "enum": [
+                            "application/pdf",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "text/plain",
+                            "text/markdown",
+                            "text/csv",
+                            "image/jpeg",
+                            "image/png",
+                            "image/webp"
+                          ],
+                          "type": "string"
+                        },
+                        "name": {
+                          "maxLength": 120,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "text": {
+                          "maxLength": 15000,
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "truncated": {
+                          "default": false,
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "name",
+                        "content_type",
+                        "text"
+                      ],
+                      "type": "object"
+                    },
+                    "maxItems": 3,
+                    "type": "array"
                   },
                   "faqs": {
                     "default": [],
@@ -6384,6 +9517,48 @@
                 },
                 "type": "object"
               },
+              "documents": {
+                "default": [],
+                "items": {
+                  "properties": {
+                    "content_type": {
+                      "enum": [
+                        "application/pdf",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "text/plain",
+                        "text/markdown",
+                        "text/csv",
+                        "image/jpeg",
+                        "image/png",
+                        "image/webp"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "maxLength": 120,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 15000,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "content_type",
+                    "text"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
               "faqs": {
                 "default": [],
                 "items": {
@@ -6932,6 +10107,48 @@
                   }
                 },
                 "type": "object"
+              },
+              "documents": {
+                "default": [],
+                "items": {
+                  "properties": {
+                    "content_type": {
+                      "enum": [
+                        "application/pdf",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "text/plain",
+                        "text/markdown",
+                        "text/csv",
+                        "image/jpeg",
+                        "image/png",
+                        "image/webp"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "maxLength": 120,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 15000,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "content_type",
+                    "text"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "type": "array"
               },
               "faqs": {
                 "default": [],
@@ -8213,6 +11430,44 @@
         },
         "type": "object"
       },
+      "cannedResponse": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "body",
+          "category",
+          "updated_at"
+        ],
+        "type": "object"
+      },
       "checkoutConfirmRequest": {
         "properties": {
           "session_id": {
@@ -8567,6 +11822,41 @@
           }
         ]
       },
+      "createSupportTicketRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "type": "string"
+          },
+          "linked_call_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "subject",
+          "body"
+        ],
+        "type": "object"
+      },
       "createWorkspaceRequest": {
         "properties": {
           "country": {
@@ -8697,6 +11987,78 @@
         "required": [
           "code",
           "message"
+        ],
+        "type": "object"
+      },
+      "extractDocumentRequest": {
+        "properties": {
+          "content_base64": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/=\\r\\n]+$",
+            "type": "string"
+          },
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "text/plain",
+              "text/markdown",
+              "text/csv",
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "content_type",
+          "content_base64"
+        ],
+        "type": "object"
+      },
+      "extractDocumentResponse": {
+        "properties": {
+          "chars": {
+            "exclusiveMinimum": false,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "content_type": {
+            "enum": [
+              "application/pdf",
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "text/plain",
+              "text/markdown",
+              "text/csv",
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "content_type",
+          "text",
+          "chars",
+          "truncated"
         ],
         "type": "object"
       },
@@ -11707,6 +15069,61 @@
         ],
         "type": "object"
       },
+      "staffMemberResponse": {
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "bound": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "last_login_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "mfa_enforced": {
+            "type": "boolean"
+          },
+          "name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "super_admin",
+              "ops",
+              "finance",
+              "support",
+              "read_only"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "role",
+          "mfa_enforced",
+          "active",
+          "last_login_at",
+          "created_at",
+          "bound"
+        ],
+        "type": "object"
+      },
       "statsResponse": {
         "properties": {
           "avg_duration_s": {
@@ -11810,6 +15227,138 @@
           "avg_duration_s",
           "missed_by_reason",
           "by_day"
+        ],
+        "type": "object"
+      },
+      "supportTicketMessageRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 10000,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "supportTicketResponse": {
+        "properties": {
+          "assignee_name": {
+            "type": "string"
+          },
+          "category": {
+            "enum": [
+              "billing",
+              "calls",
+              "agent",
+              "numbers",
+              "account",
+              "other"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "closed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "linked_call_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "messages": {
+            "items": {
+              "properties": {
+                "author_name": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "author_type": {
+                  "enum": [
+                    "customer",
+                    "staff",
+                    "system"
+                  ],
+                  "type": "string"
+                },
+                "body": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "author_type",
+                "author_name",
+                "body",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "requester_user_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "resolved_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "pending",
+              "resolved",
+              "closed"
+            ],
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "subject",
+          "category",
+          "status",
+          "assignee_name",
+          "requester_user_id",
+          "linked_call_ids",
+          "messages",
+          "last_message_at",
+          "resolved_at",
+          "closed_at",
+          "created_at"
         ],
         "type": "object"
       },
@@ -13320,6 +16869,91 @@
         "x-auth": "staff"
       }
     },
+    "/admin/billing/summary": {
+      "get": {
+        "description": "Spec admin §4 SA9.",
+        "operationId": "adminBillingSummary",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminBillingSummaryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA9 — sales, refunds, failed top-ups and packs sold for a range, with a per-day series",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
     "/admin/calls": {
       "get": {
         "description": "Spec admin §4 SA8.",
@@ -13537,6 +17171,289 @@
           }
         ],
         "summary": "One call with its customer and platform cost",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/canned-responses": {
+      "get": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminListCannedResponses",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/cannedResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — the canned responses, by title",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff"
+      },
+      "post": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminCreateCannedResponse",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminCannedResponseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/cannedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — add a canned response",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
+      }
+    },
+    "/admin/canned-responses/{id}": {
+      "delete": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminDeleteCannedResponse",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/deletedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — remove a canned response",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
+      }
+    },
+    "/admin/concurrency": {
+      "get": {
+        "description": "Spec admin §4 SA7, §14.3.",
+        "operationId": "adminConcurrency",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminConcurrencyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA7 — live calls per workspace against plan caps and the platform allowance",
         "tags": [
           "admin-operations"
         ],
@@ -14082,6 +17999,115 @@
           "admin-customers"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/customers/{id}/auto-topup/disable": {
+      "post": {
+        "description": "Spec admin §4 SA9, §5.4.",
+        "operationId": "adminDisableAutoTopup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminAutoTopupStatusResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Switch the workspace’s auto top-up off (the customer can turn it back on)",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance",
+          "support"
+        ]
       }
     },
     "/admin/customers/{id}/calls": {
@@ -17785,6 +21811,529 @@
         "x-auth": "staff"
       }
     },
+    "/admin/provisioning": {
+      "get": {
+        "description": "Spec admin §4 SA7, §13.8.",
+        "operationId": "adminProvisioning",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "queued",
+                "running",
+                "succeeded",
+                "failed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/adminProvisioningJob"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA7 — the provisioning queue: activation, number and knowledge jobs with their step view",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/purchases": {
+      "get": {
+        "description": "Spec admin §4 SA9.",
+        "operationId": "adminListPurchases",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "paid",
+                "abandoned",
+                "refunded"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "is_auto_topup",
+            "required": false,
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/adminBillingPurchase"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA9 — purchases across workspaces, newest first, with what is still refundable",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/purchases/{id}": {
+      "get": {
+        "description": "Spec admin §4 SA9.",
+        "operationId": "adminGetPurchase",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminPurchaseDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "One purchase with its refunds, ledger rows, lots and invoice",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/purchases/{id}/refund": {
+      "post": {
+        "description": "Spec admin §4 SA9.",
+        "operationId": "adminRefundPurchase",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminRefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminPurchaseDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Refund part or all of a paid purchase through Stripe and draw the credits back (idempotent on idempotency_key)",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance",
+          "support"
+        ]
+      }
+    },
     "/admin/retell-costs": {
       "get": {
         "description": "Spec admin §5.4.",
@@ -18017,6 +22566,431 @@
         "x-auth": "staff"
       }
     },
+    "/admin/staff": {
+      "get": {
+        "description": "Spec admin §4 SA13.",
+        "operationId": "adminListStaff",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/staffMemberResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA13 — every staff member, newest first, with whether the invite has been signed in on",
+        "tags": [
+          "admin-staff"
+        ],
+        "x-auth": "staff"
+      },
+      "post": {
+        "description": "Spec admin §4 SA13, §2.1.",
+        "operationId": "adminInviteStaff",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminInviteStaffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/staffMemberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
+              "STAFF_ONLY"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA13 — invite a colleague (company domain only); bound to their identity on first sign-in",
+        "tags": [
+          "admin-staff"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin"
+        ]
+      }
+    },
+    "/admin/staff/limits": {
+      "get": {
+        "description": "Spec admin §2.2.",
+        "operationId": "adminStaffLimits",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminStaffLimitsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA13 — the admin §2.2 role-limits matrix, one object per role",
+        "tags": [
+          "admin-staff"
+        ],
+        "x-auth": "staff"
+      },
+      "put": {
+        "description": "Spec admin §2.2, §10.",
+        "operationId": "adminUpdateStaffLimits",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminStaffLimitsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminStaffLimitsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
+              "STAFF_ONLY"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA13 — replace the role-limits matrix (super admin keeps manage-staff)",
+        "tags": [
+          "admin-staff"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin"
+        ]
+      }
+    },
+    "/admin/staff/{id}": {
+      "patch": {
+        "description": "Spec admin §4 SA13, §2.2.",
+        "operationId": "adminUpdateStaff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminUpdateStaffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/staffMemberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA13 — change role, name, MFA flag, or deactivate / reactivate (never yourself, never the last super admin)",
+        "tags": [
+          "admin-staff"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin"
+        ]
+      }
+    },
     "/admin/system/health": {
       "get": {
         "description": "Spec admin §3.",
@@ -18071,6 +23045,989 @@
           "admin"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/tickets": {
+      "get": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminListTickets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "pending",
+                "resolved",
+                "closed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "enum": [
+                "low",
+                "normal",
+                "high",
+                "urgent"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assignee_staff_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "enum": [
+                    "me"
+                  ],
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/adminTicketSummary"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_CURSOR}",
+            "x-error-codes": [
+              "INVALID_CURSOR"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — the ticket queue across workspaces, newest first",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff"
+      },
+      "post": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminCreateTicket",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminCreateTicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminTicketDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — open a ticket for a customer (optionally with a first staff message)",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support",
+          "finance"
+        ]
+      }
+    },
+    "/admin/tickets/{id}": {
+      "get": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminGetTicket",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminTicketDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — one ticket: the full thread (internal notes included), the customer summary and the linked credit adjustments",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff"
+      },
+      "patch": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminUpdateTicket",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminUpdateTicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminTicketDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — status, assignee, priority, category, tags (audited with before/after)",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support",
+          "finance"
+        ]
+      }
+    },
+    "/admin/tickets/{id}/macros/{macro}": {
+      "post": {
+        "description": "Spec admin §4 SA4, §7.3.",
+        "operationId": "adminTicketMacro",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "macro",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminTicketMacroRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminTicketMacroResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
+              "STAFF_ONLY",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {ACTIVATION_IN_PROGRESS, CONFLICT}",
+            "x-error-codes": [
+              "ACTIVATION_IN_PROGRESS",
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 macros — comp_credits, refund_call (once per call) or rerun_activation; each appends a system line and is audited",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support",
+          "finance"
+        ]
+      }
+    },
+    "/admin/tickets/{id}/messages": {
+      "post": {
+        "description": "Spec admin §4 SA4.",
+        "operationId": "adminTicketMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminTicketMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminTicketDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA4 — a public reply (first-response SLA, open → pending) or an internal note",
+        "tags": [
+          "admin-support"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support",
+          "finance"
+        ]
+      }
+    },
+    "/admin/topups/failed": {
+      "get": {
+        "description": "Spec admin §4 SA9, §5.4.",
+        "operationId": "adminListFailedTopups",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/adminFailedTopup"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA9 — auto top-ups that were declined or never confirmed",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/topups/{id}/retry": {
+      "post": {
+        "description": "Spec admin §4 SA9, §5.4.",
+        "operationId": "adminRetryTopup",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminTopupRetryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Run the auto top-up evaluation for that workspace now, past the decline cooldown (credits still follow Stripe’s confirmation)",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance",
+          "support"
+        ]
       }
     },
     "/admin/users": {
@@ -19911,6 +25868,159 @@
           "activation"
         ],
         "x-auth": "workspace"
+      }
+    },
+    "/agents/{id}/documents/extract": {
+      "post": {
+        "description": "Spec ADR 0023.",
+        "operationId": "extractAgentDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/extractDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/extractDocumentResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {BAD_REQUEST, DOCUMENT_UNREADABLE, WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "BAD_REQUEST",
+              "DOCUMENT_UNREADABLE",
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {GENERATION_PAUSED}",
+            "x-error-codes": [
+              "GENERATION_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED, UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "NOT_CONFIGURED",
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "W2 — read a PDF, Word, text, CSV file or a photo (transcribed by the generation model) into the plain text the brief keeps as a document; nothing is stored",
+        "tags": [
+          "prompting"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
       }
     },
     "/agents/{id}/draft": {
@@ -25609,6 +31719,386 @@
         "x-auth": "workspace"
       }
     },
+    "/support/tickets": {
+      "get": {
+        "description": "Spec §16, admin §4 SA4.",
+        "operationId": "listSupportTickets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "pending",
+                "resolved",
+                "closed"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/supportTicketResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_CURSOR, WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "INVALID_CURSOR",
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D7 Help — this workspace’s tickets, newest first, public thread only",
+        "tags": [
+          "support"
+        ],
+        "x-auth": "workspace"
+      },
+      "post": {
+        "description": "Spec §16, admin §4 SA4.",
+        "operationId": "createSupportTicket",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/createSupportTicketRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/supportTicketResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D7 Help — open a support ticket with a first message",
+        "tags": [
+          "support"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
+    "/support/tickets/{id}/messages": {
+      "post": {
+        "description": "Spec §16, admin §4 SA4.",
+        "operationId": "replySupportTicket",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/supportTicketMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/supportTicketResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D7 Help — reply on a ticket; a pending or resolved ticket reopens",
+        "tags": [
+          "support"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
     "/templates": {
       "get": {
         "description": "Spec §9.2.",
@@ -27711,6 +34201,9 @@
       "name": "admin"
     },
     {
+      "name": "admin-billing"
+    },
+    {
       "name": "admin-customers"
     },
     {
@@ -27718,6 +34211,12 @@
     },
     {
       "name": "admin-pricing"
+    },
+    {
+      "name": "admin-staff"
+    },
+    {
+      "name": "admin-support"
     },
     {
       "name": "admin-system"
@@ -27757,6 +34256,9 @@
     },
     {
       "name": "prompting"
+    },
+    {
+      "name": "support"
     },
     {
       "name": "voices"

@@ -20,11 +20,12 @@ export const routes = {
     template: '/onboarding/template/',
     brief: '/onboarding/brief/',
     voice: '/onboarding/voice/',
+    /** After payment (ADR 0024): the first page once the agent is live, then `live`. */
     knowledge: '/onboarding/knowledge/',
     test: '/onboarding/test/',
     phone: '/onboarding/phone/',
     activate: '/onboarding/activate/',
-    /** After W7: the agent answers calls. Outside the 1–7 step sequence, gated on the activation itself. */
+    /** After W7 and knowledge: the agent answers calls. Outside the 1–7 step sequence, gated on the activation itself. */
     live: '/onboarding/live/',
   },
   app: {
@@ -40,18 +41,26 @@ export const routes = {
   },
 } as const;
 
-/** `tenants.onboarding_step` (1–7) → wizard page. Step N is "the customer is on W-N". */
+/**
+ * `tenants.onboarding_step` (1–7) → wizard page, before payment. Step N is "the customer
+ * is on W-N". W4 (knowledge) is not in it: what the agent knows is a paid-pack feature,
+ * so it comes after payment, once the agent is live (ADR 0024). The numbers are kept —
+ * the API, the activation job (`mark_live` writes 7) and the SA1 funnel count on them —
+ * so 4 is unused and a workspace left on 4 by an older build resumes on W5.
+ */
 export const ONBOARDING_STEPS = [
   { step: 1, key: 'template', path: routes.onboarding.template },
   { step: 2, key: 'brief', path: routes.onboarding.brief },
   { step: 3, key: 'voice', path: routes.onboarding.voice },
-  { step: 4, key: 'knowledge', path: routes.onboarding.knowledge },
   { step: 5, key: 'test', path: routes.onboarding.test },
   { step: 6, key: 'phone', path: routes.onboarding.phone },
   { step: 7, key: 'activate', path: routes.onboarding.activate },
 ] as const;
 
-export type OnboardingStepKey = (typeof ONBOARDING_STEPS)[number]['key'];
+/** What the stepper draws: the numbered steps, then knowledge, reachable once onboarding is complete. */
+export const WIZARD_STEPPER = [...ONBOARDING_STEPS, { step: null, key: 'knowledge', path: routes.onboarding.knowledge }] as const;
+
+export type OnboardingStepKey = (typeof WIZARD_STEPPER)[number]['key'];
 
 /**
  * The last wizard step with a real page. W1–W3 shipped in D8, W4–W7 in D9, so the
@@ -61,13 +70,10 @@ export type OnboardingStepKey = (typeof ONBOARDING_STEPS)[number]['key'];
  */
 export const LAST_IMPLEMENTED_STEP = 7;
 
+/** The page for `onboarding_step`: that step's, or the next one that exists (4 → W5). */
 export function stepPath(step: number): string {
-  const clamped = Math.min(Math.max(step, 1), ONBOARDING_STEPS.length);
-  return ONBOARDING_STEPS[clamped - 1]!.path;
-}
-
-export function stepIndex(key: OnboardingStepKey): number {
-  return ONBOARDING_STEPS.findIndex((s) => s.key === key);
+  const found = ONBOARDING_STEPS.find((s) => s.step >= step) ?? ONBOARDING_STEPS[ONBOARDING_STEPS.length - 1]!;
+  return found.path;
 }
 
 export function withNext(path: string, next: string | null | undefined): string {

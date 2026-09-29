@@ -32,7 +32,7 @@ const CONFIRM_PATIENCE_MS = 90_000;
  *       fulfilment, so whichever lands first wins and the other is a no-op
  *     → the credited purchase starts the activation job (agent_id rode on the session)
  *       → activation:{id} frames + GET /agents/:id/activation
- *     → live → /onboarding/live
+ *     → live → /onboarding/knowledge (what the agent knows, ADR 0024) → /onboarding/live
  *
  * `session_id` in the URL only says Stripe sent the customer back; it proves nothing to
  * this page. It is handed to the API, which trusts Stripe's answer and nothing else. What
@@ -42,7 +42,7 @@ const CONFIRM_PATIENCE_MS = 90_000;
  */
 export default function ActivatePage() {
   return (
-    <OnboardingStepGuard step={7} completeRedirect={routes.onboarding.live}>
+    <OnboardingStepGuard step={7} completeRedirect={routes.onboarding.knowledge}>
       <OnboardingAgentLoader>{(agent) => <ActivateInner agent={agent} />}</OnboardingAgentLoader>
     </OnboardingStepGuard>
   );
@@ -110,7 +110,7 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
   }, [returned, view, ret.at]);
 
   // Live: the job wrote `onboarding_completed_at` in the same transaction as the agent's
-  // status. Re-read the workspace so every guard agrees, then show the live screen.
+  // status. Re-read the workspace so every guard agrees, then ask what the agent should know.
   const wentLive = view?.status === 'live';
   const refetchWorkspace = ws.refetchWorkspace;
   const handedOff = React.useRef(false);
@@ -120,7 +120,7 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
     checkoutMarker.clear();
     track('checkout_completed', { agent_id: agent.id });
     track('agent_live', { agent_id: agent.id });
-    void refetchWorkspace().finally(() => router.replace(routes.onboarding.live));
+    void refetchWorkspace().finally(() => router.replace(routes.onboarding.knowledge));
   }, [wentLive, agent.id, refetchWorkspace, router]);
 
   async function startActivation() {

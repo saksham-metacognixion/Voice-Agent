@@ -1308,6 +1308,8 @@ model Refund {
   reasonCode      ReasonCode @map("reason_code")
   staffId         String     @map("staff_id") @db.Uuid
   status          String     @default("pending")
+  /// Retries after a `failed` attempt; each one is a fresh Stripe idempotency key (`refund-<id>-r<n>`).
+  attempts        Int        @default(0)
   createdAt       DateTime   @default(now()) @map("created_at")
 
   purchase Purchase  @relation(fields: [purchaseId], references: [id])

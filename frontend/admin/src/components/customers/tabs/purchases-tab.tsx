@@ -3,8 +3,9 @@
 import { useAdminCustomerPurchases, useApi } from '@portal/api-client';
 import type { AdminPurchaseResponse } from '@portal/schemas';
 import { Badge } from '@portal/ui';
+import { RefundButton, useRefundAction } from '@/src/components/billing/purchases-table';
 import { Copyable } from '@/src/components/common/copyable';
-import { DataTable, type DataColumn } from '@/src/components/common/data-table';
+import { CellActions, DataTable, type DataColumn } from '@/src/components/common/data-table';
 import { Pager } from '@/src/components/common/pager';
 import { QueryList } from '@/src/components/common/query-states';
 import { PurchaseStatusBadge } from '@/src/components/common/status-badges';
@@ -17,6 +18,8 @@ export function PurchasesTab({ customerId }: { customerId: string }) {
   const api = useApi();
   const pager = useCursorPager();
   const list = useAdminCustomerPurchases(api, { id: customerId }, { cursor: pager.cursor, limit: LIMIT });
+  // D13 SA9: the same Refund dialog as /billing/, fed by GET /admin/purchases/:id for what is still refundable.
+  const { denied, setTarget, dialog } = useRefundAction();
   const columns: Array<DataColumn<AdminPurchaseResponse>> = [
     { key: 'created', header: 'Created', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.created_at)}</span> },
     { key: 'pack', header: 'Pack', cell: (r) => <span className="flex items-center gap-1">{r.pack_id ?? '–'}{r.is_auto_topup ? <Badge variant="outline">auto top-up</Badge> : null}</span> },
@@ -27,12 +30,23 @@ export function PurchasesTab({ customerId }: { customerId: string }) {
     { key: 'stripe', header: 'Stripe', cell: (r) => (r.stripe_payment_intent ? <Copyable value={r.stripe_payment_intent} /> : r.stripe_session_id ? <Copyable value={r.stripe_session_id} /> : <span className="text-muted-foreground">–</span>) },
     { key: 'invoice', header: 'Invoice', cell: (r) => (r.invoice_url ? <a href={r.invoice_url} target="_blank" rel="noopener noreferrer" className="text-primary underline" onClick={(e) => e.stopPropagation()}>Open</a> : <span className="text-muted-foreground">–</span>) },
     { key: 'updated', header: 'Updated', cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(r.updated_at)}</span> },
+    {
+      key: 'actions',
+      header: '',
+      align: 'right',
+      cell: (r) => (
+        <CellActions>
+          <RefundButton purchase={r} denied={denied} onClick={() => setTarget(r.id)} />
+        </CellActions>
+      ),
+    },
   ];
   return (
     <>
       <QueryList query={list} rows={list.data?.items} empty={{ title: 'No purchases' }}>
         {(rows) => <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} label="Purchases" dense />}
       </QueryList>
+      {dialog}
       <Pager page={pager.page} pageSize={LIMIT} count={list.data?.items.length} total={list.data?.total} hasPrevious={pager.hasPrevious} hasNext={Boolean(list.data?.next_cursor)} onPrevious={pager.previous} onNext={() => pager.next(list.data?.next_cursor)} />
     </>
   );

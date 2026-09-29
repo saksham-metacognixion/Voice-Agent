@@ -1,5 +1,6 @@
 import { Module, type OnModuleInit } from '@nestjs/common';
 import type { Job } from 'bullmq';
+import { AgentsModule } from '../agents';
 import { PlatformConfigModule } from '../config';
 import { JOBS, JobHandlerRegistry, type KnowledgeSyncJob, QUEUES } from '../jobs';
 import { RetellModule } from '../retell';
@@ -14,7 +15,7 @@ import { KnowledgeService } from './knowledge.service';
  * it, `src/worker.ts` does.
  */
 @Module({
-  imports: [RetellModule, PlatformConfigModule],
+  imports: [RetellModule, PlatformConfigModule, AgentsModule],
   controllers: [AgentKnowledgeController, KnowledgeController],
   providers: [KnowledgeService, KnowledgeSyncWorker],
   exports: [KnowledgeService, KnowledgeSyncWorker],

@@ -245,7 +245,8 @@ describe('POST /agents/:id/generate', () => {
     });
     expect(version.source).toBe('regenerate');
 
-    const request = provider.calls.at(-1)!.request.user;
+    const last = provider.calls.at(-1)!;
+    const request = last.kind === 'transcribe' ? '' : last.request.user;
     expect(request).toContain('Ask for the callback number sooner');
   });
 
@@ -647,5 +648,129 @@ describe('generation performance (D5 exit check)', () => {
     durations.sort((a, b) => a - b);
     const p95 = durations[Math.min(durations.length - 1, Math.ceil(durations.length * 0.95) - 1)]!;
     expect(p95, `p95 was ${p95} ms`).toBeLessThan(10_000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ADR 0023 — W2 documents, the photo path: transcribed by the prompt provider.
+// ---------------------------------------------------------------------------
+
+/** A 1×1 PNG. Its pixels do not matter: the scripted provider answers for the model. */
+const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+describe('POST /agents/:id/documents/extract — photos', () => {
+  const photo = (name = 'Dinner menu') => ({ name, content_type: 'image/png', content_base64: PNG_1PX });
+
+  it('transcribes a photo through the provider and returns normalised text', async () => {
+    const agentId = await readyAgent();
+    provider.push({ kind: 'raw', text: 'DINNER\r\n\r\n\r\nCarbonara   $19\nTiramisu $9\n' });
+    const res = await req('POST', `/agents/${agentId}/documents/extract`, photo());
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toEqual({ name: 'Dinner menu', content_type: 'image/png', text: 'DINNER\n\nCarbonara $19\nTiramisu $9', chars: 33, truncated: false });
+    const call = provider.calls.at(-1)!;
+    expect(call.kind).toBe('transcribe');
+    expect(call.kind === 'transcribe' && call.request).toMatchObject({ mediaType: 'image/png', data: PNG_1PX, name: 'Dinner menu' });
+  });
+
+  it('a photo with no text is DOCUMENT_UNREADABLE, not an empty document', async () => {
+    const agentId = await readyAgent();
+    provider.push({ kind: 'raw', text: '   ' });
+    const res = await req('POST', `/agents/${agentId}/documents/extract`, photo());
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('DOCUMENT_UNREADABLE');
+  });
+
+  it('a model refusal is DOCUMENT_UNREADABLE, an outage is 503 UPSTREAM_UNAVAILABLE', async () => {
+    const agentId = await readyAgent();
+    provider.push({ kind: 'fail', error: 'refused' });
+    const refused = await req('POST', `/agents/${agentId}/documents/extract`, photo());
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().code).toBe('DOCUMENT_UNREADABLE');
+
+    provider.push({ kind: 'fail', error: 'unavailable' });
+    const down = await req('POST', `/agents/${agentId}/documents/extract`, photo());
+    expect(down.statusCode).toBe(503);
+    expect(down.json().code).toBe('UPSTREAM_UNAVAILABLE');
+    // The provider's words never reach the customer.
+    expect(down.json().message).not.toMatch(/scripted|anthropic|claude|model/i);
+  });
+
+  it('is refused under pause_generation before any provider call; a file still extracts', async () => {
+    const config = app.get(PlatformConfigService);
+    const agentId = await readyAgent();
+    await config.setKillSwitch('pause_generation', { on: true, reason: 'e2e' });
+    try {
+      const res = await req('POST', `/agents/${agentId}/documents/extract`, photo());
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('GENERATION_PAUSED');
+      expect(provider.calls).toHaveLength(0);
+
+      const text = await req('POST', `/agents/${agentId}/documents/extract`, { name: 'Prices', content_type: 'text/plain', content_base64: Buffer.from('Cleaning $150').toString('base64') });
+      expect(text.statusCode).toBe(201);
+      expect(text.json().text).toBe('Cleaning $150');
+    } finally {
+      await config.setKillSwitch('pause_generation', { on: false });
+    }
+  });
+
+  it('is editor+ and workspace-scoped: a viewer is 403, another workspace’s agent is 404, and neither reaches the provider', async () => {
+    const agentId = await readyAgent();
+    const viewer = await addMember(ws.workspaceId, 'extract-viewer', 'viewer');
+    const asViewer = await req('POST', `/agents/${agentId}/documents/extract`, photo(), await headers(viewer.sub));
+    expect(asViewer.statusCode).toBe(403);
+
+    const foreign = await req('POST', `/agents/${agentId}/documents/extract`, photo(), await headers(other.sub, other.workspaceId));
+    expect(foreign.statusCode).toBe(404);
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it('refuses an image type it does not read (GIF) at validation', async () => {
+    const agentId = await readyAgent();
+    const res = await req('POST', `/agents/${agentId}/documents/extract`, { name: 'x', content_type: 'image/gif', content_base64: PNG_1PX });
+    expect(res.statusCode).toBe(422);
+    expect(provider.calls).toHaveLength(0);
+  });
+});
+
+describe('the worker never generates from a brief it could not read (ADR 0023, 29 Sep)', () => {
+  it('a stored document the running schema rejects costs that document, not the brief', async () => {
+    const agentId = await readyAgent();
+    const agent = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    const draft = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: agent.draftVersion! } } });
+    // What a newer API wrote and an older worker cannot parse.
+    const briefJson = { ...(draft.briefJson as Record<string, unknown>), documents: [{ name: 'Menu', content_type: 'image/heic', text: 'Pasta $18', truncated: false }] };
+    await adminDb.agentVersion.update({ where: { id: draft.id }, data: { briefJson } });
+
+    const { job } = await generate(agentId);
+    expect(job.status).toBe('succeeded');
+    const made = await adminDb.agentVersion.findFirstOrThrow({ where: { agentId }, orderBy: { versionNo: 'desc' } });
+    const brief = made.briefJson as Record<string, unknown>;
+    expect(brief.about_business).toBe(READY_BRIEF.about_business);
+    expect(brief.documents).toEqual([]);
+  });
+
+  it('a brief that parses to nothing usable fails the job with a customer reason and writes no version', async () => {
+    const agentId = await readyAgent();
+    const agent = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    const draft = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: agent.draftVersion! } } });
+    const before = await adminDb.agentVersion.count({ where: { agentId } });
+    // The route accepts it (it checks the brief it reads); the worker then reads garbage.
+    // The queue is paused so the corruption lands before the worker picks the job up.
+    const queue = app.get(JobQueues).queue(QUEUES.prompting);
+    await queue.pause();
+    let jobId: string;
+    try {
+      const res = await req('POST', `/agents/${agentId}/generate`, {});
+      expect(res.statusCode).toBe(202);
+      jobId = res.json().job_id as string;
+      await adminDb.agentVersion.update({ where: { id: draft.id }, data: { briefJson: { about_business: 42, goal: ['x'] } } });
+    } finally {
+      await queue.resume();
+    }
+    const job = await waitForJob(jobId);
+    expect(job.status).toBe('failed');
+    expect((job.stepsJson as Record<string, unknown>).customer_reason).toMatch(/could not read your brief/);
+    expect(await adminDb.agentVersion.count({ where: { agentId } })).toBe(before);
+    expect(provider.calls.filter((c) => c.kind === 'generate')).toHaveLength(0);
   });
 });

@@ -114,8 +114,9 @@ try {
   await b.goto(`${BASE}/onboarding/voice/`, 3000); await waitFor(`document.querySelectorAll('[role="option"]').length`, 15000);
   ok('W3 voice restored after reload', await b.evaluate(`document.querySelector('[role="option"][aria-selected="true"]') !== null`));
   await b.evaluate(`[...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label')?.startsWith('Hear this voice'))?.click()`); await sleep(1500);
-  await clickText('Continue'); const w4 = await waitFor(`location.pathname === '/onboarding/knowledge/'`, 10000);
-  ok('→ W4', Boolean(w4), await path());
+  // Knowledge is after payment (ADR 0024): W3 goes straight to the test call.
+  await clickText('Continue'); const w5first = await waitFor(`location.pathname === '/onboarding/test/'`, 10000);
+  ok('W3 → W5 (knowledge comes after payment)', Boolean(w5first), await path());
 
   // 9. Guards after W3: no skipping ahead; the dashboard and the live page wait for go-live
   await b.goto(`${BASE}/onboarding/phone/`, 2500);
@@ -124,6 +125,8 @@ try {
   ok('dashboard is gated until the agent is live', (await path()).startsWith('/onboarding/'), await path());
   await b.goto(`${BASE}/onboarding/live/`, 3000);
   ok('live page refuses a workspace that is not live', (await path()) !== '/onboarding/live/', await path());
+  await b.goto(`${BASE}/onboarding/knowledge/`, 3000);
+  ok('knowledge page waits for go-live', (await path()) === '/onboarding/test/', await path());
   await b.goto(`${BASE}/onboarding/brief/`, 3000);
   ok('can revisit W2', (await path()) === '/onboarding/brief/', await path());
   ok('W2 revisit shows Regenerate', Boolean(await waitFor(`document.body.innerText.includes('Regenerate')`, 10000)));
@@ -132,14 +135,9 @@ try {
   const scriptShown = await waitFor(`(() => { const ta = document.querySelector('#prompt-body'); return ta && ta.offsetParent !== null && ta.value.length > 50; })()`, 10000);
   ok('W2 "Edit the script" opens the script editor with the generated prompt', Boolean(scriptShown));
 
-  // 10. W4 — a trial workspace: the form is shown, the plan gate is explained, skip works
-  await b.goto(`${BASE}/onboarding/knowledge/`, 3000);
-  ok('W4 renders the add-source form', Boolean(await waitFor(`document.body.innerText.includes('Add a source')`, 10000)));
-  ok('W4 on trial explains the plan gate', Boolean(await waitFor(`document.body.innerText.includes('Included from a bigger pack')`, 10000)));
+  // 10. Back to W5 (knowledge is not a pre-payment step any more)
+  await b.goto(`${BASE}/onboarding/test/`, 3000);
   ok('wizard header shows the balance', /\d+ credits/.test(await bodyText()));
-  await b.shot(`${S}/shot-w4.png`, true);
-  await clickText('Skip for now'); const w5 = await waitFor(`location.pathname === '/onboarding/test/'`, 10000);
-  ok('W4 skip → W5', Boolean(w5), await path());
 
   // 11. W5 — a real browser test call; Chrome's fake microphone answers the permission prompt
   await waitFor(`document.body.innerText.includes('Talk to your agent')`, 10000);

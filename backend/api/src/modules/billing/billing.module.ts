@@ -41,6 +41,10 @@ export class BillingModule implements OnModuleInit {
   onModuleInit(): void {
     this.wallet.onLedgerWrite(async ({ workspaceId, write }) => {
       if (write.delta >= 0) return;
+      // A refund reversal (SA9, D13) is money going *back* to the customer; charging their
+      // card again the same second because the reversal crossed the threshold would undo
+      // the refund. The 15-minute sweep still evaluates them later, on their own terms.
+      if (write.reason === 'refund') return;
       await this.topups.evaluate(workspaceId, 'ledger');
     });
   }

@@ -29,6 +29,9 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0019](0019-dashboard-d4-d7-mobile.md)                 | The dashboard D4–D7, one SSE stream, the bottom tab bar (D11)                               | accepted                      |
 | [0020](0020-restaurant-menu-and-agent-identity.md)     | The restaurant menu as a knowledge role, the agent identity block                           | accepted                      |
 | [0021](0021-admin-console.md)                          | The admin console: staff API, audit, pricing publish with Stripe sync, view-as (D12)        | accepted                      |
+| [0022](0022-admin-p1-close.md)                         | The P1 admin close: tickets, refunds, staff invites, provisioning queue, D13 QA (D13)       | accepted                      |
+| [0023](0023-brief-documents.md)                        | Business documents in the brief: a menu or price list on W2, verbatim in the prompt        | accepted                      |
+| [0024](0024-knowledge-after-payment.md)                | What the agent knows comes after payment: W4 after go-live, auto-republish of a new base   | accepted                      |
 
 Template:
 

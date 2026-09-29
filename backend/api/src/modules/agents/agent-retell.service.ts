@@ -3,7 +3,7 @@ import { adminDb } from '@portal/db';
 import type { AnalysisField, Brief, RetellLanguage } from '@portal/schemas';
 import { transferTargets } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { applyGuardrails } from '../prompting/guardrails';
+import { runtimePrompt } from '../prompting/documents';
 import {
   RetellGateway,
   clampDuration,
@@ -47,7 +47,10 @@ export class AgentRetellService {
   async syncDraft(input: RetellSyncInput): Promise<RetellSyncResult> {
     if (!input.stack) {
       // Belt and braces for a JavaScript caller: the type already forbids it.
-      throw new AppError('NOT_CONFIGURED', 'The agent stack is not configured; nothing was sent to the voice platform.');
+      throw new AppError(
+        'NOT_CONFIGURED',
+        'The agent stack is not configured; nothing was sent to the voice platform.',
+      );
     }
     const llmSpec = this.llmSpec(input);
     const voiceProvider = await this.voiceProvider(input.voiceId ?? input.stack.default_voice_id);
@@ -68,7 +71,9 @@ export class AgentRetellService {
       // `create-agent` makes version 0, unpublished, already carrying this content
       // (ADR 0003 §7). There is nothing left to update.
       const agent = await this.retell.createAgent(this.agentSpec(input, llmId, voiceProvider));
-      this.log.log(`agent ${input.agentId}: created Retell agent ${agent.agent_id} (v${agent.version ?? 0})`);
+      this.log.log(
+        `agent ${input.agentId}: created Retell agent ${agent.agent_id} (v${agent.version ?? 0})`,
+      );
       return { llmId, agentId: agent.agent_id, draftVersion: agent.version ?? 0, created: true };
     }
 
@@ -82,7 +87,9 @@ export class AgentRetellService {
     if (latest.is_published) {
       const branched = await this.retell.createAgentVersion(agentId, draftVersion);
       draftVersion = branched.version ?? draftVersion + 1;
-      this.log.log(`agent ${input.agentId}: branched Retell draft v${draftVersion} from the published v${latest.version}`);
+      this.log.log(
+        `agent ${input.agentId}: branched Retell draft v${draftVersion} from the published v${latest.version}`,
+      );
     }
 
     // **Order matters, and it is the order ADR 0003 §7 wrote down**:
@@ -122,7 +129,10 @@ export class AgentRetellService {
   }
 
   /** Destroys the Retell objects behind a deleted agent. Never throws — see the caller. */
-  async destroy(input: { retellAgentId: string | null; retellLlmId: string | null }): Promise<string[]> {
+  async destroy(input: {
+    retellAgentId: string | null;
+    retellLlmId: string | null;
+  }): Promise<string[]> {
     const failures: string[] = [];
     if (input.retellAgentId) {
       await this.retell.deleteAgent(input.retellAgentId).catch((error: unknown) => {
@@ -148,10 +158,12 @@ export class AgentRetellService {
 
   private llmSpec(input: RetellSyncInput): LlmSpec {
     return {
-      // Belt and braces: the stored prompt already carries the §9.4 block, and applying it
-      // again is a no-op. A row written by an older build, or by anything that ever
-      // bypassed the append, still reaches Retell with the platform rules attached.
-      prompt: applyGuardrails(input.promptText, input.guardrails),
+      // Script, then the W2 documents verbatim, then the §9.4 block — the documents live
+      // in the brief and are appended here, never stored in the prompt (ADR 0023). Belt
+      // and braces on the guardrails: the stored prompt already carries them, and applying
+      // them again is a no-op, so a row written by an older build still reaches Retell
+      // with the platform rules attached.
+      prompt: runtimePrompt(input.promptText, input.brief, input.guardrails),
       beginMessage: input.greeting,
       // `agent_stack_configs` is data, so its model id is a string here and a union in the
       // SDK. Retell rejects an id it does not know, which is the check that matters — a
@@ -169,7 +181,10 @@ export class AgentRetellService {
    */
   private async voiceProvider(voiceId: string): Promise<string | null> {
     try {
-      const row = await adminDb.voice.findUnique({ where: { retellVoiceId: voiceId }, select: { provider: true } });
+      const row = await adminDb.voice.findUnique({
+        where: { retellVoiceId: voiceId },
+        select: { provider: true },
+      });
       if (row?.provider) return row.provider;
     } catch {
       /* fall through to the prefix */
@@ -177,7 +192,11 @@ export class AgentRetellService {
     return providerOfVoiceId(voiceId);
   }
 
-  private agentSpec(input: RetellSyncInput, llmId: string, voiceProvider: string | null): AgentSpec {
+  private agentSpec(
+    input: RetellSyncInput,
+    llmId: string,
+    voiceProvider: string | null,
+  ): AgentSpec {
     // W3: no voice picked means the tier's default voice — a row in SA6, never a constant.
     const voiceId = input.voiceId ?? input.stack.default_voice_id;
     return {
@@ -210,7 +229,8 @@ export class AgentRetellService {
           : input.primaryLanguage,
       maxCallDurationMs: this.maxDurationMs(input),
       postCallAnalysis: toRetellAnalysisFields(input.analysisFields),
-      postCallAnalysisModel: input.stack.post_call_analysis_model as PostCallAnalysisModel | undefined,
+      postCallAnalysisModel: input.stack.post_call_analysis_model as
+        PostCallAnalysisModel | undefined,
       denoisingMode: input.stack.denoising_mode,
       sttMode: input.stack.stt_mode,
       timezone: input.timezone,
@@ -224,7 +244,9 @@ export class AgentRetellService {
    * `max_call_duration_ms` from `agent_stack_configs` — configuration, not a constant.
    */
   private maxDurationMs(input: RetellSyncInput): number {
-    return clampDuration(Math.min(input.maxCallDurationS * 1_000, input.stack.max_call_duration_ms));
+    return clampDuration(
+      Math.min(input.maxCallDurationS * 1_000, input.stack.max_call_duration_ms),
+    );
   }
 
   /**
@@ -301,7 +323,12 @@ export interface RetellSyncResult {
 export function toRetellAnalysisFields(fields: AnalysisField[]): PostCallAnalysisField[] {
   return fields.map((field) => {
     if (field.type === 'enum') {
-      return { type: 'enum', name: field.name, description: field.description, choices: field.enum };
+      return {
+        type: 'enum',
+        name: field.name,
+        description: field.description,
+        choices: field.enum,
+      };
     }
     return {
       type: field.type === 'text' ? 'string' : field.type,

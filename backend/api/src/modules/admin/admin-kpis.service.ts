@@ -5,12 +5,14 @@ import { REDIS, RedisCache, type RedisLike, redisKeys, workspaceOfActiveKey } fr
 import { parseActiveHash, platformConcurrencyLimit } from '../calls';
 import { AT_RISK_AFTER_MS, DAY_MS, num, rangeWindow } from './admin.helpers';
 
-/** The wizard steps as SA1 draws the funnel (W1 → W7 → paid → live). */
+/**
+ * The wizard steps as SA1 draws the funnel (W1 → W7 → paid → live). W4 (knowledge) is
+ * after payment since ADR 0024, so step 4 is unused and not drawn.
+ */
 const FUNNEL_STEPS = [
   { key: 'signed_up', label: 'Signed up', step: 1 },
   { key: 'brief', label: 'Brief (W2)', step: 2 },
   { key: 'voice', label: 'Voice (W3)', step: 3 },
-  { key: 'knowledge', label: 'Knowledge (W4)', step: 4 },
   { key: 'test', label: 'Test call (W5)', step: 5 },
   { key: 'phone', label: 'Phone (W6)', step: 6 },
   { key: 'activate', label: 'Activate (W7)', step: 7 },

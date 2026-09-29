@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminCallResponse, adminCallsQuery, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerWallet, adminCustomersQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminMemberResponse, adminNumberResponse, adminNumbersQuery, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminPurchaseResponse, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminSystemHealthResponse, adminTenantStatusResponse, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, endedResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, selectVersionRequest, staffActionRequest, staffMeResponse, statsQuery, statsResponse, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallResponse, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminMemberResponse, adminNumberResponse, adminNumbersQuery, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, selectVersionRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -82,6 +82,15 @@ export function useAdminAudit(api: ApiClient, query?: z.input<typeof adminAuditQ
   return useQuery({ queryKey: ['adminAudit', query ?? null], queryFn: () => adminAudit(api, query), ...options });
 }
 
+/** GET /admin/billing/summary — SA9 — sales, refunds, failed top-ups and packs sold for a range, with a per-day series — admin §4 SA9. */
+export function adminBillingSummary(api: ApiClient, query?: z.input<typeof adminKpisQuery>) {
+  return api.get(`/admin/billing/summary${qs(query)}`, adminBillingSummaryResponse);
+}
+
+export function useAdminBillingSummary(api: ApiClient, query?: z.input<typeof adminKpisQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminBillingSummary', query ?? null], queryFn: () => adminBillingSummary(api, query), ...options });
+}
+
 /** GET /admin/calls — SA8 — calls across workspaces — admin §4 SA8. */
 export function adminListCalls(api: ApiClient, query?: z.input<typeof adminCallsQuery>) {
   return api.get(`/admin/calls${qs(query)}`, paginated(adminCallResponse));
@@ -98,6 +107,42 @@ export function adminGetCall(api: ApiClient, params: { id: string }) {
 
 export function useAdminGetCall(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['adminGetCall', params], queryFn: () => adminGetCall(api, params), ...options });
+}
+
+/** GET /admin/canned-responses — SA4 — the canned responses, by title — admin §4 SA4. */
+export function adminListCannedResponses(api: ApiClient) {
+  return api.get(`/admin/canned-responses`, cannedResponse.array());
+}
+
+export function useAdminListCannedResponses(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListCannedResponses'], queryFn: () => adminListCannedResponses(api), ...options });
+}
+
+/** POST /admin/canned-responses — SA4 — add a canned response (staff: super_admin, ops, support) — admin §4 SA4. */
+export function adminCreateCannedResponse(api: ApiClient, body: z.input<typeof adminCannedResponseRequest>) {
+  return api.post(`/admin/canned-responses`, body, cannedResponse);
+}
+
+export function useAdminCreateCannedResponse(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof adminCannedResponseRequest> }) => adminCreateCannedResponse(api, vars.body) });
+}
+
+/** DELETE /admin/canned-responses/:id — SA4 — remove a canned response (staff: super_admin, ops, support) — admin §4 SA4. */
+export function adminDeleteCannedResponse(api: ApiClient, params: { id: string }) {
+  return api.del(`/admin/canned-responses/${enc(params.id)}`, deletedResponse);
+}
+
+export function useAdminDeleteCannedResponse(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string } }) => adminDeleteCannedResponse(api, vars.params) });
+}
+
+/** GET /admin/concurrency — SA7 — live calls per workspace against plan caps and the platform allowance — admin §4 SA7, §14.3. */
+export function adminConcurrency(api: ApiClient) {
+  return api.get(`/admin/concurrency`, adminConcurrencyResponse);
+}
+
+export function useAdminConcurrency(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminConcurrency'], queryFn: () => adminConcurrency(api), ...options });
 }
 
 /** GET /admin/customers — SA2 — customers with status, balance, usage and owner — admin §4 SA2. */
@@ -134,6 +179,15 @@ export function adminCustomerAudit(api: ApiClient, params: { id: string }, query
 
 export function useAdminCustomerAudit(api: ApiClient, params: { id: string }, query?: z.input<typeof adminCustomerAuditQuery>, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['adminCustomerAudit', params, query ?? null], queryFn: () => adminCustomerAudit(api, params, query), ...options });
+}
+
+/** POST /admin/customers/:id/auto-topup/disable — Switch the workspace’s auto top-up off (the customer can turn it back on) (staff: super_admin, ops, finance, support) — admin §4 SA9, §5.4. */
+export function adminDisableAutoTopup(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/customers/${enc(params.id)}/auto-topup/disable`, body, adminAutoTopupStatusResponse);
+}
+
+export function useAdminDisableAutoTopup(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminDisableAutoTopup(api, vars.params, vars.body) });
 }
 
 /** GET /admin/customers/:id/calls — SA2 Calls tab. */
@@ -469,6 +523,42 @@ export function useAdminGetPricingVersion(api: ApiClient, params: { version: str
   return useQuery({ queryKey: ['adminGetPricingVersion', params], queryFn: () => adminGetPricingVersion(api, params), ...options });
 }
 
+/** GET /admin/provisioning — SA7 — the provisioning queue: activation, number and knowledge jobs with their step view — admin §4 SA7, §13.8. */
+export function adminProvisioning(api: ApiClient, query?: z.input<typeof adminProvisioningQuery>) {
+  return api.get(`/admin/provisioning${qs(query)}`, paginated(adminProvisioningJob));
+}
+
+export function useAdminProvisioning(api: ApiClient, query?: z.input<typeof adminProvisioningQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminProvisioning', query ?? null], queryFn: () => adminProvisioning(api, query), ...options });
+}
+
+/** GET /admin/purchases — SA9 — purchases across workspaces, newest first, with what is still refundable — admin §4 SA9. */
+export function adminListPurchases(api: ApiClient, query?: z.input<typeof adminPurchasesQuery>) {
+  return api.get(`/admin/purchases${qs(query)}`, paginated(adminBillingPurchase));
+}
+
+export function useAdminListPurchases(api: ApiClient, query?: z.input<typeof adminPurchasesQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListPurchases', query ?? null], queryFn: () => adminListPurchases(api, query), ...options });
+}
+
+/** GET /admin/purchases/:id — One purchase with its refunds, ledger rows, lots and invoice — admin §4 SA9. */
+export function adminGetPurchase(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/purchases/${enc(params.id)}`, adminPurchaseDetail);
+}
+
+export function useAdminGetPurchase(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetPurchase', params], queryFn: () => adminGetPurchase(api, params), ...options });
+}
+
+/** POST /admin/purchases/:id/refund — Refund part or all of a paid purchase through Stripe and draw the credits back (idempotent on idempotency_key) (staff: super_admin, ops, finance, support) — admin §4 SA9. */
+export function adminRefundPurchase(api: ApiClient, params: { id: string }, body: z.input<typeof adminRefundRequest>) {
+  return api.post(`/admin/purchases/${enc(params.id)}/refund`, body, adminPurchaseDetail);
+}
+
+export function useAdminRefundPurchase(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminRefundRequest> }) => adminRefundPurchase(api, vars.params, vars.body) });
+}
+
 /** GET /admin/retell-costs — The platform cost inputs behind the margin check — admin §5.4. */
 export function adminRetellCosts(api: ApiClient) {
   return api.get(`/admin/retell-costs`, adminRetellCostsResponse);
@@ -496,6 +586,51 @@ export function useAdminSearch(api: ApiClient, query?: z.input<typeof adminSearc
   return useQuery({ queryKey: ['adminSearch', query ?? null], queryFn: () => adminSearch(api, query), ...options });
 }
 
+/** GET /admin/staff — SA13 — every staff member, newest first, with whether the invite has been signed in on — admin §4 SA13. */
+export function adminListStaff(api: ApiClient) {
+  return api.get(`/admin/staff`, staffMemberResponse.array());
+}
+
+export function useAdminListStaff(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListStaff'], queryFn: () => adminListStaff(api), ...options });
+}
+
+/** POST /admin/staff — SA13 — invite a colleague (company domain only); bound to their identity on first sign-in (staff: super_admin) — admin §4 SA13, §2.1. */
+export function adminInviteStaff(api: ApiClient, body: z.input<typeof adminInviteStaffRequest>) {
+  return api.post(`/admin/staff`, body, staffMemberResponse);
+}
+
+export function useAdminInviteStaff(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof adminInviteStaffRequest> }) => adminInviteStaff(api, vars.body) });
+}
+
+/** PATCH /admin/staff/:id — SA13 — change role, name, MFA flag, or deactivate / reactivate (never yourself, never the last super admin) (staff: super_admin) — admin §4 SA13, §2.2. */
+export function adminUpdateStaff(api: ApiClient, params: { id: string }, body: z.input<typeof adminUpdateStaffRequest>) {
+  return api.patch(`/admin/staff/${enc(params.id)}`, body, staffMemberResponse);
+}
+
+export function useAdminUpdateStaff(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminUpdateStaffRequest> }) => adminUpdateStaff(api, vars.params, vars.body) });
+}
+
+/** GET /admin/staff/limits — SA13 — the admin §2.2 role-limits matrix, one object per role — admin §2.2. */
+export function adminStaffLimits(api: ApiClient) {
+  return api.get(`/admin/staff/limits`, adminStaffLimitsResponse);
+}
+
+export function useAdminStaffLimits(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminStaffLimits'], queryFn: () => adminStaffLimits(api), ...options });
+}
+
+/** PUT /admin/staff/limits — SA13 — replace the role-limits matrix (super admin keeps manage-staff) (staff: super_admin) — admin §2.2, §10. */
+export function adminUpdateStaffLimits(api: ApiClient, body: z.input<typeof adminStaffLimitsRequest>) {
+  return api.put(`/admin/staff/limits`, body, adminStaffLimitsResponse);
+}
+
+export function useAdminUpdateStaffLimits(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof adminStaffLimitsRequest> }) => adminUpdateStaffLimits(api, vars.body) });
+}
+
 /** GET /admin/system/health — Health strip: Postgres, Redis, worker, Retell, Stripe, webhooks, jobs, concurrency, kill switches — admin §3. */
 export function adminSystemHealth(api: ApiClient) {
   return api.get(`/admin/system/health`, adminSystemHealthResponse);
@@ -503,6 +638,78 @@ export function adminSystemHealth(api: ApiClient) {
 
 export function useAdminSystemHealth(api: ApiClient, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['adminSystemHealth'], queryFn: () => adminSystemHealth(api), ...options });
+}
+
+/** GET /admin/tickets — SA4 — the ticket queue across workspaces, newest first — admin §4 SA4. */
+export function adminListTickets(api: ApiClient, query?: z.input<typeof adminTicketsQuery>) {
+  return api.get(`/admin/tickets${qs(query)}`, paginated(adminTicketSummary));
+}
+
+export function useAdminListTickets(api: ApiClient, query?: z.input<typeof adminTicketsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListTickets', query ?? null], queryFn: () => adminListTickets(api, query), ...options });
+}
+
+/** POST /admin/tickets — SA4 — open a ticket for a customer (optionally with a first staff message) (staff: super_admin, ops, support, finance) — admin §4 SA4. */
+export function adminCreateTicket(api: ApiClient, body: z.input<typeof adminCreateTicketRequest>) {
+  return api.post(`/admin/tickets`, body, adminTicketDetail);
+}
+
+export function useAdminCreateTicket(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof adminCreateTicketRequest> }) => adminCreateTicket(api, vars.body) });
+}
+
+/** GET /admin/tickets/:id — SA4 — one ticket: the full thread (internal notes included), the customer summary and the linked credit adjustments — admin §4 SA4. */
+export function adminGetTicket(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/tickets/${enc(params.id)}`, adminTicketDetail);
+}
+
+export function useAdminGetTicket(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetTicket', params], queryFn: () => adminGetTicket(api, params), ...options });
+}
+
+/** PATCH /admin/tickets/:id — SA4 — status, assignee, priority, category, tags (audited with before/after) (staff: super_admin, ops, support, finance) — admin §4 SA4. */
+export function adminUpdateTicket(api: ApiClient, params: { id: string }, body: z.input<typeof adminUpdateTicketRequest>) {
+  return api.patch(`/admin/tickets/${enc(params.id)}`, body, adminTicketDetail);
+}
+
+export function useAdminUpdateTicket(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminUpdateTicketRequest> }) => adminUpdateTicket(api, vars.params, vars.body) });
+}
+
+/** POST /admin/tickets/:id/macros/:macro — SA4 macros — comp_credits, refund_call (once per call) or rerun_activation; each appends a system line and is audited (staff: super_admin, ops, support, finance) — admin §4 SA4, §7.3. */
+export function adminTicketMacro(api: ApiClient, params: { id: string; macro: string }, body: z.input<typeof adminTicketMacroRequest>) {
+  return api.post(`/admin/tickets/${enc(params.id)}/macros/${enc(params.macro)}`, body, adminTicketMacroResponse);
+}
+
+export function useAdminTicketMacro(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string; macro: string }; body: z.input<typeof adminTicketMacroRequest> }) => adminTicketMacro(api, vars.params, vars.body) });
+}
+
+/** POST /admin/tickets/:id/messages — SA4 — a public reply (first-response SLA, open → pending) or an internal note (staff: super_admin, ops, support, finance) — admin §4 SA4. */
+export function adminTicketMessage(api: ApiClient, params: { id: string }, body: z.input<typeof adminTicketMessageRequest>) {
+  return api.post(`/admin/tickets/${enc(params.id)}/messages`, body, adminTicketDetail);
+}
+
+export function useAdminTicketMessage(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminTicketMessageRequest> }) => adminTicketMessage(api, vars.params, vars.body) });
+}
+
+/** POST /admin/topups/:id/retry — Run the auto top-up evaluation for that workspace now, past the decline cooldown (credits still follow Stripe’s confirmation) (staff: super_admin, ops, finance, support) — admin §4 SA9, §5.4. */
+export function adminRetryTopup(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/topups/${enc(params.id)}/retry`, body, adminTopupRetryResponse);
+}
+
+export function useAdminRetryTopup(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminRetryTopup(api, vars.params, vars.body) });
+}
+
+/** GET /admin/topups/failed — SA9 — auto top-ups that were declined or never confirmed — admin §4 SA9, §5.4. */
+export function adminListFailedTopups(api: ApiClient, query?: z.input<typeof adminFailedTopupsQuery>) {
+  return api.get(`/admin/topups/failed${qs(query)}`, paginated(adminFailedTopup));
+}
+
+export function useAdminListFailedTopups(api: ApiClient, query?: z.input<typeof adminFailedTopupsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListFailedTopups', query ?? null], queryFn: () => adminListFailedTopups(api, query), ...options });
 }
 
 /** GET /admin/users — SA3 — people across workspaces — admin §4 SA3. */
@@ -647,6 +854,15 @@ export function getAgentActivation(api: ApiClient, params: { id: string }) {
 
 export function useGetAgentActivation(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getAgentActivation', params], queryFn: () => getAgentActivation(api, params), ...options });
+}
+
+/** POST /agents/:id/documents/extract — W2 — read a PDF, Word, text, CSV file or a photo (transcribed by the generation model) into the plain text the brief keeps as a document; nothing is stored (roles: owner, admin, editor) — ADR 0023. */
+export function extractAgentDocument(api: ApiClient, params: { id: string }, body: z.input<typeof extractDocumentRequest>) {
+  return api.post(`/agents/${enc(params.id)}/documents/extract`, body, extractDocumentResponse);
+}
+
+export function useExtractAgentDocument(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof extractDocumentRequest> }) => extractAgentDocument(api, vars.params, vars.body) });
 }
 
 /** PATCH /agents/:id/draft — W2/W3 autosave — brief, settings and name onto the newest unpublished version (roles: owner, admin, editor) — §9.9. */
@@ -1106,6 +1322,33 @@ export function getStats(api: ApiClient, query?: z.input<typeof statsQuery>) {
 
 export function useGetStats(api: ApiClient, query?: z.input<typeof statsQuery>, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getStats', query ?? null], queryFn: () => getStats(api, query), ...options });
+}
+
+/** GET /support/tickets — D7 Help — this workspace’s tickets, newest first, public thread only — §16, admin §4 SA4. */
+export function listSupportTickets(api: ApiClient, query?: z.input<typeof supportTicketsQuery>) {
+  return api.get(`/support/tickets${qs(query)}`, paginated(supportTicketResponse));
+}
+
+export function useListSupportTickets(api: ApiClient, query?: z.input<typeof supportTicketsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['listSupportTickets', query ?? null], queryFn: () => listSupportTickets(api, query), ...options });
+}
+
+/** POST /support/tickets — D7 Help — open a support ticket with a first message (roles: owner, admin, editor) — §16, admin §4 SA4. */
+export function createSupportTicket(api: ApiClient, body: z.input<typeof createSupportTicketRequest>) {
+  return api.post(`/support/tickets`, body, supportTicketResponse);
+}
+
+export function useCreateSupportTicket(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof createSupportTicketRequest> }) => createSupportTicket(api, vars.body) });
+}
+
+/** POST /support/tickets/:id/messages — D7 Help — reply on a ticket; a pending or resolved ticket reopens (roles: owner, admin, editor) — §16, admin §4 SA4. */
+export function replySupportTicket(api: ApiClient, params: { id: string }, body: z.input<typeof supportTicketMessageRequest>) {
+  return api.post(`/support/tickets/${enc(params.id)}/messages`, body, supportTicketResponse);
+}
+
+export function useReplySupportTicket(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof supportTicketMessageRequest> }) => replySupportTicket(api, vars.params, vars.body) });
 }
 
 /** GET /templates — W1 — the template catalogue — §9.2. */

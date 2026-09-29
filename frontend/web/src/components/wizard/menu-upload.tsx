@@ -11,11 +11,14 @@ import { track } from '@/src/analytics/posthog';
 import { ConfirmDialog } from '@/src/components/dashboard/confirm-dialog';
 import { StatusBadge, formatBytes, toBase64 } from '@/src/components/wizard/knowledge-sources';
 import { errorMessage } from '@/src/lib/errors';
+import { PHOTO_TYPES, isPhoto, photoToText } from '@/src/wizard/photo-text';
 
 const POLL_MS = 3_000;
 
 /** The stages of one upload, for the progress bar and the copy under it. */
-type UploadStage = 'idle' | 'reading' | 'replacing' | 'uploading';
+type UploadStage = 'idle' | 'reading' | 'transcribing' | 'replacing' | 'uploading';
+
+const MENU_ACCEPT = [...KNOWLEDGE_FILE_TYPES, ...PHOTO_TYPES].join(',');
 
 /**
  * Menu upload for a restaurant agent (W4 and the D3 Knowledge tab). One knowledge source
@@ -24,6 +27,10 @@ type UploadStage = 'idle' | 'reading' | 'replacing' | 'uploading';
  * upload path. Replace = remove the current menu (the platform copy goes first) and
  * upload the new file; the generated prompt names the menu so the agent answers dish,
  * price and availability questions from it and says when something is not on it.
+ *
+ * A photo of the menu is read into text first (`photoToText`, the generation model's
+ * vision) and stored as a `text` source: the platform ingests documents, not images.
+ * The photo reaches no one but the model that transcribes it.
  */
 export function MenuUpload({ agentId, locked, published }: { agentId: string; locked: boolean; published: boolean }) {
   const t = useTranslations();
@@ -49,7 +56,7 @@ export function MenuUpload({ agentId, locked, published }: { agentId: string; lo
   const busy = stage !== 'idle';
 
   function validate(file: File): string | null {
-    if (!(KNOWLEDGE_FILE_TYPES as readonly string[]).includes(file.type)) return tm('errors.fileType');
+    if (!(KNOWLEDGE_FILE_TYPES as readonly string[]).includes(file.type) && !isPhoto(file.type)) return tm('errors.fileType');
     if (file.size === 0) return tm('errors.empty');
     if (file.size > KNOWLEDGE_MAX_FILE_BYTES) return tm('errors.fileSize', { mb: KNOWLEDGE_MAX_FILE_BYTES / 1024 / 1024 });
     return null;
@@ -65,8 +72,11 @@ export function MenuUpload({ agentId, locked, published }: { agentId: string; lo
     }
     const replacing = menu;
     try {
-      setStage('reading');
-      const content_base64 = await toBase64(file);
+      setStage(isPhoto(file.type) ? 'transcribing' : 'reading');
+      // Read before anything is removed: an unreadable photo must not cost the current menu.
+      const body = isPhoto(file.type)
+        ? await photoToText(api, agentId, file).then((p) => ({ type: 'text' as const, role: 'menu' as const, name: p.name, text: p.text }))
+        : { type: 'file' as const, role: 'menu' as const, name: file.name.slice(0, 120), content_type: file.type as (typeof KNOWLEDGE_FILE_TYPES)[number], content_base64: await toBase64(file) };
       if (replacing) {
         // The old menu goes first: one menu per agent is enforced by the API, and a
         // replace that uploaded before removing would be refused as a second menu.
@@ -74,8 +84,8 @@ export function MenuUpload({ agentId, locked, published }: { agentId: string; lo
         await deleteAgentKnowledge(api, { id: agentId, sourceId: replacing.id });
       }
       setStage('uploading');
-      await addAgentKnowledge(api, { id: agentId }, { type: 'file', role: 'menu', name: file.name.slice(0, 120), content_type: file.type as (typeof KNOWLEDGE_FILE_TYPES)[number], content_base64 });
-      track(replacing ? 'menu_replaced' : 'menu_uploaded', { agent_id: agentId, size_bytes: file.size });
+      await addAgentKnowledge(api, { id: agentId }, body);
+      track(replacing ? 'menu_replaced' : 'menu_uploaded', { agent_id: agentId, size_bytes: file.size, photo: isPhoto(file.type) });
       toast.success(replacing ? tm('replaced') : tm('uploaded'));
       await invalidate();
     } catch (e) {
@@ -95,7 +105,7 @@ export function MenuUpload({ agentId, locked, published }: { agentId: string; lo
     await invalidate();
   }
 
-  const progress = stage === 'reading' ? 20 : stage === 'replacing' ? 45 : stage === 'uploading' ? 80 : 0;
+  const progress = stage === 'reading' ? 20 : stage === 'transcribing' ? 35 : stage === 'replacing' ? 55 : stage === 'uploading' ? 80 : 0;
 
   return (
     <Card data-testid="menu-upload">
@@ -110,7 +120,7 @@ export function MenuUpload({ agentId, locked, published }: { agentId: string; lo
           ref={fileInput}
           id="menu-file"
           type="file"
-          accept={KNOWLEDGE_FILE_TYPES.join(',')}
+          accept={MENU_ACCEPT}
           className="sr-only"
           aria-label={tm('choose')}
           disabled={locked || busy}

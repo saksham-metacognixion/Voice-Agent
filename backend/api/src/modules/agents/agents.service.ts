@@ -20,6 +20,7 @@ import {
   analysisField,
   retellLanguage,
   brief as briefSchema,
+  briefDocument as briefDocumentSchema,
   briefCard as briefCardSchema,
   defaultAgentSettings,
   lintResult as lintResultSchema,
@@ -149,19 +150,28 @@ export class AgentsService {
     const rows = await withWorkspace(ctx, (db) =>
       db.agent.findMany({
         ...cursorArgs(query),
-        where: { tenantId: ctx.workspaceId, deletedAt: null, ...(query.status ? { status: query.status } : {}) },
+        where: {
+          tenantId: ctx.workspaceId,
+          deletedAt: null,
+          ...(query.status ? { status: query.status } : {}),
+        },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         include: { _count: { select: { phoneNumbers: true } } },
       }),
     );
     const page = toPage(rows, query);
-    return { next_cursor: page.next_cursor, items: page.items.map((row) => toSummary(row, row._count.phoneNumbers)) };
+    return {
+      next_cursor: page.next_cursor,
+      items: page.items.map((row) => toSummary(row, row._count.phoneNumbers)),
+    };
   }
 
   async get(ctx: WorkspaceContext, agentId: string): Promise<AgentDetail> {
     const { agent, versions, numbers } = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
-      const wanted = [agent.draftVersion, agent.publishedVersion].filter((v): v is number => v !== null);
+      const wanted = [agent.draftVersion, agent.publishedVersion].filter(
+        (v): v is number => v !== null,
+      );
       const [versions, numbers] = await Promise.all([
         wanted.length
           ? db.agentVersion.findMany({ where: { agentId, versionNo: { in: wanted } } })
@@ -185,16 +195,25 @@ export class AgentsService {
   async listVersions(ctx: WorkspaceContext, agentId: string): Promise<AgentVersionSummary[]> {
     const { agent, rows } = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
-      const rows = await db.agentVersion.findMany({ where: { agentId }, orderBy: { versionNo: 'desc' } });
+      const rows = await db.agentVersion.findMany({
+        where: { agentId },
+        orderBy: { versionNo: 'desc' },
+      });
       return { agent, rows };
     });
     return rows.map((row) => toVersionSummary(row, agent));
   }
 
-  async getVersion(ctx: WorkspaceContext, agentId: string, versionNo: number): Promise<AgentVersionDetail> {
+  async getVersion(
+    ctx: WorkspaceContext,
+    agentId: string,
+    versionNo: number,
+  ): Promise<AgentVersionDetail> {
     const { agent, row } = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
-      const row = await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo } } });
+      const row = await db.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId, versionNo } },
+      });
       if (!row) throw AppError.notFound(`Version ${versionNo}`);
       return { agent, row };
     });
@@ -219,11 +238,17 @@ export class AgentsService {
    * overtaken by a newer one), to a fresh version forked from it, so an edit after a
    * publish never rewrites what is live.
    */
-  async patchDraft(ctx: WorkspaceContext, agentId: string, patch: AgentDraftPatch): Promise<AgentDetail> {
+  async patchDraft(
+    ctx: WorkspaceContext,
+    agentId: string,
+    patch: AgentDraftPatch,
+  ): Promise<AgentDetail> {
     const stack = await this.stack.current();
     const settingsPatch = settingsPatchOf(patch);
     const touchesVersion =
-      patch.brief !== undefined || patch.analysis_fields !== undefined || Object.keys(settingsPatch).length > 0;
+      patch.brief !== undefined ||
+      patch.analysis_fields !== undefined ||
+      Object.keys(settingsPatch).length > 0;
 
     const renamed = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
@@ -255,7 +280,9 @@ export class AgentsService {
       if (!touchesVersion) return patch.name !== undefined;
 
       const draft = await this.loadDraftForWrite(db, agent);
-      const merged = patch.brief ? mergeBrief(parseBrief(draft.briefJson), patch.brief) : parseBrief(draft.briefJson);
+      const merged = patch.brief
+        ? mergeBrief(parseBrief(draft.briefJson), patch.brief)
+        : parseBrief(draft.briefJson);
       const fields = patch.analysis_fields ?? parseAnalysisFields(draft.analysisSchemaJson);
       const settings = mergeSettings(settingsOf(draft, agent), settingsPatch);
 
@@ -308,12 +335,19 @@ export class AgentsService {
       // (CLAUDE.md: refresh from every mutating path). Never allowed to fail the save.
       await this.runtimeCache
         .refresh(ctx.workspaceId)
-        .catch((error: unknown) => this.log.warn(`runtime-cache refresh after rename failed: ${message(error)}`));
+        .catch((error: unknown) =>
+          this.log.warn(`runtime-cache refresh after rename failed: ${message(error)}`),
+        );
     }
 
-    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.draftUpdated, {
-      agent_id: agentId,
-    });
+    await this.events.publish(
+      ctx.workspaceId,
+      AgentEvents.topic(agentId),
+      AgentEvents.draftUpdated,
+      {
+        agent_id: agentId,
+      },
+    );
     return this.get(ctx, agentId);
   }
 
@@ -332,18 +366,33 @@ export class AgentsService {
    * the same text it would store (guardrails appended), against version `v`'s brief and
    * language. Nothing is written and nothing is published on the event stream.
    */
-  async lintDraftPrompt(ctx: WorkspaceContext, agentId: string, baseVersionNo: number, body: LintRequest): Promise<LintResult> {
+  async lintDraftPrompt(
+    ctx: WorkspaceContext,
+    agentId: string,
+    baseVersionNo: number,
+    body: LintRequest,
+  ): Promise<LintResult> {
     const stack = await this.stack.current();
     const { base, agent } = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
-      const base = await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } } });
+      const base = await db.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } },
+      });
       if (!base) throw AppError.notFound(`Version ${baseVersionNo}`);
       return { base, agent };
     });
     const settings = settingsOf(base, agent);
     const prompt = body.prompt.trim() ? applyGuardrails(body.prompt, stack.guardrails) : '';
     const greeting = body.greeting === undefined ? base.greeting : body.greeting;
-    return lintPrompt({ prompt, greeting, brief: parseBrief(base.briefJson), primaryLanguage: settings.primary_language }, stack.lint);
+    return lintPrompt(
+      {
+        prompt,
+        greeting,
+        brief: parseBrief(base.briefJson),
+        primaryLanguage: settings.primary_language,
+      },
+      stack.lint,
+    );
   }
 
   async saveManualPrompt(
@@ -356,7 +405,9 @@ export class AgentsService {
 
     const versionNo = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
-      const base = await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } } });
+      const base = await db.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } },
+      });
       if (!base) throw AppError.notFound(`Version ${baseVersionNo}`);
 
       const briefValue = parseBrief(base.briefJson);
@@ -365,7 +416,12 @@ export class AgentsService {
       const greeting = update.greeting ?? base.greeting;
 
       const lint = lintPrompt(
-        { prompt: promptText, greeting, brief: briefValue, primaryLanguage: settings.primary_language },
+        {
+          prompt: promptText,
+          greeting,
+          brief: briefValue,
+          primaryLanguage: settings.primary_language,
+        },
         stack.lint,
       );
 
@@ -384,15 +440,23 @@ export class AgentsService {
         createdBy: ctx.userId,
       });
 
-      await this.audit(db, ctx, 'agent.prompt_edited', agentId, { version_no: versionNo, base_version: baseVersionNo });
+      await this.audit(db, ctx, 'agent.prompt_edited', agentId, {
+        version_no: versionNo,
+        base_version: baseVersionNo,
+      });
       return versionNo;
     });
 
-    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.versionCreated, {
-      agent_id: agentId,
-      version_no: versionNo,
-      source: 'manual',
-    });
+    await this.events.publish(
+      ctx.workspaceId,
+      AgentEvents.topic(agentId),
+      AgentEvents.versionCreated,
+      {
+        agent_id: agentId,
+        version_no: versionNo,
+        source: 'manual',
+      },
+    );
     this.log.log(`agent ${agentId}: manual version ${versionNo} from ${baseVersionNo}`);
     return this.getVersion(ctx, agentId, versionNo);
   }
@@ -405,7 +469,11 @@ export class AgentsService {
    * so a later autosave forks rather than rewriting the history the customer just came
    * back to.
    */
-  async selectDraft(ctx: WorkspaceContext, agentId: string, versionNo: number): Promise<AgentDetail> {
+  async selectDraft(
+    ctx: WorkspaceContext,
+    agentId: string,
+    versionNo: number,
+  ): Promise<AgentDetail> {
     await withWorkspace(ctx, async (db) => {
       await this.loadAgent(db, ctx, agentId);
       const exists = await db.agentVersion.findUnique({
@@ -418,10 +486,15 @@ export class AgentsService {
       await this.audit(db, ctx, 'agent.draft_selected', agentId, { version_no: versionNo });
     });
 
-    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.draftSelected, {
-      agent_id: agentId,
-      version_no: versionNo,
-    });
+    await this.events.publish(
+      ctx.workspaceId,
+      AgentEvents.topic(agentId),
+      AgentEvents.draftSelected,
+      {
+        agent_id: agentId,
+        version_no: versionNo,
+      },
+    );
     return this.get(ctx, agentId);
   }
 
@@ -430,13 +503,19 @@ export class AgentsService {
   /** Everything a generation job needs, read in one transaction and then let go. */
   async generationContext(workspaceId: string, agentId: string) {
     return withWorkspace(workspaceId, async (db) => {
-      const agent = await db.agent.findFirst({ where: { id: agentId, tenantId: workspaceId, deletedAt: null } });
+      const agent = await db.agent.findFirst({
+        where: { id: agentId, tenantId: workspaceId, deletedAt: null },
+      });
       if (!agent) throw AppError.notFound('Agent');
       const tenant = await db.tenant.findUniqueOrThrow({
         where: { id: workspaceId },
         select: { name: true, timezone: true },
       });
-      const versions = await db.agentVersion.findMany({ where: { agentId }, orderBy: { versionNo: 'desc' }, take: 20 });
+      const versions = await db.agentVersion.findMany({
+        where: { agentId },
+        orderBy: { versionNo: 'desc' },
+        take: 20,
+      });
       return { agent, tenant, versions };
     });
   }
@@ -518,7 +597,9 @@ export class AgentsService {
   }
 
   private async agentCount(ctx: WorkspaceContext): Promise<number> {
-    return withWorkspace(ctx, (db) => db.agent.count({ where: { tenantId: ctx.workspaceId, deletedAt: null } }));
+    return withWorkspace(ctx, (db) =>
+      db.agent.count({ where: { tenantId: ctx.workspaceId, deletedAt: null } }),
+    );
   }
 
   /**
@@ -527,7 +608,9 @@ export class AgentsService {
    * and RLS is what stops it being readable at all.
    */
   private async loadAgent(db: WorkspaceDb, ctx: WorkspaceContext, agentId: string) {
-    const agent = await db.agent.findFirst({ where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null } });
+    const agent = await db.agent.findFirst({
+      where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null },
+    });
     if (!agent) throw AppError.notFound('Agent');
     return agent;
   }
@@ -539,10 +622,15 @@ export class AgentsService {
    * `agent_versions_immutable` trigger enforces, expressed here so the service forks
    * deliberately instead of catching a database error.
    */
-  private async loadDraftForWrite(db: WorkspaceDb, agent: { id: string; draftVersion: number | null }) {
+  private async loadDraftForWrite(
+    db: WorkspaceDb,
+    agent: { id: string; draftVersion: number | null },
+  ) {
     const [draft, latest] = await Promise.all([
       agent.draftVersion
-        ? db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId: agent.id, versionNo: agent.draftVersion } } })
+        ? db.agentVersion.findUnique({
+            where: { agentId_versionNo: { agentId: agent.id, versionNo: agent.draftVersion } },
+          })
         : Promise.resolve(null),
       db.agentVersion.aggregate({ where: { agentId: agent.id }, _max: { versionNo: true } }),
     ]);
@@ -550,12 +638,16 @@ export class AgentsService {
     if (!draft) {
       // An agent always has a v1 (created in the same transaction as the agent), so this
       // is a pointer at a version that never existed — repair by pointing at the newest.
-      const newest = await db.agentVersion.findFirst({ where: { agentId: agent.id }, orderBy: { versionNo: 'desc' } });
+      const newest = await db.agentVersion.findFirst({
+        where: { agentId: agent.id },
+        orderBy: { versionNo: 'desc' },
+      });
       if (!newest) throw AppError.notFound('Draft version');
       return { ...newest, frozen: newest.publishedAt !== null };
     }
 
-    const frozen = draft.publishedAt !== null || draft.versionNo !== (latest._max.versionNo ?? draft.versionNo);
+    const frozen =
+      draft.publishedAt !== null || draft.versionNo !== (latest._max.versionNo ?? draft.versionNo);
     return { ...draft, frozen };
   }
 }
@@ -580,7 +672,10 @@ export interface LiveSettingsColumns {
  * A version's settings. `settings_json` when the row has one; for a row written before
  * the column existed, the agent's own columns — which is exactly what those rows meant.
  */
-export function settingsOf(row: { settingsJson: unknown }, agent: LiveSettingsColumns): AgentSettings {
+export function settingsOf(
+  row: { settingsJson: unknown },
+  agent: LiveSettingsColumns,
+): AgentSettings {
   const parsed = agentSettingsSchema.safeParse(row.settingsJson);
   if (parsed.success) return parsed.data;
   return liveSettingsOf(agent);
@@ -614,7 +709,10 @@ export function liveSettingsOf(agent: LiveSettingsColumns): AgentSettings {
       ? raw.primary_language
       : defaults.primary_language,
     languages: raw.languages.filter((code) => retellLanguage.safeParse(code).success).slice(0, 4),
-    max_call_duration_s: Math.min(1_800, Math.max(180, raw.max_call_duration_s || defaults.max_call_duration_s)),
+    max_call_duration_s: Math.min(
+      1_800,
+      Math.max(180, raw.max_call_duration_s || defaults.max_call_duration_s),
+    ),
     recording_enabled: raw.recording_enabled,
   });
   return repaired.success ? repaired.data : defaults;
@@ -625,9 +723,18 @@ export function liveSettingsOf(agent: LiveSettingsColumns): AgentSettings {
  * path from a customer's choice of tier, voice or duration to the live row
  * (`AgentPublishService.publish`), and therefore the only path to the billing rate.
  */
-export function liveColumnsFrom(settings: AgentSettings): Pick<
+export function liveColumnsFrom(
+  settings: AgentSettings,
+): Pick<
   Prisma.AgentUncheckedCreateInput,
-  'tier' | 'primaryLanguage' | 'languages' | 'voiceId' | 'voiceSpeed' | 'voiceTemperature' | 'maxCallDurationS' | 'recordingEnabled'
+  | 'tier'
+  | 'primaryLanguage'
+  | 'languages'
+  | 'voiceId'
+  | 'voiceSpeed'
+  | 'voiceTemperature'
+  | 'maxCallDurationS'
+  | 'recordingEnabled'
 > {
   return {
     tier: settings.tier,
@@ -635,7 +742,8 @@ export function liveColumnsFrom(settings: AgentSettings): Pick<
     languages: settings.languages,
     voiceId: settings.voice_id,
     voiceSpeed: settings.voice_speed === null ? null : new Prisma.Decimal(settings.voice_speed),
-    voiceTemperature: settings.voice_temperature === null ? null : new Prisma.Decimal(settings.voice_temperature),
+    voiceTemperature:
+      settings.voice_temperature === null ? null : new Prisma.Decimal(settings.voice_temperature),
     maxCallDurationS: settings.max_call_duration_s,
     recordingEnabled: settings.recording_enabled,
   };
@@ -655,7 +763,10 @@ export function settingsPatchOf(patch: AgentDraftPatch): Partial<AgentSettings> 
   return out;
 }
 
-export function mergeSettings(current: AgentSettings, patch: Partial<AgentSettings>): AgentSettings {
+export function mergeSettings(
+  current: AgentSettings,
+  patch: Partial<AgentSettings>,
+): AgentSettings {
   const merged: Record<string, unknown> = { ...current };
   for (const [key, value] of Object.entries(patch)) {
     if (value !== undefined) merged[key] = value;
@@ -766,13 +877,33 @@ export function toVersionDetail(
 }
 
 /**
- * A stored brief that no longer matches the schema — an older shape, a field we tightened
- * — must not make the agent unreadable. Unparseable values fall back to an empty brief,
- * which is exactly what the wizard shows for a new agent.
+ * A stored brief that no longer matches the schema — an older shape, a field we tightened,
+ * or a newer shape read by a process that has not been redeployed yet — must not make the
+ * agent unreadable, and must not cost the customer the rest of their brief.
+ *
+ * So the repair is per field, and per entry for `documents`: whatever fails is dropped and
+ * everything else is kept. This used to fall back to an *empty* brief on any failure, and
+ * on 29 Sep a worker started before the image document types existed read one
+ * `image/jpeg` document as invalid, got `{}`, generated a script from nothing and stored
+ * it as a new version with an empty brief (ADR 0023). An array field loses only its bad
+ * entries; a field that still fails is dropped; `{}` is the last resort for input that is
+ * not an object at all.
  */
 export function parseBrief(value: unknown): Brief {
-  const parsed = briefSchema.safeParse(value ?? {});
-  return parsed.success ? parsed.data : briefSchema.parse({});
+  const whole = briefSchema.safeParse(value ?? {});
+  if (whole.success) return whole.data;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return briefSchema.parse({});
+
+  const repaired: Record<string, unknown> = { ...(value as Record<string, unknown>) };
+  if (Array.isArray(repaired.documents)) {
+    repaired.documents = repaired.documents.filter((doc) => briefDocumentSchema.safeParse(doc).success);
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    const attempt = briefSchema.safeParse(repaired);
+    if (attempt.success) return attempt.data;
+    for (const issue of attempt.error.issues) delete repaired[String(issue.path[0])];
+  }
+  return briefSchema.parse({});
 }
 
 /**

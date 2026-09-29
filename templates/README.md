@@ -27,7 +27,7 @@ layout where that does not work (see `.env.example`).
 | `analysis_fields` | §9.8 starting schema, ≤ 15 fields, snake_case names |
 | `rules` | §9.2 DEFAULT RULES — business rules, *not* the §9.4 platform guardrails |
 | `default_tier` | Standard unless the template needs Premium (`lead_qual`) |
-| `sample_audio_url` | the 20-second "hear sample" clip in W1; a static asset, no credits |
+| `sample_audio_url` | the "hear sample" clip in W1 — `frontend/web/public/samples/<id>.mp3`, a static asset, no credits. Recorded on our own voice stack by `pnpm --filter @portal/api samples:templates [id…]` (script and voice per template in `backend/api/scripts/template-samples.ts`); a new template needs a line there |
 | `example_texts` | industry → placeholder copy for the W2 "About your business" box |
 
 `restaurant` (version 2, ADR 0020) expects a **menu**: a `knowledge_sources` row with `role = menu`, one

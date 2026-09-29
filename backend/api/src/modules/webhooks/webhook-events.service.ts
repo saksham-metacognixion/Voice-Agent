@@ -73,8 +73,9 @@ export class WebhookEventsService {
     return { kind: 'retry', id: existing.id, attempts: existing.error ? 1 : 0 };
   }
 
-  markProcessed(id: string): Promise<unknown> {
-    return adminDb.webhookEvent.update({ where: { id }, data: { processedAt: new Date(), error: null } });
+  /** `note` is kept in `error` for an event that settled on a refusal (`settledWithNote`). */
+  markProcessed(id: string, note: string | null = null): Promise<unknown> {
+    return adminDb.webhookEvent.update({ where: { id }, data: { processedAt: new Date(), error: note } });
   }
 
   markFailed(id: string, error: unknown): Promise<unknown> {
@@ -90,7 +91,7 @@ export class WebhookEventsService {
   async process<T>(id: string, process: () => Promise<T>): Promise<T> {
     try {
       const result = await process();
-      await this.markProcessed(id);
+      await this.markProcessed(id, SETTLED_NOTE in Object(result) ? (result as Settled)[SETTLED_NOTE] : null);
       return result;
     } catch (error) {
       await this.markFailed(id, error).catch(() => undefined);
@@ -103,4 +104,15 @@ export class WebhookEventsService {
     const row = await adminDb.webhookEvent.findUniqueOrThrow({ where: { id } });
     return this.process(id, () => handler(row.payloadJson));
   }
+}
+
+const SETTLED_NOTE = Symbol('webhook settled note');
+type Settled = { [SETTLED_NOTE]: string };
+
+/**
+ * A handler result for an event that is done but did not do what it asked — processed,
+ * so it is never retried, with the reason kept on the row where SA12 shows it.
+ */
+export function settledWithNote<T extends object>(result: T, note: string): T {
+  return Object.assign(result, { [SETTLED_NOTE]: note.slice(0, 2000) });
 }

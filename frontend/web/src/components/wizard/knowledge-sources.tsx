@@ -19,6 +19,7 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
+import { PHOTO_TYPES, isPhoto, photoToText, toBase64 } from '@/src/wizard/photo-text';
 
 const POLL_MS = 3_000;
 /** Statuses the sync job has not finished with. The list is polled while any source has one. */
@@ -156,6 +157,7 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
   const [file, setFile] = React.useState<File | null>(null);
   const [fieldError, setFieldError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const [readingPhoto, setReadingPhoto] = React.useState(false);
   const fileInput = React.useRef<HTMLInputElement>(null);
 
   function clear() {
@@ -177,8 +179,18 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
       return { type: 'text', name: name.trim(), text };
     }
     if (!file) return tk('errors.file');
-    if (!(KNOWLEDGE_FILE_TYPES as readonly string[]).includes(file.type)) return tk('errors.fileType');
+    if (!(KNOWLEDGE_FILE_TYPES as readonly string[]).includes(file.type) && !isPhoto(file.type)) return tk('errors.fileType');
     if (file.size > KNOWLEDGE_MAX_FILE_BYTES) return tk('errors.fileSize', { mb: KNOWLEDGE_MAX_FILE_BYTES / 1024 / 1024 });
+    if (isPhoto(file.type)) {
+      // The platform ingests documents, not images: a photo is read into text and kept as text.
+      setReadingPhoto(true);
+      try {
+        const photo = await photoToText(api, agentId, file);
+        return { type: 'text', name: (name.trim() || photo.name).slice(0, 120), text: photo.text };
+      } finally {
+        setReadingPhoto(false);
+      }
+    }
     return { type: 'file', name: (name.trim() || file.name).slice(0, 120), content_type: file.type as (typeof KNOWLEDGE_FILE_TYPES)[number], content_base64: await toBase64(file) };
   }
 
@@ -240,7 +252,7 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
                 ref={fileInput}
                 id="w4-file"
                 type="file"
-                accept={KNOWLEDGE_FILE_TYPES.join(',')}
+                accept={[...KNOWLEDGE_FILE_TYPES, ...PHOTO_TYPES].join(',')}
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 disabled={disabled || submitting}
               />
@@ -260,7 +272,7 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
           {fieldError ? <Alert variant="danger">{fieldError}</Alert> : null}
           <div>
             <Button type="submit" disabled={disabled || submitting} loading={submitting}>
-              {submitting ? tk('adding') : tk('add')}
+              {readingPhoto ? tk('readingPhoto') : submitting ? tk('adding') : tk('add')}
             </Button>
           </div>
         </form>
@@ -269,17 +281,7 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
   );
 }
 
-export function toBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result ?? '');
-      resolve(result.slice(result.indexOf(',') + 1));
-    };
-    reader.onerror = () => reject(reader.error ?? new Error('read failed'));
-    reader.readAsDataURL(file);
-  });
-}
+export { toBase64 } from '@/src/wizard/photo-text';
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

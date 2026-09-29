@@ -142,3 +142,34 @@ describe('toSummary', () => {
     expect(JSON.stringify(toSummary(row, 0)).toLowerCase()).not.toContain('retell');
   });
 });
+
+describe('parseBrief — repairs per field, never wipes the brief (ADR 0023, 29 Sep)', () => {
+  const stored = {
+    about_business: 'Casa Lucia is a family Italian restaurant in Toronto.',
+    goal: 'Take reservations and answer menu questions from the uploaded menu.',
+    agent_name: 'Marie',
+    documents: [
+      { name: 'Dinner menu', content_type: 'image/heic', text: 'Pasta $18', truncated: false },
+      { name: 'Wine list', content_type: 'text/plain', text: 'Chianti $12', truncated: false },
+    ],
+  };
+
+  it('drops only the document the schema cannot read and keeps the rest of the brief', () => {
+    const brief = parseBrief(stored);
+    expect(brief.agent_name).toBe('Marie');
+    expect(brief.about_business).toBe(stored.about_business);
+    expect(brief.documents.map((d) => d.name)).toEqual(['Wine list']);
+  });
+
+  it('drops a field that fails and keeps the others', () => {
+    const brief = parseBrief({ ...stored, documents: [], agent_name: 'M', services: 'not-an-array' });
+    expect(brief.about_business).toBe(stored.about_business);
+    expect(brief.agent_name).toBeUndefined();
+    expect(brief.services).toEqual([]);
+  });
+
+  it('falls back to an empty brief only for input that is not an object', () => {
+    expect(parseBrief('nonsense').about_business).toBeUndefined();
+    expect(parseBrief(null).documents).toEqual([]);
+  });
+});

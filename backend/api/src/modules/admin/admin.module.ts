@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ActivationModule } from '../activation';
 import { AgentsModule } from '../agents';
 import { AlertsModule } from '../alerts';
 import { BillingModule } from '../billing';
@@ -17,11 +18,18 @@ import { AdminFlagsService } from './admin-flags.service';
 import { AdminJobsService } from './admin-jobs.service';
 import { AdminKpisService } from './admin-kpis.service';
 import { AdminNumbersService } from './admin-numbers.service';
+import { AdminOperationsController } from './admin-operations.controller';
+import { AdminOperationsService } from './admin-operations.service';
 import { AdminPricingService } from './admin-pricing.service';
 import { AdminSearchService } from './admin-search.service';
+import { AdminStaffController } from './admin-staff.controller';
+import { AdminStaffService } from './admin-staff.service';
 import { AdminSystemService } from './admin-system.service';
 import { AdminUsersService } from './admin-users.service';
+import { AdminSupportService } from './admin-support.service';
 import { AdminWebhooksService } from './admin-webhooks.service';
+import { AdminBillingService } from './admin-billing.service';
+import { AdminBillingController, AdminCustomerBillingController } from './admin-billing.controller';
 import {
   AdminAgentsController,
   AdminAuditController,
@@ -39,6 +47,7 @@ import {
   AdminUsersController,
   AdminWebhooksController,
 } from './admin.controllers';
+import { AdminCannedResponsesController, AdminTicketsController } from './admin-support.controller';
 import { ImpersonationController } from './impersonation.controller';
 import { ImpersonationService } from './impersonation.service';
 import { StaffAuditService } from './staff-audit.service';
@@ -64,6 +73,7 @@ import { StaffLimitsService } from './staff-limits.service';
     CallsModule,
     RetellModule,
     AlertsModule,
+    ActivationModule,
   ],
   controllers: [
     AdminMeController,
@@ -81,6 +91,14 @@ import { StaffLimitsService } from './staff-limits.service';
     AdminSearchController,
     AdminSystemController,
     AdminAuditController,
+    AdminStaffController,
+    AdminOperationsController,
+    // D13 — SA9 billing & finance.
+    AdminBillingController,
+    AdminCustomerBillingController,
+    // D13 — SA4 support tickets and canned responses.
+    AdminTicketsController,
+    AdminCannedResponsesController,
     ImpersonationController,
   ],
   providers: [
@@ -99,6 +117,10 @@ import { StaffLimitsService } from './staff-limits.service';
     AdminPricingService,
     AdminSearchService,
     AdminSystemService,
+    AdminSupportService,
+    AdminStaffService,
+    AdminOperationsService,
+    AdminBillingService,
   ],
   exports: [StaffAuditService, StaffLimitsService, ImpersonationService],
 })

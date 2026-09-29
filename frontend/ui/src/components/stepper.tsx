@@ -1,3 +1,5 @@
+'use client';
+
 import { Check } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/utils';
@@ -21,9 +23,22 @@ export interface StepperProps {
 
 /** The wizard header (§8): numbered dots, done ticks, current highlighted, later ones muted. */
 export function Stepper({ steps, current, renderLink, className, stepLabel }: StepperProps) {
+  const list = React.useRef<HTMLOListElement>(null);
+  // The row scrolls sideways when the header is narrower than the steps; keep the current
+  // one (and, past the last, the last) in view instead of whichever end the row starts at.
+  React.useEffect(() => {
+    const ol = list.current;
+    const item = ol?.children[Math.min(current, steps.length - 1)] as HTMLElement | undefined;
+    if (!ol || !item || ol.scrollWidth <= ol.clientWidth) return;
+    const left = item.offsetLeft - ol.offsetLeft;
+    const right = left + item.offsetWidth;
+    if (left < ol.scrollLeft) ol.scrollLeft = left;
+    else if (right > ol.scrollLeft + ol.clientWidth) ol.scrollLeft = right - ol.clientWidth;
+  }, [current, steps.length]);
+
   return (
     <nav aria-label="Progress" className={cn('w-full', className)}>
-      <ol className="flex items-center gap-1 overflow-x-auto scrollbar-thin sm:gap-2">
+      <ol ref={list} className="flex items-center gap-1 overflow-x-auto scrollbar-thin sm:gap-2">
         {steps.map((step, i) => {
           const done = i < current;
           const active = i === current;

@@ -239,6 +239,7 @@
     "INVITE_INVALID": "This invitation is not valid or has expired.",
     "ALREADY_MEMBER": "You are already a member of this workspace.",
     "PLAN_LIMIT": "Your plan does not include that.",
+    "DOCUMENT_UNREADABLE": "We could not read any text in that file. For a photo, try a sharper, straight-on picture; for a scan, export it as text or PDF.",
     "INTERNAL": "Something went wrong on our side. Try again.",
     "UPSTREAM_UNAVAILABLE": "A service we depend on is unavailable. Try again shortly.",
     "NOT_CONFIGURED": "This feature is not ready yet. Our team has been notified.",
@@ -334,6 +335,7 @@
       "restored": "Your saved answers were restored.",
       "sections": {
         "basics": "The basics",
+        "documents": "Menu, price list or photos",
         "details": "Details callers ask about",
         "rules": "Rules and hand-offs",
         "personality": "Personality"
@@ -385,6 +387,10 @@
           "add": "Add a question",
           "questionPlaceholder": "Do you take walk-ins?",
           "answerPlaceholder": "Yes, but appointments are seen first."
+        },
+        "documents": {
+          "label": "Upload a file or a photo",
+          "hint": "A menu, a price list, a services sheet — a PDF, a Word file, or a photo taken on your phone. The agent reads it word for word on every call."
         },
         "never_do": {
           "label": "Things the agent must never do",
@@ -476,6 +482,29 @@
           "services": "Dine-in, takeout, private dining, catering…",
           "pricing": "Mains $18–$34. Lunch prix fixe $22. Corkage $15. Say prices come from the menu and may change."
         }
+      },
+      "documents": {
+        "none": "No documents yet. Upload a menu or price list — a file or a photo — and the agent will quote from it.",
+        "choose": "Choose a document",
+        "add": "Upload a file or photo",
+        "remove": "Remove",
+        "chars": "{n} characters",
+        "truncated": "Cut short",
+        "budget": "{used} / {max} characters used",
+        "full": "Document space is full. Remove one to add another.",
+        "accepts": "PDF, Word, text, CSV or a photo (JPEG, PNG, WebP), up to {mb} MB, up to {n} documents.",
+        "stage": {
+          "idle": "",
+          "reading": "Reading the file…",
+          "extracting": "Pulling out the text…",
+          "transcribing": "Reading the photo — this takes a few seconds…"
+        },
+        "errors": {
+          "fileType": "That file type is not supported. Upload PDF, Word, text, CSV, or a JPEG, PNG or WebP photo.",
+          "fileSize": "That file is larger than {mb} MB.",
+          "empty": "That file is empty.",
+          "budget": "There is no document space left for this file. Remove a document first."
+        }
       }
     },
     "w3": {
@@ -529,13 +558,13 @@
       "dashboard": "Go to the dashboard"
     },
     "w4": {
-      "title": "What should your agent know?",
-      "subtitle": "Add your website pages, menus, price lists or FAQs. Your agent answers from them on every call. You can skip this and add them later.",
+      "title": "Your agent is live. What else should it know?",
+      "subtitle": "Add your website pages, menus, price lists or FAQs and your agent answers from them on every call. You can skip this and add them later from your agent's Knowledge tab.",
       "continue": "Continue",
       "skip": "Skip for now",
       "lockedTitle": "Included from a bigger pack",
-      "lockedBody": "Adding what your agent knows is part of the {pack} pack and up. Skip for now and come back after you choose a pack in the last step.",
-      "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack. Skip for now and come back after you choose a pack in the last step.",
+      "lockedBody": "Adding what your agent knows is part of the {pack} pack and up. Skip for now — once you buy that pack, add sources from your agent's Knowledge tab.",
+      "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack. Skip for now — once you buy one, add sources from your agent's Knowledge tab.",
       "asideTitle": "Good sources",
       "asideBody": "Short, factual pages work best: hours, services, prices, policies, directions.",
       "asideLive": "Each source is read once it is added. Anything still being read when you go live is picked up the next time you publish.",
@@ -559,7 +588,7 @@
         "url": "Web page",
         "urlHint": "A public page on your website.",
         "file": "File",
-        "fileHint": "PDF, Word, text or CSV, up to {mb} MB.",
+        "fileHint": "PDF, Word, text, CSV or a photo, up to {mb} MB.",
         "text": "Text",
         "textHint": "Paste anything: FAQs, a menu, a policy."
       },
@@ -567,7 +596,7 @@
         "url": "Page address",
         "urlHint": "One page is read, not the whole site.",
         "file": "File",
-        "fileHint": "The file is read once and not kept after that.",
+        "fileHint": "The file is read once and not kept after that. A photo is read into text.",
         "name": "Name",
         "namePlaceholder": "e.g. Opening hours",
         "text": "Text",
@@ -578,7 +607,7 @@
         "name": "Give this text a name.",
         "text": "Paste some text first.",
         "file": "Choose a file first.",
-        "fileType": "That file type is not supported. Use PDF, Word, text or CSV.",
+        "fileType": "That file type is not supported. Use PDF, Word, text, CSV or a JPEG, PNG or WebP photo.",
         "fileSize": "That file is larger than {mb} MB."
       },
       "add": "Add source",
@@ -592,29 +621,31 @@
         "upload": "Upload menu",
         "replace": "Replace menu",
         "remove": "Remove",
-        "accepts": "PDF, Word, text or CSV, up to {mb} MB.",
+        "accepts": "PDF, Word, text, CSV or a photo of the menu, up to {mb} MB.",
         "inUse": "In use",
         "uploaded": "Menu uploaded. We are reading it now.",
         "replaced": "Menu replaced. We are reading the new one now.",
         "removed": "Menu removed.",
         "failedDefault": "We could not read this menu.",
         "liveHint": "Saved as soon as it is uploaded. Your agent uses it on the next test call, and on every call once you go live.",
-        "publishedHint": "Saved as soon as it is uploaded. A menu uploaded now reaches your live agent at the next publish; test calls use it right away.",
+        "publishedHint": "Saved as soon as it is uploaded. Your live agent answers from it a few minutes after it is read; test calls use it right away.",
         "removeTitle": "Remove the menu?",
         "removeBody": "Your agent will stop answering menu questions from it.",
         "removeConsequence": "Callers asking about dishes or prices will be told the agent does not have that information.",
         "stage": {
           "idle": "",
           "reading": "Reading the file…",
+          "transcribing": "Reading the photo — this takes a few seconds…",
           "replacing": "Removing the old menu…",
           "uploading": "Uploading…"
         },
         "errors": {
-          "fileType": "That file type is not supported. Upload the menu as PDF, Word, text or CSV.",
+          "fileType": "That file type is not supported. Upload the menu as PDF, Word, text or CSV, or as a JPEG, PNG or WebP photo.",
           "fileSize": "That file is larger than {mb} MB.",
           "empty": "That file is empty."
         }
-      }
+      },
+      "readingPhoto": "Reading the photo…"
     },
     "w5": {
       "title": "Test your agent",
@@ -1262,7 +1293,7 @@
       "knowledge": {
         "lockedBody": "Adding what your agent knows is part of the {pack} pack and up.",
         "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack.",
-        "publishedHint": "A source added now reaches your agent at the next publish."
+        "publishedHint": "A source added now reaches your live agent a few minutes after it is read."
       },
       "test": {
         "hint": "You are testing draft v{n} in the browser. Test calls use credits.",
@@ -1930,9 +1961,6 @@
         "refund": "Credits are non-refundable."
       },
       "faqUnavailable": "Pricing could not be loaded right now.",
-      "supportTitle": "Contact support",
-      "supportBody": "Write to us and a person answers, usually within one business day.",
-      "supportCta": "Email {email}",
       "reportTitle": "Report a call",
       "reportBody": "Something went wrong on a call? Pick it and we get its details straight away.",
       "reportEmpty": "No calls to report yet.",
@@ -1953,6 +1981,46 @@
         "down": "Degraded",
         "refresh": "Check again",
         "page": "Open the status page"
+      },
+      "contact": {
+        "title": "Contact support",
+        "body": "Open a ticket and a person answers, usually within one business day. Replies show up here and by email.",
+        "subject": "Subject",
+        "category": "What is it about?",
+        "categoryNone": "Not sure",
+        "categories": {
+          "billing": "Credits and billing",
+          "calls": "A call",
+          "agent": "My agent",
+          "numbers": "Phone numbers",
+          "account": "Account and team",
+          "other": "Something else"
+        },
+        "message": "Message",
+        "send": "Send to support",
+        "invalid": "Please fill this in.",
+        "opened": "Ticket #{id} is open. We will answer here and by email.",
+        "viewer": "Ask an editor, admin or the owner of this workspace to contact support.",
+        "orEmail": "Prefer email?"
+      },
+      "tickets": {
+        "title": "My tickets",
+        "body": "Everything this workspace has asked us, with our answers.",
+        "empty": "No tickets yet.",
+        "unavailable": "Tickets could not be loaded right now.",
+        "updated": "{when} · {who}",
+        "status": {
+          "open": "Open",
+          "pending": "Answered",
+          "resolved": "Resolved",
+          "closed": "Closed"
+        },
+        "reply": "Reply",
+        "replyPlaceholder": "Add to this ticket…",
+        "closedNote": "This ticket is closed. Open a new one if you need more help.",
+        "support": "Support",
+        "system": "Update",
+        "you": "You"
       }
     },
     "comingSoon": "This page arrives in the next release.",

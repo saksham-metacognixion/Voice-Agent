@@ -23,6 +23,7 @@ import { RedisModule } from './modules/redis';
 import { RetellModule } from './modules/retell';
 import { RuntimeCacheModule } from './modules/runtime-cache';
 import { ScheduledModule } from './modules/scheduled';
+import { SupportModule } from './modules/support';
 import { VoicesModule } from './modules/voices';
 import { WalletModule } from './modules/wallet';
 import { WebhooksModule } from './modules/webhooks';
@@ -72,6 +73,7 @@ import { WorkspacesModule } from './modules/workspaces';
     VoicesModule,
     WebhooksModule,
     ScheduledModule,
+    SupportModule,
     AdminModule,
   ],
   providers: [

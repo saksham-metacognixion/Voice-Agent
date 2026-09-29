@@ -335,6 +335,47 @@ export class StripeGateway {
   }
 
   /**
+   * SA9 (D13): refund part or all of a PaymentIntent. The idempotency key is the refund
+   * row's (`refund-<id>`, `-r<n>` on a retry after a failure), so a second staff member
+   * clicking the same dialog answers the same Stripe refund rather than refunding twice. Only
+   * the id and the status come back; the caller never sees the Stripe object.
+   */
+  async refundPaymentIntent(input: {
+    paymentIntentId: string;
+    amountCents: number;
+    idempotencyKey: string;
+    reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer';
+    metadata?: Record<string, string>;
+  }): Promise<{ id: string; status: string }> {
+    const refund = await this.client.refunds.create(
+      {
+        payment_intent: input.paymentIntentId,
+        amount: input.amountCents,
+        ...(input.reason ? { reason: input.reason } : {}),
+        metadata: { ...(input.metadata ?? {}), env: this.config.env },
+      },
+      { idempotencyKey: input.idempotencyKey },
+    );
+    this.log.log(`stripe refund ${refund.id} (${refund.status ?? 'unknown'}) of ${input.amountCents} on ${input.paymentIntentId}`);
+    return { id: refund.id, status: refund.status ?? 'pending' };
+  }
+
+  /**
+   * Look before you refund again (ADR 0013 §2): a refund on this PaymentIntent that carries
+   * our row's id and did not fail. A retry after a failure takes a new idempotency key —
+   * Stripe replays a stored error under the old one for 24 h — so this is what stops a
+   * timeout that did reach Stripe from becoming a second refund.
+   */
+  async findRefund(paymentIntentId: string, refundId: string): Promise<{ id: string; status: string } | null> {
+    for await (const refund of this.client.refunds.list({ payment_intent: paymentIntentId, limit: 100 })) {
+      if (refund.metadata?.refund_id !== refundId) continue;
+      if (refund.status === 'failed' || refund.status === 'canceled') continue;
+      return { id: refund.id, status: refund.status ?? 'pending' };
+    }
+    return null;
+  }
+
+  /**
    * A Checkout Session by id, for the return path (`POST /wallet/checkout/confirm`) and the
    * pending-purchase sweep: what Stripe says happened, never what the URL says.
    */

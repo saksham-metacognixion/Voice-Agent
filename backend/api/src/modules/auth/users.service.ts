@@ -86,6 +86,13 @@ export class UsersService {
         return { outcome: 'updated', userId: existing.id };
       }
 
+      // Looked up first rather than left to the unique index: Prisma logs every query
+      // error at `error` level before the exception reaches the catch below, so a refusal
+      // that is routine (and settled) printed a red `Unique constraint failed` each time.
+      // The catch still covers the race between this read and the insert.
+      const byEmail = await adminDb.user.findUnique({ where: { email }, select: { authProviderId: true } });
+      if (byEmail) this.refuseSecondIdentity(event, email, byEmail.authProviderId);
+
       const created = await adminDb.user.create({
         data: {
           authProviderId: event.external_id,
@@ -109,17 +116,32 @@ export class UsersService {
       }
 
       const byEmail = await adminDb.user.findUnique({ where: { email }, select: { authProviderId: true } });
-      if (byEmail && !sameSubject(byEmail.authProviderId, event.external_id)) {
-        this.log.error(
-          `${event.event_type} for ${event.external_id} carries ${email}, which already belongs to ${byEmail.authProviderId}; refusing to reassign it`,
-        );
-        throw new AppError(
-          'CONFLICT',
-          'That email address is already registered to a different sign-in method.',
-        );
-      }
+      if (byEmail) this.refuseSecondIdentity(event, email, byEmail.authProviderId);
       throw error;
     }
+  }
+
+  /**
+   * Throws `CONFLICT` when `email` belongs to another `sub`. Permanent, not transient:
+   * the guard answers it as a 409, and the webhook handler settles the event on it
+   * rather than retrying (`SecondIdentityRefused`).
+   */
+  private refuseSecondIdentity(event: AuthWebhookEvent, email: string, owner: string): void {
+    if (sameSubject(owner, event.external_id)) return;
+    this.log.warn(
+      `${event.event_type} for ${event.external_id} carries ${email}, which already belongs to ${owner}; refusing to reassign it`,
+    );
+    throw new SecondIdentityRefused(event.external_id);
+  }
+}
+
+/**
+ * The one `upsert` failure that retrying can never fix: the email already belongs to
+ * another `sub`. A 409 on the guard's path; a settled refusal on the webhook's.
+ */
+export class SecondIdentityRefused extends AppError {
+  constructor(readonly subject: string) {
+    super('CONFLICT', 'That email address is already registered to a different sign-in method.');
   }
 }
 

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { Prisma, adminDb } from '@portal/db';
+import { AgentPublishService } from '../agents';
 import { JobQueues, type KnowledgeSyncJob } from '../jobs';
 import { RedisCache } from '../redis';
 import { RetellGateway, isRetellNotFound, retellErrorStatus, type KnowledgeBaseFacts, type KnowledgeSourcesInput } from '../retell';
@@ -48,6 +49,13 @@ export const KNOWLEDGE_REASONS = {
  * The one thing two concurrent syncs for one agent could still do is create two
  * knowledge bases; a short Redis lock per agent around the create makes the loser wait
  * for a retry, by which time `agents.retell_kb_id` is set.
+ *
+ * Knowledge is added after payment (ADR 0024), so the agent is usually live already
+ * when its base is created. The platform versions the LLM with the agent, so a live
+ * agent does not see a base attached after its publish: the sync that attaches one to a
+ * published agent marks itself `republish` and, once the source is ready, republishes
+ * the live version. The mark survives a failed republish, and a `ready` row still
+ * carrying it is republished by the retry.
  */
 @Injectable()
 export class KnowledgeSyncWorker {
@@ -57,6 +65,7 @@ export class KnowledgeSyncWorker {
     private readonly retell: RetellGateway,
     private readonly cache: RedisCache,
     private readonly queues: JobQueues,
+    private readonly publishing: AgentPublishService,
   ) {}
 
   async run(job: Job<KnowledgeSyncJob>): Promise<{ outcome: string; reason?: string }> {
@@ -65,12 +74,16 @@ export class KnowledgeSyncWorker {
 
     const row = await adminDb.knowledgeSource.findUnique({
       where: { id: sourceId },
-      include: { agent: { select: { id: true, name: true, retellKbId: true, deletedAt: true } }, tenant: { select: { name: true } } },
+      include: { agent: { select: AGENT_SELECT }, tenant: { select: { name: true } } },
     });
     if (!row) return { outcome: 'ignored', reason: 'source no longer exists' };
     if (row.tenantId !== job.data.workspaceId) return { outcome: 'ignored', reason: 'workspace mismatch' };
 
     if (row.status === 'deleting') return this.delete(row, job.data);
+    if (row.status === 'ready' && republishPending(row.syncJson)) {
+      await this.republish(row);
+      return { outcome: 'ready' };
+    }
     if (row.status !== 'pending' && row.status !== 'syncing') return { outcome: 'ignored', reason: `status is ${row.status}` };
     if (row.agent.deletedAt) {
       await this.fail(row.id, 'agent_gone', KNOWLEDGE_REASONS.agent_gone, 'agent was deleted');
@@ -83,31 +96,38 @@ export class KnowledgeSyncWorker {
     });
 
     let kbId: string | null = null;
+    let ready = false;
     try {
-      kbId = await this.ensureKnowledgeBase(row, job.id ?? sourceId);
+      const kb = await this.ensureKnowledgeBase(row, job.id ?? sourceId);
+      kbId = kb.kbId;
+      if (kb.attached && row.agent.publishedVersion !== null) {
+        const current = await adminDb.knowledgeSource.findUnique({ where: { id: row.id }, select: { syncJson: true } });
+        row.syncJson = merge(current?.syncJson, { republish: true }) as Prisma.JsonValue;
+        await adminDb.knowledgeSource.update({ where: { id: row.id }, data: { syncJson: row.syncJson as Prisma.InputJsonValue } });
+      }
       const retellSourceId = row.retellSourceId ?? (await this.ensureSource(row, kbId));
       const status = await this.pollUntilSettled(kbId);
 
       if (status === 'complete') {
         await this.markReady(row.id, kbId, retellSourceId);
         this.log.log(`knowledge ${row.id} (${row.type}) ready in KB ${kbId} for agent ${row.agentId}`);
-        return { outcome: 'ready' };
-      }
-      if (status === 'error') {
+        ready = true;
+      } else if (status === 'error') {
         await this.fail(row.id, 'platform_error', KNOWLEDGE_REASONS.unreadable, 'knowledge base reported error after ingest');
         return { outcome: 'failed', reason: 'ingest error' };
+      } else {
+        // Still ingesting after the inline window: hand off to a delayed poll rather than
+        // hold a worker slot. The row stays `syncing`, which is what the customer sees.
+        const poll = (job.data.poll ?? 0) + 1;
+        if (poll > MAX_POLLS) {
+          await this.fail(row.id, 'timeout', KNOWLEDGE_REASONS.too_slow, `still ${status} after ${MAX_POLLS} polls`);
+          return { outcome: 'failed', reason: 'ingest timeout' };
+        }
+        await adminDb.knowledgeSource.update({ where: { id: row.id }, data: { syncJson: merge(row.syncJson, { polls: poll, platform_status: status }) } });
+        const queued = await this.queues.enqueueKnowledgeSync({ ...job.data, poll }, { delayMs: POLL_DELAY_MS });
+        if (queued === 'failed') throw new Error('could not queue the ingest poll');
+        return { outcome: 'polling', reason: status };
       }
-      // Still ingesting after the inline window: hand off to a delayed poll rather than
-      // hold a worker slot. The row stays `syncing`, which is what the customer sees.
-      const poll = (job.data.poll ?? 0) + 1;
-      if (poll > MAX_POLLS) {
-        await this.fail(row.id, 'timeout', KNOWLEDGE_REASONS.too_slow, `still ${status} after ${MAX_POLLS} polls`);
-        return { outcome: 'failed', reason: 'ingest timeout' };
-      }
-      await adminDb.knowledgeSource.update({ where: { id: row.id }, data: { syncJson: merge(row.syncJson, { polls: poll, platform_status: status }) } });
-      const queued = await this.queues.enqueueKnowledgeSync({ ...job.data, poll }, { delayMs: POLL_DELAY_MS });
-      if (queued === 'failed') throw new Error('could not queue the ingest poll');
-      return { outcome: 'polling', reason: status };
     } catch (error) {
       const status = retellErrorStatus(error);
       const detail = describe(error);
@@ -135,13 +155,21 @@ export class KnowledgeSyncWorker {
       this.log.warn(`knowledge ${row.id}: sync attempt failed (${detail}); retrying`);
       throw error;
     }
+
+    // Outside the try: a failed republish is not a failed read. The source stays `ready`
+    // with its `republish` mark, and the thrown error is the job's retry.
+    if (ready && republishPending(row.syncJson)) await this.republish(row);
+    return { outcome: 'ready' };
   }
 
   // ------------------------------------------------------------------ steps
 
-  /** One KB per agent, named after the agent id so a lost create is found again. */
-  private async ensureKnowledgeBase(row: SourceRow, lockToken: string): Promise<string> {
-    if (row.agent.retellKbId) return row.agent.retellKbId;
+  /**
+   * One KB per agent, named after the agent id so a lost create is found again.
+   * `attached` is true when this call is the one that put the base on the agent.
+   */
+  private async ensureKnowledgeBase(row: SourceRow, lockToken: string): Promise<{ kbId: string; attached: boolean }> {
+    if (row.agent.retellKbId) return { kbId: row.agent.retellKbId, attached: false };
 
     const lockKey = `kblock:{${row.agentId}}`;
     const locked = await this.cache.setIfAbsent(lockKey, lockToken, KB_LOCK_TTL_S);
@@ -149,7 +177,7 @@ export class KnowledgeSyncWorker {
     try {
       // Re-read under the lock: the other sync may have finished between our load and now.
       const fresh = await adminDb.agent.findUnique({ where: { id: row.agentId }, select: { retellKbId: true } });
-      if (fresh?.retellKbId) return fresh.retellKbId;
+      if (fresh?.retellKbId) return { kbId: fresh.retellKbId, attached: false };
 
       const name = kbName(row.agentId);
       const existing = await this.retell.findKnowledgeBaseByName(name);
@@ -162,7 +190,7 @@ export class KnowledgeSyncWorker {
         const found = findSource(kb, row);
         if (found) await adminDb.knowledgeSource.update({ where: { id: row.id }, data: { retellSourceId: found } });
       }
-      return kb.knowledge_base_id;
+      return { kbId: kb.knowledge_base_id, attached: true };
     } finally {
       await this.cache.del(lockKey);
     }
@@ -238,6 +266,33 @@ export class KnowledgeSyncWorker {
     return { outcome: 'deleted' };
   }
 
+  /**
+   * Put the agent's knowledge base on the phone: republish the live version (a new
+   * platform version of the same one of ours). A throw leaves the `republish` mark, and
+   * the job's retry lands in the `ready` branch of `run()`.
+   */
+  private async republish(row: SourceRow): Promise<void> {
+    const agent = await adminDb.agent.findUnique({ where: { id: row.agentId }, select: { publishedVersion: true, deletedAt: true } });
+    if (agent?.publishedVersion != null && !agent.deletedAt) {
+      const userId = await this.actorFor(row);
+      const result = await this.publishing.publish({ userId, workspaceId: row.tenantId, role: 'owner' }, row.agentId, agent.publishedVersion, { refresh: true });
+      this.log.log(`agent ${row.agentId}: republished v${result.version_no} so the live agent reads its knowledge base`);
+    }
+    const current = await adminDb.knowledgeSource.findUnique({ where: { id: row.id }, select: { syncJson: true } });
+    await adminDb.knowledgeSource.update({ where: { id: row.id }, data: { syncJson: merge(current?.syncJson, { republish: false, republished_at: new Date().toISOString() }) } });
+  }
+
+  /** The audit row's actor: whoever added the source, else the workspace owner. */
+  private async actorFor(row: SourceRow): Promise<string> {
+    const requested = (row.syncJson as { requested_by?: unknown } | null)?.requested_by;
+    if (typeof requested === 'string' && requested) {
+      const member = await adminDb.membership.findFirst({ where: { tenantId: row.tenantId, userId: requested }, select: { userId: true } });
+      if (member) return member.userId;
+    }
+    const owner = await adminDb.membership.findFirstOrThrow({ where: { tenantId: row.tenantId, role: 'owner' }, select: { userId: true } });
+    return owner.userId;
+  }
+
   private async markReady(rowId: string, kbId: string, retellSourceId: string): Promise<void> {
     const row = await adminDb.knowledgeSource.findUnique({ where: { id: rowId }, select: { syncJson: true, sizeBytes: true, payload: true } });
     await adminDb.knowledgeSource.updateMany({
@@ -279,9 +334,15 @@ export class KnowledgeSyncWorker {
   }
 }
 
+const AGENT_SELECT = { id: true, name: true, retellKbId: true, deletedAt: true, publishedVersion: true } as const;
+
 type SourceRow = Prisma.KnowledgeSourceGetPayload<{
-  include: { agent: { select: { id: true; name: true; retellKbId: true; deletedAt: true } }; tenant: { select: { name: true } } };
+  include: { agent: { select: typeof AGENT_SELECT }; tenant: { select: { name: true } } };
 }>;
+
+function republishPending(syncJson: unknown): boolean {
+  return Boolean(syncJson && typeof syncJson === 'object' && (syncJson as { republish?: unknown }).republish === true);
+}
 
 /**
  * Deterministic per agent: the retry's lookup key. The gateway adds the environment prefix.

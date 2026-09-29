@@ -5,7 +5,7 @@ import type { PromptProvider } from './prompt-provider';
 import { ScriptedPromptProvider } from './scripted.provider';
 
 export { PROMPT_PROVIDER, ProviderError, isProviderError } from './prompt-provider';
-export type { PromptProvider, ProviderRequest, ProviderResult, ProviderErrorKind } from './prompt-provider';
+export type { PromptProvider, ProviderRequest, ProviderResult, ProviderErrorKind, ImageTranscriptionRequest } from './prompt-provider';
 export { AnthropicPromptProvider, toProviderError } from './anthropic.provider';
 export { ScriptedPromptProvider } from './scripted.provider';
 export type { ScriptedBehaviour } from './scripted.provider';

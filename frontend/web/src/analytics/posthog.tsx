@@ -56,6 +56,8 @@ export type AnalyticsEvent =
   | 'menu_uploaded'
   | 'menu_replaced'
   | 'menu_removed'
+  | 'document_added'
+  | 'document_removed'
   | 'test_call_started'
   | 'test_call_ended'
   | 'test_call_failed'
@@ -96,7 +98,9 @@ export type AnalyticsEvent =
   | 'member_removed'
   | 'ownership_transferred'
   | 'notification_settings_saved'
-  | 'call_reported';
+  | 'call_reported'
+  | 'support_ticket_opened'
+  | 'support_ticket_replied';
 
 export function track(event: AnalyticsEvent, props: Record<string, string | number | boolean | null | undefined> = {}) {
   if (!initialised) return;

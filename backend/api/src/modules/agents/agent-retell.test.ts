@@ -51,7 +51,7 @@ function input(over: Partial<RetellSyncInput> = {}): RetellSyncInput {
     promptText:
       'You are Sophie, the receptionist. Greet the caller and take a message for the team.',
     greeting: 'Hello',
-    brief: { services: [], faqs: [], handoff_rules: [], ai_disclosure: 'if_asked' },
+    brief: { services: [], faqs: [], handoff_rules: [], ai_disclosure: 'if_asked', documents: [] },
     analysisFields: [],
     voiceId: null,
     voiceSpeed: null,

@@ -10,6 +10,7 @@ import { AgentsTab, AuditTab, CallsTab, JobsTab, NumbersTab, WebhooksTab } from 
 import { MembersTab } from '@/src/components/customers/tabs/members-tab';
 import { OverviewTab } from '@/src/components/customers/tabs/overview-tab';
 import { PurchasesTab } from '@/src/components/customers/tabs/purchases-tab';
+import { TicketsTab } from '@/src/components/customers/tabs/tickets-tab';
 import { WalletTab } from '@/src/components/customers/tabs/wallet-tab';
 import { humanize } from '@/src/lib/format';
 import { pickParam, setParam, useUrlQuery } from '@/src/lib/use-url-query';
@@ -55,6 +56,7 @@ function CustomerDetail() {
       {tab === 'agents' ? <AgentsTab customerId={id} /> : null}
       {tab === 'numbers' ? <NumbersTab customerId={id} /> : null}
       {tab === 'calls' ? <CallsTab customerId={id} /> : null}
+      {tab === 'tickets' ? <TicketsTab customerId={id} /> : null}
       {tab === 'jobs' ? <JobsTab customerId={id} /> : null}
       {tab === 'webhooks' ? <WebhooksTab customerId={id} /> : null}
       {tab === 'audit' ? <AuditTab customerId={id} /> : null}

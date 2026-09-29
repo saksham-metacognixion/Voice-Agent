@@ -3,11 +3,12 @@
 import { isApiError, useApi, useGetPricing, useGetReadiness, useListCalls } from '@portal/api-client';
 import type { CallSummary, Carrier } from '@portal/schemas';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Skeleton, cn } from '@portal/ui';
-import { Activity, BookOpen, ExternalLink, LifeBuoy, Mail, Network, PhoneForwarded, PhoneIncoming, Receipt, RefreshCw } from 'lucide-react';
+import { Activity, BookOpen, ExternalLink, Network, PhoneForwarded, PhoneIncoming, Receipt, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
+import { ContactSupportCard, MyTicketsCard } from '@/src/components/dashboard/support-tickets';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
 import { PageHeader } from '@/src/components/shell/portal-shell';
 import { config } from '@/src/config';
@@ -19,7 +20,8 @@ import { useWorkspace } from '@/src/workspace/workspace-provider';
 /**
  * D7 Help (spec p. 39): the forwarding, SIP and billing guides — each built from what
  * the API already serves (the carrier codes, the published pricing), so a guide cannot
- * disagree with the product — contact support, "Report a call", and the service status
+ * disagree with the product — a "Contact support" form and "My tickets" (D13, built-in
+ * tickets), "Report a call", and the service status
  * from the API's own readiness probe. There is no chat vendor or status-page vendor yet
  * (§20 item 10): support is email, and an external status page is linked only when the
  * build sets `NEXT_PUBLIC_STATUS_PAGE_URL`.
@@ -37,10 +39,11 @@ export default function HelpPage() {
           <ForwardingGuideCard />
           <SipGuideCard />
           <BillingGuideCard />
+          <MyTicketsCard />
         </div>
         <div className="flex min-w-0 flex-col gap-6">
           <StatusCard />
-          <SupportCard />
+          <ContactSupportCard />
           <ReportCallCard />
         </div>
       </div>
@@ -196,27 +199,6 @@ function StatusRow({ label, up }: { label: string; up: boolean | null }) {
       <span className="min-w-0">{label}</span>
       {up === null ? <span className="text-muted-foreground">–</span> : <Badge variant={up ? 'success' : 'warning'}>{up ? t('up') : t('down')}</Badge>}
     </li>
-  );
-}
-
-function SupportCard() {
-  const t = useTranslations('dashboard.help');
-  return (
-    <Card id="support">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <LifeBuoy className="size-4 text-primary" aria-hidden /> {t('supportTitle')}
-        </CardTitle>
-        <CardDescription>{t('supportBody')}</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button asChild className="max-w-full">
-          <a href={`mailto:${config.support.email}`}>
-            <Mail /> <span className="truncate">{t('supportCta', { email: config.support.email })}</span>
-          </a>
-        </Button>
-      </CardContent>
-    </Card>
   );
 }
 

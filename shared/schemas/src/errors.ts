@@ -31,6 +31,8 @@ export const ErrorCode = {
   NO_PAYMENT_METHOD: 'NO_PAYMENT_METHOD',
   /** A phone plan or number request that the plan tier does not allow (max_numbers, sip_import, knowledge_base). */
   PLAN_LIMIT: 'PLAN_LIMIT',
+  /** A W2 document we could not read any text from (a scan, a corrupt file — ADR 0023). */
+  DOCUMENT_UNREADABLE: 'DOCUMENT_UNREADABLE',
   // 401
   UNAUTHENTICATED: 'UNAUTHENTICATED',
   INVALID_TOKEN: 'INVALID_TOKEN',
@@ -97,6 +99,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   INVITE_INVALID: 400,
   NO_PAYMENT_METHOD: 400,
   PLAN_LIMIT: 400,
+  DOCUMENT_UNREADABLE: 400,
   UNAUTHENTICATED: 401,
   INVALID_TOKEN: 401,
   INVALID_SIGNATURE: 401,

@@ -74,7 +74,7 @@ export function BriefTab({ agent, canEdit }: { agent: AgentDetail; canEdit: bool
           <p className="text-sm text-muted-foreground">{canEdit ? t('hint', { n: version?.version_no ?? 1 }) : t('viewerHint')}</p>
           <SaveIndicator state={autosave.state} error={autosave.error} onRetry={autosave.retry} />
         </div>
-        <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} placeholders={placeholders} />
+        <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} placeholders={placeholders} agentId={canEdit ? agent.id : null} />
       </div>
       <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
         {canEdit ? (

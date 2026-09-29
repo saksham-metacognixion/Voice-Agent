@@ -60,7 +60,13 @@ export class AgentPublishService {
     private readonly runtimeCache: RuntimeCacheService,
   ) {}
 
-  async publish(ctx: WorkspaceContext, agentId: string, versionNo?: number): Promise<PublishResponse> {
+  /**
+   * `refresh` is the knowledge worker's republish: the version is already live, but the
+   * platform copy predates the agent's knowledge base (the LLM is versioned with the
+   * agent, so a base attached after publish is not seen until a new platform version is
+   * published — ADR 0024). It skips the "already live" short-circuit and nothing else.
+   */
+  async publish(ctx: WorkspaceContext, agentId: string, versionNo?: number, opts: { refresh?: boolean } = {}): Promise<PublishResponse> {
     const stack = await this.stack.current();
 
     // ---------------------------------------------------------------- read
@@ -113,7 +119,7 @@ export class AgentPublishService {
     }
 
     // ---------------------------------------------------------------- already live?
-    if (isLive(agent, version)) {
+    if (!opts.refresh && isLive(agent, version)) {
       return { agent_id: agentId, version_no: version.versionNo, status: 'live', lint, already_published: true };
     }
 
@@ -157,7 +163,7 @@ export class AgentPublishService {
         }
         return { agent: freshAgent, version: freshVersion, settings: freshSettings };
       });
-      if (isLive(fresh.agent, fresh.version)) {
+      if (!opts.refresh && isLive(fresh.agent, fresh.version)) {
         return { agent_id: agentId, version_no: version.versionNo, status: 'live', lint, already_published: true };
       }
 

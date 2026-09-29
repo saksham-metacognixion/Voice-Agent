@@ -22,6 +22,22 @@ export interface PromptProvider {
 
   generate(request: ProviderRequest): Promise<ProviderResult<GeneratedPrompt>>;
   patch(request: ProviderRequest): Promise<ProviderResult<GeneratedPatch>>;
+  /**
+   * ADR 0023 — a photo of a menu or price list, read into the plain text the brief keeps.
+   * The answer is the document's words in order; `''` when the image holds no readable
+   * text (the service turns that into `DOCUMENT_UNREADABLE`). Build time only, like the
+   * other two: nothing here is ever in the call path.
+   */
+  transcribeImage(request: ImageTranscriptionRequest): Promise<ProviderResult<string>>;
+}
+
+export interface ImageTranscriptionRequest {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/webp';
+  /** Base64, no line breaks. */
+  data: string;
+  /** What the customer called it ("Dinner menu"), so the model knows what it is looking at. */
+  name: string;
+  timeoutMs?: number;
 }
 
 export interface ProviderRequest {

@@ -6,6 +6,7 @@ import { AlertCircle, Check, Cloud, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
+import { BriefDocuments } from '@/src/components/wizard/brief-documents';
 import { FaqEditor, HandoffRulesEditor, PersonalityEditor } from '@/src/components/wizard/brief-editors';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
 import { errorMessage } from '@/src/lib/errors';
@@ -18,7 +19,7 @@ import type { SaveState } from '@/src/wizard/use-brief-autosave';
  * The page owns the `useForm` (and the autosave, generation and navigation around it);
  * this renders the sections and reports the errors the page hands it.
  */
-export function BriefFields({ form, busy, fieldErrors, placeholders = {} }: { form: UseFormReturn<Brief>; busy: boolean; fieldErrors: Record<string, string>; placeholders?: BriefPlaceholders }) {
+export function BriefFields({ form, busy, fieldErrors, placeholders = {}, agentId = null }: { form: UseFormReturn<Brief>; busy: boolean; fieldErrors: Record<string, string>; placeholders?: BriefPlaceholders; agentId?: string | null }) {
   const t = useTranslations();
   const tw = useTranslations('wizard.w2');
   const tf = useTranslations('wizard.w2.fields');
@@ -41,6 +42,14 @@ export function BriefFields({ form, busy, fieldErrors, placeholders = {} }: { fo
         </Field>
         <Field id="agent_name" label={tf('agent_name.label')} description={tf('agent_name.hint')} error={msg('agent_name', err.agent_name ? t('validation.agentName') : undefined)}>
           <Input id="agent_name" maxLength={30} disabled={busy} placeholder={tf('agent_name.placeholder')} invalid={Boolean(err.agent_name)} className="sm:max-w-xs" {...form.register('agent_name', { setValueAs: (v: string) => (v?.trim() ? v : undefined) })} />
+        </Field>
+      </Section>
+
+      {/* Right after the basics: a menu or price list — often a photo — is the first thing a
+          restaurant or salon wants to hand over, and under the details it went unseen. */}
+      <Section title={tw('sections.documents')}>
+        <Field label={tf('documents.label')} description={tf('documents.hint')} error={msg('documents')}>
+          <Controller control={form.control} name="documents" render={({ field }) => <BriefDocuments agentId={agentId} value={field.value ?? []} onChange={field.onChange} disabled={busy} />} />
         </Field>
       </Section>
 

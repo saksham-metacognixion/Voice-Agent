@@ -227,6 +227,44 @@ describe('knowledge sources', () => {
     expect(JSON.stringify(shown.body)).not.toContain('platform_error');
   }, 30_000);
 
+  it('a knowledge base attached to a live agent is republished onto the phone; a second source into the same base is not (ADR 0024)', async () => {
+    const ws = await paidWorkspace(app, 'kb-republish', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const live = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    const liveVersion = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: live.publishedVersion! } } });
+    const publishesBefore = retell.countOf('publishAgent');
+
+    const first = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'text', name: 'Hours', text: 'Open 9–5.' });
+    const republished = async (id: string) => {
+      for (let i = 0; i < 100; i += 1) {
+        const row = await adminDb.knowledgeSource.findUnique({ where: { id } });
+        const sync = (row?.syncJson ?? {}) as { republished_at?: string };
+        if (row?.status === 'ready' && sync.republished_at) return row;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      throw new Error(`source ${id} was never republished`);
+    };
+    await republished(first.body.id as string);
+
+    const agent = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    const version = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: live.publishedVersion! } } });
+    // The same version of ours, now on a newer platform version whose LLM carries the base.
+    expect(agent.publishedVersion).toBe(live.publishedVersion);
+    expect(agent.status).toBe('live');
+    expect(version.retellAgentVersion).toBeGreaterThan(liveVersion.retellAgentVersion!);
+    expect(retell.countOf('publishAgent') - publishesBefore).toBe(1);
+    const llmUpdates = retell.calls.filter((c) => c.method === 'updateLlm');
+    expect((llmUpdates.at(-1)!.args[1] as { knowledgeBaseIds?: string[] }).knowledgeBaseIds).toEqual([agent.retellKbId]);
+
+    // The base is already on the phone: a second source lands in it and publishes nothing.
+    const second = await call('POST', `/agents/${agentId}/knowledge`, headers, { type: 'text', name: 'Parking', text: 'Free parking behind the building.' });
+    const row = await waitForSource(second.body.id as string);
+    if ('gone' in row) throw new Error('row vanished');
+    expect(row.status).toBe('ready');
+    expect(retell.countOf('publishAgent') - publishesBefore).toBe(1);
+  }, 60_000);
+
   it('a platform outage is retried and then converges without a second knowledge base or source', async () => {
     const ws = await paidWorkspace(app, 'kb-retry', 'growth');
     const headers = await auth(ws.sub, ws.workspaceId);

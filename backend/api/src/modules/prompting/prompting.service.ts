@@ -1,17 +1,31 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { withWorkspace } from '@portal/db';
 import {
   type AcceptedJob,
+  type BriefDocumentImageType,
+  type ExtractDocumentRequest,
+  type ExtractDocumentResponse,
   type FeedbackRequest,
   type GenerateRequest,
+  BRIEF_DOCUMENT_MAX_FILE_BYTES,
   briefReadyForGeneration,
+  isImageDocumentType,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { AgentEvents } from '../agents';
+import { AgentEvents, parseBrief } from '../agents';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
-import { JOBS, JobQueues, JobRecordsService, LOST_JOB_REASON, type LostJob, type PromptingJob } from '../jobs';
+import { extractDocumentText, finishText } from './document-text';
+import { PROMPT_PROVIDER, type PromptProvider, type ProviderResult, isProviderError } from './providers';
+import {
+  JOBS,
+  JobQueues,
+  JobRecordsService,
+  LOST_JOB_REASON,
+  type LostJob,
+  type PromptingJob,
+} from '../jobs';
 
 /**
  * The request half of §13.3 and §13.5 — everything that happens before the 202.
@@ -39,10 +53,15 @@ export class PromptingService {
     private readonly queues: JobQueues,
     private readonly config: PlatformConfigService,
     private readonly events: EventsService,
+    @Inject(PROMPT_PROVIDER) private readonly provider: PromptProvider,
   ) {}
 
   /** POST /agents/:id/generate — §13.3. */
-  async generate(ctx: WorkspaceContext, agentId: string, request: GenerateRequest): Promise<AcceptedJob> {
+  async generate(
+    ctx: WorkspaceContext,
+    agentId: string,
+    request: GenerateRequest,
+  ): Promise<AcceptedJob> {
     await this.assertGenerationAllowed();
 
     const { draftVersionNo } = await withWorkspace(ctx, async (db) => {
@@ -60,16 +79,22 @@ export class PromptingService {
             select: { briefJson: true, versionNo: true },
           })
         : null;
-      if (!draft) throw new AppError('BRIEF_INCOMPLETE', 'Fill in the brief before generating the agent.');
+      if (!draft)
+        throw new AppError('BRIEF_INCOMPLETE', 'Fill in the brief before generating the agent.');
 
       // W2: "Generate is disabled until 1 & 2 are valid". Enforced here too, because the
-      // button is not the only way to reach this route.
-      const ready = briefReadyForGeneration.safeParse(draft.briefJson ?? {});
+      // button is not the only way to reach this route. Judged on the brief as the worker
+      // will read it (`parseBrief` drops what it cannot parse and keeps the rest), so one
+      // unreadable document cannot block generation for the whole agent.
+      const ready = briefReadyForGeneration.safeParse(parseBrief(draft.briefJson));
       if (!ready.success) {
         throw new AppError(
           'BRIEF_INCOMPLETE',
           'Tell us about the business and what a good call achieves before generating.',
-          ready.error.issues.map((issue) => ({ field: `brief.${issue.path.join('.')}`, message: issue.message })),
+          ready.error.issues.map((issue) => ({
+            field: `brief.${issue.path.join('.')}`,
+            message: issue.message,
+          })),
         );
       }
 
@@ -85,7 +110,11 @@ export class PromptingService {
   }
 
   /** POST /agents/:id/feedback — §13.5, `source=feedback`. */
-  async feedback(ctx: WorkspaceContext, agentId: string, request: FeedbackRequest): Promise<AcceptedJob> {
+  async feedback(
+    ctx: WorkspaceContext,
+    agentId: string,
+    request: FeedbackRequest,
+  ): Promise<AcceptedJob> {
     await this.assertGenerationAllowed();
 
     const baseVersionNo = await withWorkspace(ctx, async (db) => {
@@ -98,7 +127,8 @@ export class PromptingService {
       if (!agent) throw AppError.notFound('Agent');
 
       const wanted = request.base_version ?? agent.draftVersion;
-      if (!wanted) throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before giving feedback on it.');
+      if (!wanted)
+        throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before giving feedback on it.');
 
       const base = await db.agentVersion.findUnique({
         where: { agentId_versionNo: { agentId, versionNo: wanted } },
@@ -106,7 +136,10 @@ export class PromptingService {
       });
       if (!base) throw AppError.notFound(`Version ${wanted}`);
       if (!base.promptText) {
-        throw new AppError('BRIEF_INCOMPLETE', 'This version has no prompt to improve yet. Generate it first.');
+        throw new AppError(
+          'BRIEF_INCOMPLETE',
+          'This version has no prompt to improve yet. Generate it first.',
+        );
       }
       return base.versionNo;
     });
@@ -150,7 +183,11 @@ export class PromptingService {
       steps: Record<string, unknown>;
     },
   ): Promise<AcceptedJob> {
-    const steps = { ...input.steps, requested_by: ctx.userId, requested_at: new Date().toISOString() };
+    const steps = {
+      ...input.steps,
+      requested_by: ctx.userId,
+      requested_at: new Date().toISOString(),
+    };
     let { jobId, joined } = await this.jobs.createOrJoin({
       workspaceId: ctx.workspaceId,
       type: input.type,
@@ -193,7 +230,12 @@ export class PromptingService {
       await this.jobs.fail(
         jobId,
         'Could not queue the generation job.',
-        { ...steps, queued: false, error_kind: 'not_queued', customer_reason: 'We could not start the generation just now. Try again in a moment.' },
+        {
+          ...steps,
+          queued: false,
+          error_kind: 'not_queued',
+          customer_reason: 'We could not start the generation just now. Try again in a moment.',
+        },
         0,
       );
       throw new AppError(
@@ -218,6 +260,93 @@ export class PromptingService {
       .catch(() => null);
   }
 
+  /**
+   * POST /agents/:id/documents/extract — W2 documents (ADR 0023): decode, read, answer.
+   *
+   * The agent lookup is the only database work and it closes before the file is parsed
+   * or the photo is sent to the model — seconds of CPU or a provider round trip, neither
+   * of which belongs inside `withWorkspace`. A photo is a vision call on the generation
+   * provider, so it obeys the `pause_generation` switch and a keyless box answers
+   * `NOT_CONFIGURED` rather than pretending. Nothing is persisted here: the portal writes
+   * the text into the brief through the autosave, versioned and dropped with the rest.
+   */
+  async extractDocument(
+    ctx: WorkspaceContext,
+    agentId: string,
+    input: ExtractDocumentRequest,
+  ): Promise<ExtractDocumentResponse> {
+    const base64 = input.content_base64.replace(/\s+/g, '');
+    const bytes = Buffer.from(base64, 'base64');
+    if (bytes.length === 0)
+      throw new AppError('BAD_REQUEST', 'The file is empty.', [
+        { field: 'content_base64', message: 'Empty file' },
+      ]);
+    if (bytes.length > BRIEF_DOCUMENT_MAX_FILE_BYTES) {
+      throw new AppError(
+        'BAD_REQUEST',
+        `Files can be up to ${BRIEF_DOCUMENT_MAX_FILE_BYTES / (1024 * 1024)} MB.`,
+        [{ field: 'content_base64', message: 'File too large' }],
+      );
+    }
+    const isImage = isImageDocumentType(input.content_type);
+    if (isImage) {
+      await this.assertGenerationAllowed();
+      if (!this.provider.configured) {
+        this.log.error(
+          'a photo was uploaded but the prompt provider has no credentials; refusing to transcribe',
+        );
+        throw new AppError(
+          'NOT_CONFIGURED',
+          'Reading photos is unavailable right now. We have been notified — upload the document as PDF or text instead.',
+        );
+      }
+    }
+
+    await withWorkspace(ctx, async (db) => {
+      const agent = await db.agent.findFirst({
+        where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!agent) throw AppError.notFound('Agent');
+    });
+
+    if (!isImage) {
+      const extracted = await extractDocumentText(bytes, input.content_type);
+      return { name: input.name, content_type: input.content_type, ...extracted };
+    }
+
+    let transcribed: ProviderResult<string>;
+    try {
+      transcribed = await this.provider.transcribeImage({
+        mediaType: input.content_type as BriefDocumentImageType,
+        data: base64,
+        name: input.name,
+      });
+    } catch (error) {
+      if (isProviderError(error)) {
+        this.log.warn(`transcription of "${input.name}" failed (${error.kind}): ${error.message}`);
+        if (error.kind === 'refused') throw unreadable();
+        if (error.kind === 'not_configured')
+          throw new AppError(
+            'NOT_CONFIGURED',
+            'Reading photos is unavailable right now. Upload the document as PDF or text instead.',
+          );
+        throw new AppError(
+          'UPSTREAM_UNAVAILABLE',
+          'We could not read the photo just now. Try again in a moment, or upload the document as PDF or text.',
+        );
+      }
+      throw error;
+    }
+    if (!transcribed.value.trim()) throw unreadable();
+    this.log.log(
+      `transcribed "${input.name}" (${input.content_type}, ${bytes.length} B) in ${transcribed.latencyMs} ms: ${transcribed.value.length} chars`,
+    );
+    const extracted = finishText(transcribed.value);
+    if (!extracted.text) throw unreadable();
+    return { name: input.name, content_type: input.content_type, ...extracted };
+  }
+
   /** SA12 `pause_generation` (§13.12). A kill switch is an operator's word, not a bug. */
   private async assertGenerationAllowed(): Promise<void> {
     if (await this.config.killSwitch('pause_generation')) {
@@ -233,10 +362,32 @@ export class PromptingService {
    * paused workspace spending our provider budget on generations would defeat the point
    * of pausing it. The worker refuses too, for a job queued a moment before the pause.
    */
-  private async assertWorkspaceActive(db: { tenant: { findUniqueOrThrow: (args: { where: { id: string }; select: { pausedAt: true } }) => Promise<{ pausedAt: Date | null }> } }, ctx: WorkspaceContext): Promise<void> {
-    const tenant = await db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { pausedAt: true } });
+  private async assertWorkspaceActive(
+    db: {
+      tenant: {
+        findUniqueOrThrow: (args: {
+          where: { id: string };
+          select: { pausedAt: true };
+        }) => Promise<{ pausedAt: Date | null }>;
+      };
+    },
+    ctx: WorkspaceContext,
+  ): Promise<void> {
+    const tenant = await db.tenant.findUniqueOrThrow({
+      where: { id: ctx.workspaceId },
+      select: { pausedAt: true },
+    });
     if (tenant.pausedAt) {
-      throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to continue.');
+      throw new AppError(
+        'WORKSPACE_PAUSED',
+        'This workspace is paused. Contact support to continue.',
+      );
     }
   }
+}
+
+function unreadable(): AppError {
+  return new AppError('DOCUMENT_UNREADABLE', 'We could not find any text in that photo. Try a sharper, straight-on picture, or upload the document as PDF or text.', [
+    { field: 'content_base64', message: 'No text found' },
+  ]);
 }

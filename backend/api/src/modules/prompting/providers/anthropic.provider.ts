@@ -1,10 +1,16 @@
 import { Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageStream } from '@anthropic-ai/sdk/lib/MessageStream';
-import { type GeneratedPatch, type GeneratedPrompt, generatedPatch, generatedPrompt } from '@portal/schemas';
+import {
+  type GeneratedPatch,
+  type GeneratedPrompt,
+  generatedPatch,
+  generatedPrompt,
+} from '@portal/schemas';
 import type { z } from 'zod';
 import { GENERATED_PATCH_JSON_SCHEMA, GENERATED_PROMPT_JSON_SCHEMA } from './output-schema';
 import {
+  type ImageTranscriptionRequest,
   type PromptProvider,
   ProviderError,
   type ProviderRequest,
@@ -73,7 +79,9 @@ export class AnthropicPromptProvider implements PromptProvider {
     this.configured = this.apiKey.length > 0;
 
     if (!this.configured) {
-      this.log.warn('ANTHROPIC_API_KEY is not set; prompt generation will fail with a clear error (see .env.example).');
+      this.log.warn(
+        'ANTHROPIC_API_KEY is not set; prompt generation will fail with a clear error (see .env.example).',
+      );
     } else {
       this.log.log(
         `generation model ${this.model}, effort ${this.effort}, thinking ${this.thinking} (timeout ${this.timeoutMs} ms)`,
@@ -93,7 +101,11 @@ export class AnthropicPromptProvider implements PromptProvider {
     if (!this.configured) {
       throw new ProviderError('not_configured', 'ANTHROPIC_API_KEY is not set.');
     }
-    return (this.client ??= new Anthropic({ apiKey: this.apiKey, timeout: this.timeoutMs, maxRetries: 0 }));
+    return (this.client ??= new Anthropic({
+      apiKey: this.apiKey,
+      timeout: this.timeoutMs,
+      maxRetries: 0,
+    }));
   }
 
   generate(request: ProviderRequest): Promise<ProviderResult<GeneratedPrompt>> {
@@ -102,6 +114,96 @@ export class AnthropicPromptProvider implements PromptProvider {
 
   patch(request: ProviderRequest): Promise<ProviderResult<GeneratedPatch>> {
     return this.call<GeneratedPatch>(request, GENERATED_PATCH_JSON_SCHEMA, generatedPatch);
+  }
+
+  /**
+   * ADR 0023 — a photo of a document, transcribed. Plain text out, no schema: the
+   * answer *is* the document, and a JSON wrapper around 10 000 characters of menu buys
+   * nothing. Same model, same effort and thinking knobs, same one retry on a transient
+   * failure. `NO_TEXT` is the agreed answer for an image with nothing to read, and it
+   * comes back as `''` so the caller does not have to know the sentinel.
+   */
+  async transcribeImage(request: ImageTranscriptionRequest): Promise<ProviderResult<string>> {
+    const started = Date.now();
+    const timeout = request.timeoutMs ?? this.timeoutMs;
+    let attempts = 0;
+    let lastTransient: ProviderError | undefined;
+
+    while (attempts < 2) {
+      attempts += 1;
+      const remaining = timeout - (Date.now() - started);
+      if (remaining <= 250)
+        throw (
+          lastTransient ??
+          new ProviderError('timeout', `transcription exceeded its ${timeout} ms budget`)
+        );
+      const deadline = new AbortController();
+      const timer = setTimeout(() => deadline.abort(), remaining);
+      try {
+        const stream = this.sdk.messages.stream(
+          {
+            model: this.model,
+            max_tokens: this.maxTokens,
+            system: TRANSCRIBE_SYSTEM,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'image',
+                    source: { type: 'base64', media_type: request.mediaType, data: request.data },
+                  },
+                  { type: 'text', text: `This is "${request.name}". Transcribe it.` },
+                ],
+              },
+            ],
+            thinking:
+              this.thinking === 'off'
+                ? { type: 'disabled' as const }
+                : { type: 'adaptive' as const },
+            output_config: { ...(this.effort === 'none' ? {} : { effort: this.effort }) },
+          },
+          { timeout: remaining, signal: deadline.signal },
+        );
+        const message = await stream.finalMessage();
+        if (message.stop_reason === 'refusal')
+          throw new ProviderError('refused', 'The model declined to read this image.');
+        if (message.stop_reason === 'max_tokens')
+          throw new ProviderError(
+            'malformed',
+            'The model ran out of output tokens before finishing the transcription.',
+          );
+        const text = message.content
+          .filter((block): block is Anthropic.TextBlock => block.type === 'text')
+          .map((block) => block.text)
+          .join('')
+          .trim();
+        return {
+          value: text === NO_TEXT ? '' : text,
+          latencyMs: Date.now() - started,
+          attempts,
+          model: message.model ?? this.model,
+          usage: {
+            input_tokens: message.usage?.input_tokens,
+            output_tokens: message.usage?.output_tokens,
+          },
+        };
+      } catch (error) {
+        const mapped = deadline.signal.aborted
+          ? new ProviderError('timeout', `transcription exceeded its ${timeout} ms budget`, {
+              cause: error,
+            })
+          : toProviderError(error);
+        if (!mapped.retryable || attempts >= 2) throw mapped;
+        lastTransient = mapped;
+        this.log.warn(
+          `transcription attempt ${attempts} failed (${mapped.kind}): ${mapped.message}; retrying once`,
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    throw lastTransient ?? new ProviderError('unavailable', 'transcription failed');
   }
 
   /**
@@ -127,7 +229,10 @@ export class AnthropicPromptProvider implements PromptProvider {
       attempts += 1;
       const remaining = timeout - (Date.now() - started);
       if (remaining <= 250) {
-        throw lastTransient ?? new ProviderError('timeout', `generation exceeded its ${timeout} ms budget`);
+        throw (
+          lastTransient ??
+          new ProviderError('timeout', `generation exceeded its ${timeout} ms budget`)
+        );
       }
 
       // Our own deadline, not the SDK's. A request that keeps its socket alive without
@@ -146,7 +251,10 @@ export class AnthropicPromptProvider implements PromptProvider {
             // parameter *runs adaptive thinking*. The 17 Sep "thinking off" measurement in
             // ADR 0012 omitted the parameter and so compared adaptive with adaptive; the
             // 21 Sep re-run with `disabled` is the real number.
-            thinking: this.thinking === 'off' ? { type: 'disabled' as const } : { type: 'adaptive' as const },
+            thinking:
+              this.thinking === 'off'
+                ? { type: 'disabled' as const }
+                : { type: 'adaptive' as const },
             output_config: {
               // `none` omits the parameter entirely. Not a style choice: Haiku 4.5 answers
               // 400 "This model does not support the effort parameter", so without this
@@ -166,7 +274,10 @@ export class AnthropicPromptProvider implements PromptProvider {
           throw new ProviderError('refused', 'The model declined to write this prompt.');
         }
         if (message.stop_reason === 'max_tokens') {
-          throw new ProviderError('malformed', 'The model ran out of output tokens before finishing the prompt.');
+          throw new ProviderError(
+            'malformed',
+            'The model ran out of output tokens before finishing the prompt.',
+          );
         }
 
         return {
@@ -176,15 +287,22 @@ export class AnthropicPromptProvider implements PromptProvider {
           thinkingMs: timing.thinkingMs ?? 0,
           attempts,
           model: message.model ?? this.model,
-          usage: { input_tokens: message.usage?.input_tokens, output_tokens: message.usage?.output_tokens },
+          usage: {
+            input_tokens: message.usage?.input_tokens,
+            output_tokens: message.usage?.output_tokens,
+          },
         };
       } catch (error) {
         const mapped = deadline.signal.aborted
-          ? new ProviderError('timeout', `generation exceeded its ${timeout} ms budget`, { cause: error })
+          ? new ProviderError('timeout', `generation exceeded its ${timeout} ms budget`, {
+              cause: error,
+            })
           : toProviderError(error);
         if (!mapped.retryable || attempts >= 2) throw mapped;
         lastTransient = mapped;
-        this.log.warn(`generation attempt ${attempts} failed (${mapped.kind}): ${mapped.message}; retrying once`);
+        this.log.warn(
+          `generation attempt ${attempts} failed (${mapped.kind}): ${mapped.message}; retrying once`,
+        );
       } finally {
         clearTimeout(timer);
       }
@@ -233,6 +351,23 @@ function watchStream(
   return timing;
 }
 
+const NO_TEXT = 'NO_TEXT';
+
+/**
+ * The transcription instruction. Word for word and in reading order, because the text
+ * is appended to the runtime prompt verbatim and a caller is quoted from it: a
+ * "helpfully" rounded price or a summarised section is exactly what must not happen.
+ */
+const TRANSCRIBE_SYSTEM = [
+  'You transcribe a photographed or scanned business document — a menu, a price list, a services sheet, opening hours — into plain text.',
+  'Rules:',
+  '- Write every word and number exactly as printed, in reading order (top to bottom, left column before right). Keep section headings on their own line and one item per line, with its price on the same line.',
+  '- Do not summarise, translate, reorder, round, add or leave anything out. Do not describe the picture, the layout or the design.',
+  '- Keep symbols as printed ($, €, %, ½). If a word is illegible, write [unclear] in its place.',
+  '- Output only the transcription: no preamble, no markdown, no commentary.',
+  `- If the image contains no readable text at all, output exactly ${NO_TEXT}.`,
+].join('\n');
+
 /** Concatenates the text blocks. Thinking blocks are skipped — they are not the answer. */
 function textOf(message: Anthropic.Message): string {
   const text = message.content
@@ -256,7 +391,10 @@ function validate<T>(validator: z.ZodTypeAny, raw: string): T {
   try {
     parsed = JSON.parse(raw);
   } catch {
-    throw new ProviderError('malformed', `The model returned text that is not JSON: ${raw.slice(0, 200)}`);
+    throw new ProviderError(
+      'malformed',
+      `The model returned text that is not JSON: ${raw.slice(0, 200)}`,
+    );
   }
 
   const result = validator.safeParse(parsed);
@@ -265,7 +403,10 @@ function validate<T>(validator: z.ZodTypeAny, raw: string): T {
       .slice(0, 5)
       .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
       .join('; ');
-    throw new ProviderError('invalid_output', `The generated prompt did not match the expected shape — ${issues}`);
+    throw new ProviderError(
+      'invalid_output',
+      `The generated prompt did not match the expected shape — ${issues}`,
+    );
   }
   // The schema *is* the type — `generatedPrompt` infers `GeneratedPrompt` — but zod's
   // output and input types differ wherever a field has a default, and a generic bound to
@@ -278,12 +419,20 @@ export function toProviderError(error: unknown): ProviderError {
   if (error instanceof ProviderError) return error;
 
   if (error instanceof Anthropic.APIConnectionTimeoutError) {
-    return new ProviderError('timeout', 'The generation service did not answer in time.', { cause: error });
+    return new ProviderError('timeout', 'The generation service did not answer in time.', {
+      cause: error,
+    });
   }
   if (error instanceof Anthropic.RateLimitError) {
-    return new ProviderError('rate_limited', 'The generation service is rate limiting us.', { status: 429, cause: error });
+    return new ProviderError('rate_limited', 'The generation service is rate limiting us.', {
+      status: 429,
+      cause: error,
+    });
   }
-  if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError) {
+  if (
+    error instanceof Anthropic.AuthenticationError ||
+    error instanceof Anthropic.PermissionDeniedError
+  ) {
     return new ProviderError('not_configured', 'The generation service rejected our credentials.', {
       status: error.status,
       cause: error,
@@ -292,27 +441,41 @@ export function toProviderError(error: unknown): ProviderError {
   if (error instanceof Anthropic.BadRequestError) {
     // Our request, not their outage: a schema the model cannot satisfy, or a parameter
     // this model rejects. Retrying it produces the same 400.
-    return new ProviderError('invalid_output', `The generation request was rejected: ${error.message}`, {
-      status: error.status,
-      retryable: false,
-      cause: error,
-    });
+    return new ProviderError(
+      'invalid_output',
+      `The generation request was rejected: ${error.message}`,
+      {
+        status: error.status,
+        retryable: false,
+        cause: error,
+      },
+    );
   }
   if (error instanceof Anthropic.APIConnectionError) {
-    return new ProviderError('unavailable', 'The generation service could not be reached.', { cause: error });
+    return new ProviderError('unavailable', 'The generation service could not be reached.', {
+      cause: error,
+    });
   }
   if (error instanceof Anthropic.APIError) {
     const status = error.status ?? 0;
-    return new ProviderError(status >= 500 ? 'unavailable' : 'invalid_output', `Generation failed (HTTP ${status}).`, {
-      status,
-      retryable: status >= 500,
+    return new ProviderError(
+      status >= 500 ? 'unavailable' : 'invalid_output',
+      `Generation failed (HTTP ${status}).`,
+      {
+        status,
+        retryable: status >= 500,
+        cause: error,
+      },
+    );
+  }
+  if (error instanceof Error && /abort|timeout/i.test(error.message)) {
+    return new ProviderError('timeout', 'The generation service did not answer in time.', {
       cause: error,
     });
   }
-  if (error instanceof Error && /abort|timeout/i.test(error.message)) {
-    return new ProviderError('timeout', 'The generation service did not answer in time.', { cause: error });
-  }
-  return new ProviderError('unavailable', error instanceof Error ? error.message : String(error), { cause: error });
+  return new ProviderError('unavailable', error instanceof Error ? error.message : String(error), {
+    cause: error,
+  });
 }
 
 function positiveInt(raw: string | undefined, fallback: number): number {

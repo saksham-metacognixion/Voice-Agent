@@ -17,6 +17,10 @@ import {
   AdminUsersController,
   AdminWebhooksController,
 } from '../modules/admin/admin.controllers';
+import { AdminOperationsController } from '../modules/admin/admin-operations.controller';
+import { AdminStaffController } from '../modules/admin/admin-staff.controller';
+import { AdminBillingController, AdminCustomerBillingController } from '../modules/admin/admin-billing.controller';
+import { AdminCannedResponsesController, AdminTicketsController } from '../modules/admin/admin-support.controller';
 import { ImpersonationController } from '../modules/admin/impersonation.controller';
 import { AgentsController, TemplatesController } from '../modules/agents/agents.controller';
 import { BillingController } from '../modules/billing/billing.controller';
@@ -30,6 +34,7 @@ import { AlertsController } from '../modules/notifications/alerts.controller';
 import { NumbersController, PhonePlanController } from '../modules/numbers/numbers.controller';
 import { PromptingController } from '../modules/prompting/prompting.controller';
 import { VoicesController } from '../modules/voices/voices.controller';
+import { SupportController } from '../modules/support/support.controller';
 import { WalletController } from '../modules/wallet/wallet.controller';
 import { WebhooksController } from '../modules/webhooks/webhooks.controller';
 import { WorkspacesController } from '../modules/workspaces/workspaces.controller';
@@ -62,6 +67,8 @@ export const CONTROLLERS = [
   JobsController,
   EventsController,
   AlertsController,
+  // D13 — the customer side of support tickets (D7 Help).
+  SupportController,
   WebhooksController,
   // D12 — the staff console (admin §9) and the view-as routes on the customer side.
   ImpersonationController,
@@ -80,4 +87,13 @@ export const CONTROLLERS = [
   AdminSearchController,
   AdminSystemController,
   AdminAuditController,
+  // D13 — SA9 billing & finance.
+  AdminBillingController,
+  AdminCustomerBillingController,
+  // D13 — SA13 staff & settings, SA7 provisioning queue and concurrency.
+  AdminStaffController,
+  AdminOperationsController,
+  // D13 — SA4 support tickets and canned responses.
+  AdminTicketsController,
+  AdminCannedResponsesController,
 ] as const;

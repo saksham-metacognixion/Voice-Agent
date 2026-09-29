@@ -95,7 +95,15 @@ voice clips denied outside `APP_ENV=dev` (25 Sep), 0021 the admin console — th
 module on `adminDb` in front of the same services, `staff_audit_log` inside the write's
 transaction, pricing publish as insert-unpublished → Stripe sync → effective, jobs keeping
 their payload for a staff retry, SA3 through the Auth0 Management API, and read-only view-as
-as an API-minted `imp_` credential (D12, 28 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+as an API-minted `imp_` credential (D12, 28 Sep), 0022 the P1 admin close — SA4 tickets with
+macros, SA9 refunds as claim → Stripe → settle, SA13 staff invites bound on first sign-in, the
+SA7 provisioning queue and concurrency view, and the D13 QA (28 Sep), 0023 business
+documents in the brief — a menu or price list uploaded on W2, extracted to text by a
+stateless route, kept in `brief.documents` and appended to the runtime prompt verbatim
+next to the guardrails, no plan gate; photos transcribed by the generation model; `parseBrief` repairs per field (29 Sep), 0024 what the
+agent knows comes after payment — W3 → W5, W4 is the first page after go-live behind
+`LiveGuard`, and the `knowledge-sync` job that attaches a base to a live agent republishes
+the live version itself (29 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -198,7 +206,9 @@ job settles.
   the vendor's name aloud and are served from its bucket, so `VOICE_VENDOR_SAMPLES` withholds
   both (`deny` is the default under `APP_ENV=prod`). `voices.sample_url`, a clip of ours, is
   played whatever the switch says and the daily `voice-cache` job never writes it. There is no
-  text-to-speech route to make one with (ADR 0003 §9 + the D8 addendum). **The default is
+  text-to-speech route to make one with (ADR 0003 §9 + the D8 addendum). The W1 template
+  clips (`frontend/web/public/samples/*.mp3`) are recordings of a throwaway `dev-sample-*`
+  agent reading a fictional business's line, made by `pnpm --filter @portal/api samples:templates`. **The default is
   `deny` everywhere but `APP_ENV=dev`** — a design partner on staging heard a clip say the
   vendor's name (25 Sep, ADR 0020 §5). The agent's own script is kept clean the same way:
   `identitySection()` in the generation user turn names the business and forbids any other
@@ -394,6 +404,29 @@ job settles.
   row; the one live field it touches is `name`, and that refreshes the cache too. A draft
   Premium→Standard flip therefore changes nothing a caller or the wallet sees until it is
   published. Generation and the Retell draft sync use the _version's_ settings.
+- **Business documents are a brief field, appended to the prompt in code** (ADR 0023).
+  `brief.documents` (≤ 3, ≤ 15 000 characters in total, `briefDocuments` in
+  `@portal/schemas`) is a menu, a price list or a services sheet read into text by
+  `POST /agents/:id/documents/extract` (`unpdf` / `mammoth` / UTF-8, stores nothing,
+  `400 DOCUMENT_UNREADABLE` for a scan) and saved by the W2 autosave like any other
+  field — no plan gate, no platform knowledge base. **A photo** (JPEG/PNG/WebP) is
+  shrunk to ≤ 2 000 px JPEG in the browser and transcribed by
+  `PromptProvider.transcribeImage` (the generation model's vision, build time only;
+  obeys `pause_generation`, `503 NOT_CONFIGURED` without a key), which is why the route
+  is in `prompting`. **`parseBrief` drops only what fails** (a bad document entry, a bad
+  field) — it used to return `{}`, and a worker running an older schema generated a
+  script from an empty brief and stored it (29 Sep); the generation worker now refuses
+  a brief that is not generation-ready as it reads it (`brief_incomplete`). Restart the
+  worker after rebuilding `@portal/schemas` — `nest --watch` watches `src/` only. `runtimePrompt()`
+  (`modules/prompting/documents.ts`) is what `AgentRetellService.llmSpec` sends: script,
+  then `## Business documents (attached)` verbatim, then the §9.4 block. The stored
+  `prompt_text`, `editable_prompt`, the lint's length rule and a version diff never
+  contain the block; the generation turn gets `documentsSection()` (names + a 1 200-char
+  excerpt, "do not copy the contents") and `briefForModel()` names only; `mergeBriefPatch`
+  skips `documents`. A re-upload reaches the phone at the next sync without a regenerate.
+  Fastify's `bodyLimit` is 32 MiB (`main.ts`): the 1 MiB default had been answering 413 to
+  any W4 file over ~750 KB. The W4 `role = menu` source (ADR 0020) is unchanged and
+  complementary — searched, not read; for a menu longer than the budget.
 - `GET /jobs/:id` returns an explicit whitelist (`jobProgress`), never `steps_json` or
   `jobs.error`. Those name the provider, the model and the Retell sync and stay server-side;
   the customer-facing failure text is `steps_json.customer_reason`, written by the worker.
@@ -473,7 +506,10 @@ job settles.
   is what the API refuses on (`400`, field `role`) and what the portal shows the Menu
   section from. The generation worker passes every pending/syncing/ready source to
   `knowledgeSection()`, which tells the model to answer from the menu and to say when a
-  dish is not on it. Images are not accepted (the platform ingests documents). **Replace
+  dish is not on it. The platform ingests documents, not images, so a **photo** (the menu
+  slot, "Add a source", W2's documents) is read into text in the browser's flow first —
+  `photoToText()` (`src/wizard/photo-text.ts`) → `POST /agents/:id/documents/extract` — and
+  stored as a `text` source (ADR 0024). **Replace
   (DELETE then POST in the same second) is settled by the worker, not the portal**: a delete
   of the last synced source defers (5 s × ≤ 24, `-del-p<n>`) while a sibling is pending or
   syncing, and a sync whose base answers 404 mid-flight clears the stale `retell_kb_id` and
@@ -484,8 +520,12 @@ job settles.
   sources per agent, files ≤ 20 MB, private hosts refused. A source that synced is deleted on
   the platform **before** its row (`deleting` + the `-del` job id). The platform will not
   empty a knowledge base, so the **last** source deletes the base and clears
-  `agents.retell_kb_id`. A KB added after publish
-  reaches the LLM at the next publish (the LLM is versioned with the agent, ADR 0003 §7).
+  `agents.retell_kb_id`. The LLM is versioned with the agent (ADR 0003 §7), so a base
+  attached after publish is invisible to the live agent until a publish: the sync that
+  attaches one to an agent with a `published_version` marks the source
+  `sync_json.republish` and, once `ready`, calls `publish(…, published_version,
+  {refresh: true})` — same version of ours, new platform version (ADR 0024). The
+  republish is outside the sync's `try` and a throw keeps the mark for the retry.
 - **Auto top-up (§5.4) credits nothing on the create call.** `AutoTopupService.evaluate`
   (every debit + the 15-minute `auto-topup` schedule) creates the pending purchase under the
   wallet lock (no second charge while one is pending for 30 min, none for 6 h after a decline),
@@ -598,9 +638,12 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `k ≤ onboarding_step`; the portal advances the step with `PATCH /workspace`, never
   backwards, single-flight; a guard never redirects while the workspace row is refetching.
   `LAST_IMPLEMENTED_STEP` is 7 since D9, so `/app` opens only once `onboarding_completed_at`
-  is set (the activation job's `mark_live`). `/onboarding/live` sits outside the 1–7 steps
-  behind `LiveGuard` (onboarding complete, else back to the step); W7's guard takes
-  `completeRedirect` so a finished activation lands there, not on `/app`.
+  is set (the activation job's `mark_live`). **W4 is after payment** (ADR 0024):
+  `ONBOARDING_STEPS` is 1, 2, 3, 5, 6, 7 (4 unused, `stepPath(4)` → W5), W3 advances to 5,
+  and `WIZARD_STEPPER` draws knowledge as the last dot. `/onboarding/knowledge` and
+  `/onboarding/live` sit outside the steps behind `LiveGuard` (onboarding complete, else
+  back to the step); a live activation (and W7's `completeRedirect`) goes to knowledge,
+  whose Continue goes to live.
 - **Colours are tokens.** `bg-card`, `text-muted-foreground`, `border-border`, `bg-primary`…
   from `frontend/ui/src/styles/globals.css` (`:root` and `.dark`), derived from the five
   Oraly brand colours — Purple `#7B5CFF`, Electric Blue `#22D3EE`, Deep Navy `#0A0F1A`,
@@ -806,11 +849,76 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Credit adjustments take an `idempotency_key` (the console makes one per opened dialog; it is
   the adjustment id): a double click, a retry or a second tab moves credits once. A ticket number
   is linked only when `support_tickets` holds it and is otherwise kept in the audit row.
+- **SA9 billing (D13, ADR 0022).** `GET /admin/purchases` (+ `:id`), `POST /admin/purchases/:id/refund`,
+  `GET /admin/topups/failed`, `POST /admin/topups/:id/retry`, `POST /admin/customers/:id/auto-topup/disable`,
+  `GET /admin/billing/summary`. **A refund is claim → Stripe → settle**: a `refunds` row
+  `pending` whose id *is* the request's `idempotency_key` (+ `purchase.refund_requested`, in the
+  tx), then `StripeGateway.refundPaymentIntent` with idempotency key `refund-<row id>` (a thrown
+  error marks the row `failed` + `purchase.refund_failed` and answers `503 UPSTREAM_UNAVAILABLE`;
+  the same key retries the same row — claimed only while still `failed`, `refunds.attempts`
+  bumped, the Stripe key `refund-<id>-r<n>` because Stripe replays a stored error under the old
+  one for 24 h, and `StripeGateway.findRefund` asked first for a refund carrying our row id, so a
+  timeout that did reach Stripe is adopted rather than refunded twice), then under `WalletService.withWallet` a `refund` debit
+  (`ref_type = refund`, `ref_id = <refund id>`, pre-checked under the lock so a retried settle is
+  a no-op; ADR 0010 overdraft applies), the row `succeeded`, `purchases.status = refunded` when
+  Σ refunds == amount, the workspace `audit_log` row and `purchase.refunded`. Credits reversed =
+  round2(credits × amount / amount_cents). A repeat of a succeeded key answers the detail with no
+  Stripe call; a key reused on another purchase is 409. Role cap is `refund_max_cents` **per
+  purchase** — this refund plus what is already refunded or in flight on it, whoever issued it
+  (`StaffLimitsService.assertRefund`: null = unlimited, 0 = cannot — out of the box only finance
+  and a super admin can refund). **A `refund` debit does not run the auto top-up listener** (it
+  would charge the card just refunded; the 15-minute sweep evaluates later). The staff retry is
+  `AutoTopupService.evaluate(ws, 'staff', {ignoreCooldown: true})` — the only cooldown bypass,
+  never a bypass of in-flight / disabled / no card / threshold, and credits still come only from
+  Stripe's confirmation. Disable goes through the same `writeSettings` the customer's PUT uses.
+  Plan tier is not recomputed after a full refund (spec silent). Exit check:
+  `test/d13-billing.e2e.test.ts` (13 cases, gateway stubbed).
+- **SA13 staff & settings (D13).** `staff_users` rows are managed from the console
+  (`/admin/staff`, super admin + `can_manage_staff`): an invite creates the row with the
+  placeholder `auth_provider_id = invite|<email>` and `AuthGuard.authenticateStaff()`
+  binds it to the real `sub` on the person's first request — matched on the
+  `https://portal/email` claim the staff Post-Login Action now stamps (redeploy the
+  Action: `pnpm auth0:deploy staff`), bound atomically with `updateMany` on the placeholder,
+  so a second identity for the same email is refused. The row is read on every request,
+  so `active = false` refuses the very next call. Nobody changes their own role or
+  deactivates themselves, and the last active super admin is never demoted (409). The
+  admin §2.2 matrix is `GET|PUT /admin/staff/limits`, five rows in one transaction,
+  audited whole (`staff.limits_updated`); `super_admin.can_manage_staff` must stay true.
+  `STAFF_ALLOWED_EMAIL_DOMAIN` is read in one place (`staffEmailDomain()`); unset, the
+  inviter's own domain is used. `mfa_enforced` is informational: the claim is required of
+  everyone. SA7's provisioning queue (`GET /admin/provisioning`, the `jobs` rows of
+  `activate-agent` / `provision-number` / `knowledge-sync` with the pure `activation-state`
+  view) and `GET /admin/concurrency` (the `active:{ws}` hashes against `caps:{ws}`; `live:
+  null` and `complete: false` on a Redis outage, never zero) are the Telephony page's two
+  extra tabs. Exit check: `test/d13-staff.e2e.test.ts` (14 cases).
 - Local console sign-in without Auth0: `pnpm dev:issuer:staff` (port 9998, stamps the MFA
   claim), API with `AUTH0_STAFF_DOMAIN=http://localhost:9998`, `pnpm db:seed` creates the
   matching super-admin row. Exit check: `pnpm --filter @portal/api test:e2e` →
   `test/d12-admin.e2e.test.ts` (26 cases: the boundary, limits, audit rows, credits, pauses,
   users, jobs, webhooks, flags, the pricing publish/failure/resume/rollback, view-as).
+- **SA4 support tickets (D13)** live in `modules/admin/admin-support.service.ts` on the
+  D2 `support_tickets` / `ticket_messages` / `canned_responses` rows, and the customer's
+  side in `modules/support` (`POST/GET /support/tickets`, `POST /support/tickets/:id/messages`,
+  all inside `withWorkspace` — the `ticket_messages` RLS policy is what hides an internal
+  note from the customer, not the response shape). Ticket ids are integers; anything else
+  in a path is a 404. The SLA clock is one constants object, `support-sla.ts` (first
+  response 4 h, urgent 1 h; resolution 3 business days, weekends skipped). A staff public
+  reply sets `first_responded_at` and moves open → pending; a customer message reopens
+  pending/resolved; closed refuses replies (409) but takes internal notes. Opening a
+  ticket, replying, noting and PATCHing are audited (`ticket.created|replied|noted|updated`)
+  without a reason code — none of them moves money or changes what a caller hears. **The
+  macros do, and carry `staffActionRequest`**: `comp_credits` and `refund_call` go through
+  `AdminCustomersService.adjustCredits` with `ticket_id` set and an idempotency key derived
+  from the ticket (`derivedUuid('ticket-<id>-comp-<client key>')`; a replayed comp posts no
+  second line or audit row) or from the call (`refund-call-<ws>-<call_id>` — a second refund of
+  the same call from **any** ticket is `409 CONFLICT` naming the first), `rerun_activation`
+  through `ActivationService.start` for the workspace owner (`409 CONFLICT` with no
+  generated agent, `409 ACTIVATION_IN_PROGRESS` while one runs; finance is refused). Each
+  appends a `system` message and audits `ticket.macro.<name>`. The admin module now imports
+  `activation` for that one call; nothing else does. Console: `/support/?id=&new=&tenant_id=`
+  (`supportPath()`), the Customer 360 `tickets` tab, and the portal's Help page form +
+  "My tickets". Exit check: `test/d13-support.e2e.test.ts` (16 cases).
+
 **Configuration**
 
 - Pricing, feature flags, kill switches, templates and the agent stack live in versioned tables and are
@@ -966,14 +1074,28 @@ throws and never waits past its budget (ADR 0010 §6).
   (GET/PUT/DELETE), `/preview`, `POST /publish`, `/versions` (+ `:version`), `POST /rollback/:version`,
   `/admin/retell-costs` (GET/PUT). Customer side: `GET /impersonation`, `POST /impersonation/end`.
   Staff roles per route are in the manifest (`staffRoles`) and `x-staff-roles`.
-- Admin QA rules (28 Sep): a feature flag resolves `default_on || bucket < rollout_pct`,
+- D13 QA rules (28 Sep, ADR 0022): a feature flag resolves `default_on || bucket < rollout_pct`,
   so **default off with rollout 100 % is on for everyone** — the console shows an "Effective"
   column and starts a new flag at 0 %; a NUL byte in any text answers `422` (Postgres 22021,
   mapped in the exception filter), never 500; `GET /admin/calls` and `GET /admin/numbers` search
   the customer's and the agent's name as well as ids and digits; SA1 "Needs attention" carries
   `failed_activations_24h`, `failed_topups_24h` and `onboarding_stuck` (paid, > 7 d, wizard
-  unfinished) beside the original five; the health strip's counters are `lg:` only (they pushed the
+  unfinished) beside the D12 five; the health strip's counters are `lg:` only (they pushed the
   header past a 768 px viewport).
+- ADR 0023 route: `POST /agents/:id/documents/extract` (owner/admin/editor, tag
+  `prompting`, `extractDocumentRequest` → `extractDocumentResponse`; `NOT_FOUND`,
+  `BAD_REQUEST`, `DOCUMENT_UNREADABLE`, `VALIDATION_FAILED`, and for a photo
+  `GENERATION_PAUSED`, `UPSTREAM_UNAVAILABLE`, `NOT_CONFIGURED`). Stateless — the text
+  goes into the brief.
+- D13 routes: `GET|POST /admin/staff`, `PATCH /admin/staff/:id`, `GET|PUT /admin/staff/limits`
+  (writes: super admin), `GET /admin/provisioning` (`?status=&tenant_id=`, §16 page with
+  `total`), `GET /admin/concurrency` (any staff).
+- D13 SA4 routes (tag `admin-support`): `GET|POST /admin/tickets`, `GET|PATCH /admin/tickets/:id`,
+  `POST /admin/tickets/:id/messages`, `POST /admin/tickets/:id/macros/:macro`
+  (`comp_credits | refund_call | rerun_activation`; writes are super_admin/ops/support/finance,
+  read-only reads only), `GET|POST /admin/canned-responses`, `DELETE /admin/canned-responses/:id`
+  (super_admin/ops/support). Customer side (tag `support`): `POST /support/tickets` and
+  `POST /support/tickets/:id/messages` (owner/admin/editor), `GET /support/tickets` (any member).
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 
@@ -1039,7 +1161,10 @@ pnpm db:roles          # local portal_app / portal_admin login roles (dev only)
 pnpm db:deploy         # migrations, incl. RLS, grants and the append-only triggers
 pnpm db:seed           # staff_role_limits (admin §2.2), packs (§5.2)
 pnpm doctor            # which env vars are unset, what is reachable
-pnpm dev               # api, worker, portal, admin. The worker is not optional: without it
+pnpm dev               # api, worker, portal, admin. The dev worker builds into dist-worker/
+                       # (nest-cli.worker.json): two watchers sharing dist/ with deleteOutDir
+                       # wiped it under each other — MODULE_NOT_FOUND …/dist/worker (29 Sep).
+                       # The worker is not optional: without it
                        # every 202 job (generate, provision, activate) sits in `queued` for
                        # ever. `GET /health/ready` reports it as "no heartbeat".
 pnpm dev:issuer:staff  # D12: a stand-in *staff* tenant on :9998 that stamps the MFA claim, for the console

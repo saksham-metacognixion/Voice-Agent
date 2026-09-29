@@ -1,5 +1,12 @@
 import { analysisField } from '@portal/schemas';
-import type { AgentTemplate, AnalysisField, Brief, GeneratedPrompt, ModelAnalysisField } from '@portal/schemas';
+import type {
+  AgentTemplate,
+  AnalysisField,
+  BriefDocument,
+  Brief,
+  GeneratedPrompt,
+  ModelAnalysisField,
+} from '@portal/schemas';
 import type { BusinessHours } from '@portal/schemas';
 
 /**
@@ -131,12 +138,18 @@ export function buildUserPrompt(context: GenerationContext): string {
       ...template.steps.map((step, index) => `  ${index + 1}. ${step}`),
     );
     if (template.rules.length) {
-      sections.push('Business rules that come with this template:', ...template.rules.map((rule) => `  - ${rule}`));
+      sections.push(
+        'Business rules that come with this template:',
+        ...template.rules.map((rule) => `  - ${rule}`),
+      );
     }
   }
 
   const knowledge = knowledgeSection(context.knowledge ?? []);
   if (knowledge.length) sections.push('', ...knowledge);
+
+  const documents = documentsSection(brief.documents ?? []);
+  if (documents.length) sections.push('', ...documents);
 
   // Only the *additions* are asked for. The template's fields and the §9.8 constants are
   // merged in by the worker whatever the model returns (template first, duplicates
@@ -174,7 +187,9 @@ export function buildUserPrompt(context: GenerationContext): string {
  * business name comes from the workspace (`tenants.name`), the agent name from the brief;
  * nothing here is a constant.
  */
-export function identitySection(context: Pick<GenerationContext, 'businessName' | 'brief'>): string[] {
+export function identitySection(
+  context: Pick<GenerationContext, 'businessName' | 'brief'>,
+): string[] {
   const agentName = context.brief.agent_name?.trim();
   return [
     '# Identity',
@@ -195,7 +210,10 @@ export function knowledgeSection(knowledge: KnowledgeForPrompt[]): string[] {
   if (knowledge.length === 0) return [];
   const menu = knowledge.find((source) => source.role === 'menu');
   const others = knowledge.filter((source) => source.role !== 'menu');
-  const lines = ['# What the agent can look up', 'These documents are attached to the agent and searched during the call:'];
+  const lines = [
+    '# What the agent can look up',
+    'These documents are attached to the agent and searched during the call:',
+  ];
   if (menu) lines.push(`  - The menu (${menu.name})`);
   lines.push(...others.map((source) => `  - ${source.name}`));
   if (menu) {
@@ -205,7 +223,40 @@ export function knowledgeSection(knowledge: KnowledgeForPrompt[]): string[] {
       'if the menu marks an item unavailable or seasonal, say so.',
     );
   }
-  lines.push('For anything these documents do not cover, the agent says it does not have that information and offers to take a message.');
+  lines.push(
+    'For anything these documents do not cover, the agent says it does not have that information and offers to take a message.',
+  );
+  return lines;
+}
+
+/** How much of each W2 document the model is shown. Enough to know what is in it, not to retype it. */
+export const DOCUMENT_EXCERPT_CHARS = 1_200;
+
+/**
+ * The W2 documents (ADR 0023). Their full text is appended to the runtime prompt in code
+ * (`runtimePrompt`), so the model is asked for the *behaviour* — answer from the price
+ * list, say when something is not on it — and shown an excerpt so it knows what kind of
+ * questions the document answers. It is told not to copy the contents: a retyped price
+ * is a second, possibly wrong, copy of the one the block already carries.
+ */
+export function documentsSection(documents: readonly BriefDocument[]): string[] {
+  if (documents.length === 0) return [];
+  const lines = [
+    '# Business documents',
+    'The business uploaded these. Their full text is attached to the prompt automatically, after',
+    'your script, under the heading "## Business documents (attached)" — do NOT copy their contents',
+    'into the prompt. Write the rules for using them: answer items, prices, options and details from',
+    'the documents word for word; when a caller asks for something they do not cover, say so and offer',
+    'what they do; never invent an item, a price or a detail. Here is the start of each one:',
+  ];
+  for (const doc of documents) {
+    const excerpt = doc.text.slice(0, DOCUMENT_EXCERPT_CHARS).trim();
+    lines.push(
+      '',
+      `## ${doc.name}${doc.text.length > DOCUMENT_EXCERPT_CHARS ? ' (excerpt)' : ''}`,
+      excerpt,
+    );
+  }
   return lines;
 }
 
@@ -280,6 +331,11 @@ export function briefForModel(brief: Brief): Record<string, unknown> {
   put('personality', brief.personality ? describePersonality(brief.personality) : undefined);
   put('anything_else', brief.anything_else);
   put('say_it_is_an_ai', disclosureInstruction(brief.ai_disclosure));
+  // Names only: the text is in its own section (generate) or attached at runtime (feedback).
+  put(
+    'documents',
+    (brief.documents ?? []).map((doc) => doc.name),
+  );
   return out;
 }
 
@@ -328,7 +384,9 @@ export function describeHours(hours: BusinessHours): string {
     })
     .filter((value): value is string => value !== null);
 
-  const closed = order.filter((day) => !(hours.days?.[day] ?? []).length).map((day) => DAY_NAMES[day]);
+  const closed = order
+    .filter((day) => !(hours.days?.[day] ?? []).length)
+    .map((day) => DAY_NAMES[day]);
   const parts = [...open];
   if (closed.length) parts.push(`closed ${closed.join(', ')}`);
   if (hours.closed_dates?.length) parts.push(`also closed on ${hours.closed_dates.join(', ')}`);

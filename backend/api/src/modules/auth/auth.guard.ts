@@ -7,6 +7,12 @@ import { AppError } from '../../common/errors/app-error';
 import { IS_PUBLIC, REQUIRED_STAFF_ROLES, REQUIRE_EMAIL_VERIFIED } from './auth.decorators';
 import { IMPERSONATION_PREFIX, ImpersonationTokenService } from './impersonation-token';
 
+/**
+ * The placeholder prefix `AdminStaffService` writes into `staff_users.auth_provider_id`
+ * for an invite (D13). Spelt here as well because `auth` is global and imports nothing
+ * from `admin`; `admin-staff.test.ts` pins the two spellings together.
+ */
+export const STAFF_INVITE_PREFIX = 'invite|';
 import { JwtVerifier, type VerifiedToken } from './jwt-verifier.service';
 import { UsersService } from './users.service';
 import type { AuthNamespace } from './auth.types';
@@ -79,11 +85,32 @@ export class AuthGuard implements CanActivate {
       throw new AppError('MFA_REQUIRED', 'Staff sign-in requires multi-factor authentication.');
     }
 
-    // Read on every request, never cached, so a deactivated row refuses the next call.
-    const staff = await adminDb.staffUser.findUnique({
-      where: { authProviderId: verified.subject },
-      select: { id: true, email: true, role: true, active: true },
-    });
+    // `mfa_enforced` on the row is informational for now: the claim is required of
+    // everyone, and a per-person exemption would need a second sign-in flow at the
+    // tenant. Until then a false there changes nothing here (SA13, D13).
+
+    // Read on every request, never cached: SA13's deactivate takes effect on the
+    // person's very next call, with no token to revoke.
+    const select = { id: true, email: true, role: true, active: true } as const;
+    let staff = await adminDb.staffUser.findUnique({ where: { authProviderId: verified.subject }, select });
+
+    // SA13 invite (D13): an invited colleague's row carries a placeholder
+    // `auth_provider_id` until they first sign in. The token's `sub` is unknown, but the
+    // email our staff Post-Login Action stamps (`https://portal/email`, the only claim
+    // trusted for this, as on the customer side) names the invite. `updateMany` with the
+    // placeholder in its `where` binds it atomically: the first request wins, a racing
+    // second one finds the row already bound and reads it by `sub`, and a *different*
+    // identity for the same email later matches nothing and is refused below.
+    if (!staff && verified.email) {
+      const bound = await adminDb.staffUser.updateMany({
+        where: { email: verified.email, authProviderId: `${STAFF_INVITE_PREFIX}${verified.email}`, active: true },
+        data: { authProviderId: verified.subject },
+      });
+      if (bound.count === 1) {
+        this.logger.log(`staff invite for ${verified.email} bound to ${verified.subject}`);
+      }
+      staff = await adminDb.staffUser.findUnique({ where: { authProviderId: verified.subject }, select });
+    }
 
     if (!staff) {
       this.logger.warn(`staff token for unknown subject ${verified.subject}`);

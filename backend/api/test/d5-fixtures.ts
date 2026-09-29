@@ -9,6 +9,7 @@ import { adminDb } from '@portal/db';
 import { AllExceptionsFilter } from '../src/common/errors/all-exceptions.filter';
 import { ActivationModule } from '../src/modules/activation';
 import { AdminModule } from '../src/modules/admin';
+import { SupportModule } from '../src/modules/support';
 import { AgentsModule } from '../src/modules/agents';
 import { AlertsModule, OpsAlertService, type OpsAlert } from '../src/modules/alerts';
 import { AuthModule } from '../src/modules/auth';
@@ -568,6 +569,7 @@ export class CapturingAlerts {
     VoicesModule,
     WebhooksModule,
     ScheduledModule,
+    SupportModule,
     AdminModule,
   ],
   providers: [

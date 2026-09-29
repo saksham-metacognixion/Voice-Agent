@@ -16,7 +16,7 @@
  * that passed MFA issued the refresh token, so they keep the claim.
  *
  * Secrets: ALLOWED_EMAIL_DOMAIN (matches STAFF_ALLOWED_EMAIL_DOMAIN in .env).
- * Claim name must stay in lockstep with CLAIM_MFA in shared/schemas/src/enums.ts.
+ * Claim names must stay in lockstep with CLAIM_MFA and CLAIM_EMAIL in shared/schemas/src/enums.ts.
  */
 exports.onExecutePostLogin = async (event, api) => {
   const allowedDomain = event.secrets.ALLOWED_EMAIL_DOMAIN;
@@ -39,4 +39,8 @@ exports.onExecutePostLogin = async (event, api) => {
   }
 
   api.accessToken.setCustomClaim('https://portal/mfa', true);
+  // SA13 (D13): an invited colleague's `staff_users` row is bound to this `sub` on their
+  // first request, matched on this claim — the only email claim the API trusts, as on the
+  // customer tenant. Lower-cased here so the match is exact.
+  api.accessToken.setCustomClaim('https://portal/email', email);
 };

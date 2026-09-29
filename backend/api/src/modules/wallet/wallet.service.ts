@@ -48,7 +48,8 @@ export interface GrantInput {
  */
 export interface DebitInput {
   credits: number;
-  reason: Extract<LedgerReason, 'call' | 'rental' | 'kb' | 'adjustment'>;
+  /** `refund` (D13, SA9): the credits a refunded purchase granted are drawn back, `ref_id` = the refund id. */
+  reason: Extract<LedgerReason, 'call' | 'rental' | 'kb' | 'adjustment' | 'refund'>;
   refType?: string;
   refId?: string;
 }
@@ -445,6 +446,14 @@ export class WalletTx {
       const existing = await this.tx.creditLedger.findFirst({ where: { tenantId: this.workspaceId, reason: 'rental', refType: RENTAL_REF_TYPE, refId: input.refId } });
       if (existing) return this.record(existing, true);
     }
+    // D13 SA9: a refund reverses a purchase's credits once per refund row. The staff path
+    // retries a refund whose Stripe call succeeded but whose ledger write did not, so the
+    // second write must find the first (same `ref_id`, under the same wallet lock).
+    if (input.reason === 'refund') {
+      if (!input.refId) throw new Error('a refund debit needs the refund id as ref_id');
+      const existing = await this.tx.creditLedger.findFirst({ where: { tenantId: this.workspaceId, reason: 'refund', refType: REFUND_REF_TYPE, refId: input.refId } });
+      if (existing) return this.record(existing, true);
+    }
 
     // FIFO below only sees lots that are still live, so anything already lapsed has to be
     // written off first — otherwise this debit overdraws past it and the credit-expiry job
@@ -564,6 +573,9 @@ export class DuplicateCallDebit extends Error {
 
 /** `ref_type` of a §5.3 monthly rental debit; `ref_id` is `<number id>:<period ISO>`. */
 export const RENTAL_REF_TYPE = 'number_rental';
+
+/** `ref_type` of a D13 refund reversal; `ref_id` is the `refunds.id`. */
+export const REFUND_REF_TYPE = 'refund';
 
 /** Two number-rental runs racing on one period; the loser treats it as already charged. */
 export class DuplicateRentalDebit extends Error {

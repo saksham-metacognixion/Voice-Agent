@@ -17,7 +17,8 @@ import { useAdvanceOnboarding, useOnboardingAgent } from '@/src/wizard/use-onboa
 /**
  * W3 — Choose a voice and languages. Every choice is a `PATCH /agents/:id/draft` onto the
  * draft version's settings (nothing goes live until publish, ADR 0012); picking a Premium
- * voice moves the draft to the Premium tier. Continue → onboarding_step 4.
+ * voice moves the draft to the Premium tier. Continue → onboarding_step 5, W5: what the
+ * agent knows comes after payment (ADR 0024).
  *
  * The main language ranks the list rather than cutting it: every voice reads every
  * language we offer, so the ones that sound native come first and the rest follow under
@@ -60,8 +61,8 @@ function VoiceInner({ agent }: { agent: AgentDetail }) {
 
   async function next() {
     if (!state.voiceId) return;
-    await advance(4, 'voice');
-    router.push(routes.onboarding.knowledge);
+    await advance(5, 'voice');
+    router.push(routes.onboarding.test);
   }
 
   return (

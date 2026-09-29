@@ -16,7 +16,9 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false, trustProxy: true }),
+    // 32 MiB, up from Fastify's 1 MiB: a W4 knowledge file (≤ 20 MB) and a W2 document
+    // (≤ 10 MB) travel as base64 in JSON, and the default refused any real PDF with a 413.
+    new FastifyAdapter({ logger: false, trustProxy: true, bodyLimit: 32 * 1024 * 1024 }),
   );
 
   // Keep the exact request bytes for /webhooks/* and nothing else — provider signatures
@@ -27,10 +29,7 @@ async function bootstrap() {
   // Methods are listed explicitly: the portal's autosave is a PATCH, and the browser
   // refuses it when the preflight answer omits the method (found by the D8 wizard run).
   app.enableCors({
-    origin: [
-      portalUrl(),
-      process.env.ADMIN_URL ?? 'http://localhost:3001',
-    ],
+    origin: [portalUrl(), process.env.ADMIN_URL ?? 'http://localhost:3001'],
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Workspace-Id', 'Last-Event-ID'],

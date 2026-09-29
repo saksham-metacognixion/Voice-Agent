@@ -62,6 +62,84 @@ export const aiDisclosure = z.enum(['always', 'if_asked', 'never_volunteer']);
 export type AiDisclosure = z.infer<typeof aiDisclosure>;
 
 /**
+ * Business documents (W2, ADR 0023) — a menu, a price list, the services a practice
+ * offers — uploaded as a file, read into plain text by `POST /agents/:id/documents/extract`
+ * and kept **in the brief**, so they are versioned with it like every other field.
+ *
+ * The text is not asked of the model: it is attached to the prompt verbatim, in code,
+ * just before the §9.4 block (`runtimePrompt` in the API), so a price reaches the caller
+ * exactly as the business wrote it. That is also why the budget is a total: every
+ * character is in the prompt on every call.
+ */
+export const BRIEF_MAX_DOCUMENTS = 3;
+export const BRIEF_DOCUMENTS_MAX_CHARS = 15_000;
+/** The file itself, before extraction. The text is what counts against the budget. */
+export const BRIEF_DOCUMENT_MAX_FILE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * A photo of the menu is what most restaurants have. It is read by the generation
+ * model's vision (`PromptProvider.transcribeImage`), at build time only — never on a
+ * call. The browser downsizes a photo before upload (`brief-documents.tsx`), so what
+ * arrives is a JPEG a model can read, not a 12-megapixel original.
+ */
+export const BRIEF_DOCUMENT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export const briefDocumentType = z.enum([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'text/markdown',
+  'text/csv',
+  ...BRIEF_DOCUMENT_IMAGE_TYPES,
+]);
+export type BriefDocumentType = z.infer<typeof briefDocumentType>;
+export const BRIEF_DOCUMENT_TYPES = briefDocumentType.options;
+export type BriefDocumentImageType = (typeof BRIEF_DOCUMENT_IMAGE_TYPES)[number];
+export function isImageDocumentType(type: string): type is BriefDocumentImageType {
+  return (BRIEF_DOCUMENT_IMAGE_TYPES as readonly string[]).includes(type);
+}
+
+export const briefDocument = z.object({
+  name: z.string().trim().min(1).max(120),
+  content_type: briefDocumentType,
+  text: z.string().min(1).max(BRIEF_DOCUMENTS_MAX_CHARS),
+  /** The file held more text than the budget allowed; the tail was left out. */
+  truncated: z.boolean().default(false),
+});
+export type BriefDocument = z.infer<typeof briefDocument>;
+
+export const briefDocuments = z
+  .array(briefDocument)
+  .max(BRIEF_MAX_DOCUMENTS)
+  .refine(
+    (docs) => docs.reduce((sum, doc) => sum + doc.text.length, 0) <= BRIEF_DOCUMENTS_MAX_CHARS,
+    {
+      message: `Documents can hold ${BRIEF_DOCUMENTS_MAX_CHARS.toLocaleString('en-US')} characters in total`,
+    },
+  );
+
+/** `POST /agents/:id/documents/extract` — the file travels as base64 in JSON, like W4's. */
+export const extractDocumentRequest = z.object({
+  name: z.string().trim().min(1).max(120),
+  content_type: briefDocumentType,
+  content_base64: z
+    .string()
+    .min(1)
+    .regex(/^[A-Za-z0-9+/=\r\n]+$/, 'Not base64'),
+});
+export type ExtractDocumentRequest = z.infer<typeof extractDocumentRequest>;
+
+/** Nothing is stored: the portal adds this to the brief and the autosave keeps it. */
+export const extractDocumentResponse = z.object({
+  name: z.string(),
+  content_type: briefDocumentType,
+  text: z.string(),
+  /** Characters in the whole file, before any cut to the budget. */
+  chars: z.number().int().nonnegative(),
+  truncated: z.boolean(),
+});
+export type ExtractDocumentResponse = z.infer<typeof extractDocumentResponse>;
+
+/**
  * `agent_versions.brief_json`. Every field is optional at rest — the wizard autosaves a
  * half-filled brief on every keystroke (W2 "Autosave, debounced 1.5 s") — and
  * `briefReadyForGeneration` below is what "complete enough to generate" means.
@@ -80,6 +158,7 @@ export const brief = z.object({
   personality: personality.optional(),
   anything_else: z.string().max(800).optional(),
   ai_disclosure: aiDisclosure.default('if_asked'),
+  documents: briefDocuments.default([]),
 });
 export type Brief = z.infer<typeof brief>;
 
@@ -280,10 +359,13 @@ export const generatedPatch = z
     greeting: z.string().min(1).max(500).optional(),
     closing: z.string().min(1).max(500).optional(),
   })
-  .refine((patch) => patch.changes.length === 0 || (patch.updated_prompt?.trim().length ?? 0) >= 50, {
-    message: 'A patch that changed something must carry the full updated prompt',
-    path: ['updated_prompt'],
-  });
+  .refine(
+    (patch) => patch.changes.length === 0 || (patch.updated_prompt?.trim().length ?? 0) >= 50,
+    {
+      message: 'A patch that changed something must carry the full updated prompt',
+      path: ['updated_prompt'],
+    },
+  );
 export type GeneratedPatch = z.infer<typeof generatedPatch>;
 
 // ---------------------------------------------------------------------------
@@ -371,17 +453,69 @@ export type CreateAgentRequest = z.infer<typeof createAgentRequest>;
  * SDK's union, so an SDK upgrade that drops a locale fails the build rather than a call.
  */
 export const retellLanguage = z.enum([
-  'en-US', 'en-IN', 'en-GB', 'en-AU', 'en-NZ', 'de-DE',
-  'es-ES', 'es-419', 'hi-IN', 'fr-FR', 'fr-CA', 'ja-JP',
-  'pt-PT', 'pt-BR', 'zh-CN', 'ru-RU', 'it-IT', 'ko-KR',
-  'nl-NL', 'nl-BE', 'pl-PL', 'tr-TR', 'vi-VN', 'ro-RO',
-  'bg-BG', 'ca-ES', 'th-TH', 'da-DK', 'fi-FI', 'el-GR',
-  'hu-HU', 'id-ID', 'no-NO', 'sk-SK', 'sv-SE', 'lt-LT',
-  'lv-LV', 'cs-CZ', 'ms-MY', 'af-ZA', 'ar-SA', 'az-AZ',
-  'bs-BA', 'cy-GB', 'fa-IR', 'fil-PH', 'gl-ES', 'he-IL',
-  'hr-HR', 'hy-AM', 'is-IS', 'kk-KZ', 'kn-IN', 'mk-MK',
-  'mr-IN', 'ne-NP', 'sl-SI', 'sr-RS', 'sw-KE', 'ta-IN',
-  'ur-IN', 'yue-CN', 'uk-UA'
+  'en-US',
+  'en-IN',
+  'en-GB',
+  'en-AU',
+  'en-NZ',
+  'de-DE',
+  'es-ES',
+  'es-419',
+  'hi-IN',
+  'fr-FR',
+  'fr-CA',
+  'ja-JP',
+  'pt-PT',
+  'pt-BR',
+  'zh-CN',
+  'ru-RU',
+  'it-IT',
+  'ko-KR',
+  'nl-NL',
+  'nl-BE',
+  'pl-PL',
+  'tr-TR',
+  'vi-VN',
+  'ro-RO',
+  'bg-BG',
+  'ca-ES',
+  'th-TH',
+  'da-DK',
+  'fi-FI',
+  'el-GR',
+  'hu-HU',
+  'id-ID',
+  'no-NO',
+  'sk-SK',
+  'sv-SE',
+  'lt-LT',
+  'lv-LV',
+  'cs-CZ',
+  'ms-MY',
+  'af-ZA',
+  'ar-SA',
+  'az-AZ',
+  'bs-BA',
+  'cy-GB',
+  'fa-IR',
+  'fil-PH',
+  'gl-ES',
+  'he-IL',
+  'hr-HR',
+  'hy-AM',
+  'is-IS',
+  'kk-KZ',
+  'kn-IN',
+  'mk-MK',
+  'mr-IN',
+  'ne-NP',
+  'sl-SI',
+  'sr-RS',
+  'sw-KE',
+  'ta-IN',
+  'ur-IN',
+  'yue-CN',
+  'uk-UA',
 ]);
 export type RetellLanguage = z.infer<typeof retellLanguage>;
 
@@ -610,8 +744,14 @@ export const jobProgress = z.object({
   explanation: z.string().nullable(),
   lint_findings: z.number().int().nullable(),
   /** §13.8 activation jobs only: where the workflow stands. Null on every other job type. */
-  activation_status: z.enum(['pending', 'publishing', 'provisioning', 'binding', 'marking_live', 'live', 'failed']).nullable().default(null),
-  activation_step: z.enum(['publish', 'provision', 'bind', 'mark_live', 'notify']).nullable().default(null),
+  activation_status: z
+    .enum(['pending', 'publishing', 'provisioning', 'binding', 'marking_live', 'live', 'failed'])
+    .nullable()
+    .default(null),
+  activation_step: z
+    .enum(['publish', 'provision', 'bind', 'mark_live', 'notify'])
+    .nullable()
+    .default(null),
   number_id: uuid.nullable().default(null),
   e164: z.string().nullable().default(null),
 });

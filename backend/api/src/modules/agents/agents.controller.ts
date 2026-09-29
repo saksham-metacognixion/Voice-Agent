@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   type AgentDetail,
   type AgentSummary,
@@ -45,7 +56,10 @@ export class AgentsController {
   ) {}
 
   @Get()
-  list(@Ctx() ctx: WorkspaceContext, @Query() query: Record<string, unknown>): Promise<Page<AgentSummary>> {
+  list(
+    @Ctx() ctx: WorkspaceContext,
+    @Query() query: Record<string, unknown>,
+  ): Promise<Page<AgentSummary>> {
     return this.agents.list(ctx, agentsQuery.parse(query));
   }
 
@@ -64,14 +78,22 @@ export class AgentsController {
   /** W2/W3 autosave and the D3 Brief/Voice tabs. No LLM call (spec p. 19). */
   @Patch(':id/draft')
   @Roles('owner', 'admin', 'editor')
-  patchDraft(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<AgentDetail> {
+  patchDraft(
+    @Ctx() ctx: WorkspaceContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<AgentDetail> {
     return this.agents.patchDraft(ctx, agentId(id), agentDraftPatch.parse(body));
   }
 
   /** §13.5 Undo, and "Restore as draft" in the D3 Versions tab. A pointer move. */
   @Post(':id/draft/select')
   @Roles('owner', 'admin', 'editor')
-  selectDraft(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<AgentDetail> {
+  selectDraft(
+    @Ctx() ctx: WorkspaceContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<AgentDetail> {
     return this.agents.selectDraft(ctx, agentId(id), selectVersionRequest.parse(body).version_no);
   }
 
@@ -122,7 +144,11 @@ export class AgentsController {
   /** §13.6. Synchronous: it ends with the agent live, or with nothing changed. */
   @Post(':id/publish')
   @Roles('owner', 'admin', 'editor')
-  publish(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<PublishResponse> {
+  publish(
+    @Ctx() ctx: WorkspaceContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<PublishResponse> {
     return this.publishing.publish(ctx, agentId(id), publishRequest.parse(body ?? {}).version_no);
   }
 

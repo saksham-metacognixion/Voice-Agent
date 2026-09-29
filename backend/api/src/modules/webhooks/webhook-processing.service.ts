@@ -3,9 +3,9 @@ import { adminDb } from '@portal/db';
 import type Stripe from 'stripe';
 import { StripeEventHandler } from '../billing';
 import { JobQueues } from '../jobs';
-import { UsersService } from '../auth';
+import { SecondIdentityRefused, UsersService } from '../auth';
 import { RetellEventHandler } from './retell-events.handler';
-import { WebhookEventsService } from './webhook-events.service';
+import { WebhookEventsService, settledWithNote } from './webhook-events.service';
 
 /** A stored event that is still unprocessed after this long is re-enqueued by the sweeper. */
 export const SWEEP_AFTER_MS = 60_000;
@@ -80,7 +80,17 @@ export class WebhookProcessingService {
           // §13.2 step 1. The upsert is idempotent on the Auth0 `sub`, so a replay — from
           // the provider, from the sweeper, or from SA12 — mirrors the same user again
           // rather than creating a second one.
-          return this.users.upsert(this.users.parse(row.payloadJson));
+          //
+          // A second identity for an email someone already holds is refused for good, so
+          // it settles the event instead of throwing: thrown, it spent eight attempts and
+          // then the sweeper replaced the spent job and started over, for ever. The
+          // reason stays on the row for SA12.
+          try {
+            return await this.users.upsert(this.users.parse(row.payloadJson));
+          } catch (error) {
+            if (!(error instanceof SecondIdentityRefused)) throw error;
+            return settledWithNote({ outcome: 'refused', reason: 'email_belongs_to_another_identity' }, error.message);
+          }
         default:
           return { outcome: 'ignored' as const, reason: `no handler for provider ${row.provider}` };
       }

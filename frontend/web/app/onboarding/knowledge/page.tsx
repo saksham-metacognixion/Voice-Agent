@@ -7,36 +7,40 @@ import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
+import { track } from '@/src/analytics/posthog';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { KnowledgeSources } from '@/src/components/wizard/knowledge-sources';
 import { MenuUpload } from '@/src/components/wizard/menu-upload';
 import { AgentContextBanner } from '@/src/components/wizard/template-context';
 import { WizardHeading } from '@/src/components/wizard/wizard-shell';
-import { OnboardingStepGuard } from '@/src/guards/guards';
+import { LiveGuard } from '@/src/guards/guards';
 import { routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
-import { useAdvanceOnboarding } from '@/src/wizard/use-onboarding-agent';
 
 /**
- * W4 — What your agent knows. Optional: a customer can continue with nothing added.
- * Sources need the `knowledge_base` plan gate (§5.2: Starter includes none), which a
- * trial workspace does not have — so before a purchase the form is shown locked, with
- * the pack that unlocks it named from `GET /pricing`, and Continue reads "Skip for now".
- * Continue → onboarding_step 5.
+ * W4 — What your agent knows, **after payment** (ADR 0024). Sources need the
+ * `knowledge_base` plan gate (§5.2: Starter includes none), which a trial workspace never
+ * has, so asking before W7 only ever showed a locked form. It is now the first page once
+ * the activation is live, behind `LiveGuard`: the pack is bought and the gate is whatever
+ * that pack says. A pack without it still shows the form locked, naming the pack that
+ * unlocks it. A source added here reaches the live agent on its own — the knowledge
+ * worker republishes when it attaches a knowledge base to a live agent. Optional:
+ * Continue (or "Skip for now") → `/onboarding/live`. The onboarding step is not touched;
+ * `mark_live` already finished it.
  */
 export default function KnowledgePage() {
   return (
-    <OnboardingStepGuard step={4}>
+    <LiveGuard>
       <OnboardingAgentLoader>{(agent) => <KnowledgeInner agent={agent} />}</OnboardingAgentLoader>
-    </OnboardingStepGuard>
+    </LiveGuard>
   );
 }
 
 function KnowledgeInner({ agent }: { agent: AgentDetail }) {
+  const t = useTranslations();
   const tk = useTranslations('wizard.w4');
   const api = useApi();
   const router = useRouter();
-  const advance = useAdvanceOnboarding();
   const flags = useGetFlags(api, { staleTime: 60_000 });
   const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000 });
   const [leaving, setLeaving] = React.useState(false);
@@ -49,8 +53,8 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
   async function next() {
     if (leaving) return;
     setLeaving(true);
-    await advance(5, 'knowledge');
-    router.push(routes.onboarding.test);
+    track('onboarding_step_completed', { step: 'knowledge', step_no: null });
+    router.push(routes.onboarding.live);
   }
 
   return (
@@ -83,7 +87,7 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
         <aside className="flex flex-col gap-3 text-sm text-muted-foreground lg:sticky lg:top-24 lg:self-start">
           <p className="font-medium text-foreground">{tk('asideTitle')}</p>
           <p>{tk('asideBody')}</p>
-          <p>{tk('asideLive')}</p>
+          <p>{t('dashboard.agents.knowledge.publishedHint')}</p>
         </aside>
       </div>
     </>

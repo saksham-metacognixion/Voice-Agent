@@ -1,6 +1,12 @@
 import { Logger } from '@nestjs/common';
-import { type GeneratedPatch, type GeneratedPrompt, generatedPatch, generatedPrompt } from '@portal/schemas';
 import {
+  type GeneratedPatch,
+  type GeneratedPrompt,
+  generatedPatch,
+  generatedPrompt,
+} from '@portal/schemas';
+import {
+  type ImageTranscriptionRequest,
   type PromptProvider,
   ProviderError,
   type ProviderErrorKind,
@@ -41,7 +47,7 @@ export class ScriptedPromptProvider implements PromptProvider {
   private readonly log = new Logger(ScriptedPromptProvider.name);
   private readonly script: ScriptedBehaviour[] = [];
   /** Every request that reached the provider — the duplicate-job assertions read this. */
-  readonly calls: Array<{ kind: 'generate' | 'patch'; request: ProviderRequest }> = [];
+  readonly calls: Array<{ kind: 'generate' | 'patch'; request: ProviderRequest } | { kind: 'transcribe'; request: ImageTranscriptionRequest }> = [];
 
   /** Queues one answer. Consumed in order; when the queue is empty the default is used. */
   push(...behaviours: ScriptedBehaviour[]): this {
@@ -60,7 +66,10 @@ export class ScriptedPromptProvider implements PromptProvider {
     const next = this.script.shift();
     await this.applyFailures(next);
 
-    const raw = next?.kind === 'raw' ? next.text : JSON.stringify({ ...defaultPrompt(request), ...(next?.kind === 'ok' ? next.value : {}) });
+    const raw =
+      next?.kind === 'raw'
+        ? next.text
+        : JSON.stringify({ ...defaultPrompt(request), ...(next?.kind === 'ok' ? next.value : {}) });
     request.onFirstToken?.();
     return this.finish<GeneratedPrompt>(generatedPrompt, raw, started);
   }
@@ -71,9 +80,28 @@ export class ScriptedPromptProvider implements PromptProvider {
     const next = this.script.shift();
     await this.applyFailures(next);
 
-    const raw = next?.kind === 'raw' ? next.text : JSON.stringify({ ...defaultPatch(request), ...(next?.kind === 'ok_patch' ? next.value : {}) });
+    const raw =
+      next?.kind === 'raw'
+        ? next.text
+        : JSON.stringify({
+            ...defaultPatch(request),
+            ...(next?.kind === 'ok_patch' ? next.value : {}),
+          });
     request.onFirstToken?.();
     return this.finish<GeneratedPatch>(generatedPatch, raw, started);
+  }
+
+  /** A `raw` behaviour is the transcription verbatim (`''` = no text); the default names the file. */
+  async transcribeImage(request: ImageTranscriptionRequest): Promise<ProviderResult<string>> {
+    this.calls.push({ kind: 'transcribe', request });
+    const started = Date.now();
+    const next = this.script.shift();
+    await this.applyFailures(next);
+    const value =
+      next?.kind === 'raw'
+        ? next.text
+        : `${request.name.toUpperCase()}\nScripted item one $10\nScripted item two $12`;
+    return { value, latencyMs: Date.now() - started, attempts: 1, model: this.model };
   }
 
   private async applyFailures(next: ScriptedBehaviour | undefined): Promise<void> {
@@ -89,7 +117,9 @@ export class ScriptedPromptProvider implements PromptProvider {
 
   /** The same parse-then-validate the real provider runs, so a scripted `raw` behaves alike. */
   private finish<T>(
-    validator: { safeParse: (value: unknown) => { success: boolean; data?: unknown; error?: unknown } },
+    validator: {
+      safeParse: (value: unknown) => { success: boolean; data?: unknown; error?: unknown };
+    },
     raw: string,
     started: number,
   ): ProviderResult<T> {
@@ -97,14 +127,25 @@ export class ScriptedPromptProvider implements PromptProvider {
     try {
       parsed = JSON.parse(raw);
     } catch {
-      throw new ProviderError('malformed', `scripted provider returned non-JSON: ${raw.slice(0, 120)}`);
+      throw new ProviderError(
+        'malformed',
+        `scripted provider returned non-JSON: ${raw.slice(0, 120)}`,
+      );
     }
     const result = validator.safeParse(parsed);
     if (!result.success || result.data === undefined) {
-      throw new ProviderError('invalid_output', `scripted provider returned an invalid object: ${String(result.error)}`);
+      throw new ProviderError(
+        'invalid_output',
+        `scripted provider returned an invalid object: ${String(result.error)}`,
+      );
     }
     this.log.debug(`scripted answer in ${Date.now() - started} ms`);
-    return { value: result.data as T, latencyMs: Date.now() - started, attempts: 1, model: this.model };
+    return {
+      value: result.data as T,
+      latencyMs: Date.now() - started,
+      attempts: 1,
+      model: this.model,
+    };
   }
 }
 
@@ -151,13 +192,19 @@ function defaultPrompt(request: ProviderRequest): GeneratedPrompt {
       { name: 'caller_name', type: 'text', description: 'The name the caller gave.' },
       { name: 'callback_number', type: 'text', description: 'The number to call back on.' },
     ],
-    scenarios: [{ title: 'Asking for opening hours', say_this: 'We are open Monday to Friday, nine to five.' }],
+    scenarios: [
+      {
+        title: 'Asking for opening hours',
+        say_this: 'We are open Monday to Friday, nine to five.',
+      },
+    ],
     warnings: [],
   };
 }
 
 function defaultPatch(request: ProviderRequest): GeneratedPatch {
-  const current = firstMatch(request.user, /# Current prompt\n```\n([\s\S]*?)\n```/) ?? 'You are a receptionist.';
+  const current =
+    firstMatch(request.user, /# Current prompt\n```\n([\s\S]*?)\n```/) ?? 'You are a receptionist.';
   const feedback = request.user.split('# What the customer said\n').at(-1)?.trim() ?? 'be warmer';
   return {
     updated_brief: {},

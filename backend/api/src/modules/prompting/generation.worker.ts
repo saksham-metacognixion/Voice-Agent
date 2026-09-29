@@ -10,7 +10,7 @@ import type {
   GeneratedPrompt,
   LintResult,
 } from '@portal/schemas';
-import { brief as briefSchema, templateId as templateIdSchema } from '@portal/schemas';
+import { brief as briefSchema, briefReadyForGeneration, templateId as templateIdSchema } from '@portal/schemas';
 import {
   AgentEvents,
   AgentDraftSyncService,
@@ -25,7 +25,12 @@ import { EventsService } from '../events';
 import { JobRecordsService, type PromptingJob } from '../jobs';
 import { applyGuardrails } from './guardrails';
 import { lintPrompt } from './lint';
-import { buildFeedbackPrompt, buildUserPrompt, normaliseAnalysisFields, outputChars } from './prompt-builder';
+import {
+  buildFeedbackPrompt,
+  buildUserPrompt,
+  normaliseAnalysisFields,
+  outputChars,
+} from './prompt-builder';
 import { PROMPT_PROVIDER, type PromptProvider, ProviderError, isProviderError } from './providers';
 
 /**
@@ -76,7 +81,9 @@ export class GenerationWorker {
   ) {}
 
   /** BullMQ entry point for `generate-agent` and `patch-agent`. */
-  async run(job: Job<PromptingJob>): Promise<{ outcome: string; version_no?: number; reason?: string }> {
+  async run(
+    job: Job<PromptingJob>,
+  ): Promise<{ outcome: string; version_no?: number; reason?: string }> {
     const data = job.data;
     const attemptsLeft = Math.max(0, (job.opts.attempts ?? 1) - job.attemptsMade - 1);
     const startedAt = Date.now();
@@ -89,10 +96,16 @@ export class GenerationWorker {
       return { outcome: 'ignored', reason: 'job already finished' };
     }
 
-    await this.publish(data, AgentEvents.generationStarted, { job_id: data.jobId, mode: data.mode });
+    await this.publish(data, AgentEvents.generationStarted, {
+      job_id: data.jobId,
+      mode: data.mode,
+    });
 
     try {
-      const result = data.mode === 'feedback' ? await this.patch(data, startedAt) : await this.generate(data, startedAt);
+      const result =
+        data.mode === 'feedback'
+          ? await this.patch(data, startedAt)
+          : await this.generate(data, startedAt);
       await this.jobs.succeed(data.jobId, result.steps);
       return { outcome: result.outcome, version_no: result.versionNo };
     } catch (error) {
@@ -107,7 +120,9 @@ export class GenerationWorker {
       });
 
       await this.jobs.fail(data.jobId, describe(error), steps, willRetry ? attemptsLeft : 0);
-      this.log.error(`agent ${data.agentId}: ${data.mode} failed (${describe(error)}); ${willRetry ? 'retrying' : 'giving up'}`);
+      this.log.error(
+        `agent ${data.agentId}: ${data.mode} failed (${describe(error)}); ${willRetry ? 'retrying' : 'giving up'}`,
+      );
 
       if (!willRetry) {
         await this.publish(data, AgentEvents.generationFailed, {
@@ -130,6 +145,18 @@ export class GenerationWorker {
     const requested = await this.jobs.steps(data.jobId);
     const alreadyMade = await this.resumedVersion(data, requested);
     if (alreadyMade) return alreadyMade;
+
+    // The route checked this against the brief it could see; the worker checks the brief
+    // *it* read. A worker whose schema cannot parse the stored brief (a deploy in
+    // progress, a field since tightened) must fail the job, not write a script from
+    // whatever survived the parse (ADR 0023, 29 Sep).
+    if (!briefReadyForGeneration.safeParse(context.brief).success) {
+      throw new JobRefusal(
+        'brief_incomplete',
+        'We could not read your brief just now. Your answers are saved — try again in a minute.',
+        'the stored brief is not generation-ready as this worker parses it',
+      );
+    }
 
     const stack = context.stack;
     const template = await this.loadTemplate(context.agent.templateId);
@@ -157,7 +184,11 @@ export class GenerationWorker {
     const answer = await this.provider.generate({
       system: stack.prompts.system,
       user,
-      onFirstToken: () => void this.publish(data, AgentEvents.generationProgress, { job_id: data.jobId, stage: 'writing' }),
+      onFirstToken: () =>
+        void this.publish(data, AgentEvents.generationProgress, {
+          job_id: data.jobId,
+          stage: 'writing',
+        }),
     });
     watch.lap(); // this stage's number is the provider's own `latencyMs`
 
@@ -257,7 +288,13 @@ export class GenerationWorker {
     return {
       outcome: 'generated',
       versionNo,
-      steps: { ...steps, ...synced, sse_ms: sseMs, retell_sync_ms: retellSyncMs, total_ms: totalMs },
+      steps: {
+        ...steps,
+        ...synced,
+        sse_ms: sseMs,
+        retell_sync_ms: retellSyncMs,
+        total_ms: totalMs,
+      },
     };
   }
 
@@ -273,7 +310,11 @@ export class GenerationWorker {
 
     const base = context.baseVersion;
     if (!base?.promptText) {
-      throw new JobRefusal('no_prompt', 'This version has no prompt to improve yet. Generate it first.', 'the base version has no prompt');
+      throw new JobRefusal(
+        'no_prompt',
+        'This version has no prompt to improve yet. Generate it first.',
+        'the base version has no prompt',
+      );
     }
 
     const stack = context.stack;
@@ -288,7 +329,11 @@ export class GenerationWorker {
     const answer = await this.provider.patch({
       system: stack.prompts.system,
       user,
-      onFirstToken: () => void this.publish(data, AgentEvents.generationProgress, { job_id: data.jobId, stage: 'writing' }),
+      onFirstToken: () =>
+        void this.publish(data, AgentEvents.generationProgress, {
+          job_id: data.jobId,
+          stage: 'writing',
+        }),
     });
     watch.lap();
     const patched: GeneratedPatch = answer.value;
@@ -305,7 +350,9 @@ export class GenerationWorker {
      * prompt exists whenever `changes` is non-empty.
      */
     const refused = patched.changes.length === 0;
-    const mergedBrief = refused ? context.brief : mergeBriefPatch(context.brief, patched.updated_brief);
+    const mergedBrief = refused
+      ? context.brief
+      : mergeBriefPatch(context.brief, patched.updated_brief);
     const promptText = applyGuardrails(
       refused ? base.promptText : (patched.updated_prompt ?? base.promptText),
       stack.guardrails,
@@ -313,7 +360,12 @@ export class GenerationWorker {
     const greeting = (refused ? base.greeting : (patched.greeting ?? base.greeting)) ?? null;
 
     const lint = lintPrompt(
-      { prompt: promptText, greeting, brief: mergedBrief, primaryLanguage: context.settings.primary_language },
+      {
+        prompt: promptText,
+        greeting,
+        brief: mergedBrief,
+        primaryLanguage: context.settings.primary_language,
+      },
       stack.lint,
     );
 
@@ -373,7 +425,13 @@ export class GenerationWorker {
     return {
       outcome: refused ? 'unchanged' : 'patched',
       versionNo,
-      steps: { ...steps, ...synced, sse_ms: sseMs, retell_sync_ms: retellSyncMs, total_ms: totalMs },
+      steps: {
+        ...steps,
+        ...synced,
+        sse_ms: sseMs,
+        retell_sync_ms: retellSyncMs,
+        total_ms: totalMs,
+      },
     };
   }
 
@@ -397,19 +455,35 @@ export class GenerationWorker {
         select: { name: true, timezone: true, pausedAt: true },
       });
       if (tenant.pausedAt) {
-        throw new JobRefusal('workspace_paused', 'This workspace is paused. Contact support to continue.', 'workspace is paused');
+        throw new JobRefusal(
+          'workspace_paused',
+          'This workspace is paused. Contact support to continue.',
+          'workspace is paused',
+        );
       }
 
       const agent = await db.agent.findFirst({
         where: { id: data.agentId, tenantId: data.workspaceId, deletedAt: null },
       });
-      if (!agent) throw new JobRefusal('agent_missing', 'This agent no longer exists.', 'the agent no longer exists');
+      if (!agent)
+        throw new JobRefusal(
+          'agent_missing',
+          'This agent no longer exists.',
+          'the agent no longer exists',
+        );
 
       const draftNo = data.baseVersionNo ?? agent.draftVersion;
       const draft = draftNo
-        ? await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId: data.agentId, versionNo: draftNo } } })
+        ? await db.agentVersion.findUnique({
+            where: { agentId_versionNo: { agentId: data.agentId, versionNo: draftNo } },
+          })
         : null;
-      if (!draft) throw new JobRefusal('draft_missing', 'The draft this job was about no longer exists.', 'the draft version disappeared');
+      if (!draft)
+        throw new JobRefusal(
+          'draft_missing',
+          'The draft this job was about no longer exists.',
+          'the draft version disappeared',
+        );
 
       // Feedback the customer has already given, so a regenerate keeps the improvements
       // rather than throwing them away (W2: "your test feedback is kept").
@@ -424,12 +498,22 @@ export class GenerationWorker {
       // says to answer from it. A source still being read counts — it will be there by
       // the time this version is on a call — and a failed or vanishing one does not.
       const knowledge = await db.knowledgeSource.findMany({
-        where: { agentId: data.agentId, tenantId: data.workspaceId, status: { in: ['pending', 'syncing', 'ready'] } },
+        where: {
+          agentId: data.agentId,
+          tenantId: data.workspaceId,
+          status: { in: ['pending', 'syncing', 'ready'] },
+        },
         orderBy: { createdAt: 'asc' },
         select: { name: true, role: true },
       });
 
-      return { agent, tenant, draft, knowledge, previousFeedback: feedback.map((row) => row.feedbackText!).reverse() };
+      return {
+        agent,
+        tenant,
+        draft,
+        knowledge,
+        previousFeedback: feedback.map((row) => row.feedbackText!).reverse(),
+      };
     });
 
     return {
@@ -465,7 +549,9 @@ export class GenerationWorker {
     const versionNo = typeof steps.version_id === 'number' ? steps.version_id : null;
     if (versionNo === null) return null;
 
-    this.log.warn(`agent ${data.agentId}: job ${data.jobId} already wrote v${versionNo}; resuming at the Retell sync`);
+    this.log.warn(
+      `agent ${data.agentId}: job ${data.jobId} already wrote v${versionNo}; resuming at the Retell sync`,
+    );
     const synced = await this.syncRetell(data, versionNo);
     return { outcome: 'resumed', versionNo, steps: { ...steps, ...synced } };
   }
@@ -520,20 +606,33 @@ export class GenerationWorker {
    * The draft is synced with the *version's* settings, so a test call rings the tier and
    * voice the customer is building, not the one that is live.
    */
-  private async syncRetell(data: PromptingJob, versionNo: number): Promise<Record<string, unknown>> {
+  private async syncRetell(
+    data: PromptingJob,
+    versionNo: number,
+  ): Promise<Record<string, unknown>> {
     try {
       const outcome = await this.draftSync.syncVersion(data.workspaceId, data.agentId, versionNo);
-      if (outcome.status === 'skipped') return { retell_sync: 'skipped', retell_sync_reason: outcome.reason };
+      if (outcome.status === 'skipped')
+        return { retell_sync: 'skipped', retell_sync_reason: outcome.reason };
       return { retell_sync: 'ok', retell_agent_version: outcome.retellAgentVersion };
     } catch (error) {
-      this.log.warn(`agent ${data.agentId}: Retell draft sync failed (${describe(error)}); publish will re-sync`);
+      this.log.warn(
+        `agent ${data.agentId}: Retell draft sync failed (${describe(error)}); publish will re-sync`,
+      );
       return { retell_sync: 'failed', retell_error: describe(error).slice(0, 300) };
     }
   }
 
-  private async publish(data: PromptingJob, type: string, payload: Record<string, unknown>): Promise<void> {
+  private async publish(
+    data: PromptingJob,
+    type: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
     await this.events
-      .publish(data.workspaceId, AgentEvents.topic(data.agentId), type, { agent_id: data.agentId, ...payload })
+      .publish(data.workspaceId, AgentEvents.topic(data.agentId), type, {
+        agent_id: data.agentId,
+        ...payload,
+      })
       .catch(() => null);
   }
 }
@@ -546,7 +645,7 @@ export class GenerationWorker {
  */
 export class JobRefusal extends Error {
   constructor(
-    readonly kind: 'workspace_paused' | 'agent_missing' | 'draft_missing' | 'no_prompt',
+    readonly kind: 'workspace_paused' | 'agent_missing' | 'draft_missing' | 'no_prompt' | 'brief_incomplete',
     readonly customerReason: string,
     message: string,
   ) {
@@ -563,6 +662,8 @@ export class JobRefusal extends Error {
 export function mergeBriefPatch(current: Brief, patch: Partial<Brief>): Brief {
   const merged: Record<string, unknown> = { ...current };
   for (const [key, value] of Object.entries(patch)) {
+    // The uploaded documents are the customer's files, never the model's to rewrite.
+    if (key === 'documents') continue;
     if (value !== undefined) merged[key] = value;
   }
   const parsed = briefSchema.safeParse(merged);

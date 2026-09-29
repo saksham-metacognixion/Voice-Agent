@@ -135,18 +135,50 @@ export class AutoTopupService {
       await this.saveSettings(ctx, next, 'enabled');
       return next;
     }
-    const next: AutoTopup = { ...(current ?? { payment_method_id: null, card_last4: null, pack_id: null, threshold: null }), enabled: false };
+    const next = AutoTopupService.disabled(current);
     await this.saveSettings(ctx, next, 'disabled');
     return next;
   }
 
   private async saveSettings(ctx: WorkspaceContext, value: AutoTopup, action: string): Promise<void> {
-    await withWorkspace(ctx, async (db) => {
-      await db.tenant.update({ where: { id: ctx.workspaceId }, data: { autoTopupJson: value as unknown as Prisma.InputJsonValue } });
-      await db.auditLog.create({
-        data: { tenantId: ctx.workspaceId, actorUserId: ctx.userId, action: `auto_topup.${action}`, targetType: 'workspace', targetId: ctx.workspaceId, metaJson: { pack_id: value.pack_id, threshold: value.threshold, card_last4: value.card_last4 } as Prisma.InputJsonValue },
-      });
+    await withWorkspace(ctx, (db) => this.writeSettings(db, ctx.workspaceId, value, action, { actorUserId: ctx.userId }));
+  }
+
+  /**
+   * The one write of `tenants.auto_topup_json` plus its `audit_log` row, on whichever
+   * client the caller holds: the customer's RLS connection (`update`) or a staff
+   * transaction on `adminDb` (SA9 "disable auto top-up", D13), so both paths store the
+   * same shape and leave the same audit trail. A staff write passes no actor and marks
+   * `meta.by = 'staff'`.
+   */
+  async writeSettings(
+    db: Prisma.TransactionClient | typeof adminDb,
+    workspaceId: string,
+    value: AutoTopup,
+    action: string,
+    who: { actorUserId: string | null; meta?: Record<string, unknown> },
+  ): Promise<void> {
+    await db.tenant.update({ where: { id: workspaceId }, data: { autoTopupJson: value as unknown as Prisma.InputJsonValue } });
+    await db.auditLog.create({
+      data: {
+        tenantId: workspaceId,
+        actorUserId: who.actorUserId,
+        action: `auto_topup.${action}`,
+        targetType: 'workspace',
+        targetId: workspaceId,
+        metaJson: { pack_id: value.pack_id, threshold: value.threshold, card_last4: value.card_last4, ...(who.meta ?? {}) } as Prisma.InputJsonValue,
+      },
     });
+  }
+
+  /** The settings `update({enabled: false})` stores: the card stays, the switch goes off. Shared with the staff path. */
+  static disabled(current: AutoTopup | null): AutoTopup {
+    return { ...(current ?? { payment_method_id: null, card_last4: null, pack_id: null, threshold: null }), enabled: false };
+  }
+
+  /** `tenants.auto_topup_json` parsed, or null when unset or malformed. */
+  static parse(value: unknown): AutoTopup | null {
+    return parseSettings(value);
   }
 
   // ------------------------------------------------------------------ trigger
@@ -155,7 +187,7 @@ export class AutoTopupService {
    * Called from the ledger listener on every debit and from the 15-minute sweep. Cheap
    * when nothing is due: one tenant read and one balance read before any lock is taken.
    */
-  async evaluate(workspaceId: string, trigger: 'ledger' | 'schedule'): Promise<TopupAttemptOutcome> {
+  async evaluate(workspaceId: string, trigger: 'ledger' | 'schedule' | 'staff', options: { ignoreCooldown?: boolean } = {}): Promise<TopupAttemptOutcome> {
     const tenant = await adminDb.tenant.findUnique({ where: { id: workspaceId }, select: { autoTopupJson: true, stripeCustomerId: true, pausedAt: true, name: true } });
     const settings = parseSettings(tenant?.autoTopupJson);
     if (!tenant || !settings?.enabled) return { outcome: 'skipped', reason: 'disabled' };
@@ -176,11 +208,14 @@ export class AutoTopupService {
         tx.purchase.findFirst({ where: { tenantId: workspaceId, isAutoTopup: true, status: 'pending' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
         tx.purchase.findFirst({ where: { tenantId: workspaceId, isAutoTopup: true, status: 'abandoned', failureReason: { not: null } }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
       ]);
+      // SA9 "Retry now" (D13) skips the 6-hour cooldown after a decline — a staff member
+      // has looked at it — but never the in-flight rule: a pending top-up is a charge
+      // that may still land, and a second one would be a second charge.
       const decision = decideTopup({
         settings,
         balance: sum._sum.delta?.toNumber() ?? 0,
         pendingSince: pending?.createdAt ?? null,
-        lastFailureAt: lastFailed?.updatedAt ?? null,
+        lastFailureAt: options.ignoreCooldown ? null : (lastFailed?.updatedAt ?? null),
         workspacePaused: tenant.pausedAt !== null,
       });
       if (decision.action === 'skip') return { skipped: decision.reason as TopupSkipReason };

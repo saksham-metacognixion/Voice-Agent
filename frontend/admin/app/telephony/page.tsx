@@ -10,8 +10,10 @@ import { FilterBar, FilterSelect, SearchBox } from '@/src/components/common/filt
 import { Pager } from '@/src/components/common/pager';
 import { QueryList } from '@/src/components/common/query-states';
 import { AgentsTable } from '@/src/components/telephony/agents-table';
+import { ConcurrencyTab } from '@/src/components/telephony/concurrency-tab';
 import { AgentSheet, NumberSheet } from '@/src/components/telephony/detail-panels';
 import { NumbersTable } from '@/src/components/telephony/numbers-table';
+import { ProvisioningTab } from '@/src/components/telephony/provisioning-tab';
 import { humanize } from '@/src/lib/format';
 import { useCursorPager } from '@/src/lib/use-cursor-pager';
 import { useDebouncedValue } from '@/src/lib/use-debounced';
@@ -40,6 +42,8 @@ function Telephony() {
         <TabsList>
           <TabsTrigger value="numbers">Numbers</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="provisioning">Provisioning</TabsTrigger>
+          <TabsTrigger value="concurrency">Concurrency</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === 'numbers' ? (
@@ -54,6 +58,8 @@ function Telephony() {
           <AgentSheet id={id} onClose={close} />
         </>
       ) : null}
+      {tab === 'provisioning' ? <ProvisioningTab params={params} setQuery={setQuery} /> : null}
+      {tab === 'concurrency' ? <ConcurrencyTab /> : null}
     </>
   );
 }

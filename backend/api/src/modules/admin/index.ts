@@ -16,6 +16,9 @@ export { AdminFlagsService, KILL_SWITCH_DESCRIPTIONS } from './admin-flags.servi
 export { AdminPricingService, diffConfig, marginsFor } from './admin-pricing.service';
 export { AdminSearchService } from './admin-search.service';
 export { AdminSystemService } from './admin-system.service';
+export { AdminSupportService, ticketParam, derivedUuid } from './admin-support.service';
+export { TICKET_SLA, firstResponseDue, resolutionDue, addBusinessDays, slaState } from './support-sla';
+export { AdminTicketsController, AdminCannedResponsesController } from './admin-support.controller';
 export { customerStatusOf, rangeWindow } from './admin.helpers';
 export {
   AdminMeController,
@@ -35,3 +38,5 @@ export {
   AdminAuditController,
 } from './admin.controllers';
 export { ImpersonationController } from './impersonation.controller';
+export { AdminBillingService } from './admin-billing.service';
+export { AdminBillingController, AdminCustomerBillingController } from './admin-billing.controller';

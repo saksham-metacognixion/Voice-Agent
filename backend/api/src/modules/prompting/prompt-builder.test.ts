@@ -1,6 +1,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { type AgentTemplate, type Brief, agentTemplate, brief as briefSchema } from '@portal/schemas';
+import {
+  type AgentTemplate,
+  type Brief,
+  agentTemplate,
+  brief as briefSchema,
+} from '@portal/schemas';
 import { describe, expect, it } from 'vitest';
 import { templatesDir } from '@portal/db';
 import {
@@ -27,7 +32,13 @@ const BRIEF: Brief = briefSchema.parse({
   pricing: 'Check-up from $95.',
   faqs: [{ question: 'Do you take new patients?', answer: 'Yes, call to arrange a first visit.' }],
   never_do: 'Never promise a callback time.',
-  handoff_rules: [{ condition: 'The caller says it is an emergency', action: 'transfer', transfer_number: '+15145550123' }],
+  handoff_rules: [
+    {
+      condition: 'The caller says it is an emergency',
+      action: 'transfer',
+      transfer_number: '+15145550123',
+    },
+  ],
   agent_name: 'Sophie',
   personality: { formality: 0.8, brevity: 0.2, energy: 0.5, notes: 'Warm, never rushed.' },
   ai_disclosure: 'if_asked',
@@ -82,9 +93,34 @@ describe('buildUserPrompt', () => {
   });
 
   it('carries earlier feedback into a regenerate, so improvements are not thrown away', () => {
-    const user = buildUserPrompt({ ...CONTEXT, previousFeedback: ['Be quicker to offer a message'] });
+    const user = buildUserPrompt({
+      ...CONTEXT,
+      previousFeedback: ['Be quicker to offer a message'],
+    });
     expect(user).toContain('# Feedback from earlier test calls');
     expect(user).toContain('Be quicker to offer a message');
+  });
+
+  it('shows the model an excerpt of each W2 document and tells it not to copy the text (ADR 0023)', () => {
+    const long = Array.from({ length: 300 }, (_, i) => `Dish ${i} $${i + 10}`).join('\n');
+    const out = buildUserPrompt({
+      ...CONTEXT,
+      brief: {
+        ...BRIEF,
+        documents: [
+          { name: 'Dinner menu', content_type: 'application/pdf', text: long, truncated: false },
+        ],
+      },
+    });
+    expect(out).toContain('# Business documents');
+    expect(out).toContain('## Dinner menu (excerpt)');
+    expect(out).toContain('Dish 0 $10');
+    expect(out).not.toContain('Dish 299 $309');
+    expect(out).toContain('do NOT copy their contents');
+    // The brief JSON carries the name only, never the text.
+    const json = out.slice(out.indexOf('# The brief'));
+    expect(json).toContain('"Dinner menu"');
+    expect(json).not.toContain('Dish 0 $10');
   });
 
   it('never asks the model for the platform guardrails — those are appended in code', () => {
@@ -119,10 +155,12 @@ describe('briefForModel', () => {
   });
 
   it('turns the disclosure choice into an instruction', () => {
-    expect(briefForModel(briefSchema.parse({ ai_disclosure: 'always' })).say_it_is_an_ai).toContain('in the greeting');
-    expect(briefForModel(briefSchema.parse({ ai_disclosure: 'never_volunteer' })).say_it_is_an_ai).toContain(
-      'Do not volunteer',
+    expect(briefForModel(briefSchema.parse({ ai_disclosure: 'always' })).say_it_is_an_ai).toContain(
+      'in the greeting',
     );
+    expect(
+      briefForModel(briefSchema.parse({ ai_disclosure: 'never_volunteer' })).say_it_is_an_ai,
+    ).toContain('Do not volunteer');
   });
 });
 
@@ -237,9 +275,22 @@ describe('the shipped templates', () => {
 
   it('are all valid against the §9.2 schema', () => {
     expect(dir, 'templates/ must be findable from the test process').not.toBeNull();
-    for (const id of ['receptionist', 'appointment', 'afterhours', 'lead_qual', 'faq_support', 'restaurant', 'custom']) {
-      const parsed = agentTemplate.safeParse(JSON.parse(readFileSync(join(dir!, `${id}.json`), 'utf8')));
-      expect(parsed.success, `${id}.json: ${parsed.success ? '' : parsed.error.issues[0]?.message}`).toBe(true);
+    for (const id of [
+      'receptionist',
+      'appointment',
+      'afterhours',
+      'lead_qual',
+      'faq_support',
+      'restaurant',
+      'custom',
+    ]) {
+      const parsed = agentTemplate.safeParse(
+        JSON.parse(readFileSync(join(dir!, `${id}.json`), 'utf8')),
+      );
+      expect(
+        parsed.success,
+        `${id}.json: ${parsed.success ? '' : parsed.error.issues[0]?.message}`,
+      ).toBe(true);
     }
   });
 
@@ -280,12 +331,17 @@ describe('identity and knowledge in the user turn', () => {
   });
 
   it('falls back to "the assistant for <business>" when the brief has no agent name', () => {
-    const lines = identitySection({ businessName: "Joe's Restaurant", brief: briefSchema.parse({}) });
+    const lines = identitySection({
+      businessName: "Joe's Restaurant",
+      brief: briefSchema.parse({}),
+    });
     expect(lines).toContain("It introduces itself as the assistant for Joe's Restaurant.");
   });
 
   it('carries the W1 industry when there is one and nothing when there is not', () => {
-    expect(buildUserPrompt({ ...CONTEXT, industry: 'restaurant' })).toContain('- Industry: restaurant');
+    expect(buildUserPrompt({ ...CONTEXT, industry: 'restaurant' })).toContain(
+      '- Industry: restaurant',
+    );
     expect(buildUserPrompt({ ...CONTEXT, industry: null })).not.toContain('- Industry:');
     expect(buildUserPrompt({ ...CONTEXT, industry: '  ' })).not.toContain('- Industry:');
   });

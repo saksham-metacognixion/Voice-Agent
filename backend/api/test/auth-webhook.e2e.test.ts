@@ -203,14 +203,17 @@ describe('POST /webhooks/auth', () => {
     const res = await post(collision);
     expect(res.statusCode).toBe(200); // stored and queued — the failure is the job's
 
-    // The refusal is the point, not which field records it: the second identity never
-    // gets a row, and the first keeps the address.
-    await waitFor('the colliding event to be attempted', async () => {
+    // The second identity never gets a row, and the first keeps the address. The refusal
+    // is permanent, so it settles the event with the reason kept: left unprocessed, the
+    // sweeper replaced the spent job and retried it for ever.
+    const settled = await waitFor('the colliding event to settle', async () => {
       const row = await adminDb.webhookEvent.findFirstOrThrow({
         where: { provider: 'auth', externalId: collision.external_id },
       });
-      return row.error ? row : null;
+      return row.processedAt ? row : null;
     });
+    expect(settled.error).toMatch(/already registered to a different sign-in method/);
+    expect(await post(collision).then((r) => r.statusCode)).toBe(204);
 
     expect(await adminDb.user.findUnique({ where: { authProviderId: collision.external_id } })).toBeNull();
     expect((await adminDb.user.findUniqueOrThrow({ where: { email: first.email } })).authProviderId).toBe(

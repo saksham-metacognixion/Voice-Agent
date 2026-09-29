@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, cn } from '@
 import Link from 'next/link';
 import * as React from 'react';
 import { formatCents, formatCredits, formatNumber } from '@/src/lib/format';
-import { routes, systemPath } from '@/src/routes';
+import { billingPath, routes, systemPath, telephonyPath } from '@/src/routes';
 
 function Stat({ label, value, hint, tone }: { label: string; value: React.ReactNode; hint?: React.ReactNode; tone?: 'danger' | 'warning' }) {
   return (
@@ -92,8 +92,8 @@ function declinedHint(byReason: Record<string, number>): string | undefined {
 /** SA1 "Needs attention" — each line links where the fix lives. */
 export function AttentionList({ a }: { a: AdminKpisResponse['attention'] }) {
   const items: Array<{ label: string; count: number; href: string; tone: 'danger' | 'warning' }> = [
-    { label: 'Failed activations (24 h)', count: a.failed_activations_24h, href: systemPath('jobs'), tone: 'danger' },
-    { label: 'Failed auto top-ups (24 h)', count: a.failed_topups_24h, href: `${routes.customers}`, tone: 'danger' },
+    { label: 'Failed activations (24 h)', count: a.failed_activations_24h, href: telephonyPath('provisioning'), tone: 'danger' },
+    { label: 'Failed auto top-ups (24 h)', count: a.failed_topups_24h, href: billingPath('topups'), tone: 'danger' },
     { label: 'Failed jobs (24 h)', count: a.failed_jobs_24h, href: systemPath('jobs'), tone: 'danger' },
     { label: 'Paid, onboarding not finished (> 7 d)', count: a.onboarding_stuck, href: `${routes.customers}?status=onboarding`, tone: 'warning' },
     { label: 'Unprocessed webhooks', count: a.unprocessed_webhooks, href: systemPath('webhooks'), tone: 'warning' },

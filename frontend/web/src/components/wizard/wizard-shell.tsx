@@ -8,7 +8,7 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { BalancePill } from '@/src/components/shell/balance-pill';
 import { UserMenu } from '@/src/components/shell/user-menu';
-import { LAST_IMPLEMENTED_STEP, ONBOARDING_STEPS, routes } from '@/src/routes';
+import { LAST_IMPLEMENTED_STEP, WIZARD_STEPPER, routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /** The §8 wizard frame: logo, stepper, balance, account. Pages render inside. */
@@ -18,17 +18,24 @@ export function WizardShell({ children }: { children: React.ReactNode }) {
   const ws = useWorkspace();
   // `/onboarding/live` is past the last step: every dot shows as done.
   const onLive = pathname.startsWith(routes.onboarding.live.replace(/\/$/, ''));
-  const current = onLive ? ONBOARDING_STEPS.length : Math.max(0, ONBOARDING_STEPS.findIndex((s) => pathname.startsWith(s.path.replace(/\/$/, ''))));
+  const current = onLive ? WIZARD_STEPPER.length : Math.max(0, WIZARD_STEPPER.findIndex((s) => pathname.startsWith(s.path.replace(/\/$/, ''))));
   const reached = ws.workspace?.onboarding_step ?? 1;
-  const canExit = Boolean(ws.workspace?.onboarding_completed_at) || reached > LAST_IMPLEMENTED_STEP;
+  const complete = Boolean(ws.workspace?.onboarding_completed_at);
+  const canExit = complete || reached > LAST_IMPLEMENTED_STEP;
   const themeLabels = { light: t('common.theme.light'), dark: t('common.theme.dark'), system: t('common.theme.system'), toggle: t('common.theme.toggle') };
 
   React.useEffect(() => {
-    const step = ONBOARDING_STEPS[current];
+    const step = WIZARD_STEPPER[current];
     if (step) track('onboarding_step_viewed', { step: step.key, step_no: step.step });
   }, [current]);
 
-  const steps = ONBOARDING_STEPS.map((s) => ({ key: s.key, label: t(`wizard.steps.${s.key}`), href: s.step <= reached ? s.path : undefined }));
+  // Knowledge (no step number) opens once the agent is live; a finished wizard's numbered
+  // steps are the dashboard's to edit, so they stay done but unlinked, as their guards say.
+  const steps = WIZARD_STEPPER.map((s) => ({
+    key: s.key,
+    label: t(`wizard.steps.${s.key}`),
+    href: s.step === null ? (complete ? s.path : undefined) : !complete && s.step <= reached ? s.path : undefined,
+  }));
 
   return (
     <div className="flex min-h-dvh flex-col">
