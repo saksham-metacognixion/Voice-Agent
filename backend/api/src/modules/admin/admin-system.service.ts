@@ -148,10 +148,7 @@ export class AdminSystemService {
     const result = await timed(probe);
     const check: Check = {
       ...result,
-      detail:
-        result.signal === 'ok'
-          ? null
-          : (result.detail ?? '').replace(/https?:\/\/\S+/g, '').slice(0, 80) || 'unreachable',
+      detail: result.signal === 'ok' ? null : (result.detail ?? '').slice(0, 80) || 'unreachable',
     };
     await this.cache.setJson(PROVIDER_PROBE_KEY(name), check, PROVIDER_PROBE_TTL_S);
     return check;
@@ -206,7 +203,23 @@ async function timed(probe: () => Promise<void>): Promise<Check> {
     return {
       signal: 'down',
       latency_ms: Date.now() - started,
-      detail: (error instanceof Error ? error.message : String(error)).slice(0, 120),
+      detail: scrubDetail(error instanceof Error ? error.message : String(error)).slice(0, 120),
     };
   }
+}
+
+/**
+ * A probe's error text is shown to every staff role, and providers quote what they were
+ * given: Stripe's 401 is "Invalid API Key provided: sk_test_…", a driver error can carry
+ * the connection string. Strip URLs and anything credential-shaped before it leaves.
+ */
+export function scrubDetail(text: string): string {
+  return text
+    .replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, '')
+    .replace(/\b(?:sk|rk|pk|whsec)_\S*/g, '[redacted]')
+    .replace(/\bkey_\S*/gi, '[redacted]')
+    .replace(/\beyJ[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*/g, '[redacted]')
+    .replace(/\bBearer\s+\S+/gi, 'Bearer [redacted]')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
