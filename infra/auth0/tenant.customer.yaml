@@ -122,11 +122,18 @@ connections:
       # and a0deploy would have enabled the connection for no application at all.
       - Voice Agent
 
+# §6.2 rate limiting: "login 5 failures / 15 min per email+IP, then CAPTCHA; sign-up
+# 3 / hour / IP". Brute force counts per email+IP and blocks at the fifth failure (Auth0
+# lifts the block on a password reset or from the dashboard — not after 15 minutes; the
+# window is Auth0's, not ours). Sign-up throttling is suspicious-IP throttling's
+# pre-user-registration stage: 3 attempts, one regained every 20 minutes (the rate is in
+# milliseconds) = 3 per hour per IP. The CAPTCHA step is Auth0 Bot Detection, an Attack
+# Protection add-on this tenant's plan does not include — recorded, not configured.
 attackProtection:
   bruteForceProtection:
     enabled: true
     mode: count_per_identifier_and_ip
-    max_attempts: 10
+    max_attempts: 5
     shields:
       - block
   breachedPasswordDetection:
@@ -139,6 +146,13 @@ attackProtection:
     shields:
       - admin_notification
       - block
+    stage:
+      pre-login:
+        max_attempts: 100
+        rate: 864000
+      pre-user-registration:
+        max_attempts: 3
+        rate: 1200000
 
 # §6.2 / A5 — opt-in two-factor. The policy is empty on purpose: MFA is never forced by
 # the tenant. customer-post-login.js asks for it when A5 requests it (enrolment) and on
@@ -167,6 +181,21 @@ guardianFactors:
     enabled: false
 
 actions:
+  # §6.2 — disposable email domains refused before the account exists. The dependency
+  # version is pinned to the API's (`backend/api/package.json`); disposable-email.test.ts
+  # fails when the two drift.
+  - name: customer-pre-registration
+    code: ./actions/customer-pre-registration.js
+    dependencies:
+      - name: disposable-email-domains-js
+        version: 1.26.0
+    deployed: true
+    status: built
+    secrets: []
+    supported_triggers:
+      - id: pre-user-registration
+        version: v2
+
   # §13.2 step 1 — the normal path into `users`.
   - name: customer-post-registration
     code: ./actions/customer-post-registration.js
@@ -200,6 +229,9 @@ actions:
 
 # Built is not running. This is the binding.
 triggers:
+  pre-user-registration:
+    - action_name: customer-pre-registration
+      display_name: customer-pre-registration
   post-user-registration:
     - action_name: customer-post-registration
       display_name: customer-post-registration

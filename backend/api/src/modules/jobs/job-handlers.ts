@@ -2,6 +2,7 @@ import { Injectable, Logger, type OnApplicationShutdown } from '@nestjs/common';
 import { type Job, Worker } from 'bullmq';
 import { bullConnection, bullPrefix } from './jobs.connection';
 import { QUEUES, type QueueName } from './jobs.constants';
+import { inSpan, reportError } from '../../observability';
 
 export type JobHandler<T = unknown> = (job: Job<T>) => Promise<unknown>;
 
@@ -65,13 +66,19 @@ export class WorkerRuntime implements OnApplicationShutdown {
         async (job) => {
           const handler = this.registry.resolve(name, job.name);
           if (!handler) throw new Error(`no handler registered for ${name}/${job.name}`);
-          return handler(job);
+          // D14: a queued job is a Redis pop, not a request, so no instrumentation opens a
+          // trace for it; this span is the root of everything the handler does.
+          return inSpan(`job ${name}/${job.name}`, { 'messaging.system': 'bullmq', 'messaging.destination.name': name, 'job.name': job.name, 'job.attempt': job.attemptsMade + 1 }, () => handler(job));
         },
         { connection: bullConnection(process.env.REDIS_URL, 'worker'), prefix, concurrency: CONCURRENCY[name] },
       );
-      worker.on('failed', (job, error) =>
-        this.log.warn(`${name}/${job?.name ?? '?'} ${job?.id ?? '?'} attempt ${job?.attemptsMade ?? '?'} failed: ${error.message}`),
-      );
+      worker.on('failed', (job, error) => {
+        this.log.warn(`${name}/${job?.name ?? '?'} ${job?.id ?? '?'} attempt ${job?.attemptsMade ?? '?'} failed: ${error.message}`);
+        // Only the last attempt is news: the earlier ones are the retry policy working.
+        if (job && job.attemptsMade >= (job.opts.attempts ?? 1)) {
+          reportError(error, { tags: { queue: name, job: job.name }, extra: { job_id: job.id, attempts: job.attemptsMade } });
+        }
+      });
       worker.on('error', (error) => this.log.warn(`worker ${name}: ${error.message}`));
       this.workers.push(worker);
     }

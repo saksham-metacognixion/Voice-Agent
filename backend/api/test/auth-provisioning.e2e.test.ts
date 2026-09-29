@@ -249,3 +249,40 @@ describe('every path at once still makes exactly one row', () => {
     ).toBe(first.sub);
   });
 });
+
+// ---------------------------------------------------------------------------
+describe('§6.2 disposable email domains (D14)', () => {
+  function throwaway(label: string) {
+    const p = person(label);
+    return { ...p, email: `${label}-${p.sub.slice(-10)}@Inbox.Mailinator.com` };
+  }
+
+  it('the registration and login webhooks settle the event and create no row', async () => {
+    const p = throwaway('disposable-hook');
+    for (const event_type of ['user.registered', 'user.login'] as const) {
+      const res = await webhook({ event_type, external_id: p.sub, email: p.email, email_verified: true, name: p.name });
+      expect(res.statusCode).toBe(200);
+      const settled = await waitFor(`${event_type} to settle`, async () => {
+        const row = await adminDb.webhookEvent.findFirst({ where: { provider: 'auth', externalId: p.sub, eventType: event_type } });
+        return row?.processedAt ? row : null;
+      });
+      expect(settled.error).toMatch(/Temporary email addresses cannot be used/);
+    }
+    expect(await rowsFor(p.sub)).toHaveLength(0);
+  });
+
+  it('JIT provisioning answers 403 EMAIL_DISPOSABLE and creates no row', async () => {
+    const p = throwaway('disposable-jit');
+    const res = await listWorkspaces(await customerTenant.mint(p.sub, { email: p.email, name: p.name }));
+    expect(res.statusCode).toBe(403);
+    expect(res.json()).toMatchObject({ code: 'EMAIL_DISPOSABLE' });
+    expect(await rowsFor(p.sub)).toHaveLength(0);
+  });
+
+  it('free mail is not refused', async () => {
+    const p = person('freemail');
+    const res = await listWorkspaces(await customerTenant.mint(p.sub, { email: `${p.sub.slice(-10)}@gmail.com`, name: p.name }));
+    expect(res.statusCode).toBe(200);
+    expect(await rowsFor(p.sub)).toHaveLength(1);
+  });
+});

@@ -32,6 +32,11 @@ services:
       API_PORT: '4000'
       # Compose-internal Redis: loopback-class latency for the §13.9 hot path.
       REDIS_URL: redis://redis:6379
+      # D14: Sentry's release and the OTel service name. The DSN, the OTLP endpoint and its
+      # Authorization header come from SSM through .env (SENTRY_DSN,
+      # OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_EXPORTER_OTLP_HEADERS); unset = off.
+      SENTRY_RELEASE: ${BACKEND_TAG:-develop}
+      OTEL_SERVICE_NAME: oraly-api
     expose: ['4000']
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:4000/health >/dev/null || exit 1']
@@ -48,6 +53,8 @@ services:
     environment:
       REDIS_URL: redis://redis:6379
       WORKER_HEARTBEAT_FILE: /tmp/worker.heartbeat
+      SENTRY_RELEASE: ${BACKEND_TAG:-develop}
+      OTEL_SERVICE_NAME: oraly-worker
     healthcheck:
       # No port to probe: WorkerHeartbeat touches this file every 30 s (D7).
       test:

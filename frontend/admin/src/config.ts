@@ -14,6 +14,11 @@ export const config = {
   /** The customer portal origin, for "Open portal" on an impersonation banner. */
   portalUrl: (process.env.NEXT_PUBLIC_PORTAL_URL ?? 'http://localhost:3000').replace(/\/+$/, ''),
   appEnv: process.env.NEXT_PUBLIC_APP_ENV ?? 'dev',
+  /** D14: browser errors to Sentry. Empty = off (a dev box sends nothing). */
+  sentry: {
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN ?? '',
+    release: process.env.NEXT_PUBLIC_RELEASE ?? '',
+  },
 } as const;
 
 export const authConfigured = Boolean(config.auth0.domain && config.auth0.clientId && config.auth0.audience);

@@ -255,7 +255,9 @@
     "LINT_FAILED": "Your agent's instructions need a fix before it can go live.",
     "NUMBER_IN_USE": "That number is already in use.",
     "IMPERSONATION_READ_ONLY": "This is a read-only staff view. Nothing can be changed here.",
-    "ACCOUNT_LOCKED": "This account has been locked. Contact support."
+    "ACCOUNT_LOCKED": "This account has been locked. Contact support.",
+    "EMAIL_DISPOSABLE": "Temporary email addresses cannot be used. Sign up with your work or personal email instead.",
+    "ORIGIN_NOT_ALLOWED": "That request came from a page we do not recognise. Reload the portal and try again."
   },
   "validation": {
     "required": "Required",

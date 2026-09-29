@@ -6330,6 +6330,35 @@
         ],
         "type": "object"
       },
+      "adminTestAlertResponse": {
+        "properties": {
+          "delivered": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": "string"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "sink": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "sink",
+                "ok"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "delivered"
+        ],
+        "type": "object"
+      },
       "adminTicketDetail": {
         "properties": {
           "adjustments": {
@@ -23045,6 +23074,135 @@
           "admin"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/system/test-alert": {
+      "post": {
+        "description": "Spec admin §3.",
+        "operationId": "adminTestAlert",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminTestAlertResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "D14: send a test ops alert to every configured sink (Slack) and report what each answered",
+        "tags": [
+          "admin"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
+        ]
+      }
+    },
+    "/admin/system/test-error": {
+      "post": {
+        "description": "Spec admin §3.",
+        "operationId": "adminTestError",
+        "responses": {
+          "201": {
+            "description": "OK. The body depends on the decision (see the summary)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INTERNAL}",
+            "x-error-codes": [
+              "INTERNAL"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "D14: throw a controlled error through the exception filter — always 500, and it reaches Sentry when SENTRY_DSN is set",
+        "tags": [
+          "admin"
+        ],
+        "x-auth": "staff",
+        "x-client": false,
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
+        ]
       }
     },
     "/admin/tickets": {

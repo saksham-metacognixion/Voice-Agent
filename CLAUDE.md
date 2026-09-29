@@ -103,7 +103,11 @@ stateless route, kept in `brief.documents` and appended to the runtime prompt ve
 next to the guardrails, no plan gate; photos transcribed by the generation model; `parseBrief` repairs per field (29 Sep), 0024 what the
 agent knows comes after payment — W3 → W5, W4 is the first page after go-live behind
 `LiveGuard`, and the `knowledge-sync` job that attaches a base to a live agent republishes
-the live version itself (29 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+the live version itself (29 Sep), 0025 the D14 hardening — disposable email refused
+by a pre-registration Action and again by `UsersService.upsert`, Auth0 attack protection as the
+§6.2 login/sign-up limits, one `onRequest` hook for the origin check and the per-IP API budget,
+OpenTelemetry for traces and Sentry (errors only, nine integrations) with measured inbound
+cost, the console diagnostics routes, the RDS PITR drill and the console's CI deploy (29 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -967,6 +971,32 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Every customer-affecting staff write requires a reason code (admin Appendix B) and an audit row.
   Role limits are enforced server-side, never only in the UI.
 
+**Hardening and observability (§6.2, §17 — ADR 0025, D14)**
+
+- **Disposable email is refused twice**: the `customer-pre-registration` Action denies the
+  sign-up, and `UsersService.upsert` never creates a `users` row for one (webhook → settled
+  `refused: disposable_email`; guard → `403 EMAIL_DISPOSABLE`). Existing rows are never
+  refused. One list, `disposable-email-domains-js`, the same exact version in the API and
+  the Action — `disposable-email.test.ts` fails when they drift. Subdomains count.
+- **`registerRequestLimits`** (`common/http/request-limits.ts`, wired in `main.ts` only) is
+  one `onRequest` hook: a state-changing request with a foreign `Origin` is `403
+  ORIGIN_NOT_ALLOWED`; more than `API_RATE_LIMIT_PER_MIN` (default 600) per IP per fixed
+  minute is `429 RATE_LIMITED` with `Retry-After` and CORS headers. **Never** `/webhooks/*`
+  or `/health*`. Redis silent = allow. The e2e harness does not register it — its test is a
+  real Fastify instance in `request-limits.test.ts`.
+- **OpenTelemetry owns traces, Sentry owns errors.** `src/observability/register-{api,worker}.ts`
+  is the **first import** of each entrypoint — anything required before it goes untraced.
+  Off unless `OTEL_EXPORTER_OTLP_ENDPOINT` / `SENTRY_DSN`. Each BullMQ job is a span
+  (`inSpan`, `job-handlers.ts`). Sentry keeps nine default integrations (`SENTRY_KEEP`): its
+  HTTP instrumentation cost the inbound path 60 % of its throughput. Do not re-enable it,
+  and do not turn on Sentry tracing. The filter reports 5xx; the worker reports a job's
+  final attempt; `reportError()` is the only other way in. Browser: `@portal/ui/error-reporting`,
+  which strips query strings and fragments from every URL (invite tokens, view-as keys).
+- Diagnostics: `POST /admin/system/test-error` and `/test-alert` (super admin, ops) — how
+  "Sentry receives it" and "Slack receives it" are checked on staging.
+- DR: `docs/runbooks/pitr-drill.md` + `infra/scripts/pitr-fingerprint.sh` (restore into a
+  throwaway instance, `diff` against the live fingerprint at the same cut-off).
+
 **Secrets**
 
 - AWS SSM Parameter Store only, nothing in the repo. SIP credentials are envelope-encrypted with an AWS KMS
@@ -990,6 +1020,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `worker:heartbeat`           | the worker's liveness beacon, refreshed every 30 s, read by `GET /health/ready` (D7)                                    |
 | `alert:platform_concurrency` | the open platform-wide concurrency incident, so ops is paged once per incident; held a day at most (D7)                 |
 | `admin:health:{provider}`    | the health strip's cached Retell / Stripe probe, 60 s (D12)                                                            |
+| `ratelimit:api:{ip}:{min}`   | API requests from one client IP in one epoch minute, TTL 2 min (D14, ADR 0025)                                          |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
 throws and never waits past its budget (ADR 0010 §6).

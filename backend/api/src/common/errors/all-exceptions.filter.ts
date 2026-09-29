@@ -11,6 +11,7 @@ import { ZodError } from 'zod';
 import { ERROR_STATUS, ErrorCode, type ErrorResponse, type FieldError } from '@portal/schemas';
 import { isAppendOnlyViolation, isRlsViolation, isUniqueViolation } from '@portal/db';
 import { AppError } from './app-error';
+import { reportError } from '../../observability';
 
 /**
  * Turns everything thrown anywhere into the §16 envelope: {code, message, fields?[]}.
@@ -34,6 +35,11 @@ export class AllExceptionsFilter implements ExceptionFilter {
         `${body.code}: ${body.message}`,
         exception instanceof Error ? exception.stack : String(exception),
       );
+      // D14: every error we log as a bug also reaches Sentry (a no-op without SENTRY_DSN).
+      // A 4xx is the caller's mistake and never does.
+      // Optional-chained: a filter that throws while reporting would swallow the answer.
+      const request = http.getRequest?.<{ method?: string; routeOptions?: { url?: string } }>();
+      reportError(exception, { tags: { code: body.code, route: `${request?.method ?? '?'} ${request?.routeOptions?.url ?? '?'}` } });
     }
 
     void reply.status(status).send(body);

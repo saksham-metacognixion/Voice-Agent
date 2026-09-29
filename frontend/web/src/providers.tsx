@@ -3,6 +3,7 @@
 import { ApiProvider, createApiClient, createQueryClient } from '@portal/api-client';
 import { ThemeProvider, Toaster, TooltipProvider } from '@portal/ui';
 import { NextIntlClientProvider } from 'next-intl';
+import { initErrorReporting } from '@portal/ui/error-reporting';
 import * as React from 'react';
 import { AnalyticsProvider, identify, resetAnalytics, track } from './analytics/posthog';
 import { AuthProvider, useAuth, type AuthUser } from './auth/auth-provider';
@@ -14,6 +15,9 @@ import { DEFAULT_LOCALE, messages } from './i18n';
 import { storage } from './lib/storage';
 import { workspaceStore } from './workspace/store';
 import { WorkspaceProvider } from './workspace/workspace-provider';
+
+// D14: before the first render, so an error while the providers mount is reported too.
+initErrorReporting({ dsn: config.sentry.dsn, app: 'portal', environment: config.appEnv, release: config.sentry.release });
 
 /**
  * Provider order matters: the API client needs the token (auth), the workspace provider

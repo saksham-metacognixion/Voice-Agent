@@ -1,3 +1,4 @@
+import './observability/register-api';
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
@@ -5,8 +6,10 @@ import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fa
 import { assertRlsEnforced, disconnect } from '@portal/db';
 import { AppModule } from './app.module';
 import { LiveTranscriptRelay } from './modules/calls';
+import { RedisCache, redisKeys } from './modules/redis';
 import { registerWebhookRawBody } from './modules/webhooks';
-import { assertPortalUrl, portalUrl, resolveAppEnv } from './common/env';
+import { assertPortalUrl, resolveAppEnv } from './common/env';
+import { allowedOrigins, registerRequestLimits } from './common/http/request-limits';
 
 async function bootstrap() {
   // Before anything binds a port: if the runtime connection is not RLS-enforced, every
@@ -29,12 +32,16 @@ async function bootstrap() {
   // Methods are listed explicitly: the portal's autosave is a PATCH, and the browser
   // refuses it when the preflight answer omits the method (found by the D8 wizard run).
   app.enableCors({
-    origin: [portalUrl(), process.env.ADMIN_URL ?? 'http://localhost:3001'],
+    origin: allowedOrigins(),
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Workspace-Id', 'Last-Event-ID'],
     maxAge: 600,
   });
+  // §6.2: the origin check on state-changing requests and the per-IP request budget, before
+  // routing and body parsing. /webhooks/* and /health* are never touched (request-limits.ts).
+  const cache = app.get(RedisCache);
+  registerRequestLimits(app, { increment: (key, ttl, timeout) => cache.increment(key, ttl, timeout), windowKey: redisKeys.apiRequestWindow });
   app.enableShutdownHooks();
 
   // W5's live transcript: a WebSocket upgrade on this server only (the worker binds none).

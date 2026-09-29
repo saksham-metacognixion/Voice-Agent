@@ -52,6 +52,10 @@ export const ErrorCode = {
   IMPERSONATION_READ_ONLY: 'IMPERSONATION_READ_ONLY',
   /** Staff locked this sign-in (SA3). */
   ACCOUNT_LOCKED: 'ACCOUNT_LOCKED',
+  /** §6.2: a throwaway address (the open-source disposable list). Free mail is allowed. */
+  EMAIL_DISPOSABLE: 'EMAIL_DISPOSABLE',
+  /** §6.2 CSRF: a state-changing request whose `Origin` is not the portal or the console. */
+  ORIGIN_NOT_ALLOWED: 'ORIGIN_NOT_ALLOWED',
   // 404
   NOT_FOUND: 'NOT_FOUND',
   // 409
@@ -114,6 +118,8 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   WORKSPACE_PAUSED: 403,
   IMPERSONATION_READ_ONLY: 403,
   ACCOUNT_LOCKED: 403,
+  EMAIL_DISPOSABLE: 403,
+  ORIGIN_NOT_ALLOWED: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
   PURCHASES_PAUSED: 409,

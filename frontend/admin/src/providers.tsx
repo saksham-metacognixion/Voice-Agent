@@ -2,9 +2,13 @@
 
 import { ApiProvider, createApiClient, createQueryClient } from '@portal/api-client';
 import { ThemeProvider, Toaster, TooltipProvider } from '@portal/ui';
+import { initErrorReporting } from '@portal/ui/error-reporting';
 import * as React from 'react';
 import { AuthProvider, useAuth } from './auth/auth-provider';
 import { config } from './config';
+
+// D14: before the first render, so an error while the providers mount is reported too.
+initErrorReporting({ dsn: config.sentry.dsn, app: 'admin', environment: config.appEnv, release: config.sentry.release });
 
 /**
  * Provider order: the API client needs the token (auth). Theme is outermost so even the

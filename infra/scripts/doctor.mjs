@@ -61,6 +61,11 @@ const CHECKS = [
   { key: 'CONCURRENCY_ALERT_PCT', phase: 'D7', required: false },
   { key: 'CONCURRENCY_PLATFORM_LIMIT', phase: 'D7', required: false },
   { key: 'DIGEST_LOCAL_HOUR', phase: 'D7', required: false },
+  // D14: observability and the request budget. Unset = off (or the 600/min default).
+  { key: 'SENTRY_DSN', phase: 'D14', required: false },
+  { key: 'OTEL_EXPORTER_OTLP_ENDPOINT', phase: 'D14', required: false },
+  { key: 'OTEL_EXPORTER_OTLP_HEADERS', phase: 'D14', required: false, secret: true },
+  { key: 'API_RATE_LIMIT_PER_MIN', phase: 'D14', required: false },
 ];
 
 const results = [];

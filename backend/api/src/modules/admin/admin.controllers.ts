@@ -37,6 +37,7 @@ import {
   type AdminRetellCostsResponse,
   type AdminSearchResponse,
   type AdminSystemHealthResponse,
+  type AdminTestAlertResponse,
   type AdminTenantStatusResponse,
   type AdminUserActionResponse,
   type AdminUserResponse,
@@ -72,6 +73,7 @@ import {
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, toPage } from '../../common/pagination';
+import { OpsAlertService } from '../alerts';
 import { StaffCtx, StaffRoles } from '../auth';
 import type { StaffContext } from '../auth';
 import { AdminAgentsService } from './admin-agents.service';
@@ -703,11 +705,38 @@ export class AdminSearchController {
 
 @Controller('admin/system')
 export class AdminSystemController {
-  constructor(private readonly system: AdminSystemService) {}
+  constructor(
+    private readonly system: AdminSystemService,
+    private readonly opsAlerts: OpsAlertService,
+  ) {}
 
   @Get('health')
   health(): Promise<AdminSystemHealthResponse> {
     return this.system.health();
+  }
+
+  /**
+   * D14 "trigger a controlled test error and confirm it reaches Sentry". Thrown, not
+   * captured here, so it travels the path a real bug does: the exception filter logs it,
+   * answers 500 INTERNAL and reports it. Touches no customer data.
+   */
+  @Post('test-error')
+  @StaffRoles('super_admin', 'ops')
+  testError(@StaffCtx() staff: StaffContext): never {
+    throw new Error(`D14 diagnostics: controlled test error requested by ${staff.email}`);
+  }
+
+  /** D14: one test ops alert through every sink; Slack is the webhook sink. */
+  @Post('test-alert')
+  @StaffRoles('super_admin', 'ops')
+  async testAlert(@StaffCtx() staff: StaffContext): Promise<AdminTestAlertResponse> {
+    const delivered = await this.opsAlerts.send({
+      kind: 'diagnostics_test',
+      severity: 'warning',
+      title: 'Test alert from the admin console — no action needed',
+      fields: { requested_by: staff.email, env: process.env.APP_ENV ?? null },
+    });
+    return { delivered };
   }
 }
 

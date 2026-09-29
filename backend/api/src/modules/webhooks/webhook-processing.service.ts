@@ -3,7 +3,7 @@ import { adminDb } from '@portal/db';
 import type Stripe from 'stripe';
 import { StripeEventHandler } from '../billing';
 import { JobQueues } from '../jobs';
-import { SecondIdentityRefused, UsersService } from '../auth';
+import { DisposableEmailRefused, SecondIdentityRefused, UsersService } from '../auth';
 import { RetellEventHandler } from './retell-events.handler';
 import { WebhookEventsService, settledWithNote } from './webhook-events.service';
 
@@ -88,6 +88,9 @@ export class WebhookProcessingService {
           try {
             return await this.users.upsert(this.users.parse(row.payloadJson));
           } catch (error) {
+            if (error instanceof DisposableEmailRefused) {
+              return settledWithNote({ outcome: 'refused', reason: 'disposable_email' }, error.message);
+            }
             if (!(error instanceof SecondIdentityRefused)) throw error;
             return settledWithNote({ outcome: 'refused', reason: 'email_belongs_to_another_identity' }, error.message);
           }

@@ -16,6 +16,12 @@ export interface OpsAlert {
 }
 
 /** Everything an alert sink must do. The default posts to Slack; tests capture. */
+export interface OpsAlertDelivery {
+  sink: string;
+  ok: boolean;
+  error?: string;
+}
+
 export interface OpsAlertSink {
   readonly name: string;
   deliver(alert: OpsAlert, text: string): Promise<void>;
@@ -61,7 +67,12 @@ export class OpsAlertService {
     this.sinks.push(sink);
   }
 
-  async send(alert: OpsAlert): Promise<void> {
+  get sinkNames(): string[] {
+    return this.sinks.map((sink) => sink.name);
+  }
+
+  /** Resolves with what each sink answered; never rejects (callers are fire-and-forget). */
+  async send(alert: OpsAlert): Promise<OpsAlertDelivery[]> {
     const safe = redactAlert(alert);
     const text = formatAlert(safe);
     this.recent.push({ ...safe, text });
@@ -71,8 +82,8 @@ export class OpsAlertService {
     if (safe.severity === 'critical') this.log.error(text);
     else this.log.warn(text);
 
-    await Promise.all(
-      this.sinks.map(async (sink) => {
+    return Promise.all(
+      this.sinks.map(async (sink): Promise<OpsAlertDelivery> => {
         let timer: NodeJS.Timeout | undefined;
         try {
           await Promise.race([
@@ -81,8 +92,11 @@ export class OpsAlertService {
               timer = setTimeout(() => reject(new Error(`timed out after ${DELIVER_TIMEOUT_MS} ms`)), DELIVER_TIMEOUT_MS);
             }),
           ]);
+          return { sink: sink.name, ok: true };
         } catch (error) {
-          this.log.warn(`ops alert sink ${sink.name} failed: ${error instanceof Error ? error.message : String(error)}`);
+          const message = error instanceof Error ? error.message : String(error);
+          this.log.warn(`ops alert sink ${sink.name} failed: ${message}`);
+          return { sink: sink.name, ok: false, error: message };
         } finally {
           if (timer) clearTimeout(timer);
         }

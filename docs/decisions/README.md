@@ -32,6 +32,7 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0022](0022-admin-p1-close.md)                         | The P1 admin close: tickets, refunds, staff invites, provisioning queue, D13 QA (D13)       | accepted                      |
 | [0023](0023-brief-documents.md)                        | Business documents in the brief: a menu or price list on W2, verbatim in the prompt        | accepted                      |
 | [0024](0024-knowledge-after-payment.md)                | What the agent knows comes after payment: W4 after go-live, auto-republish of a new base   | accepted                      |
+| [0025](0025-production-hardening.md)                   | D14 hardening: disposable email ×2, origin check + API budget, OTel traces + Sentry errors, RDS PITR drill | accepted                      |
 
 Template:
 

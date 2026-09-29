@@ -224,6 +224,9 @@ jobs:
           NEXT_PUBLIC_AUTH0_AUDIENCE: ${{ vars.STAGING_AUTH0_AUDIENCE }}
           NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.STAGING_POSTHOG_KEY }}
           NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.STAGING_POSTHOG_HOST }}
+          # D14: browser errors. A Sentry DSN is public by design (it can only submit events).
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.STAGING_PORTAL_SENTRY_DSN }}
+          NEXT_PUBLIC_RELEASE: sha-${{ github.sha }}
         run: infra/scripts/deploy-frontend.sh web staging
       - name: Portal answers over TLS
         run: |
@@ -231,3 +234,54 @@ jobs:
           host="${{ vars.STAGING_PORTAL_HOST }}"
           [ -n "$host" ] || { echo "::error::STAGING_PORTAL_HOST is not set on the staging environment (e.g. app-staging.oraly.ai)"; exit 1; }
           curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://$host/login/"
+
+  # ------------------------------------------------------------------ 5. console (develop → S3 + CloudFront, ADR 0008, D14)
+  #
+  # The staff console, built against the *staff* Auth0 tenant. Runs when the staging
+  # environment has the `voice-agent-staging-admin` frontend stack's outputs:
+  #   vars:    STAGING_ADMIN_BUCKET, STAGING_ADMIN_DISTRIBUTION_ID, STAGING_ADMIN_HOST,
+  #            STAGING_STAFF_AUTH0_DOMAIN, STAGING_STAFF_AUTH0_CLIENT_ID,
+  #            STAGING_STAFF_AUTH0_AUDIENCE, STAGING_PORTAL_HOST, STAGING_ADMIN_SENTRY_DSN (optional)
+  # STAGING_ADMIN_BUCKET is read in the job-level `if`, so it must be a *repository*
+  # variable — an environment-scoped one reads as empty there and the job skips silently.
+  deploy-admin-staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && vars.STAGING_ADMIN_BUCKET != ''
+    environment:
+      name: staging
+      url: https://${{ vars.STAGING_ADMIN_HOST }}/
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and publish the console
+        env:
+          FRONTEND_BUCKET: ${{ vars.STAGING_ADMIN_BUCKET }}
+          FRONTEND_DISTRIBUTION_ID: ${{ vars.STAGING_ADMIN_DISTRIBUTION_ID }}
+          NEXT_PUBLIC_API_URL: https://${{ vars.STAGING_API_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_DOMAIN: ${{ vars.STAGING_STAFF_AUTH0_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_CLIENT_ID: ${{ vars.STAGING_STAFF_AUTH0_CLIENT_ID }}
+          NEXT_PUBLIC_AUTH0_AUDIENCE: ${{ vars.STAGING_STAFF_AUTH0_AUDIENCE }}
+          NEXT_PUBLIC_PORTAL_URL: https://${{ vars.STAGING_PORTAL_HOST }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.STAGING_ADMIN_SENTRY_DSN }}
+          NEXT_PUBLIC_RELEASE: sha-${{ github.sha }}
+        run: infra/scripts/deploy-frontend.sh admin staging
+      - name: Console answers over TLS
+        run: |
+          set -euo pipefail
+          host="${{ vars.STAGING_ADMIN_HOST }}"
+          [ -n "$host" ] || { echo "::error::STAGING_ADMIN_HOST is not set (e.g. admin-staging.oraly.ai)"; exit 1; }
+          curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://$host/"

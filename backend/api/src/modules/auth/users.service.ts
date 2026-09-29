@@ -3,6 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { adminDb, isUniqueViolation } from '@portal/db';
 import { type AuthWebhookEvent, authWebhookEvent } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
+import { isDisposableEmail } from './disposable-email';
 
 export type AuthUpsertOutcome =
   | { outcome: 'created'; userId: string }
@@ -93,6 +94,13 @@ export class UsersService {
       const byEmail = await adminDb.user.findUnique({ where: { email }, select: { authProviderId: true } });
       if (byEmail) this.refuseSecondIdentity(event, email, byEmail.authProviderId);
 
+      // §6.2: no new account on a throwaway address. Only a *new* row is refused — an
+      // account that already exists keeps working if its domain joins the list later.
+      if (isDisposableEmail(email)) {
+        this.log.warn(`${event.event_type} for ${event.external_id} refused: disposable email domain`);
+        throw new DisposableEmailRefused(event.external_id);
+      }
+
       const created = await adminDb.user.create({
         data: {
           authProviderId: event.external_id,
@@ -142,6 +150,16 @@ export class UsersService {
 export class SecondIdentityRefused extends AppError {
   constructor(readonly subject: string) {
     super('CONFLICT', 'That email address is already registered to a different sign-in method.');
+  }
+}
+
+/**
+ * §6.2: the address is on the disposable list. Settled on the webhook's path (retrying
+ * cannot change a domain), a 403 `EMAIL_DISPOSABLE` on the guard's.
+ */
+export class DisposableEmailRefused extends AppError {
+  constructor(readonly subject: string) {
+    super('EMAIL_DISPOSABLE', 'Temporary email addresses cannot be used. Sign up with your work or personal email instead.');
   }
 }
 

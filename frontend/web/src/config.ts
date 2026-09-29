@@ -15,6 +15,11 @@ export const config = {
     host: process.env.NEXT_PUBLIC_POSTHOG_HOST ?? 'https://us.i.posthog.com',
   },
   appEnv: process.env.NEXT_PUBLIC_APP_ENV ?? 'dev',
+  /** D14: browser errors to Sentry. Empty = off (a dev box sends nothing). */
+  sentry: {
+    dsn: process.env.NEXT_PUBLIC_SENTRY_DSN ?? '',
+    release: process.env.NEXT_PUBLIC_RELEASE ?? '',
+  },
   support: {
     /** D7 contact. The address the portal already gave people before D11. */
     email: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || 'support@oraly.ai',

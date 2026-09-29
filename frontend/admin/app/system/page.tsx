@@ -9,6 +9,7 @@ import { PageHeader } from '@/src/components/shell/page-header';
 import { FilterBar, FilterSelect, SearchBox } from '@/src/components/common/filter-bar';
 import { Pager } from '@/src/components/common/pager';
 import { LoadError, QueryList } from '@/src/components/common/query-states';
+import { DiagnosticsCard } from '@/src/components/system/diagnostics-card';
 import { FlagsTab } from '@/src/components/system/flags-tab';
 import { HealthCards } from '@/src/components/system/health-cards';
 import { JobSheet, JobsTable } from '@/src/components/system/jobs-table';
@@ -72,7 +73,12 @@ function HealthTab() {
   const health = useAdminSystemHealth(api, { refetchInterval: 30_000, staleTime: 15_000 });
   if (health.isPending) return <Skeleton className="h-64" aria-busy />;
   if (health.isError) return <LoadError error={health.error} onRetry={() => void health.refetch()} />;
-  return <HealthCards h={health.data} />;
+  return (
+    <div className="space-y-4">
+      <HealthCards h={health.data} />
+      <DiagnosticsCard />
+    </div>
+  );
 }
 
 function JobsTab({ params, setQuery }: { params: URLSearchParams; setQuery: Setter }) {

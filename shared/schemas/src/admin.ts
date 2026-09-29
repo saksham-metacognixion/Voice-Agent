@@ -834,6 +834,15 @@ export const adminSystemHealthResponse = z.object({
 });
 export type AdminSystemHealthResponse = z.infer<typeof adminSystemHealthResponse>;
 
+/**
+ * D14 diagnostics: a test ops alert through every configured sink (Slack is the webhook
+ * sink), with what each answered. The log line is always written as well.
+ */
+export const adminTestAlertResponse = z.object({
+  delivered: z.array(z.object({ sink: z.string(), ok: z.boolean(), error: z.string().optional() })),
+});
+export type AdminTestAlertResponse = z.infer<typeof adminTestAlertResponse>;
+
 // ---------------------------------------------------------------------------- audit (SA14)
 
 export const adminAuditQuery = paginationQuery.extend({
