@@ -194,7 +194,7 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
             {!lint ? (
               <p className="text-sm text-muted-foreground">{t('lintNone')}</p>
             ) : lint.findings.length === 0 ? (
-              <p className="flex items-center gap-2 text-sm text-success">
+              <p className="flex items-center gap-2 text-sm text-success-emphasis">
                 <CheckCircle2 className="size-4" aria-hidden /> {t('lintClean')}
               </p>
             ) : (

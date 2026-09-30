@@ -119,6 +119,24 @@ Three layers, none of them a constant:
 design partner on it heard the vendor's clip — and `ci` and an unset `APP_ENV` fall on
 the safe side. `voices.sample_url`, a clip of ours, plays whatever the switch says.
 
+**Addendum, 30 Sep 2026 — a clip of ours for every voice.** Withholding the vendor's clip
+left nothing to play: nothing ever wrote `voices.sample_url`, so on staging every W3 play
+button was disabled and read as broken. `pnpm --filter @portal/api samples:voices`
+(`scripts/voice-samples.ts`, on the harness `scripts/sample-recorder.ts` shared with
+`samples:templates`) records each catalogue voice reading one neutral line — no business,
+no vendor — in its native language (English, Spanish, French, German, Portuguese,
+Chinese, Japanese from `nativeLanguages()`, English otherwise), trimmed and normalised to
+a ~7 s, 64 kbps mp3 in `frontend/web/public/samples/voices/`. The clips ship as **files
+plus a manifest** (`modules/voices/voice-samples.generated.ts`, voice id → file), not as
+database rows: a row would have to be written into each environment by hand, and
+staging's database is a private RDS instance. The deploy carries both halves — the
+portal's S3 sync (a `samples/` pass cached a day) and the API image. `preview_url` is a
+path on the portal's own origin; the file is named by a hash of the voice id, never the
+id, because the platform's own voices are `retell-<name>`. Precedence is
+`sample_url` → shipped clip → vendor clip under `allow` (`sampleUrlOf`). A voice the
+catalogue adds later has no clip until the script is rerun (it records only what is
+missing); `custom_voice_*` ids are account-specific and skipped.
+
 ## Alternatives considered
 
 - **A `menus` table or a dedicated upload route.** Rejected: it would duplicate the

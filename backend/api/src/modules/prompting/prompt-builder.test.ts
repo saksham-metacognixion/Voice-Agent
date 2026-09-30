@@ -148,6 +148,14 @@ describe('briefForModel', () => {
     ]);
   });
 
+  it('hands the model a read-a-message rule with the exact words to read', () => {
+    const rules = briefForModel({
+      ...BRIEF,
+      handoff_rules: [{ condition: 'The caller calls after hours', action: 'read_message', message: '  We are closed. Call back at nine.  ' }],
+    }).handoff_rules;
+    expect(rules).toEqual(['The caller calls after hours → read this message to the caller word for word: "We are closed. Call back at nine."']);
+  });
+
   it('turns the §13.9 interval structure into something a person would say', () => {
     expect(briefForModel(BRIEF).business_hours).toBe(
       'Mon 09:00–17:00; Sat 10:00–14:00; closed Tue, Wed, Thu, Fri, Sun; also closed on 2026-12-25',

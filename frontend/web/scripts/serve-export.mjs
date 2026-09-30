@@ -5,7 +5,7 @@ import { readFile, stat } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const root = process.argv[2] ?? fileURLToPath(new URL('../out', import.meta.url)); const port = Number(process.argv[3] ?? 3000);
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain', '.ico': 'image/x-icon', '.png': 'image/png' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.txt': 'text/plain', '.ico': 'image/x-icon', '.png': 'image/png', '.mp3': 'audio/mpeg' };
 createServer(async (req, res) => {
   let uri = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (uri.endsWith('/')) uri += 'index.html'; else if (!uri.includes('.')) uri += '/index.html';

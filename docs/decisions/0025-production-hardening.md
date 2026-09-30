@@ -113,3 +113,38 @@ the instance ever needs the headroom.
   `STAGING_ADMIN_SENTRY_DSN` and the `STAGING_ADMIN_*` / `STAGING_STAFF_AUTH0_*` set. The
   customer tenant needs `pnpm auth0:deploy customer` for the Action and the throttling.
 - A Nest `@Post` answers 201; the diagnostics routes follow the house default.
+
+## Addendum — staging validation, 30 Sep 2026
+
+Run against staging (`api-staging.oraly.ai`, image `sha-d138dd6`) and the local stack.
+
+- **Origin and budget, live.** A POST with a foreign `Origin` is `403 ORIGIN_NOT_ALLOWED`; a
+  webhook route with the same header is not refused. 620 requests from one IP inside one
+  minute: exactly 600 answered, 20 were `429 RATE_LIMITED` with `Retry-After` and the CORS
+  headers. `/health` stays exempt.
+- **Slack.** `OPS_ALERT_WEBHOOK_URL` is a Slack incoming webhook to the operator's own DM;
+  the console's test alert arrived. Sentry issues are not routed to Slack (email only).
+- **Redis down.** `docker stop` of the staging Redis for 24 s: signed inbound requests kept
+  answering `200 {}` in < 100 ms, `/health/ready` went 503 while `/health` stayed 200, API
+  and worker reconnected by themselves, heartbeat and all 14 schedulers came back. **Finding,
+  fixed:** the inbound fail-open only wrote a log line — nobody was told. It now raises a
+  `redis_down` ops alert (critical, once per outage minute, on its own clock so the
+  unknown-number log throttle cannot swallow it; not awaited, and it posts over HTTP, so it
+  reaches a human while Redis is what is down). `test/calls.e2e.test.ts` pins it.
+- **Rental.** Three `d7-recurring` rental tests failed on 30 Sep: the fixture's "30 days
+  ago" is 31 Aug, whose next anniversary clamps to 30 Sep — due again. A test bug (it fails
+  on every day whose previous month is short); the fixture is now "due yesterday". The
+  clamp itself drifts an anniversary for good (31 Jan → 28 Feb → 28 Mar) — a product
+  finding, left for the owner.
+- **WCAG 2.1 AA.** axe-core (wcag2a/aa, 21a/aa) over every portal and console screen, light
+  and dark, 1440 and 390 px: 148 page views. Before: white on brand purple 4.36:1, purple
+  text on its own tint 3.4, success green as text 2.63–3.29, sliders with no name on the
+  thumb, and the W3 voice list a `listbox` whose options held buttons. After: 148/148 clean.
+  `--primary` is `#7050F5` in light and `#9580FF` with Deep Navy text in dark — shades of
+  the brand purple, not a new colour; `text-success-emphasis` joins
+  `text-warning-emphasis`; tinted-purple text is `text-accent-foreground`; `Slider` puts
+  `aria-label` on the thumb; the voice list is a list of cards whose choose button carries
+  `aria-pressed` (`data-testid="voice-card"`). A keyboard pass found that
+  `:focus-visible { outline: none }` in the base layer left nav links, the balance pill and
+  tabs with no focus indicator (2.4.7); the base rule is now a 2 px `--ring` outline, which
+  a component's own `outline-none` still overrides.

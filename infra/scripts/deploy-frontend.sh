@@ -12,8 +12,10 @@
 #   NEXT_PUBLIC_SUPPORT_EMAIL, NEXT_PUBLIC_STATUS_PAGE_URL   (optional, D7 Help)
 # Plus AWS credentials for the CI user (s3 sync + cloudfront invalidation only).
 #
-# Two sync passes, one per cache policy: /_next/static/* is content-hashed and immutable
-# for a year; everything else (HTML, JSON) is no-cache so a deploy is visible at once.
+# One sync pass per cache policy: /_next/static/* is content-hashed and immutable for a
+# year; brand art and the portal's audio clips (/samples/*: W1 templates, W3 voices) are
+# cached a day, so a clip is not fetched again on every play; everything else (HTML,
+# JSON) is no-cache so a deploy is visible at once.
 set -euo pipefail
 
 APP="${1:?web|admin}"
@@ -56,9 +58,15 @@ echo "▶ syncing brand assets"
 aws s3 sync "$OUT/brand" "s3://$FRONTEND_BUCKET/brand" \
   --cache-control "public, max-age=86400" --delete --only-show-errors
 
+if [ -d "$OUT/samples" ]; then
+  echo "▶ syncing audio samples"
+  aws s3 sync "$OUT/samples" "s3://$FRONTEND_BUCKET/samples" \
+    --cache-control "public, max-age=86400" --delete --only-show-errors
+fi
+
 echo "▶ syncing pages"
 aws s3 sync "$OUT" "s3://$FRONTEND_BUCKET" \
-  --exclude "_next/static/*" --exclude "brand/*" \
+  --exclude "_next/static/*" --exclude "brand/*" --exclude "samples/*" \
   --cache-control "no-cache, no-store, must-revalidate" --delete --only-show-errors
 
 echo "▶ invalidating CloudFront"

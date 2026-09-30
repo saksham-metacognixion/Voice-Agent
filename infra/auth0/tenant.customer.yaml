@@ -107,20 +107,17 @@ databases:
       disable_signup: false
       brute_force_protection: true
       passwordPolicy: good
-      password_history:
-        enable: true
-        size: 5
-      password_no_personal_info:
-        enable: true
+      # password_history (last 5) and password_no_personal_info are the paid
+      # "password-advanced-options" entitlement: the 30 Sep 2026 deploy answered 403
+      # feature_not_entitled on this plan. Restore both on a plan that includes them.
 
 connections:
   # §6.2 — social sign-in. `options` (client keys) stay in the dashboard; see the header.
-  - name: google-oauth2
-    strategy: google-oauth2
-    enabled_clients:
-      # The SPA by its tenant name (see `clients:`). "Portal Web" was never a client here,
-      # and a0deploy would have enabled the connection for no application at all.
-      - Voice Agent
+  # google-oauth2 is managed in the dashboard only (its client keys live there, and it is
+  # enabled for "Voice Agent"). Listed here without `options`, a0deploy sent an empty
+  # options object once the M2M app could read connection options, and the Management API
+  # answered 400 "Too few properties defined (0)" (30 Sep 2026). AUTH0_ALLOW_DELETE is
+  # false, so leaving it out of this file deletes nothing.
 
 # §6.2 rate limiting: "login 5 failures / 15 min per email+IP, then CAPTCHA; sign-up
 # 3 / hour / IP". Brute force counts per email+IP and blocks at the fifth failure (Auth0
@@ -141,6 +138,10 @@ attackProtection:
     method: standard
     shields:
       - admin_notification
+    # Required by the Management API alongside the admin_notification shield (400
+    # "Please provide an admin_notification_frequency" on the 30 Sep 2026 deploy).
+    admin_notification_frequency:
+      - immediately
   suspiciousIpThrottling:
     enabled: true
     shields:

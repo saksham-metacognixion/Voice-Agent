@@ -21,19 +21,31 @@ import { agentStatus, agentTier, templateId, versionSource } from './enums.js';
 // The brief (W2 — spec pp. 17–18)
 // ---------------------------------------------------------------------------
 
-/** W2 #9. `transfer` needs a number; the other two actions never do. */
+/**
+ * W2 #9. `transfer` needs a number and `read_message` needs the words to read; the
+ * other fields are never required. A rule without its payload is refused rather than
+ * stored, because the agent could not carry it out on the call.
+ */
 export const handoffAction = z.enum(['transfer', 'take_message', 'read_message']);
 export type HandoffAction = z.infer<typeof handoffAction>;
+
+export const HANDOFF_MESSAGE_MAX_CHARS = 500;
 
 export const handoffRule = z
   .object({
     condition: z.string().min(1).max(200),
     action: handoffAction,
     transfer_number: e164.optional(),
+    /** What the agent reads to the caller, word for word, when `action = read_message`. */
+    message: z.string().max(HANDOFF_MESSAGE_MAX_CHARS).optional(),
   })
   .refine((rule) => rule.action !== 'transfer' || Boolean(rule.transfer_number), {
     message: 'A transfer rule needs a phone number to transfer to',
     path: ['transfer_number'],
+  })
+  .refine((rule) => rule.action !== 'read_message' || Boolean(rule.message?.trim()), {
+    message: 'A read-a-message rule needs the message to read',
+    path: ['message'],
   });
 export type HandoffRule = z.infer<typeof handoffRule>;
 
@@ -379,6 +391,7 @@ export const lintRule = z.enum([
   'greeting_too_long',
   'handoff_rule_missing',
   'transfer_tool_missing',
+  'handoff_message_missing',
   'absolute_language',
   'language_mismatch',
   'guardrails_missing',

@@ -56,7 +56,7 @@ export function SentimentBadge({ value }: { value: string | null | undefined }) 
   const v = value.trim().toLowerCase();
   const s = v.startsWith('pos') ? 'positive' : v.startsWith('neg') ? 'negative' : v.startsWith('neu') ? 'neutral' : 'unknown';
   const Icon = s === 'positive' ? Smile : s === 'negative' ? Frown : Meh;
-  const tone = s === 'positive' ? 'text-success' : s === 'negative' ? 'text-danger' : 'text-muted-foreground';
+  const tone = s === 'positive' ? 'text-success-emphasis' : s === 'negative' ? 'text-danger' : 'text-muted-foreground';
   return (
     <span className={`inline-flex items-center gap-1 text-xs ${tone}`}>
       <Icon className="size-4" aria-hidden />

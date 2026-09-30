@@ -326,13 +326,13 @@ export class FakeRetellGateway {
     }));
   }
 
-  createPhoneNumber(input: { numberToken: string; agentId: string; country: 'US' | 'CA'; areaCode?: number; tollFree?: boolean; nickname: string; allowedInboundCountries?: string[] }) {
+  createPhoneNumber(input: { numberToken: string; agentId: string; country: 'US' | 'CA'; areaCode?: number; tollFree?: boolean; provider?: 'twilio' | 'telnyx'; nickname: string; allowedInboundCountries?: string[] }) {
     return this.record('createPhoneNumber', [input], () => {
       const area = input.areaCode ?? (input.country === 'CA' ? 450 : 620);
       const e164 = `+1${area}${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
       const number: FakePhoneNumber = {
         phone_number: e164,
-        phone_number_type: 'retell-twilio',
+        phone_number_type: input.provider === 'telnyx' ? 'retell-telnyx' : 'retell-twilio',
         phone_number_pretty: e164,
         nickname: this.config.objectName(input.nickname),
         area_code: area,

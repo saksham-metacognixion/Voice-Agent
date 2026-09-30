@@ -269,7 +269,8 @@
     "time": "Use HH:MM, 24-hour",
     "name": "Between 2 and 80 characters",
     "agentName": "Between 2 and 30 characters",
-    "transferNumber": "A transfer rule needs a number to transfer to"
+    "transferNumber": "A transfer rule needs a number to transfer to",
+    "handoffMessage": "Write the message your agent should read to the caller"
   },
   "wizard": {
     "title": "Set up your agent",
@@ -407,6 +408,9 @@
           "action": "Then",
           "add": "Add a rule",
           "number": "Transfer to",
+          "message": "Message to read",
+          "messageHint": "Your agent reads this to the caller word for word. Up to 500 characters.",
+          "messagePlaceholder": "We're closed right now. Please call back during business hours and our team will be happy to help.",
           "actions": {
             "transfer": "Transfer the call",
             "take_message": "Take a message",
@@ -913,6 +917,7 @@
         "number": "Your number: {number}",
         "failedTitle": "Going live stopped",
         "failedDefault": "Something went wrong while going live.",
+        "changeNumber": "Change phone number",
         "polling": "Live updates paused — checking every few seconds."
       }
     },
@@ -1283,6 +1288,7 @@
           "greeting_too_long": "Greeting length",
           "handoff_rule_missing": "No hand-off rule",
           "transfer_tool_missing": "Transfer without a number",
+          "handoff_message_missing": "Hand-off message not in the script",
           "absolute_language": "Absolute language",
           "language_mismatch": "Language mismatch",
           "guardrails_missing": "Platform rules missing"

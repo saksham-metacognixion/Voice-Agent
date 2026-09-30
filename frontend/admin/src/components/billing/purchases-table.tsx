@@ -140,7 +140,7 @@ export function PurchaseSheet({ id, onClose }: { id: string | null; onClose: () 
                       <span className="ml-2 text-xs text-muted-foreground">{formatDateTime(l.created_at)}</span>
                     </span>
                     <span className="tabular-nums">
-                      <span className={l.delta < 0 ? 'text-danger' : 'text-success'}>{formatDelta(l.delta)}</span>
+                      <span className={l.delta < 0 ? 'text-danger' : 'text-success-emphasis'}>{formatDelta(l.delta)}</span>
                       <span className="ml-2 text-xs text-muted-foreground">→ {formatCredits(l.balance_after)}</span>
                     </span>
                   </li>

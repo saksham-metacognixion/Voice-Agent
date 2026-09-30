@@ -73,7 +73,7 @@ function derive(brief: Brief): BriefCardShape {
   const doesnt = sentences(brief.never_do, 4);
   if (!brief.pricing?.trim()) doesnt.push('Quote prices');
   doesnt.push('Claim to be human');
-  const handoff = brief.handoff_rules.filter((r) => r.condition.trim()).map((r) => `${r.condition.trim()} → ${label(r.action)}`);
+  const handoff = brief.handoff_rules.filter((r) => r.condition.trim()).map((r) => `${r.condition.trim()} → ${label(r.action)}${r.action === 'read_message' && r.message?.trim() ? `: “${r.message.trim()}”` : ''}`);
   return { does: does.slice(0, 6), doesnt: doesnt.slice(0, 6), handoff: handoff.slice(0, 5) };
 }
 

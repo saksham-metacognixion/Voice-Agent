@@ -108,7 +108,7 @@ const lotColumns: Array<DataColumn<Lot>> = [
 const ledgerColumns: Array<DataColumn<LedgerEntryResponse>> = [
   { key: 'time', header: 'Time', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.created_at)}</span> },
   { key: 'reason', header: 'Reason', cell: (r) => <Badge variant={r.reason === 'call' || r.reason === 'rental' || r.reason === 'expiry' || r.reason === 'kb' ? 'outline' : 'primary'}>{humanize(r.reason)}</Badge> },
-  { key: 'delta', header: 'Delta', align: 'right', cell: (r) => <span className={cn('font-medium', r.delta < 0 ? 'text-danger' : 'text-success')}>{formatDelta(r.delta)}</span> },
+  { key: 'delta', header: 'Delta', align: 'right', cell: (r) => <span className={cn('font-medium', r.delta < 0 ? 'text-danger' : 'text-success-emphasis')}>{formatDelta(r.delta)}</span> },
   { key: 'after', header: 'Balance after', align: 'right', cell: (r) => formatCredits(r.balance_after) },
   { key: 'ref', header: 'Ref', cell: (r) => (r.ref_id ? <span className="font-mono text-xs text-muted-foreground">{r.ref_type ?? ''} {shortId(r.ref_id, 14)}</span> : <span className="text-muted-foreground">–</span>) },
 ];
@@ -117,7 +117,7 @@ type Adjustment = AdminCustomerWallet['adjustments'][number];
 const adjustmentColumns: Array<DataColumn<Adjustment>> = [
   { key: 'time', header: 'Time', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.created_at)}</span> },
   { key: 'staff', header: 'Staff', cell: (r) => r.staff_email ?? '–' },
-  { key: 'delta', header: 'Delta', align: 'right', cell: (r) => <span className={cn('font-medium', r.delta < 0 ? 'text-danger' : 'text-success')}>{formatDelta(r.delta)}</span> },
+  { key: 'delta', header: 'Delta', align: 'right', cell: (r) => <span className={cn('font-medium', r.delta < 0 ? 'text-danger' : 'text-success-emphasis')}>{formatDelta(r.delta)}</span> },
   { key: 'reason', header: 'Reason', cell: (r) => reasonLabel(r.reason_code) },
   { key: 'note', header: 'Note', cell: (r) => r.note ?? <span className="text-muted-foreground">–</span> },
   { key: 'customer', header: 'Customer text', cell: (r) => r.customer_text ?? <span className="text-muted-foreground">–</span> },

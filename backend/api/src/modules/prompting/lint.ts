@@ -36,6 +36,9 @@ export const MAX_GREETING_WORDS = 25;
  *   platform_named        the voice platform is never named to a customer (CLAUDE.md, Retell
  *                         isolation) — an agent that says it is from the vendor is that
  *                         rule broken out loud, on the first ring
+ * Everything else is advice. `handoff_message_missing` included: the model may reword a
+ * message the customer wrote, and a publish is not worth blocking over a changed comma —
+ * but the customer should see that the words they chose are not the words on the call.
  * Everything else is advice. Notably `prompt_too_long` is a warning: it costs latency and
  * money (§9.5's own reason for the rule) but a long prompt still runs, and blocking a
  * customer's publish over 6,010 characters would be the wrong trade.
@@ -47,6 +50,7 @@ export const DEFAULT_SEVERITIES: Record<LintRule, LintSeverity> = {
   greeting_too_long: 'warning',
   handoff_rule_missing: 'warning',
   transfer_tool_missing: 'error',
+  handoff_message_missing: 'warning',
   absolute_language: 'warning',
   language_mismatch: 'warning',
   guardrails_missing: 'error',
@@ -152,6 +156,20 @@ export function lintPrompt(input: LintInput, config: LintConfig = DEFAULT_LINT_C
     );
   }
 
+  if (prompt) {
+    const script = normaliseForMatch(stripGuardrails(prompt));
+    const missing = input.brief.handoff_rules.filter(
+      (rule) => rule.action === 'read_message' && rule.message?.trim() && !script.includes(normaliseForMatch(rule.message)),
+    );
+    if (missing.length > 0) {
+      add(
+        'handoff_message_missing',
+        `The script does not contain the message for "${clip(missing[0]!.condition.trim(), 80)}", so the agent may say something else. Regenerate, or paste the message into the script.`,
+        'brief.handoff_rules',
+      );
+    }
+  }
+
   // --- promises the business cannot keep
   const absolute = findAbsoluteLanguage(prompt, input.brief);
   if (absolute) {
@@ -217,6 +235,19 @@ const PLATFORM_NAMES = /\bretell\b|\bretail\s*ai\b/i;
 
 export function namesPlatform(text: string): boolean {
   return PLATFORM_NAMES.test(text);
+}
+
+function clip(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** Case, punctuation, quotes and spacing do not change what the caller hears. */
+function normaliseForMatch(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFKC')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
 }
 
 function mentionsHandoff(prompt: string): boolean {

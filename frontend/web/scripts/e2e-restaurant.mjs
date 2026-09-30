@@ -155,8 +155,8 @@ try {
   ok('W2 banner still Restaurant after reload', /Restaurant agent for Bright Dental/.test(await b.evaluate(`document.querySelector('[data-testid="agent-context"]')?.innerText`) ?? ''));
   await waitFor(`[...document.querySelectorAll('button')].some(b => b.textContent.includes('Choose a voice'))`, 15000);
   await clickText('Choose a voice'); await waitFor(`location.pathname === '/onboarding/voice/'`, 10000);
-  await waitFor(`document.querySelectorAll('[role="option"]').length`, 20000);
-  await b.evaluate(`document.querySelector('[role="option"] button').click()`); await sleep(1200);
+  await waitFor(`document.querySelectorAll('[data-testid="voice-card"]').length`, 20000);
+  await b.evaluate(`document.querySelector('[data-testid="voice-card"] button').click()`); await sleep(1200);
   await clickText('Continue'); ok('→ W4', Boolean(await waitFor(`location.pathname === '/onboarding/knowledge/'`, 10000)), await path());
   await b.goto(`${BASE}/onboarding/brief/`, 3000); await waitFor(`document.querySelector('[data-testid="agent-context"]') !== null`, 10000);
   ok('W2 banner still Restaurant after navigating away and back', /Restaurant agent for Bright Dental/.test(await b.evaluate(`document.querySelector('[data-testid="agent-context"]')?.innerText`) ?? ''));
@@ -259,9 +259,9 @@ try {
   ok('receptionist prompt names Second Shop, never the platform, and says nothing about a menu', /Second Shop/.test(shopDraft?.prompt_text ?? '') && !VENDOR.test(`${shopDraft?.prompt_text}\n${shopDraft?.greeting}`) && !/menu/i.test(shopDraft?.prompt_text ?? ''), shopDraft?.greeting);
   await waitFor(`[...document.querySelectorAll('button')].some(b => b.textContent.includes('Choose a voice'))`, 15000);
   await clickText('Choose a voice'); await waitFor(`location.pathname === '/onboarding/voice/'`, 10000);
-  await waitFor(`document.querySelectorAll('[role="option"]').length`, 20000);
+  await waitFor(`document.querySelectorAll('[data-testid="voice-card"]').length`, 20000);
   // W3's Continue is disabled until a voice is picked.
-  await b.evaluate(`document.querySelector('[role="option"] button').click()`); await sleep(1200);
+  await b.evaluate(`document.querySelector('[data-testid="voice-card"] button').click()`); await sleep(1200);
   await clickText('Continue'); ok('W3 (receptionist) → W4', Boolean(await waitFor(`location.pathname === '/onboarding/knowledge/'`, 10000)), await path());
   await waitFor(`location.pathname === '/onboarding/knowledge/' && document.body.innerText.includes('Add a source')`, 15000);
   ok('W4 shows no Menu section for a receptionist', !(await has('[data-testid="menu-upload"]')) && (await bodyText()).includes('Add a source'));

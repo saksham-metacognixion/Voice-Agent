@@ -214,7 +214,7 @@ try {
   ok('D3 Overview shows live vs draft settings', (await bodyText()).includes('Max call length') && (await bodyText()).includes('Recent calls'));
   await b.shot(`${S}/shot-d3-overview.png`, true);
   const tabs = ['Brief', 'Advanced', 'Voice', 'Knowledge', 'Test', 'Versions', 'Settings'];
-  const expect = { Brief: '#about_business', Advanced: '#prompt-body', Voice: '[role="option"]', Knowledge: 'form, [class*="rounded-lg"]', Test: 'button', Versions: 'tbody tr', Settings: '#agent-name' };
+  const expect = { Brief: '#about_business', Advanced: '#prompt-body', Voice: '[data-testid="voice-card"]', Knowledge: 'form, [class*="rounded-lg"]', Test: 'button', Versions: 'tbody tr', Settings: '#agent-name' };
   for (const tab of tabs) {
     await pressTab(tab); await sleep(500);
     const found = await waitFor(`!!document.querySelector(${JSON.stringify(expect[tab])})`, 15000);

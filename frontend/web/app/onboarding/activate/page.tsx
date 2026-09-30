@@ -159,6 +159,7 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
               view={view}
               stream={activation.stream}
               onRetry={() => void startActivation()}
+              onChangeNumber={() => router.push(routes.onboarding.phone)}
               retrying={retrying}
               retryError={retryError}
               waiting={{

@@ -16,6 +16,7 @@
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "spike:retell": "dotenv -e ../../.env -- tsx scripts/retell-spike.ts",
     "samples:templates": "dotenv -e ../../.env -- tsx scripts/template-samples.ts",
+    "samples:voices": "dotenv -e ../../.env -- tsx scripts/voice-samples.ts",
     "load:setup": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts setup",
     "load:teardown": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts teardown",
     "load:inbound": "k6 run test/load/inbound.k6.js",

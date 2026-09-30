@@ -38,7 +38,9 @@
   --popover: #ffffff;
   --popover-foreground: var(--brand-navy);
 
-  --primary: var(--brand-purple);
+  /* A shade under brand purple: #7B5CFF carries white text at 4.36:1 and reads at 4.11:1
+     on Soft White, both under WCAG AA's 4.5 (D14 axe sweep, 30 Sep). #7050F5 is 5.05 / 4.76. */
+  --primary: #7050f5;
   --primary-foreground: #ffffff;
   --secondary: #eceff6;
   --secondary-foreground: var(--brand-slate);
@@ -49,6 +51,8 @@
 
   --success: #16a34a;
   --success-foreground: #ffffff;
+  /* Success as text: #16A34A is 3.29:1 on white and 2.63 on its own badge tint; this is 7.13 / 5.70. */
+  --success-emphasis: #166534;
   --warning: #d97706;
   --warning-foreground: #442105;
   /* Warning as text on an ordinary surface: amber deep enough to read on Soft White. */
@@ -84,8 +88,10 @@
   --popover: var(--brand-slate);
   --popover-foreground: var(--brand-white);
 
-  --primary: var(--brand-purple);
-  --primary-foreground: #ffffff;
+  /* Dark surfaces need the lighter side of the brand: #7B5CFF as text is 3.55:1 on Slate,
+     and white on it is 4.36. #9580FF is 5.02 on Slate as text and carries Deep Navy at 6.21. */
+  --primary: #9580ff;
+  --primary-foreground: var(--brand-navy);
   --secondary: var(--brand-slate);
   --secondary-foreground: var(--brand-white);
   --muted: #1a2131;
@@ -95,6 +101,7 @@
 
   --success: #4ade80;
   --success-foreground: #05230f;
+  --success-emphasis: #4ade80;
   --warning: #fbbf24;
   --warning-foreground: #2a1a02;
   --warning-emphasis: #fbbf24;
@@ -133,6 +140,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
+  --color-success-emphasis: var(--success-emphasis);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
   --color-warning-emphasis: var(--warning-emphasis);
@@ -180,8 +188,13 @@
   ::selection {
     background-color: color-mix(in oklch, var(--primary) 25%, transparent);
   }
+  /* A visible ring on every keyboard focus (WCAG 2.4.7). Components with their own ring say
+     `outline-none` — a utility, so it wins over this base rule. This used to be
+     `outline: none`, which left every nav link, the balance pill and the tabs with no
+     focus indicator at all (D14 keyboard pass, 30 Sep). */
   :focus-visible {
-    outline: none;
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
   input::placeholder,
   textarea::placeholder {

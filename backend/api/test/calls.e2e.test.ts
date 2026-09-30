@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { InboundAuthorizationService } from '../src/modules/calls';
+import { OpsAlertService } from '../src/modules/alerts';
 import { EventsService } from '../src/modules/events';
 import { PlatformConfigService } from '../src/modules/config';
 import { JobQueues, QUEUES } from '../src/modules/jobs';
@@ -242,13 +243,17 @@ describe('POST /webhooks/retell/inbound/:number_token — the six checks (§13.9
     void dead.connect().catch(() => undefined);
     const queues = app.get(JobQueues);
 
-    const open = new InboundAuthorizationService(dead, queues);
+    const alerts = new OpsAlertService();
+    const open = new InboundAuthorizationService(dead, queues, alerts);
     const started = Date.now();
     const outcome = await open.authorize(ws.token, { call_inbound: { call_id: callId(), to_number: ws.e164, from_number: '+19375550100' } } as never);
     expect(outcome.body).toEqual({});
     expect(outcome.answered).toBe('fail_open');
     expect(Date.now() - started).toBeLessThan(300);
     expect(open.metrics.redisDown).toBe(1);
+    // A human hears about it once per outage minute, not once per call.
+    await open.authorize(ws.token, { call_inbound: { call_id: callId(), to_number: ws.e164 } } as never);
+    expect(alerts.recent.map((alert) => [alert.kind, alert.severity])).toEqual([['redis_down', 'critical']]);
 
     process.env.INBOUND_REDIS_DOWN_POLICY = 'closed';
     const closed = new InboundAuthorizationService(dead, queues);

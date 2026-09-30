@@ -209,7 +209,12 @@ job settles.
   not "knowledge base". **Audio and URLs count as copy**: the catalogue's own preview clips say
   the vendor's name aloud and are served from its bucket, so `VOICE_VENDOR_SAMPLES` withholds
   both (`deny` is the default under `APP_ENV=prod`). `voices.sample_url`, a clip of ours, is
-  played whatever the switch says and the daily `voice-cache` job never writes it. There is no
+  played whatever the switch says and the daily `voice-cache` job never writes it. Every
+  catalogue voice has one of ours shipped with the portal
+  (`frontend/web/public/samples/voices/<hash>.mp3` + the `voice-samples.generated.ts`
+  manifest the API reads — files, not rows, so staging gets them with the deploy), made
+  by `pnpm --filter @portal/api samples:voices`; rerun it when the catalogue grows
+  (ADR 0020 §5 addendum). There is no
   text-to-speech route to make one with (ADR 0003 §9 + the D8 addendum). The W1 template
   clips (`frontend/web/public/samples/*.mp3`) are recordings of a throwaway `dev-sample-*`
   agent reading a fictional business's line, made by `pnpm --filter @portal/api samples:templates`. **The default is
@@ -431,6 +436,15 @@ job settles.
   Fastify's `bodyLimit` is 32 MiB (`main.ts`): the 1 MiB default had been answering 413 to
   any W4 file over ~750 KB. The W4 `role = menu` source (ADR 0020) is unchanged and
   complementary — searched, not read; for a menu longer than the budget.
+- **A hand-off rule carries its own payload** (`handoffRule` in `@portal/schemas`, W2 #9):
+  `transfer` needs `transfer_number`, `read_message` needs `message` (non-blank, ≤ 500
+  chars) — refused by the schema, so the draft PATCH answers 422 and the autosave holds
+  the row back until it is complete. Switching action clears the other payload.
+  `briefForModel` hands the model the words with "read … word for word", and lint rule
+  `handoff_message_missing` (warning) fires when the script does not contain them
+  (case and punctuation ignored, guardrail block excluded). `parseBrief` filters
+  `handoff_rules` per rule, so a legacy `read_message` without a message costs that
+  rule only (30 Sep).
 - `GET /jobs/:id` returns an explicit whitelist (`jobProgress`), never `steps_json` or
   `jobs.error`. Those name the provider, the model and the Retell sync and stay server-side;
   the customer-facing failure text is `steps_json.customer_reason`, written by the worker.
@@ -488,6 +502,14 @@ job settles.
   agent around the create), a source by the row id embedded in its title/filename or by URL.
   The platform's answer is persisted before the next call. The row for a resource is created
   _before_ the provider call (`phone_numbers.plan_id` is unique — one number per plan).
+- **The W6 area code is a preference, not a condition** (30 Sep: 647 and 236 answered
+  `404 No phone numbers of this area code.` on staging). `purchaseAttempts()`
+  (`modules/numbers/purchase-attempts.ts`) is the order: the code at Twilio (the platform's
+  default carrier), then Telnyx, then the code's Canadian overlay (647 → 416, 437, 942) at
+  both, then any local number at both. Only that 404 (`isNoNumberStock`) moves on; a 404
+  buys nothing, so the walk cannot buy twice. Toll-free is never widened to local. The row
+  records the carrier (`retell_telnyx` / `retell_twilio`) and the code actually bought;
+  all exhausted is `area_code_unavailable`, permanent, on attempt one.
 - `phone_numbers.e164` is **nullable** until the platform answers; anything keyed on it
   (`num:{e164}`) skips a row without one. `NumberProvisioningService.{provision,bind,release}`
   are the only code that changes a platform number, and `bind` is read-compare-update.
@@ -653,8 +675,12 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   Oraly brand colours — Purple `#7B5CFF`, Electric Blue `#22D3EE`, Deep Navy `#0A0F1A`,
   Slate `#1E2433`, Soft White `#F7F8FB` (`docs/brand.md`). No `bg-white`, `text-neutral-*`,
   `dark:` overrides or hex values in components; a component that needs a new colour adds a
-  token pair (`text-warning-emphasis` is warning-as-text on an ordinary surface — never
-  `text-warning-foreground dark:text-warning`). `ThemeProvider` / `ThemeToggle` / `ThemeSegment` are the only theme code, and
+  token pair (`text-warning-emphasis` / `text-success-emphasis` are warning / success as
+  text on an ordinary surface — never `text-warning-foreground dark:text-warning`; purple
+  text on a `bg-primary/…` tint is `text-accent-foreground`). `--primary` is a shade of
+  the brand purple chosen for WCAG AA (`#7050F5` light, `#9580FF` + navy text dark — ADR
+  0025 addendum), and the base `:focus-visible` rule is a visible ring: never set it back
+  to `outline: none`. `ThemeProvider` / `ThemeToggle` / `ThemeSegment` are the only theme code, and
   the logo is `Logo` in `@portal/ui`, rendering the supplied artwork from
   `public/brand/` — never redrawn, recoloured or rebuilt inline.
 - **W3's language ranks the voice list, it does not cut it.** `list-voices` carries no
@@ -994,6 +1020,8 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   which strips query strings and fragments from every URL (invite tokens, view-as keys).
 - Diagnostics: `POST /admin/system/test-error` and `/test-alert` (super admin, ops) — how
   "Sentry receives it" and "Slack receives it" are checked on staging.
+- The §13.9 Redis-down fail-open raises a `redis_down` ops alert (once per outage minute),
+  not only a log line (ADR 0025 addendum, 30 Sep).
 - DR: `docs/runbooks/pitr-drill.md` + `infra/scripts/pitr-fingerprint.sh` (restore into a
   throwaway instance, `diff` against the live fingerprint at the same cut-off).
 

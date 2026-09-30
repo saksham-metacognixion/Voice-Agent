@@ -21,6 +21,7 @@ import {
   parseBrief,
   settingsOf,
 } from '../agents';
+import { failActiveSpan, reportError } from '../../observability';
 import { EventsService } from '../events';
 import { JobRecordsService, type PromptingJob } from '../jobs';
 import { applyGuardrails } from './guardrails';
@@ -131,6 +132,15 @@ export class GenerationWorker {
         });
         // Swallowed on purpose: the job row and the SSE frame carry the outcome, and
         // throwing again would only add a BullMQ retry we have decided against.
+        // Which is also why the worker's final-attempt report never fires: report it here.
+        // A refusal (paused workspace, deleted agent) is the customer's state, not a fault.
+        if (!(error instanceof JobRefusal)) {
+          failActiveSpan(error);
+          reportError(error, {
+            tags: { queue: 'prompting', job: data.mode, error_kind: kindOf(error) },
+            extra: { workspace_id: data.workspaceId, agent_id: data.agentId, job_id: data.jobId },
+          });
+        }
         return { outcome: 'failed', reason: describe(error) };
       }
       throw error;

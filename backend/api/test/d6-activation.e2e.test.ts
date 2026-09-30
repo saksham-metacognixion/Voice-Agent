@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import Retell from 'retell-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
 import { RedisCache, redisKeys } from '../src/modules/redis';
@@ -246,6 +247,81 @@ describe('retries and failure', () => {
     } finally {
       await stream.close();
     }
+  }, 60_000);
+
+  it('an area code out of stock at the default carrier is bought from the other one, in the same code', async () => {
+    const ws = await paidWorkspace(app, 'act-telnyx', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', area_code: '647' });
+    // The platform's answer on staging, 30 Sep.
+    const noStock = 'No phone numbers of this area code.';
+    retell.failNext('createPhoneNumber', 1, Retell.APIError.generate(404, { message: noStock }, noStock, new Headers()));
+
+    const before = retell.calls.length;
+    const jobId = (await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string;
+    expect((await waitForJob(jobId, 30_000)).status).toBe('succeeded');
+    const asked = retell.calls.slice(before).filter((c) => c.method === 'createPhoneNumber').map((c) => c.args[0] as { areaCode?: number; provider?: string });
+    expect(asked.map((a) => [a.provider, a.areaCode])).toEqual([
+      ['twilio', 647],
+      ['telnyx', 647],
+    ]);
+    const row = await adminDb.phoneNumber.findFirstOrThrow({ where: { agentId } });
+    expect(row).toMatchObject({ status: 'active', type: 'retell_telnyx', areaCode: '647', error: null });
+  }, 60_000);
+
+  it('a region out of stock everywhere falls back to any local number', async () => {
+    const ws = await paidWorkspace(app, 'act-anycode', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', area_code: '647' });
+    const noStock = 'No phone numbers of this area code.';
+    // 647, 416, 437, 942 at both carriers.
+    retell.failNext('createPhoneNumber', 8, Retell.APIError.generate(404, { message: noStock }, noStock, new Headers()));
+
+    const before = retell.calls.length;
+    const jobId = (await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string;
+    expect((await waitForJob(jobId, 30_000)).status).toBe('succeeded');
+    const asked = retell.calls.slice(before).filter((c) => c.method === 'createPhoneNumber').map((c) => c.args[0] as { areaCode?: number; provider?: string });
+    expect(asked).toHaveLength(9);
+    expect(asked[8]).toMatchObject({ provider: 'twilio', areaCode: undefined });
+    const numbers = await adminDb.phoneNumber.findMany({ where: { agentId } });
+    expect(numbers).toHaveLength(1);
+    expect(numbers[0]).toMatchObject({ status: 'active', type: 'retell_twilio' });
+  }, 60_000);
+
+  it('no stock anywhere fails once, says so, and a retry after W6 picks another code buys in the new one', async () => {
+    const ws = await paidWorkspace(app, 'act-areacode', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', area_code: '236' });
+    const noStock = 'No phone numbers of this area code.';
+    // 236, 604, 778, 672 at both carriers, then any number at both.
+    retell.failNext('createPhoneNumber', 10, Retell.APIError.generate(404, { message: noStock }, noStock, new Headers()));
+
+    const first = (await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string;
+    const failed = await waitForJob(first, 30_000);
+    expect(failed.status).toBe('failed');
+    const steps = failed.stepsJson as { attempt: number; error_kind: string; customer_reason: string };
+    expect(steps.attempt).toBe(1); // permanent: no retries against an empty inventory
+    expect(steps.error_kind).toBe('area_code_unavailable');
+    expect(steps.customer_reason).toMatch(/Canada/);
+    expect(steps.customer_reason).not.toMatch(/platform|retell|twilio|telnyx|404/i);
+    const row = await adminDb.phoneNumber.findFirstOrThrow({ where: { agentId } });
+    expect(row).toMatchObject({ status: 'failed', areaCode: '236', e164: null });
+
+    // W6: another area code. The failed row is the plan's (plan_id is unique) and must follow it.
+    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', area_code: '514' });
+    const before = retell.calls.length;
+    const second = (await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string;
+    expect((await waitForJob(second, 30_000)).status).toBe('succeeded');
+    const bought = retell.calls.slice(before).filter((c) => c.method === 'createPhoneNumber');
+    expect(bought).toHaveLength(1);
+    expect((bought[0]!.args[0] as { areaCode?: number }).areaCode).toBe(514);
+    const numbers = await adminDb.phoneNumber.findMany({ where: { agentId } });
+    expect(numbers).toHaveLength(1);
+    expect(numbers[0]).toMatchObject({ id: row.id, status: 'active', areaCode: '514', error: null });
+    expect(numbers[0]!.e164).toMatch(/^\+1514/);
   }, 60_000);
 
   it('a permanent problem — no phone plan — fails on the first attempt without touching the platform for a number', async () => {

@@ -21,6 +21,7 @@ import {
   retellLanguage,
   brief as briefSchema,
   briefDocument as briefDocumentSchema,
+  handoffRule as handoffRuleSchema,
   briefCard as briefCardSchema,
   defaultAgentSettings,
   lintResult as lintResultSchema,
@@ -881,7 +882,8 @@ export function toVersionDetail(
  * or a newer shape read by a process that has not been redeployed yet — must not make the
  * agent unreadable, and must not cost the customer the rest of their brief.
  *
- * So the repair is per field, and per entry for `documents`: whatever fails is dropped and
+ * So the repair is per field, and per entry for `documents` and `handoff_rules` (a
+ * `read_message` rule stored before it carried its message fails now): whatever fails is dropped and
  * everything else is kept. This used to fall back to an *empty* brief on any failure, and
  * on 29 Sep a worker started before the image document types existed read one
  * `image/jpeg` document as invalid, got `{}`, generated a script from nothing and stored
@@ -897,6 +899,9 @@ export function parseBrief(value: unknown): Brief {
   const repaired: Record<string, unknown> = { ...(value as Record<string, unknown>) };
   if (Array.isArray(repaired.documents)) {
     repaired.documents = repaired.documents.filter((doc) => briefDocumentSchema.safeParse(doc).success);
+  }
+  if (Array.isArray(repaired.handoff_rules)) {
+    repaired.handoff_rules = repaired.handoff_rules.filter((rule) => handoffRuleSchema.safeParse(rule).success);
   }
   for (let pass = 0; pass < 3; pass++) {
     const attempt = briefSchema.safeParse(repaired);

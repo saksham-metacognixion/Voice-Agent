@@ -21,7 +21,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className={cn('h-auto max-w-full justify-start gap-2 px-2 py-1.5', className)} aria-label={t('nav.switchWorkspace')}>
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-xs font-semibold uppercase text-primary">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-xs font-semibold uppercase text-accent-foreground">
             {active?.name.slice(0, 1) ?? '?'}
           </span>
           <span className="flex min-w-0 flex-col items-start">

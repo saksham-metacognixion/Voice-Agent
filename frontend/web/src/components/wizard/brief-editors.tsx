@@ -1,6 +1,6 @@
 'use client';
 
-import type { HandoffRule, Personality } from '@portal/schemas';
+import { HANDOFF_MESSAGE_MAX_CHARS, type HandoffRule, type Personality } from '@portal/schemas';
 import { Button, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Textarea, cn } from '@portal/ui';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -36,8 +36,8 @@ export function FaqEditor({ value, onChange, disabled, errors }: { value: FaqPai
   );
 }
 
-/** W2 #9 — hand-off rules: when the caller …, then transfer / take a message / read a message. */
-export function HandoffRulesEditor({ value, onChange, disabled, errors }: { value: HandoffRule[]; onChange: (v: HandoffRule[]) => void; disabled?: boolean; errors?: Array<{ condition?: string; transfer_number?: string } | undefined> }) {
+/** W2 #9 — hand-off rules: when the caller …, then transfer (to a number) / take a message / read a message (the words to read). */
+export function HandoffRulesEditor({ value, onChange, disabled, errors }: { value: HandoffRule[]; onChange: (v: HandoffRule[]) => void; disabled?: boolean; errors?: Array<{ condition?: string; transfer_number?: string; message?: string } | undefined> }) {
   const t = useTranslations('wizard.w2.fields.handoff_rules');
   const update = (i: number, patch: Partial<HandoffRule>) => onChange(value.map((r, j) => (j === i ? { ...r, ...patch } : r)));
   return (
@@ -49,7 +49,7 @@ export function HandoffRulesEditor({ value, onChange, disabled, errors }: { valu
               <Input id={`rule-c-${i}`} value={rule.condition} maxLength={200} disabled={disabled} placeholder={t('conditionPlaceholder')} onChange={(e) => update(i, { condition: e.target.value })} />
             </Field>
             <Field id={`rule-a-${i}`} label={t('action')} className="sm:w-56">
-              <Select value={rule.action} disabled={disabled} onValueChange={(action) => update(i, { action: action as HandoffRule['action'], ...(action === 'transfer' ? {} : { transfer_number: undefined }) })}>
+              <Select value={rule.action} disabled={disabled} onValueChange={(action) => update(i, { action: action as HandoffRule['action'], ...(action === 'transfer' ? {} : { transfer_number: undefined }), ...(action === 'read_message' ? {} : { message: undefined }) })}>
                 <SelectTrigger id={`rule-a-${i}`}>
                   <SelectValue />
                 </SelectTrigger>
@@ -67,6 +67,11 @@ export function HandoffRulesEditor({ value, onChange, disabled, errors }: { valu
           {rule.action === 'transfer' ? (
             <Field id={`rule-n-${i}`} label={t('number')} error={errors?.[i]?.transfer_number} className="sm:max-w-xs">
               <Input id={`rule-n-${i}`} type="tel" inputMode="tel" value={rule.transfer_number ?? ''} disabled={disabled} placeholder="+14155550123" invalid={Boolean(errors?.[i]?.transfer_number)} onChange={(e) => update(i, { transfer_number: e.target.value || undefined })} />
+            </Field>
+          ) : null}
+          {rule.action === 'read_message' ? (
+            <Field id={`rule-m-${i}`} label={t('message')} required description={t('messageHint')} error={errors?.[i]?.message}>
+              <Textarea id={`rule-m-${i}`} value={rule.message ?? ''} maxLength={HANDOFF_MESSAGE_MAX_CHARS} rows={3} disabled={disabled} placeholder={t('messagePlaceholder')} invalid={Boolean(errors?.[i]?.message)} className="min-h-16" onChange={(e) => update(i, { message: e.target.value || undefined })} />
             </Field>
           ) : null}
         </div>

@@ -86,6 +86,28 @@ describe('rules that block a publish', () => {
 });
 
 describe('rules that warn but still publish', () => {
+  const closedMessage = 'Our restaurant is closed right now. Please call back during business hours!';
+  const readRule = brief({
+    handoff_rules: [{ condition: 'calls outside business hours', action: 'read_message', message: closedMessage }],
+  });
+
+  it('handoff_message_missing — the script does not carry the words the customer chose', () => {
+    const result = lintPrompt({ prompt: CLEAN_PROMPT, greeting: GREETING, brief: readRule, primaryLanguage: 'en-US' });
+    const finding = result.findings.find((f) => f.rule === 'handoff_message_missing');
+    expect(finding?.severity).toBe('warning');
+    expect(finding?.field).toBe('brief.handoff_rules');
+    expect(finding?.message).toContain('calls outside business hours');
+    expect(result.publishable).toBe(true);
+  });
+
+  it('handoff_message_missing — silent when the script quotes it, whatever the case or punctuation', () => {
+    const quoted = applyGuardrails(
+      `${CLEAN_BODY}\nOutside business hours, say exactly: "our restaurant is closed right now — please call back during business hours."`,
+    );
+    const result = lintPrompt({ prompt: quoted, greeting: GREETING, brief: readRule, primaryLanguage: 'en-US' });
+    expect(result.findings.map((f) => f.rule)).not.toContain('handoff_message_missing');
+  });
+
   it('prompt_too_long — over 6,000 characters costs latency on every call', () => {
     const long = applyGuardrails(`${CLEAN_BODY}\n${'Answer politely. '.repeat(400)}`);
     const result = lintPrompt({ prompt: long, greeting: GREETING, brief: brief(), primaryLanguage: 'en-US' });

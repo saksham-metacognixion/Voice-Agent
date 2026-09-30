@@ -11,6 +11,7 @@ import { type ActivationJob, JobRecordsService } from '../jobs';
 import { NumberProvisioningService, ProvisioningError, classifyError, newInboundToken } from '../numbers';
 import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService } from '../wallet';
+import { failActiveSpan, reportError } from '../../observability';
 import {
   type ActivationSteps,
   beginStep,
@@ -44,6 +45,8 @@ import {
  * customer's stream gets one `failed` frame and operations get one alert. The agent is
  * never marked live before `bind` has completed.
  */
+type PendingPlan = Prisma.PhonePlanGetPayload<{ include: { number: true } }>;
+
 @Injectable()
 export class ActivationWorker {
   private readonly log = new Logger(ActivationWorker.name);
@@ -155,7 +158,7 @@ export class ActivationWorker {
         throw new ProvisioningError('no_plan', 'Choose a phone number option before going live.', `agent ${data.agentId} has no pending phone plan and no active number`);
       }
       await this.assertBillingState(data.workspaceId);
-      numberId = found.kind === 'row' ? found.number.id : await this.createNumberRow(data, found.plan);
+      numberId = found.kind === 'row' ? await this.refreshNumberRow(found.plan, found.number) : await this.createNumberRow(data, found.plan);
       state = completeStepFacts(state, { number_id: numberId });
       await this.save(data.jobId, state);
     }
@@ -259,31 +262,15 @@ export class ActivationWorker {
    * never from a constant here — a rental the D7 `number-rental` job then charges has to be
    * the number SA5 published, not one compiled in (CLAUDE.md, Configuration). BYO SIP is 0.
    */
-  private async createNumberRow(data: ActivationJob, plan: Prisma.PhonePlanGetPayload<{ include: { number: true } }>): Promise<string> {
-    const isSip = plan.option === 'sip';
-    const { config: pricing } = await this.config.currentPricing();
-    const sipNumber = isSip && plan.sipJson && typeof plan.sipJson === 'object' ? (plan.sipJson as { number?: string }).number ?? null : null;
+  private async createNumberRow(data: ActivationJob, plan: PendingPlan): Promise<string> {
     try {
       const row = await adminDb.phoneNumber.create({
         data: {
           tenantId: data.workspaceId,
           agentId: data.agentId,
           planId: plan.id,
-          type: isSip ? 'custom_sip' : 'retell_twilio',
-          e164: sipNumber,
-          nickname: plan.nickname,
-          country: plan.country,
-          areaCode: plan.areaCode,
-          tollFree: plan.tollFree,
           inboundToken: newInboundToken(),
-          rentalCredits: isSip ? 0 : Math.round(pricing.recurring.number_rental_credits),
-          hoursMode: plan.hoursMode,
-          hoursOverrideJson: plan.hoursOverrideJson ?? Prisma.DbNull,
-          transferTargetsJson: plan.transferTargetsJson ?? Prisma.DbNull,
-          allowedCountries: plan.allowedCountries,
-          forwardingFrom: plan.option === 'forward' ? plan.existingNumber : null,
-          forwardingStatus: plan.option === 'forward' ? 'waiting_for_customer' : null,
-          carrier: plan.option === 'forward' ? plan.carrier : null,
+          ...(await this.numberFieldsOf(plan)),
           status: 'provisioning',
         },
         select: { id: true },
@@ -295,6 +282,46 @@ export class ActivationWorker {
       if (existing) return existing.id;
       throw error;
     }
+  }
+
+  /**
+   * A failed activation leaves its row behind (`plan_id` is unique), and a retry finds it.
+   * When nothing was ever provisioned for it — no e164 yet, so the platform holds nothing
+   * we know of — the row is re-cut from the plan as it is *now*: a customer who hit "no
+   * numbers in area code 236" and chose another on W6 must not be sent back for 236 on
+   * every retry (30 Sep). A row with an e164 is left alone; that number exists. The
+   * nickname lookup in `buy` still adopts one a lost answer bought under the old choice.
+   */
+  private async refreshNumberRow(plan: PendingPlan, number: NonNullable<PendingPlan['number']>): Promise<string> {
+    if (number.e164 || (number.status !== 'provisioning' && number.status !== 'failed')) return number.id;
+    await adminDb.phoneNumber.updateMany({
+      where: { id: number.id, e164: null, status: { in: ['provisioning', 'failed'] } },
+      data: { ...(await this.numberFieldsOf(plan)), status: 'provisioning', error: null },
+    });
+    return number.id;
+  }
+
+  /** What a number row copies from its plan. SIP carries its E.164 from the sealed details. */
+  private async numberFieldsOf(plan: PendingPlan) {
+    const isSip = plan.option === 'sip';
+    const { config: pricing } = await this.config.currentPricing();
+    const sipNumber = isSip && plan.sipJson && typeof plan.sipJson === 'object' ? (plan.sipJson as { number?: string }).number ?? null : null;
+    return {
+      type: isSip ? ('custom_sip' as const) : ('retell_twilio' as const),
+      e164: sipNumber,
+      nickname: plan.nickname,
+      country: plan.country,
+      areaCode: plan.areaCode,
+      tollFree: plan.tollFree,
+      rentalCredits: isSip ? 0 : Math.round(pricing.recurring.number_rental_credits),
+      hoursMode: plan.hoursMode,
+      hoursOverrideJson: plan.hoursOverrideJson ?? Prisma.DbNull,
+      transferTargetsJson: plan.transferTargetsJson ?? Prisma.DbNull,
+      allowedCountries: plan.allowedCountries,
+      forwardingFrom: plan.option === 'forward' ? plan.existingNumber : null,
+      forwardingStatus: plan.option === 'forward' ? ('waiting_for_customer' as const) : null,
+      carrier: plan.option === 'forward' ? plan.carrier : null,
+    };
   }
 
   private async save(jobId: string, state: ActivationSteps): Promise<ActivationSteps> {
@@ -316,6 +343,13 @@ export class ActivationWorker {
       await this.runtimeCache.refresh(data.workspaceId).catch(() => undefined);
     }
     await this.publish(data, ActivationEvents.failed, state, row);
+    // The handler returns after this, so BullMQ records success: neither the worker's
+    // final-attempt report nor `inSpan` sees the failure unless it is reported here.
+    failActiveSpan(error);
+    reportError(error, {
+      tags: { queue: 'provisioning', job: 'activate-agent', failed_step: step, error_kind: error.kind },
+      extra: { workspace_id: data.workspaceId, agent_id: data.agentId, activation_job_id: data.jobId, attempts, retryable: error.retryable, number_id: numberId, platform_status: error.options.status ?? null },
+    });
     await this.alerts.send({
       kind: 'activation_failed',
       severity: 'critical',

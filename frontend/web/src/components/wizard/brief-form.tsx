@@ -91,8 +91,8 @@ export function BriefFields({ form, busy, fieldErrors, placeholders = {}, agentI
                 value={field.value}
                 onChange={field.onChange}
                 disabled={busy}
-                errors={(err.handoff_rules as Array<{ condition?: { message?: string }; transfer_number?: { message?: string } }> | undefined)?.map((e) =>
-                  e ? { condition: e.condition?.message, transfer_number: e.transfer_number ? t('validation.transferNumber') : undefined } : undefined,
+                errors={(err.handoff_rules as Array<{ condition?: { message?: string }; transfer_number?: { message?: string }; message?: { message?: string } }> | undefined)?.map((e) =>
+                  e ? { condition: e.condition?.message, transfer_number: e.transfer_number ? t('validation.transferNumber') : undefined, message: e.message ? t('validation.handoffMessage') : undefined } : undefined,
                 )}
               />
             )}
@@ -163,7 +163,7 @@ export function SaveIndicator({ state, error, onRetry }: { state: SaveState; err
 
 /**
  * What the autosave may send. A row the person just added (an empty FAQ, a handoff rule
- * without its number) is not storable yet, so it stays on the screen and out of the
+ * without its number or its message) is not storable yet, so it stays on the screen and out of the
  * PATCH until it is complete; any other field the at-rest schema refuses (a one-letter
  * agent name) is left out the same way. The form's own resolver shows the errors.
  */

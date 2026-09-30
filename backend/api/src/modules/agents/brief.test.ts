@@ -100,6 +100,20 @@ describe('the brief schema', () => {
     ).toBe(false);
   });
 
+  it('refuses a read-a-message rule with no message, or only whitespace — nothing to read', () => {
+    for (const message of [undefined, '', '   ']) {
+      expect(
+        briefSchema.safeParse({ handoff_rules: [{ condition: 'After hours', action: 'read_message', message }] }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('keeps the message of a read-a-message rule, and refuses one over 500 characters', () => {
+    const rule = { condition: 'After hours', action: 'read_message', message: 'We are closed, please call back tomorrow.' };
+    expect(briefSchema.parse({ handoff_rules: [rule] }).handoff_rules).toEqual([rule]);
+    expect(briefSchema.safeParse({ handoff_rules: [{ ...rule, message: 'x'.repeat(501) }] }).success).toBe(false);
+  });
+
   it('accepts a half-filled brief, because autosave stores one on every keystroke', () => {
     expect(briefSchema.safeParse({ about_business: 'A' }).success).toBe(true);
   });
@@ -153,6 +167,19 @@ describe('parseBrief — repairs per field, never wipes the brief (ADR 0023, 29 
       { name: 'Wine list', content_type: 'text/plain', text: 'Chianti $12', truncated: false },
     ],
   };
+
+  it('drops only a read-a-message rule stored before rules carried their message', () => {
+    const brief = parseBrief({
+      ...stored,
+      handoff_rules: [
+        { condition: 'After hours', action: 'read_message' },
+        { condition: 'Emergency', action: 'transfer', transfer_number: '+15145550123' },
+        { condition: 'Closed', action: 'read_message', message: 'We are closed today.' },
+      ],
+    });
+    expect(brief.handoff_rules.map((r) => r.condition)).toEqual(['Emergency', 'Closed']);
+    expect(brief.agent_name).toBe('Marie');
+  });
 
   it('drops only the document the schema cannot read and keeps the rest of the brief', () => {
     const brief = parseBrief(stored);

@@ -159,7 +159,7 @@ function LimitsGrid({ matrix, updatedAt }: { matrix: StaffLimitsMatrix; updatedA
                 Capability
               </th>
               {ROLES.map((role) => (
-                <th key={role} scope="col" className={cn(th, 'text-center whitespace-nowrap', mine(role) && 'bg-primary/10 text-primary')}>
+                <th key={role} scope="col" className={cn(th, 'text-center whitespace-nowrap', mine(role) && 'bg-primary/10 text-accent-foreground')}>
                   {ROLE_LABELS[role]}
                 </th>
               ))}

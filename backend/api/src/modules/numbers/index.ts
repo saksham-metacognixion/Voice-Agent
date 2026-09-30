@@ -3,7 +3,7 @@ export { NumbersService } from './numbers.service';
 export { PhonePlansService } from './phone-plans.service';
 export { NumberProvisioningService, numberNickname, newInboundToken } from './number-provisioning.service';
 export type { ProvisionOutcome } from './number-provisioning.service';
-export { ProvisioningError, classifyError, GENERIC_REASON, PLATFORM_REJECTED_REASON } from './provisioning-error';
+export { ProvisioningError, classifyError, isNoNumberStock, noNumbersAvailable, GENERIC_REASON, PLATFORM_REJECTED_REASON } from './provisioning-error';
 export type { ProvisioningErrorKind } from './provisioning-error';
 export { forwardingGuideFor } from './forwarding-guide';
 export { toNumberResponse, toPlanResponse, parseTargets } from './number-response';

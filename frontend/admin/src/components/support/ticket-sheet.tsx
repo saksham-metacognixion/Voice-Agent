@@ -194,7 +194,7 @@ function TicketDetail({ t }: { t: AdminTicketDetail }) {
             {t.adjustments.map((a) => (
               <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
                 <span className="min-w-0 truncate">
-                  <span className={cn('font-medium tabular-nums', a.delta < 0 ? 'text-danger' : 'text-success')}>{formatDelta(a.delta)}</span> · {reasonLabel(a.reason_code)} · {a.staff_email}
+                  <span className={cn('font-medium tabular-nums', a.delta < 0 ? 'text-danger' : 'text-success-emphasis')}>{formatDelta(a.delta)}</span> · {reasonLabel(a.reason_code)} · {a.staff_email}
                 </span>
                 <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDateTime(a.created_at)}</span>
               </li>

@@ -5,7 +5,8 @@ import { SipCredentialsCipher } from '../crypto';
 import { RetellGateway, isRetellNotFound, type PhoneNumberFacts } from '../retell';
 import { RuntimeCacheService } from '../runtime-cache';
 import { addMonths } from '../wallet/wallet.service';
-import { ProvisioningError } from './provisioning-error';
+import { ProvisioningError, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
+import { purchaseAttempts } from './purchase-attempts';
 
 /**
  * The tag every number wears on the platform; the retry's lookup key after a lost write.
@@ -101,16 +102,8 @@ export class NumberProvisioningService {
       if (row.country !== 'US' && row.country !== 'CA') {
         throw new ProvisioningError('rejected', 'Numbers are available in the US and Canada.', `country ${row.country ?? 'null'} is not purchasable`);
       }
-      facts = await this.retell.createPhoneNumber({
-        numberToken: row.inboundToken,
-        agentId: retellAgentId,
-        country: row.country,
-        areaCode: row.areaCode ? Number(row.areaCode) : undefined,
-        tollFree: row.tollFree,
-        nickname,
-        allowedInboundCountries: row.allowedCountries.length ? row.allowedCountries : undefined,
-      });
-      this.log.log(`number ${row.id}: bought ${facts.phone_number} (${row.country}${row.areaCode ? ` ${row.areaCode}` : ''}${row.tollFree ? ', toll-free' : ''})`);
+      facts = await this.purchase(row, row.country, retellAgentId, nickname);
+      this.log.log(`number ${row.id}: bought ${facts.phone_number} (${row.country} ${facts.area_code ?? '?'}${row.tollFree ? ', toll-free' : ''}, ${facts.phone_number_type})`);
     }
 
     // Persist the platform's answer *now*, before anything else can fail.
@@ -118,12 +111,43 @@ export class NumberProvisioningService {
       where: { id: row.id },
       data: {
         e164: facts.phone_number,
+        type: facts.phone_number_type === 'retell-telnyx' ? 'retell_telnyx' : 'retell_twilio',
         areaCode: facts.area_code ? String(facts.area_code) : row.areaCode,
         retellMetaJson: metaOf(facts),
         error: null,
       },
     });
     return { numberId: row.id, e164: facts.phone_number, alreadyProvisioned: Boolean(existing) };
+  }
+
+  /**
+   * One purchase, walked down `purchaseAttempts()`: the requested code from each carrier,
+   * then its region's other codes, then any local number. Only "no stock" moves on — any
+   * other answer is thrown as it came, for `classifyError`. A 404 buys nothing, so the walk
+   * cannot buy twice; a lost answer is still found by the nickname lookup on the retry.
+   */
+  private async purchase(row: NumberRow, country: 'US' | 'CA', retellAgentId: string, nickname: string): Promise<PhoneNumberFacts> {
+    const requested = row.areaCode ? Number(row.areaCode) : null;
+    let last: unknown;
+    for (const attempt of purchaseAttempts({ country, areaCode: requested, tollFree: row.tollFree })) {
+      try {
+        return await this.retell.createPhoneNumber({
+          numberToken: row.inboundToken,
+          agentId: retellAgentId,
+          country,
+          areaCode: attempt.areaCode,
+          tollFree: row.tollFree,
+          provider: attempt.provider,
+          nickname,
+          allowedInboundCountries: row.allowedCountries.length ? row.allowedCountries : undefined,
+        });
+      } catch (error) {
+        if (!isNoNumberStock(error)) throw error;
+        last = error;
+        this.log.warn(`number ${row.id}: no stock at ${attempt.provider} for ${country} ${attempt.areaCode ?? 'any'}${row.tollFree ? ' toll-free' : ''}`);
+      }
+    }
+    throw noNumbersAvailable({ country, areaCode: row.areaCode, tollFree: row.tollFree }, last);
   }
 
   private async importSip(row: NumberRow, retellAgentId: string): Promise<ProvisionOutcome> {

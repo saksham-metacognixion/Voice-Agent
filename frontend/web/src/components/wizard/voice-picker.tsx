@@ -103,7 +103,9 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
       ) : filtered.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">{hasFilters ? t('empty') : t('emptyAll')}</p>
       ) : (
-        <ul className="flex flex-col gap-2" role="listbox" aria-label={t('voices')}>
+        // A list of cards, not a listbox: each card holds two controls (choose, hear), and an
+        // option may not contain focusable children. The choice is the button's aria-pressed.
+        <ul className="flex flex-col gap-2" aria-label={t('voices')}>
           {showGroups ? (
             <li aria-hidden className="pt-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
               {t('groups.native', { language: languageName(language) })}
@@ -118,7 +120,7 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
                     {t('groups.alsoSpeaks', { language: languageName(language) })}
                   </li>
                 ) : null}
-              <li role="option" aria-selected={active}>
+              <li data-testid="voice-card">
                 <div
                   className={cn(
                     'flex items-center gap-3 rounded-lg border bg-card p-3 shadow-card transition-[border-color,box-shadow]',
@@ -128,6 +130,7 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
                   <button
                     type="button"
                     disabled={disabled}
+                    aria-pressed={active}
                     onClick={() => onSelect(voice)}
                     className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
                   >

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { adminDb } from '@portal/db';
+import { failActiveSpan, reportError } from '../../observability';
 import { OpsAlertService } from '../alerts';
 import type { ProvisionNumberJob } from '../jobs';
 import { NumberProvisioningService } from './number-provisioning.service';
@@ -36,6 +37,12 @@ export class ProvisionNumberWorker {
 
       await this.provisioning.markFailed(numberId, error.customerReason, `${error.kind}: ${error.message}`);
       const row = await adminDb.phoneNumber.findUnique({ where: { id: numberId }, select: { agentId: true, e164: true, type: true } });
+      // Returned, not thrown: BullMQ records success, so report the failure here or no one sees it.
+      failActiveSpan(error);
+      reportError(error, {
+        tags: { queue: 'provisioning', job: 'provision-number', error_kind: error.kind },
+        extra: { workspace_id: workspaceId, number_id: numberId, number_type: row?.type ?? null, job_id: job.id ?? null, platform_status: error.options.status ?? null },
+      });
       await this.alerts.send({
         kind: 'number_provisioning_failed',
         severity: 'critical',

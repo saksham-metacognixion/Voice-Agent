@@ -177,6 +177,7 @@ function defaultPrompt(request: ProviderRequest): GeneratedPrompt {
       '',
       '## Hand-off',
       'When the caller asks for a person, transfer them; otherwise take a message.',
+      ...readMessageRules(request.user),
       '',
       '## Ending',
       'Thank the caller and end the call.',
@@ -211,6 +212,28 @@ function defaultPatch(request: ProviderRequest): GeneratedPatch {
     updated_prompt: `${current}\n\n## Extra instruction\n${feedback}`,
     changes: [`Applied: ${feedback.slice(0, 120)}`],
   };
+}
+
+/**
+ * The brief's read-a-message rules, kept word for word as the user turn asks of a real
+ * model — so the `handoff_message_missing` lint passes on scripted output too.
+ */
+function readMessageRules(user: string): string[] {
+  const json = user.match(/# The brief\n```json\n([\s\S]*?)\n```/)?.[1];
+  if (!json) return [];
+  try {
+    const rules = (JSON.parse(json) as { handoff_rules?: unknown }).handoff_rules;
+    if (!Array.isArray(rules)) return [];
+    return rules
+      .filter((rule): rule is string => typeof rule === 'string' && rule.includes('word for word'))
+      .map((rule) => {
+        const [condition, rest = ''] = rule.split(' → ');
+        const message = rest.match(/"([\s\S]*)"$/)?.[1] ?? '';
+        return `When ${condition}, say exactly: "${message}"`;
+      });
+  } catch {
+    return [];
+  }
 }
 
 function firstMatch(text: string, pattern: RegExp): string | null {

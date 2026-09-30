@@ -324,7 +324,9 @@ export function briefForModel(brief: Brief): Record<string, unknown> {
     brief.handoff_rules.map((rule) =>
       rule.action === 'transfer'
         ? `${rule.condition} → transfer to ${rule.transfer_number}`
-        : `${rule.condition} → ${rule.action.replace(/_/g, ' ')}`,
+        : rule.action === 'read_message'
+          ? `${rule.condition} → read this message to the caller word for word: "${rule.message?.trim() ?? ''}"`
+          : `${rule.condition} → ${rule.action.replace(/_/g, ' ')}`,
     ),
   );
   put('agent_name', brief.agent_name);

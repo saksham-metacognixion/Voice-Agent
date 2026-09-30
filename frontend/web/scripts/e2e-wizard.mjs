@@ -106,13 +106,13 @@ try {
   ok('→ W3', Boolean(w3), await path());
 
   // 8. W3
-  const voices = await waitFor(`document.querySelectorAll('[role="option"]').length`, 15000);
+  const voices = await waitFor(`document.querySelectorAll('[data-testid="voice-card"]').length`, 15000);
   ok('W3 lists voices', Number(voices) > 0, `voices=${voices}`);
-  await b.evaluate(`document.querySelector('[role="option"] button').click()`); await sleep(1500);
-  ok('W3 selects a voice (persisted)', await b.evaluate(`document.querySelector('[role="option"][aria-selected="true"]') !== null`));
+  await b.evaluate(`document.querySelector('[data-testid="voice-card"] button').click()`); await sleep(1500);
+  ok('W3 selects a voice (persisted)', await b.evaluate(`document.querySelector('[data-testid="voice-card"] button[aria-pressed="true"]') !== null`));
   await b.shot(`${S}/shot-w3.png`, true);
-  await b.goto(`${BASE}/onboarding/voice/`, 3000); await waitFor(`document.querySelectorAll('[role="option"]').length`, 15000);
-  ok('W3 voice restored after reload', await b.evaluate(`document.querySelector('[role="option"][aria-selected="true"]') !== null`));
+  await b.goto(`${BASE}/onboarding/voice/`, 3000); await waitFor(`document.querySelectorAll('[data-testid="voice-card"]').length`, 15000);
+  ok('W3 voice restored after reload', await b.evaluate(`document.querySelector('[data-testid="voice-card"] button[aria-pressed="true"]') !== null`));
   await b.evaluate(`[...document.querySelectorAll('button')].find(b => b.getAttribute('aria-label')?.startsWith('Hear this voice'))?.click()`); await sleep(1500);
   // Knowledge is after payment (ADR 0024): W3 goes straight to the test call.
   await clickText('Continue'); const w5first = await waitFor(`location.pathname === '/onboarding/test/'`, 10000);

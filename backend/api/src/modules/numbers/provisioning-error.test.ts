@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import Retell from 'retell-sdk';
 import { AppError } from '../../common/errors/app-error';
-import { ProvisioningError, classifyError } from './provisioning-error';
+import { ProvisioningError, classifyError, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
 
 /* The retry policy of §13.8 in one place: what is worth a second attempt, and what is not. */
 
-function retell(status: number): Error {
-  return Retell.APIError.generate(status, { message: `status ${status}` }, `status ${status}`, new Headers());
+function retell(status: number, message = `status ${status}`): Error {
+  return Retell.APIError.generate(status, { message }, message, new Headers());
 }
 
 describe('classifyError', () => {
@@ -50,6 +50,28 @@ describe('classifyError', () => {
     expect(err.kind).toBe('internal');
     expect(err.message).toBe('ECONNRESET');
     expect(err.customerReason).not.toContain('ECONNRESET');
+  });
+});
+
+describe('no number stock', () => {
+  // The platform's answer on staging, 30 Sep: a 404 for an area code it has no stock in.
+  const noStock = () => retell(404, 'No phone numbers of this area code.');
+
+  it('recognises only the platform\'s 404 "no phone numbers"', () => {
+    expect(isNoNumberStock(noStock())).toBe(true);
+    expect(isNoNumberStock(retell(404, 'Not found'))).toBe(false);
+    expect(isNoNumberStock(retell(400, 'No phone numbers of this area code.'))).toBe(false);
+    expect(isNoNumberStock(new Error('No phone numbers of this area code.'))).toBe(false);
+  });
+
+  it('once everything is out of stock: permanent, says what to do, never names the platform', () => {
+    const local = noNumbersAvailable({ country: 'CA', areaCode: '647', tollFree: false }, noStock());
+    expect(local.kind).toBe('area_code_unavailable');
+    expect(local.retryable).toBe(false);
+    expect(local.customerReason).toMatch(/Canada/);
+    expect(local.customerReason).not.toMatch(/platform|retell|twilio|telnyx|404/i);
+    const tollFree = noNumbersAvailable({ country: 'US', areaCode: null, tollFree: true }, noStock());
+    expect(tollFree.customerReason).toMatch(/toll-free/);
   });
 });
 

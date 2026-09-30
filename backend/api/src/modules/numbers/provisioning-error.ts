@@ -25,6 +25,7 @@ export type ProvisioningErrorKind =
   | 'number_released'
   | 'not_configured'
   | 'rejected'
+  | 'area_code_unavailable'
   | 'unavailable'
   | 'internal';
 
@@ -94,6 +95,31 @@ export function classifyError(error: unknown): ProvisioningError {
   }
 
   return new ProvisioningError('internal', GENERIC_REASON, describe(error), { retryable: true, cause: error });
+}
+
+/**
+ * The platform answers a bought number it has no stock for with a 404 — `404 No phone
+ * numbers of this area code.` (30 Sep). `NumberProvisioningService.buy` moves on to the
+ * next of `purchaseAttempts()` on exactly this answer and on nothing else.
+ */
+export function isNoNumberStock(error: unknown): boolean {
+  return retellErrorStatus(error) === 404 && /no phone numbers/i.test(describe(error));
+}
+
+/**
+ * Every carrier, every code of the region and any local number all answered "no stock".
+ * Permanent for this attempt; the sentence tells the customer what they can change.
+ */
+export function noNumbersAvailable(row: { country: string; areaCode: string | null; tollFree: boolean }, last: unknown): ProvisioningError {
+  const where = row.country === 'CA' ? 'Canada' : 'the US';
+  const customerReason = row.tollFree
+    ? `No toll-free numbers are available in ${where} right now. Turn off toll-free for a local number, or try again later.`
+    : `No phone numbers are available in ${where} right now. Try again later, or contact support and we will find you one.`;
+  return new ProvisioningError('area_code_unavailable', customerReason, `voice platform had no stock on any carrier: ${describe(last)}`, {
+    retryable: false,
+    status: 404,
+    cause: last,
+  });
 }
 
 export const GENERIC_REASON = 'Something went wrong while setting up your number. We will try again shortly.';

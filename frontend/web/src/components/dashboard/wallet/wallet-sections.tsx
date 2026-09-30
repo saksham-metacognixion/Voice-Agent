@@ -391,7 +391,7 @@ export function LedgerCard() {
       header: t('columns.amount'),
       align: 'right',
       card: 'badge',
-      cell: (e) => <span className={cn('font-medium tabular-nums', e.delta > 0 ? 'text-success' : 'text-foreground')}>{`${e.delta > 0 ? '+' : ''}${formatCreditsValue(e.delta)}`}</span>,
+      cell: (e) => <span className={cn('font-medium tabular-nums', e.delta > 0 ? 'text-success-emphasis' : 'text-foreground')}>{`${e.delta > 0 ? '+' : ''}${formatCreditsValue(e.delta)}`}</span>,
     },
     { key: 'balance', header: t('columns.balance'), align: 'right', cell: (e) => <span className="tabular-nums">{formatCreditsValue(e.balance_after)}</span> },
   ];

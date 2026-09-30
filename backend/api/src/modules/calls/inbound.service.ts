@@ -1,5 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import type { DeclineReason, WorkspaceCaps } from '@portal/schemas';
+import { OpsAlertService } from '../alerts';
 import type { CurrentPricing } from '../config';
 import { JobQueues, type InboundDecisionJob } from '../jobs';
 import { REDIS, type RedisLike, redisKeys } from '../redis';
@@ -107,10 +108,12 @@ export class InboundAuthorizationService {
     overBudget: 0,
   };
   private lastFailOpenLog = 0;
+  private lastRedisDownAlert = 0;
 
   constructor(
     @Inject(REDIS) private readonly redis: RedisLike,
     private readonly queues: JobQueues,
+    @Optional() private readonly alerts?: OpsAlertService,
   ) {}
 
   async authorize(token: string, event: RetellInboundEvent, now = new Date()): Promise<InboundOutcome> {
@@ -310,6 +313,7 @@ export class InboundAuthorizationService {
     this.metrics.failOpen += 1;
     const reason = error instanceof Error ? error.message : String(error);
     this.logFailOpen(`inbound: redis unavailable (${reason}); policy=${this.policy}`);
+    this.alertRedisDown(reason);
     return {
       body: this.policy === 'closed' ? RetellGateway.inboundDecline() : {},
       decision: { kind: 'redis_down', reason },
@@ -326,6 +330,23 @@ export class InboundAuthorizationService {
       this.lastFailOpenLog = now;
       this.log.error(`${message} — ALERT: inbound fail-open (ADR 0003 §12)`);
     }
+  }
+
+  /**
+   * One ops alert per outage minute, on its own clock so an unknown-number log line cannot
+   * swallow it. Not awaited: `send()` never rejects and posts over HTTP, not Redis, so it
+   * still reaches a human while Redis is the thing that is down.
+   */
+  private alertRedisDown(reason: string): void {
+    const now = Date.now();
+    if (now - this.lastRedisDownAlert <= 60_000) return;
+    this.lastRedisDownAlert = now;
+    void this.alerts?.send({
+      kind: 'redis_down',
+      severity: 'critical',
+      title: this.policy === 'closed' ? 'Redis unavailable — inbound calls are being declined' : 'Redis unavailable — inbound calls are answered without checks',
+      fields: { policy: this.policy, reason, env: process.env.APP_ENV },
+    });
   }
 }
 

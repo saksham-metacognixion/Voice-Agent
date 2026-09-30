@@ -22,6 +22,7 @@ export function ProvisioningProgress({
   onRetry,
   retrying,
   retryError,
+  onChangeNumber,
 }: {
   view: ActivationView | null;
   stream: StreamState;
@@ -30,6 +31,8 @@ export function ProvisioningProgress({
   onRetry?: () => void;
   retrying?: boolean;
   retryError?: string | null;
+  /** Back to W6. Offered when the number step failed: its fix is usually a different choice there. */
+  onChangeNumber?: () => void;
 }) {
   const tp = useTranslations('wizard.w7.progress');
   const t = useTranslations();
@@ -90,10 +93,19 @@ export function ProvisioningProgress({
             variant="danger"
             title={tp('failedTitle')}
             actions={
-              onRetry ? (
-                <Button size="sm" onClick={onRetry} loading={retrying} disabled={retrying}>
-                  {t('common.retry')}
-                </Button>
+              onRetry || (onChangeNumber && view.step === 'provision') ? (
+                <div className="flex flex-wrap gap-2">
+                  {onChangeNumber && view.step === 'provision' ? (
+                    <Button size="sm" variant="outline" onClick={onChangeNumber} disabled={retrying}>
+                      {tp('changeNumber')}
+                    </Button>
+                  ) : null}
+                  {onRetry ? (
+                    <Button size="sm" onClick={onRetry} loading={retrying} disabled={retrying}>
+                      {t('common.retry')}
+                    </Button>
+                  ) : null}
+                </div>
               ) : undefined
             }
           >

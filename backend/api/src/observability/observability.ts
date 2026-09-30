@@ -54,7 +54,12 @@ export function startObservability(role: ServiceRole, env: NodeJS.ProcessEnv = p
       dataCollection: {
         userInfo: false,
         cookies: false,
-        httpHeaders: { request: { allow: ['user-agent', 'content-type', 'x-workspace-id', 'x-request-id', 'origin'] }, response: false },
+        httpHeaders: {
+          request: {
+            allow: ['user-agent', 'content-type', 'x-workspace-id', 'x-request-id', 'origin'],
+          },
+          response: false,
+        },
         httpBodies: [],
         urlQueryParams: false,
         genAI: { inputs: false, outputs: false },
@@ -70,7 +75,8 @@ export function startObservability(role: ServiceRole, env: NodeJS.ProcessEnv = p
       // cost the §13.9 inbound path more than half its throughput on the D14 k6 run (6 812
       // → 2 743 req/s) for spans OpenTelemetry already records; the exception filter and
       // `reportError` attach the route and trace id themselves.
-      integrations: (defaults) => defaults.filter((integration) => SENTRY_KEEP.has(integration.name)),
+      integrations: (defaults) =>
+        defaults.filter((integration) => SENTRY_KEEP.has(integration.name)),
     });
     sentryOn = true;
   }
@@ -144,6 +150,21 @@ export function reportError(
     const traceId = trace.getActiveSpan()?.spanContext().traceId;
     if (traceId) scope.setTag('trace_id', traceId);
     Sentry.captureException(error);
+  });
+}
+
+/**
+ * Marks the active span as failed without throwing. For a handler that settles a failure
+ * itself and returns — BullMQ then records success and `inSpan` would end the span OK,
+ * so the trace would never show the job as an error.
+ */
+export function failActiveSpan(error: unknown): void {
+  const span = trace.getActiveSpan();
+  if (!span) return;
+  span.recordException(error instanceof Error ? error : new Error(String(error)));
+  span.setStatus({
+    code: SpanStatusCode.ERROR,
+    message: error instanceof Error ? error.message : String(error),
   });
 }
 

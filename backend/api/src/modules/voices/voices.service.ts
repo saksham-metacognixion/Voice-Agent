@@ -7,6 +7,7 @@ import type { WorkspaceContext } from '../auth';
 import { RedisCache } from '../redis';
 import { RetellGateway } from '../retell';
 import { isMultilingualFrom, languageRank, nativeLanguages } from './voice-languages';
+import { ourVoiceSample } from './voice-samples';
 
 /**
  * W3 voices, and the §13.11 `voice-cache` job behind them.
@@ -328,13 +329,17 @@ interface VoiceRow {
 }
 
 /**
- * The clip we are willing to play for this voice: ours if we have recorded one, the
+ * The clip we are willing to play for this voice: ours if we have recorded one — a row's
+ * `sample_url` first, then the clip shipped with the portal (`voice-samples.ts`) — the
  * vendor's catalogue clip only where policy allows it, otherwise nothing. A null here is
  * what turns W3's play button into "no sample", which is the honest state — see
  * `vendorSamplePolicy`.
  */
-export function sampleUrlOf(row: { sampleUrl?: string | null; previewUrl: string | null }, policy: VendorSamplePolicy): string | null {
-  return row.sampleUrl ?? (policy === 'allow' ? row.previewUrl : null);
+export function sampleUrlOf(
+  row: { retellVoiceId: string; sampleUrl?: string | null; previewUrl: string | null },
+  policy: VendorSamplePolicy,
+): string | null {
+  return row.sampleUrl ?? ourVoiceSample(row.retellVoiceId) ?? (policy === 'allow' ? row.previewUrl : null);
 }
 
 function toVoice(row: VoiceRow, context: { languages: string[]; native: boolean; policy: VendorSamplePolicy }): VoiceResponse {

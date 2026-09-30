@@ -8126,6 +8126,10 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "message": {
+                          "maxLength": 500,
+                          "type": "string"
+                        },
                         "transfer_number": {
                           "pattern": "^\\+[1-9]\\d{6,14}$",
                           "type": "string"
@@ -8296,6 +8300,7 @@
                             "greeting_too_long",
                             "handoff_rule_missing",
                             "transfer_tool_missing",
+                            "handoff_message_missing",
                             "absolute_language",
                             "language_mismatch",
                             "guardrails_missing",
@@ -8866,6 +8871,10 @@
                           "minLength": 1,
                           "type": "string"
                         },
+                        "message": {
+                          "maxLength": 500,
+                          "type": "string"
+                        },
                         "transfer_number": {
                           "pattern": "^\\+[1-9]\\d{6,14}$",
                           "type": "string"
@@ -9036,6 +9045,7 @@
                             "greeting_too_long",
                             "handoff_rule_missing",
                             "transfer_tool_missing",
+                            "handoff_message_missing",
                             "absolute_language",
                             "language_mismatch",
                             "guardrails_missing",
@@ -9633,6 +9643,10 @@
                       "minLength": 1,
                       "type": "string"
                     },
+                    "message": {
+                      "maxLength": 500,
+                      "type": "string"
+                    },
                     "transfer_number": {
                       "pattern": "^\\+[1-9]\\d{6,14}$",
                       "type": "string"
@@ -10224,6 +10238,10 @@
                       "minLength": 1,
                       "type": "string"
                     },
+                    "message": {
+                      "maxLength": 500,
+                      "type": "string"
+                    },
                     "transfer_number": {
                       "pattern": "^\\+[1-9]\\d{6,14}$",
                       "type": "string"
@@ -10394,6 +10412,7 @@
                         "greeting_too_long",
                         "handoff_rule_missing",
                         "transfer_tool_missing",
+                        "handoff_message_missing",
                         "absolute_language",
                         "language_mismatch",
                         "guardrails_missing",
@@ -12962,6 +12981,7 @@
                     "greeting_too_long",
                     "handoff_rule_missing",
                     "transfer_tool_missing",
+                    "handoff_message_missing",
                     "absolute_language",
                     "language_mismatch",
                     "guardrails_missing",
@@ -14571,6 +14591,7 @@
                         "greeting_too_long",
                         "handoff_rule_missing",
                         "transfer_tool_missing",
+                        "handoff_message_missing",
                         "absolute_language",
                         "language_mismatch",
                         "guardrails_missing",

@@ -58,7 +58,10 @@ afterAll(async () => {
   await adminDb.$disconnect();
 });
 
-const monthAgo = () => new Date(Date.now() - 30 * 86_400_000);
+// Due yesterday, so the next anniversary is always ≥ 28 days ahead. "30 days ago" was not:
+// on 30 Sep that is 31 Aug, whose next anniversary clamps to 30 Sep — already due again,
+// and three rental tests failed on every day whose previous month has 30 days or fewer.
+const dueYesterday = () => new Date(Date.now() - 86_400_000);
 const ledgerSum = async (ws: string) => (await adminDb.creditLedger.aggregate({ where: { tenantId: ws }, _sum: { delta: true } }))._sum.delta?.toNumber() ?? 0;
 const rentalRows = (ws: string) => adminDb.creditLedger.findMany({ where: { tenantId: ws, reason: 'rental', refType: RENTAL_REF_TYPE }, orderBy: { createdAt: 'asc' } });
 
@@ -74,7 +77,7 @@ async function boughtNumber(ws: PaidWorkspace, over: Partial<{ type: 'retell_twi
       inboundToken: `tok_${randomUUID().replace(/-/g, '')}`,
       country: 'CA',
       rentalCredits: over.type === 'custom_sip' ? 0 : 15,
-      nextRentalAt: over.nextRentalAt === undefined ? monthAgo() : over.nextRentalAt,
+      nextRentalAt: over.nextRentalAt === undefined ? dueYesterday() : over.nextRentalAt,
       rentalOverdueSince: over.rentalOverdueSince ?? null,
       releasedAt: over.status === 'released' ? new Date() : null,
     },
