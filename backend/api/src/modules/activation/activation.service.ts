@@ -35,7 +35,15 @@ export class ActivationService {
       if (tenant.pausedAt) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to go live.');
       const row = await db.agent.findFirst({ where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null }, select: { id: true, draftVersion: true, publishedVersion: true } });
       if (!row) throw AppError.notFound('Agent');
-      if (!row.draftVersion && !row.publishedVersion) throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before going live.');
+      // The version the publish step will take, checked for a script now: every agent is
+      // created with an empty draft v1, so "has a draft" said nothing, and an ungenerated
+      // agent got a 202 and a job that could only fail at publish (QA-021).
+      const wanted = versionNo ?? row.draftVersion ?? row.publishedVersion;
+      const version = wanted
+        ? await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo: wanted } }, select: { promptText: true } })
+        : null;
+      if (wanted && !version) throw AppError.notFound(`Version ${wanted}`);
+      if (!version?.promptText) throw new AppError('AGENT_NOT_GENERATED', 'Generate the agent before going live.');
       return row;
     });
     return this.start({ workspaceId: ctx.workspaceId, agentId: agent.id, userId: ctx.userId, versionNo });

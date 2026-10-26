@@ -7,6 +7,7 @@ import {
   defaultAgentSettings,
   generatedPrompt,
   modelAnalysisField,
+  agentLanguage,
   retellLanguage,
 } from './agents';
 
@@ -111,6 +112,17 @@ describe('modelAnalysisField (lenient — the model’s raw answer only)', () =>
   });
 });
 
+describe('agentLanguage', () => {
+  it('is every platform locale plus ar-AE', () => {
+    expect(agentLanguage.options).toEqual([...retellLanguage.options, 'ar-AE']);
+  });
+
+  it('is what an agent may be set to, as main language and as an extra one', () => {
+    expect(agentDraftPatch.safeParse({ primary_language: 'ar-AE', languages: ['ar-SA', 'en-US'] }).success).toBe(true);
+    expect(agentDraftPatch.safeParse({ primary_language: 'ar-XX' }).success).toBe(false);
+  });
+});
+
 describe('retellLanguage', () => {
   it('accepts a locale Retell supports', () => {
     expect(retellLanguage.safeParse('fr-CA').success).toBe(true);
@@ -124,6 +136,11 @@ describe('retellLanguage', () => {
 
   it('does not offer `multi` as a customer choice — the gateway decides that (W3)', () => {
     expect(retellLanguage.safeParse('multi').success).toBe(false);
+  });
+
+  it('is the platform list only: ar-AE is ours, not the platform\'s (ADR 0027)', () => {
+    expect(retellLanguage.safeParse('ar-AE').success).toBe(false);
+    expect(retellLanguage.safeParse('ar-SA').success).toBe(true);
   });
 
   it('gates primary_language and languages on the draft patch', () => {

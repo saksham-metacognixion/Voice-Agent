@@ -110,7 +110,11 @@ OpenTelemetry for traces and Sentry (errors only, nine integrations) with measur
 cost, the console diagnostics routes, the RDS PITR drill and the console's CI deploy (29 Sep), 0026
 Arabic and right-to-left in the portal — next-intl without routing, the language a per-browser
 choice applied before first paint, `UiLocaleProvider` in `@portal/ui`, logical CSS only, API copy
-translated by id through `useServerCopy` (26 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+translated by id through `useServerCopy` (26 Oct), 0027 Arabic agents for KSA and the UAE —
+`agentLanguage` = the platform's locales + `ar-AE` (sent as `ar-SA`), Arabic always transcribes
+`accurate`, the dialect / speaker gender / digit-by-digit numbers as a `## Language (fixed)`
+runtime block, curated Gulf voices recognised by platform name, Arabic digits in the phone
+check; UAE not sold until Emirati numbers transcribe (26 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -501,6 +505,21 @@ job settles.
   first**: the LLM is versioned with the agent, so while the latest version is published
   `update-retell-llm` answers 400 `Cannot update published LLM`. Verified live, 17 Sep —
   `pnpm --filter @portal/api verify:d5-retell`.
+- **`ar-AE` is ours, not the platform's** (ADR 0027). Agent settings validate against
+  `agentLanguage` (`retellLanguage` + `ar-AE`); `platformLanguage()` / `platformLanguages()`
+  in `modules/retell/retell.types.ts` are the only translation, at `agentSpec`, and two
+  Arabics collapse into one platform locale. `sttModeFor()` makes every Arabic agent
+  `accurate` (the `fast` 10 ms endpoint cut Gulf callers off). The dialect, the **live
+  voice's** gender (`voices.gender`) and "say a phone number one digit at a time, as words"
+  are `languageBlock()` (`modules/prompting/dialects.ts`), appended by `runtimePrompt` after
+  the documents and before the §9.4 block — never stored, like the documents;
+  `dialectSection()` puts the dialect in the generation and feedback turns. Gulf voices are
+  `CURATED_VOICES` (`modules/voices/curated-voices.ts`), added per platform workspace by
+  `pnpm --filter @portal/api voices:import` and **recognised by their platform name** (the
+  platform lists them as `custom_voice_<workspace>` with no gender or accent); their clips
+  are filed under `curated:<key>`. `captured-phones.ts` reads Eastern Arabic numerals and
+  Arabic digit words. Saudi is ready; **UAE is not sold** until Emirati phone numbers
+  transcribe (`pnpm --filter @portal/api proof:arabic`, ADR 0027 Consequences).
 - **`language: "multi"` means Retell's fixed ten, not the customer's languages**, and fr-CA
   is not among them. The gateway sends the explicit locale array instead — §W3's text says
   `multi`, and ADR 0003 §6 is the decision that overrides it (reviewed 21 Sep 2026; a
@@ -515,6 +534,11 @@ job settles.
   `mergeBrief` deletes the key; arrays clear with `[]`. The W2 autosave sends `null` for a
   field emptied by the customer (`briefDiff`), flushes on unmount and guards `beforeunload`.
   A version still syncing to the platform answers `409 VERSION_SYNCING` on a test call (QA-021).
+  **`BRIEF_INCOMPLETE` means the brief, nothing else** (QA-021 reopened, 26 Oct): an agent with
+  no script is `409 AGENT_NOT_GENERATED` (test call, publish, activate, feedback), one never
+  published is `409 AGENT_NOT_PUBLISHED` (resume, pointing a number at it). The portal shows
+  `errors.<code>` first, so a code reused for another condition shows the wrong sentence.
+  `activate` checks the version publish will take for a script before it queues anything.
 - `PATCH /agents/:id/draft` does not touch the platform. `POST /agents/:id/test/web`
   re-syncs the unpublished draft (`AgentDraftSyncService`, shared with the generation
   worker) before minting, so a test call rings the voice and languages W3 saved.
@@ -707,6 +731,10 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `appState.returnTo` to `RootPage` as `auth.returnTo`, which `router.replace`s there
   (rewriting the URL with `replaceState` left `/` mounted and its gate sent everyone to
   `/app/`); `RedirectIfSignedIn` honours `?next=`, and the workspace switcher carries it.
+  **One workspace switch** (QA-013): `useSwitchWorkspace()` in `workspace-switcher.tsx` is
+  what the header switcher, the account menu (`WorkspaceMenuItems`, shown only with more than
+  one membership — `accountMenuWorkspace()`) and /select-workspace call; it lands on the
+  page's `?next=` or `/` (`switchWorkspaceDestination()`), never the old workspace's page.
   `safeNext()` is the one validator — same-origin paths only, no `//`, `\`, control
   characters or `/login`/`/signup` targets; `signedInDestination()` picks return path over gate.
   **An invite survives sign-up and verification too** (BUG-008): `?next=` rides the
@@ -741,6 +769,8 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   to `outline: none`. `ThemeProvider` / `ThemeToggle` / `ThemeSegment` are the only theme code, and
   the logo is `Logo` in `@portal/ui`, rendering the supplied artwork from
   `public/brand/` — never redrawn, recoloured or rebuilt inline.
+- **W3 offers `agentLanguage`** (ADR 0027): the Gulf Arabics first when the portal is in
+  Arabic, after the launch set otherwise (`sortedLanguages(locale)`).
 - **W3's language ranks the voice list, it does not cut it.** `list-voices` carries no
   language at all, so the native language is derived from the accent
   (`modules/voices/voice-languages.ts`), matched on the base subtag (`fr-FR` answers

@@ -6,6 +6,7 @@ import { isDevEnv } from '../../common/env';
 import type { WorkspaceContext } from '../auth';
 import { RedisCache } from '../redis';
 import { RetellGateway } from '../retell';
+import { curatedVoiceFor, sampleKeyOf } from './curated-voices';
 import { isMultilingualFrom, languageRank, nativeLanguages } from './voice-languages';
 import { ourVoiceSample } from './voice-samples';
 
@@ -286,7 +287,10 @@ interface ProviderVoice {
 function toRow(voice: ProviderVoice) {
   if (!voice.voice_id || !voice.voice_name) return null;
   const provider = voice.provider ?? 'unknown';
-  const accent = voice.accent ?? null;
+  // A voice we added ourselves arrives with no gender or accent (ADR 0027); the curated
+  // list knows both, and the name the import gave it is how the row is recognised.
+  const curated = curatedVoiceFor(voice.voice_name);
+  const accent = curated?.accent ?? voice.accent ?? null;
   const listed = voice.languages ?? (voice.language ? [voice.language] : []);
   // The catalogue has never sent a language; the accent is the only signal, and reading
   // "no languages" as "speaks all of them" is what made every voice multilingual and the
@@ -296,7 +300,7 @@ function toRow(voice: ProviderVoice) {
     retellVoiceId: voice.voice_id,
     provider,
     name: voice.voice_name,
-    gender: normaliseGender(voice.gender),
+    gender: curated?.gender ?? normaliseGender(voice.gender),
     accent,
     languages,
     previewUrl: voice.preview_audio_url ?? null,
@@ -336,17 +340,19 @@ interface VoiceRow {
  * `vendorSamplePolicy`.
  */
 export function sampleUrlOf(
-  row: { retellVoiceId: string; sampleUrl?: string | null; previewUrl: string | null },
+  row: { retellVoiceId: string; name?: string | null; sampleUrl?: string | null; previewUrl: string | null },
   policy: VendorSamplePolicy,
 ): string | null {
-  return row.sampleUrl ?? ourVoiceSample(row.retellVoiceId) ?? (policy === 'allow' ? row.previewUrl : null);
+  return row.sampleUrl ?? ourVoiceSample(sampleKeyOf(row)) ?? (policy === 'allow' ? row.previewUrl : null);
 }
 
 function toVoice(row: VoiceRow, context: { languages: string[]; native: boolean; policy: VendorSamplePolicy }): VoiceResponse {
   return {
     id: row.retellVoiceId,
     provider: row.provider,
-    name: row.name,
+    // The platform name of a curated voice is our import's label ("Mona - Saudi Arabic");
+    // W3 shows the voice's own name beside the accent line.
+    name: curatedVoiceFor(row.name)?.name ?? row.name,
     gender: row.gender,
     accent: row.accent,
     languages: context.languages,

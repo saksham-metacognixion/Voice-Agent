@@ -19,7 +19,7 @@ import {
   type Scenario,
   agentSettings as agentSettingsSchema,
   analysisField,
-  retellLanguage,
+  agentLanguage,
   brief as briefSchema,
   briefDocument as briefDocumentSchema,
   handoffRule as handoffRuleSchema,
@@ -709,12 +709,12 @@ export function liveSettingsOf(agent: LiveSettingsColumns): AgentSettings {
     ...defaults,
     voice_id: raw.voice_id,
     // `primary_language` is a plain column with no check constraint, and the schema now
-    // holds it to Retell's locale list. Keep it when it is one, fall back to the default
-    // when it is not, rather than throwing away the voice and the ceiling as well.
-    primary_language: retellLanguage.safeParse(raw.primary_language).success
+    // holds it to our locale list (`agentLanguage`). Keep it when it is one, fall back to
+    // the default when it is not, rather than throwing away the voice and the ceiling too.
+    primary_language: agentLanguage.safeParse(raw.primary_language).success
       ? raw.primary_language
       : defaults.primary_language,
-    languages: raw.languages.filter((code) => retellLanguage.safeParse(code).success).slice(0, 4),
+    languages: raw.languages.filter((code) => agentLanguage.safeParse(code).success).slice(0, 4),
     max_call_duration_s: Math.min(
       1_800,
       Math.max(180, raw.max_call_duration_s || defaults.max_call_duration_s),

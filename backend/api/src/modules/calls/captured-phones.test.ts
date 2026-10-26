@@ -110,6 +110,29 @@ describe('checkCapturedPhones', () => {
   });
 });
 
+/** Caller turns from the 26 Oct Arabic proof calls (ADR 0027), as the platform transcribed them. */
+describe('Arabic numbers (ADR 0027)', () => {
+  it('reads Arabic digit words, numerals mixed in, «و» glued on, any spelling of tā\' marbūṭa', () => {
+    expect(spokenDigitRuns('رقمي صفر خمسه خمسه 1 2 3 4 5 6 7')).toEqual(['0551234567']);
+    expect(spokenDigitRuns('رقمي صفر خمسة خمسة 123 4 5 6 7')).toEqual(['0551234567']);
+    expect(spokenDigitRuns('صفر خمسة صفر، واحد اثنين ثلاثة، أربعة وخمسة ستة سبعة')).toEqual(['0501234567']);
+  });
+
+  it('reads Eastern Arabic numerals', () => {
+    expect(spokenDigitRuns('رقمي ٠٥٥١٢٣٤٥٦٧')).toEqual(['0551234567']);
+  });
+
+  it('checks a number the analysis wrote in Eastern Arabic numerals, and keeps it as written', () => {
+    const [result] = check('٠٥٥١٢٣٤٥٦٧', ['رقمي صفر خمسه خمسه 1 2 3 4 5 6 7'], { regions: ['SA'] });
+    expect(result).toMatchObject({ value: '٠٥٥١٢٣٤٥٦٧', status: 'ok', digits: 10 });
+  });
+
+  it('flags the Emirati number the transcript lost', () => {
+    const [result] = check('0501234567', ['رقم 0.5 0. 4.5.'], { regions: ['AE'] });
+    expect(result?.status).toBe('mismatch');
+  });
+});
+
 describe('callerUtterances', () => {
   it('reads the caller’s turns from transcript_object, never the agent’s read-back', () => {
     const json = [
@@ -135,6 +158,7 @@ describe('isPhoneFieldName / localeRegion', () => {
   it('reads the region off a locale', () => {
     expect(localeRegion('en-IN')).toBe('IN');
     expect(localeRegion('fr-CA')).toBe('CA');
+    expect(localeRegion('ar-AE')).toBe('AE');
     expect(localeRegion('multi')).toBeNull();
   });
 

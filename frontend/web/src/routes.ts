@@ -142,6 +142,16 @@ export function signedInDestination(returnTo: string | null | undefined, gateDes
   return gateDestination;
 }
 
+/**
+ * Where switching workspace lands (QA-013): the page's own validated `?next=` when it has
+ * one — /select-workspace is reached with the page that sent the person there — else `/`,
+ * whose gate knows where the *new* workspace belongs. Never the current page: it is the
+ * old workspace's agent, number or wizard step.
+ */
+export function switchWorkspaceDestination(query: URLSearchParams): string {
+  return safeNext(query.get('next'), routes.root);
+}
+
 /** D3 agent tabs, in the order the spec lists them (p. 36). */
 export const AGENT_TABS = ['overview', 'brief', 'prompt', 'voice', 'knowledge', 'test', 'versions', 'settings'] as const;
 export type AgentTab = (typeof AGENT_TABS)[number];

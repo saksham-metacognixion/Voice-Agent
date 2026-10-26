@@ -58,6 +58,21 @@ export class RetellGateway {
     return this.client.voice.list();
   }
 
+  /**
+   * Adds a voice from a provider's public library to this workspace's catalogue, where
+   * `list-voices` then lists it under a `custom_voice_…` id of the workspace's own. Used
+   * only by `scripts/voices-import.ts` for the curated voices (ADR 0027); the daily
+   * voice-cache job picks the result up like any other voice.
+   */
+  addCommunityVoice(input: { providerVoiceId: string; publicUserId?: string; name: string; provider: 'elevenlabs' }) {
+    return this.client.voice.addResource({
+      provider_voice_id: input.providerVoiceId,
+      public_user_id: input.publicUserId,
+      voice_name: input.name,
+      voice_provider: input.provider,
+    });
+  }
+
   // ---------------------------------------------------------------- LLM (§13.3)
 
   createLlm(spec: LlmSpec) {

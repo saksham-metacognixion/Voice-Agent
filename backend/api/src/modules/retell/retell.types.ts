@@ -1,4 +1,4 @@
-import type { AgentTier, RetellLanguage } from '@portal/schemas';
+import type { AgentLanguage, AgentTier, RetellLanguage } from '@portal/schemas';
 import type Retell from 'retell-sdk';
 import { z } from 'zod';
 
@@ -88,6 +88,35 @@ export type Language = NonNullable<Retell.AgentCreateParams['language']>;
 type _RetellLanguageIsSupported = RetellLanguage extends Extract<Language, string> ? true : never;
 const _retellLanguageIsSupported: _RetellLanguageIsSupported = true;
 void _retellLanguageIsSupported;
+
+/**
+ * The platform locale an agent locale runs on (ADR 0027). Identity for everything the
+ * platform lists; `ar-AE` — which it does not — runs on `ar-SA`, its only Arabic. The
+ * dialect is carried by the prompt (`dialects.ts`) and the voice, not by this.
+ */
+export function platformLanguage(code: AgentLanguage): RetellLanguage {
+  return code === 'ar-AE' ? 'ar-SA' : code;
+}
+
+/**
+ * What the agent's `language` is sent as: the main locale alone, or the explicit list
+ * when the customer picked "also speaks" (ADR 0003 §6), mapped and de-duplicated — an
+ * Emirati agent that also speaks Saudi Arabic is one platform locale, not two.
+ */
+export function platformLanguages(primary: AgentLanguage, extra: readonly AgentLanguage[]): RetellLanguage | RetellLanguage[] {
+  const all = [...new Set([primary, ...extra].map(platformLanguage))];
+  return extra.length > 0 && all.length > 1 ? all : all[0]!;
+}
+
+/**
+ * The transcription mode for an agent: the tier's, except Arabic, which always runs
+ * `accurate`. In the 26 Oct proof calls `fast` (10 ms end-of-speech) cut Saudi callers
+ * off mid-sentence and logged noise as "unintelligible" turns; `accurate` (300 ms) did
+ * neither, and Arabic phone numbers are dictated with pauses (ADR 0027).
+ */
+export function sttModeFor(primary: AgentLanguage, tierMode: TierStack['stt_mode']): TierStack['stt_mode'] {
+  return primary.startsWith('ar-') ? 'accurate' : tierMode;
+}
 export type PostCallAnalysisField = NonNullable<Retell.AgentCreateParams['post_call_analysis_data']>[number];
 export type PostCallAnalysisModel = NonNullable<Retell.AgentCreateParams['post_call_analysis_model']>;
 

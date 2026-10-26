@@ -577,11 +577,11 @@ describe('POST /agents/:id/publish (§13.6)', () => {
     expect((version.lintJson as { findings: unknown[] }).findings.length).toBeGreaterThan(0);
   });
 
-  it('refuses a version that has no prompt yet', async () => {
+  it('refuses a version that has no prompt yet — AGENT_NOT_GENERATED, not BRIEF_INCOMPLETE (QA-021)', async () => {
     const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id;
     const res = await req('POST', `/agents/${agentId}/publish`, {});
-    expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('BRIEF_INCOMPLETE');
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('AGENT_NOT_GENERATED');
   });
 
   it('leaves the agent unpublished when Retell fails, and says so as a 503', async () => {
@@ -689,8 +689,8 @@ describe('pause, resume and delete', () => {
     const draftOnly = (await req('POST', '/agents', { template_id: 'custom' })).json().id;
     await adminDb.agent.update({ where: { id: draftOnly }, data: { status: 'paused' } });
     const res = await req('POST', `/agents/${draftOnly}/resume`);
-    expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('BRIEF_INCOMPLETE');
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('AGENT_NOT_PUBLISHED');
   });
 
   it('pause and delete are owner/admin only (D3)', async () => {

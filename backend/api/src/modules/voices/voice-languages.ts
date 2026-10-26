@@ -53,6 +53,12 @@ const ACCENT_LANGUAGES: Record<string, string[]> = {
   ukrainian: ['uk-UA'],
   turkish: ['tr-TR'],
   arabic: ['ar-SA'],
+  // ADR 0027: the curated Gulf voices (`curated-voices.ts`). `ar-AE` is our locale, not the
+  // platform's; a Saudi voice still ranks as Arabic for an Emirati agent, below Emirati ones.
+  saudi: ['ar-SA'],
+  emirati: ['ar-AE'],
+  gulf: ['ar-SA', 'ar-AE'],
+  khaleeji: ['ar-SA', 'ar-AE'],
   hebrew: ['he-IL'],
   chinese: ['zh-CN'],
   mandarin: ['zh-CN'],

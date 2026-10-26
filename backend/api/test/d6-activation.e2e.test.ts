@@ -147,6 +147,17 @@ describe('the activation workflow', () => {
     }
   }, 60_000);
 
+  it('refuses an agent that was never generated with AGENT_NOT_GENERATED and queues nothing (QA-021)', async () => {
+    const ws = await paidWorkspace(app, 'act-ungenerated', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const created = await call('POST', '/agents', headers, { template_id: 'receptionist', industry: 'dental' });
+    const agentId = created.body.id as string;
+    const res = await call('POST', `/agents/${agentId}/activate`, headers, {});
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('AGENT_NOT_GENERATED');
+    expect(await adminDb.job.count({ where: { tenantId: ws.workspaceId, type: 'activate-agent' } })).toBe(0);
+  });
+
   it('a workspace cannot activate or watch another workspace\'s agent', async () => {
     const owner = await paidWorkspace(app, 'act-owner', 'growth');
     const agentId = await publishedAgent(call, await auth(owner.sub, owner.workspaceId));

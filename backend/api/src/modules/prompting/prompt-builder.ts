@@ -8,6 +8,7 @@ import type {
   ModelAnalysisField,
 } from '@portal/schemas';
 import type { BusinessHours } from '@portal/schemas';
+import { dialectSection } from './dialects';
 import { STAFF_LABEL } from './staff-transfer';
 
 /**
@@ -128,6 +129,7 @@ export function buildUserPrompt(context: GenerationContext): string {
     `- Agent tier: ${context.tier}`,
     '',
     ...identitySection(context),
+    ...withGap(dialectSection(context.primaryLanguage)),
     '',
     ...closingSection(),
     ...withGap(transferSection(brief)),
@@ -348,6 +350,7 @@ export function buildFeedbackPrompt(input: {
     'automatically and cannot be changed.',
     '',
     `# Primary language\n${input.primaryLanguage}`,
+    ...withGap(dialectSection(input.primaryLanguage)),
     '',
     `# Current greeting\n${input.greeting ?? '(none)'}`,
     '',

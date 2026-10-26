@@ -1,4 +1,5 @@
 import type { Brief, BriefDocument } from '@portal/schemas';
+import { stripLanguageBlock } from './dialects';
 import { applyGuardrails } from './guardrails';
 import { redactTransferNumbers, transferRoutes } from './staff-transfer';
 
@@ -36,20 +37,22 @@ export function documentsBlock(documents: readonly BriefDocument[]): string {
 }
 
 /**
- * The prompt exactly as the platform runs it: script, documents, then the fixed rules.
- * The script never carries a staff transfer number to the platform, whatever the stored
- * text says (BUG-005, `staff-transfer.ts`); the documents are the business's own words
- * and are left as written.
+ * The prompt exactly as the platform runs it: script, documents, the language block
+ * (Arabic agents, `dialects.ts`), then the fixed rules. The script never carries a staff
+ * transfer number to the platform, whatever the stored text says (BUG-005,
+ * `staff-transfer.ts`); the documents are the business's own words and are left as
+ * written.
  */
 export function runtimePrompt(
   promptText: string,
   brief: Pick<Brief, 'documents'> & Partial<Pick<Brief, 'handoff_rules'>>,
   guardrails?: string | readonly string[] | null,
+  language?: string | null,
 ): string {
   const script = redactTransferNumbers(promptText, transferRoutes({ handoff_rules: brief.handoff_rules ?? [] }).map((route) => route.number));
-  const block = documentsBlock(brief.documents ?? []);
-  return block
-    ? applyGuardrails(`${stripDocuments(script)}\n\n${block}`, guardrails)
+  const blocks = [documentsBlock(brief.documents ?? []), language ?? null].filter((block): block is string => Boolean(block));
+  return blocks.length
+    ? applyGuardrails(`${stripLanguageBlock(stripDocuments(script))}\n\n${blocks.join('\n\n')}`, guardrails)
     : applyGuardrails(script, guardrails);
 }
 

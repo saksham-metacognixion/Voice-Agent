@@ -40,15 +40,18 @@ export function checkCapturedPhones(input: CapturedPhoneInput): CapturedPhoneChe
   for (const [field, raw] of Object.entries(input.captured as Record<string, unknown>)) {
     if (!isPhoneFieldName(field)) continue;
     const value = typeof raw === 'string' ? raw.trim() : typeof raw === 'number' && Number.isFinite(raw) ? String(raw) : '';
-    const digits = value.replace(/\D/g, '');
+    // An Arabic agent's analysis writes «٠٥٥١٢٣٤٥٦٧» (ADR 0027): the checks below read
+    // ASCII digits, the response keeps what was captured.
+    const ascii = asciiDigits(value);
+    const digits = ascii.replace(/\D/g, '');
     if (!digits) continue;
 
-    const forms = nationalForms(value, regions);
+    const forms = nationalForms(ascii, regions);
     const said = windows.some((w) => forms.some((f) => w.includes(f)));
     const isCallerId = callerForms.some((c) => forms.includes(c));
     let status: CapturedPhoneStatus = 'ok';
     if (input.callerTurns.length > 0 && !said && !isCallerId) status = 'mismatch';
-    else if (!isValidIn(value, regions)) status = 'invalid';
+    else if (!isValidIn(ascii, regions)) status = 'invalid';
 
     checks.push({ field, value, status, digits: digits.length, heard: status === 'ok' ? [] : heard });
   }
@@ -93,6 +96,35 @@ const TEENS: Record<string, string> = {
   ten: '10', eleven: '11', twelve: '12', thirteen: '13', fourteen: '14', fifteen: '15', sixteen: '16', seventeen: '17', eighteen: '18', nineteen: '19',
 };
 const TENS: Record<string, string> = { twenty: '2', thirty: '3', forty: '4', fifty: '5', sixty: '6', seventy: '7', eighty: '8', ninety: '9' };
+/**
+ * Arabic digit words (ADR 0027), after `normaliseArabic`: «اثنين» and «اثنان», «ثلاثة»
+ * and «ثلاث», the Gulf «ثنين» and «تسعه». Teens and tens are not here — numbers are
+ * dictated digit by digit, which is what the agent asks for.
+ */
+const ARABIC_UNITS: Record<string, string> = {
+  صفر: '0', واحد: '1', اثنين: '2', اثنان: '2', ثنين: '2', ثلاثه: '3', ثلاث: '3', تلاته: '3', اربعه: '4', اربع: '4',
+  خمسه: '5', خمس: '5', سته: '6', ست: '6', سبعه: '7', سبع: '7', ثمانيه: '8', ثماني: '8', ثمان: '8', تمانيه: '8',
+  تسعه: '9', تسع: '9',
+};
+for (const [word, digit] of Object.entries(ARABIC_UNITS)) UNITS[word] = digit;
+
+/** Eastern Arabic and Persian numerals → ASCII. */
+export function asciiDigits(text: string): string {
+  return text.replace(/[\u0660-\u0669\u06f0-\u06f9]/g, (d) => String((d.charCodeAt(0) - 0x0660) % 0x90));
+}
+
+/**
+ * One spelling per Arabic word: no diacritics or tatweel, every alef plain, tā' marbūṭa
+ * as hā', alif maqṣūra as yā'. «وخمسة» ("and five") loses its «و» in `spokenDigitRuns`.
+ */
+function normaliseArabic(text: string): string {
+  return text
+    .replace(/[\u064b-\u0652\u0640]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي');
+}
+
 /** Said in the middle of a number without ending it. */
 const FILLERS = new Set(['uh', 'um', 'umm', 'er', 'erm', 'ah', 'hmm', 'mm']);
 const REPEATS: Record<string, number> = { double: 2, triple: 3 };
@@ -104,7 +136,10 @@ const REPEATS: Record<string, number> = { double: 2, triple: 3 };
  * any other word does. Nothing is inferred: a run holds exactly the digits said.
  */
 export function spokenDigitRuns(utterance: string): string[] {
-  const tokens = utterance.toLowerCase().match(/[a-z]+|\d+/g) ?? [];
+  const tokens = (normaliseArabic(asciiDigits(utterance)).toLowerCase().match(/[a-z]+|[\u0621-\u064a]+|\d+/g) ?? []).map((token) =>
+    // «وخمسة»: a digit word with "and" glued to it.
+    token.length > 2 && token.startsWith('و') && token.slice(1) in ARABIC_UNITS ? token.slice(1) : token,
+  );
   const runs: string[] = [];
   let run = '';
   const end = () => {

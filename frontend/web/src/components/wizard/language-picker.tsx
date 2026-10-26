@@ -1,15 +1,16 @@
 'use client';
 
-import type { RetellLanguage } from '@portal/schemas';
+import type { AgentLanguage } from '@portal/schemas';
 import { Badge, Button, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from '@portal/ui';
 import { Check, Plus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
+import { useLocaleChoice } from '@/src/i18n/locale-provider';
 import { choosePrimary, languageName, sortedLanguages, type LanguageChoice } from '@/src/wizard/languages';
 
 export interface LanguagePickerProps {
-  primary: RetellLanguage;
-  languages: RetellLanguage[];
+  primary: AgentLanguage;
+  languages: AgentLanguage[];
   /** Every change carries both halves, so the caller saves once (QA-011). */
   onChange: (next: LanguageChoice) => void;
   disabled?: boolean;
@@ -20,7 +21,8 @@ const MAX_EXTRA = 4;
 /** W3 — main language (select) and "also speaks" (chips, up to four). */
 export function LanguagePicker({ primary, languages, onChange, disabled }: LanguagePickerProps) {
   const t = useTranslations('wizard.w3');
-  const all = React.useMemo(sortedLanguages, []);
+  const { locale } = useLocaleChoice();
+  const all = React.useMemo(() => sortedLanguages(locale), [locale]);
   const [adding, setAdding] = React.useState(false);
   const extras = languages.filter((l) => l !== primary);
   const full = extras.length >= MAX_EXTRA;
@@ -31,7 +33,7 @@ export function LanguagePicker({ primary, languages, onChange, disabled }: Langu
         <Select
           value={primary}
           disabled={disabled}
-          onValueChange={(v) => onChange(choosePrimary(v as RetellLanguage, languages))}
+          onValueChange={(v) => onChange(choosePrimary(v as AgentLanguage, languages))}
         >
           <SelectTrigger id="primary-language">
             <SelectValue />
@@ -69,7 +71,7 @@ export function LanguagePicker({ primary, languages, onChange, disabled }: Langu
                 value=""
                 disabled={disabled}
                 onValueChange={(v) => {
-                  onChange({ primary_language: primary, languages: [...extras, v as RetellLanguage].slice(0, MAX_EXTRA) });
+                  onChange({ primary_language: primary, languages: [...extras, v as AgentLanguage].slice(0, MAX_EXTRA) });
                   setAdding(false);
                 }}
               >

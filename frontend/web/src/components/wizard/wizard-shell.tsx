@@ -17,6 +17,7 @@ import { useWorkspace } from '@/src/workspace/workspace-provider';
  * The §8 wizard frame: logo, workspace, stepper, balance, account. Pages render inside.
  * The workspace switcher is the dashboard's own (QA-013): someone with two workspaces can
  * leave a half-built agent in one and carry on in the other without finishing the wizard.
+ * The account menu offers the same switch, so it is one tap away on a phone as well.
  */
 export function WizardShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
@@ -68,8 +69,10 @@ export function WizardShell({ children }: { children: React.ReactNode }) {
                 <Link href={routes.app.home}>{t('wizard.exit')}</Link>
               </Button>
             ) : null}
-            <LanguageMenu />
-            <ThemeToggle labels={themeLabels} />
+            {/* Below `sm` the account menu carries language and theme, as in the dashboard header:
+                the room goes to the workspace's name beside the stepper (QA-013). */}
+            <LanguageMenu className="hidden sm:inline-flex" />
+            <ThemeToggle labels={themeLabels} className="hidden sm:inline-flex" />
             <UserMenu />
           </div>
         </div>

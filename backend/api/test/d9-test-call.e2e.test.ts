@@ -98,18 +98,18 @@ describe('POST /agents/:id/test/web', () => {
     expect(minted.agentVersion).toBe(version.retellAgentVersion);
   });
 
-  it('refuses a draft with no prompt yet, and a version that does not exist', async () => {
+  it('refuses a draft with no prompt yet (AGENT_NOT_GENERATED, QA-021), and a version that does not exist', async () => {
     const ws = await trialWorkspace('tw-noprompt');
     const headers = await auth(ws.sub, ws.workspaceId);
     const created = await call('POST', '/agents', headers, { template_id: 'receptionist', industry: 'dental' });
     const agentId = created.body.id as string;
     const res = await call('POST', `/agents/${agentId}/test/web`, headers, {});
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe('BRIEF_INCOMPLETE');
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('AGENT_NOT_GENERATED');
     expect((await call('POST', `/agents/${agentId}/test/web`, headers, { version_no: 99 })).status).toBe(404);
   });
 
-  it('answers 409 VERSION_SYNCING, not BRIEF_INCOMPLETE, for a version whose platform copy is not ready yet (QA-021)', async () => {
+  it('answers 409 VERSION_SYNCING, not AGENT_NOT_GENERATED or BRIEF_INCOMPLETE, for a version whose platform copy is not ready yet (QA-021)', async () => {
     const ws = await trialWorkspace('tw-syncing');
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);

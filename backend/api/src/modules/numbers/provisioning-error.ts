@@ -52,6 +52,8 @@ const RETRYABLE_KINDS = new Set<ProvisioningErrorKind>(['unavailable', 'internal
 const PERMANENT_APP_CODES = new Set([
   'LINT_FAILED',
   'BRIEF_INCOMPLETE',
+  'AGENT_NOT_GENERATED',
+  'AGENT_NOT_PUBLISHED',
   'NOT_FOUND',
   'WORKSPACE_PAUSED',
   'NOT_CONFIGURED',

@@ -257,6 +257,40 @@ describe('AgentRetellService: what W3 promises actually reaches Retell', () => {
   });
 });
 
+describe('AgentRetellService: Arabic agents (ADR 0027)', () => {
+  const sync = async (over: Partial<RetellSyncInput>) => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft(input(over));
+    return {
+      agent: gw.calls.find((c) => c.method === 'createAgent')!.args[0] as Record<string, unknown>,
+      llm: gw.calls.find((c) => c.method === 'createLlm')!.args[0] as { prompt: string },
+    };
+  };
+
+  it('runs an Emirati agent on the platform\'s Arabic, ar-SA', async () => {
+    expect((await sync({ primaryLanguage: 'ar-AE' })).agent.language).toBe('ar-SA');
+  });
+
+  it('maps the extra languages too, and two Arabics become one', async () => {
+    expect((await sync({ primaryLanguage: 'ar-AE', languages: ['en-US'] })).agent.language).toEqual(['ar-SA', 'en-US']);
+    expect((await sync({ primaryLanguage: 'ar-AE', languages: ['ar-SA'] })).agent.language).toBe('ar-SA');
+  });
+
+  it('transcribes Arabic accurately whatever the tier says, and leaves other languages alone', async () => {
+    const fast = { ...stack, stt_mode: 'fast' as const };
+    expect((await sync({ primaryLanguage: 'ar-SA', stack: fast })).agent.sttMode).toBe('accurate');
+    expect((await sync({ primaryLanguage: 'en-US', stack: fast })).agent.sttMode).toBe('fast');
+  });
+
+  it('appends the dialect block before the platform rules, and only for Arabic', async () => {
+    const { llm } = await sync({ primaryLanguage: 'ar-AE' });
+    expect(llm.prompt).toContain('## Language (fixed)');
+    expect(llm.prompt).toContain('Emirati Arabic');
+    expect(llm.prompt.indexOf('## Language (fixed)')).toBeLessThan(llm.prompt.indexOf('## Platform rules (fixed)'));
+    expect((await sync({ primaryLanguage: 'en-US' })).llm.prompt).not.toContain('## Language (fixed)');
+  });
+});
+
 // BUG-005: the platform dials the staff number; the model never reads it.
 describe('AgentRetellService staff transfers', () => {
   const brief = {

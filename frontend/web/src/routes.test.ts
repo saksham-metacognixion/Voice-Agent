@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ONBOARDING_STEPS, callPath, effectiveStep, routes, safeNext, samePath, signedInDestination, stepAllowed, stepPath, withNext } from './routes';
+import { ONBOARDING_STEPS, callPath, effectiveStep, routes, safeNext, samePath, signedInDestination, stepAllowed, stepPath, switchWorkspaceDestination, withNext } from './routes';
 
 describe('safeNext (QA-001)', () => {
   it('keeps a same-origin path with its query, so a deep link and an invite token survive', () => {
@@ -127,5 +127,26 @@ describe('wizard step gating (QA-004)', () => {
     expect(samePath('/onboarding/test', routes.onboarding.test)).toBe(true);
     expect(samePath('/', '/')).toBe(true);
     expect(samePath('/onboarding/test/', routes.onboarding.phone)).toBe(false);
+  });
+});
+
+describe('switchWorkspaceDestination (QA-013)', () => {
+  const q = (s: string) => new URLSearchParams(s);
+
+  it('keeps the page\'s own ?next= through the switch', () => {
+    expect(switchWorkspaceDestination(q(`next=${encodeURIComponent(callPath('call_9'))}`))).toBe('/app/calls/?call=call_9');
+    expect(switchWorkspaceDestination(q(`next=${encodeURIComponent('/invite/?token=abc')}`))).toBe('/invite/?token=abc');
+    expect(switchWorkspaceDestination(q(`next=${encodeURIComponent(stepPath(2))}`))).toBe(stepPath(2));
+  });
+
+  it('otherwise goes to /, whose gate places the new workspace — never the old workspace\'s page', () => {
+    expect(switchWorkspaceDestination(q(''))).toBe(routes.root);
+    expect(switchWorkspaceDestination(q('id=agent_of_the_old_workspace&tab=prompt'))).toBe(routes.root);
+  });
+
+  it('refuses a next= that leaves the origin or loops to sign-in', () => {
+    expect(switchWorkspaceDestination(q('next=https://evil.example'))).toBe(routes.root);
+    expect(switchWorkspaceDestination(q('next=//evil.example'))).toBe(routes.root);
+    expect(switchWorkspaceDestination(q('next=/login/'))).toBe(routes.root);
   });
 });

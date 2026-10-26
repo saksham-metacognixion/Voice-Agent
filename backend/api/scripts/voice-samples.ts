@@ -15,16 +15,19 @@
  * is rewritten after every clip so an interrupted run keeps what it made. Rerunning skips
  * voices that already have a file. The voice list is the local `voices` cache — the same
  * public catalogue every environment's platform workspace lists; `custom_voice_*` ids are
- * account-specific and skipped. Costs a few cents of call time per clip.
+ * account-specific and skipped — except the curated voices (ADR 0027), found on the
+ * platform by name and filed as `curated:<key>`, so one clip serves every environment
+ * (`--force curated:gulf-mona` re-records one). Costs a few cents of call time per clip.
  */
 import 'reflect-metadata';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { adminDb } from '@portal/db';
-import { retellLanguage } from '@portal/schemas';
+import { retellLanguage, type AgentTier } from '@portal/schemas';
 import { agentStackTiers, voiceModelFor, type Language } from '../src/modules/retell/retell.types';
 import { RetellConfig } from '../src/modules/retell/retell.config';
 import { RetellGateway } from '../src/modules/retell/retell.gateway';
+import { CURATED_VOICES } from '../src/modules/voices/curated-voices';
 import { nativeLanguages } from '../src/modules/voices/voice-languages';
 import { VOICE_SAMPLE_FILES } from '../src/modules/voices/voice-samples.generated';
 import { voiceSampleFile } from '../src/modules/voices/voice-samples';
@@ -65,12 +68,29 @@ const LINES: Record<string, { locale: Language; text: string }> = {
   },
 };
 
+/**
+ * Lines for one locale, ahead of `LINES`: a dialect a base-language line would get wrong.
+ * `locale` is what the recording agent runs on — the platform has no `ar-AE` (ADR 0027).
+ */
+const LOCALE_LINES: Record<string, { locale: Language; text: string }> = {
+  'ar-SA': {
+    locale: 'ar-SA',
+    text: 'هلا والله، شكراً لاتصالك. أقدر أحجز لك موعد، أو أجاوب على أسئلتك، أو آخذ رسالة للفريق. كيف أقدر أساعدك اليوم؟',
+  },
+  'ar-AE': {
+    locale: 'ar-SA',
+    text: 'هلا ومرحبا، مشكور على اتصالك. أقدر أحجز لك موعد، أو أرد على أسئلتك، أو آخذ رسالة للفريق. شو أقدر أساعدك فيه اليوم؟',
+  },
+};
+
 function lineFor(voice: { languages: string[]; accent: string | null }): {
   locale: Language;
   text: string;
 } {
   const native = nativeLanguages(voice);
   for (const locale of native) {
+    const dialect = LOCALE_LINES[locale];
+    if (dialect) return dialect;
     const line = LINES[locale.toLowerCase().split('-')[0] ?? ''];
     if (!line) continue;
     const exact = retellLanguage.safeParse(locale);
@@ -94,6 +114,15 @@ export const VOICE_SAMPLE_FILES: Readonly<Record<string, string>> = {${entries ?
   );
 }
 
+interface SampleJob {
+  /** What the manifest files the clip under (`ourVoiceSample`). */
+  key: string;
+  voiceId: string;
+  provider: string;
+  tier: AgentTier;
+  voice: { languages: string[]; accent: string | null };
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const force = args.includes('--force');
@@ -115,17 +144,38 @@ async function main() {
       'the voices cache is empty — start the worker once (voice-cache) or GET /voices',
     );
   for (const id of only)
-    if (!voices.some((v) => v.retellVoiceId === id))
-      throw new Error(`no voice "${id}" in the cache`);
+    if (!voices.some((v) => v.retellVoiceId === id) && !CURATED_VOICES.some((c) => `curated:${c.key}` === id))
+      throw new Error(`no voice "${id}" in the cache or the curated list`);
 
   mkdirSync(OUT_DIR, { recursive: true });
   const files: Record<string, string> = { ...VOICE_SAMPLE_FILES };
-  const todo = voices.filter((v) => {
-    if (only.length) return only.includes(v.retellVoiceId);
-    if (v.retellVoiceId.startsWith('custom_voice_')) return false;
-    const file = files[v.retellVoiceId];
+  const wanted = (key: string) => {
+    if (only.length) return only.includes(key);
+    const file = files[key];
     return force || !file || !existsSync(path.join(OUT_DIR, file));
-  });
+  };
+  // A clip is filed under the platform id, or `curated:<key>` for a voice we added
+  // ourselves: its `custom_voice_*` id is this workspace's only (`curated-voices.ts`).
+  const todo: SampleJob[] = voices
+    .filter((v) => !v.retellVoiceId.startsWith('custom_voice_') && wanted(v.retellVoiceId))
+    .map((v) => ({ key: v.retellVoiceId, voiceId: v.retellVoiceId, provider: v.provider, tier: v.tier, voice: v }));
+  const listed = new Map((await gw.listVoices()).map((v) => [v.voice_name, v.voice_id]));
+  for (const curated of CURATED_VOICES) {
+    const key = `curated:${curated.key}`;
+    const voiceId = listed.get(curated.platformName);
+    if (!wanted(key)) continue;
+    if (!voiceId) {
+      console.warn(`${key}: "${curated.platformName}" is not in this workspace — run voices:import first`);
+      continue;
+    }
+    todo.push({
+      key,
+      voiceId,
+      provider: curated.provider,
+      tier: 'premium',
+      voice: { languages: nativeLanguages({ accent: curated.accent }), accent: curated.accent },
+    });
+  }
   console.log(`${todo.length} of ${voices.length} voices to record, ${concurrency} at a time`);
 
   const recorder = await startRecorder(gw, { browsers: Math.min(concurrency, todo.length || 1) });
@@ -136,10 +186,10 @@ async function main() {
     await Promise.all(
       recorder.browsers.map(async (browser) => {
         while (next < todo.length) {
-          const voice = todo[next++]!;
-          const id = voice.retellVoiceId;
-          const stack = tiers[voice.tier];
-          const line = lineFor(voice);
+          const job = todo[next++]!;
+          const id = job.key;
+          const stack = tiers[job.tier];
+          const line = lineFor(job.voice);
           const file = voiceSampleFile(id);
           try {
             const { callId, seconds } = await recorder.record(
@@ -147,8 +197,8 @@ async function main() {
               {
                 name: `dev-sample-voice-${file.slice(0, 8)}`,
                 text: line.text,
-                voiceId: id,
-                voiceModel: voiceModelFor(voice.provider, stack.voice_model),
+                voiceId: job.voiceId,
+                voiceModel: voiceModelFor(job.provider, stack.voice_model),
                 language: line.locale,
                 stack,
                 metadata: { purpose: 'voice_sample', voice_id: id },

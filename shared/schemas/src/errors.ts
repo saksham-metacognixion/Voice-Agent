@@ -80,6 +80,13 @@ export const ErrorCode = {
   NUMBER_IN_USE: 'NUMBER_IN_USE',
   /** The version exists but its voice-platform copy is not ready yet (a test call right after Improve). Transient (QA-021). */
   VERSION_SYNCING: 'VERSION_SYNCING',
+  /**
+   * The agent has no generated script yet — nothing to test, publish, activate or improve.
+   * Not BRIEF_INCOMPLETE: that one means the brief itself is missing what generation needs (QA-021).
+   */
+  AGENT_NOT_GENERATED: 'AGENT_NOT_GENERATED',
+  /** The operation needs a published agent (resume, point a number at it) and this one never was (QA-021). */
+  AGENT_NOT_PUBLISHED: 'AGENT_NOT_PUBLISHED',
   // 422
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   LINT_FAILED: 'LINT_FAILED',
@@ -144,6 +151,8 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   ACTIVATION_IN_PROGRESS: 409,
   NUMBER_IN_USE: 409,
   VERSION_SYNCING: 409,
+  AGENT_NOT_GENERATED: 409,
+  AGENT_NOT_PUBLISHED: 409,
   VALIDATION_FAILED: 422,
   LINT_FAILED: 422,
   GENERATION_FAILED: 422,

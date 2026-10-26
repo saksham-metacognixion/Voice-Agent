@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { adminDb } from '@portal/db';
-import type { AnalysisField, Brief, RetellLanguage } from '@portal/schemas';
+import type { AgentLanguage, AnalysisField, Brief } from '@portal/schemas';
 import { isPhoneFieldName, transferTargets } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
+import { languageBlock } from '../prompting/dialects';
 import { runtimePrompt } from '../prompting/documents';
 import { redactTransferNumbers, transferRoutes } from '../prompting/staff-transfer';
 import {
@@ -14,7 +15,9 @@ import {
   type PostCallAnalysisField,
   type PostCallAnalysisModel,
   type TierStack,
+  platformLanguages,
   providerOfVoiceId,
+  sttModeFor,
   voiceModelFor,
 } from '../retell';
 
@@ -53,8 +56,9 @@ export class AgentRetellService {
         'The agent stack is not configured; nothing was sent to the voice platform.',
       );
     }
-    const llmSpec = this.llmSpec(input);
-    const voiceProvider = await this.voiceProvider(input.voiceId ?? input.stack.default_voice_id);
+    const voice = await this.voiceFacts(input.voiceId ?? input.stack.default_voice_id);
+    const llmSpec = this.llmSpec(input, voice.gender);
+    const voiceProvider = voice.provider;
     let llmId = input.retellLlmId;
     let created = false;
 
@@ -157,7 +161,7 @@ export class AgentRetellService {
     }
   }
 
-  private llmSpec(input: RetellSyncInput): LlmSpec {
+  private llmSpec(input: RetellSyncInput, voiceGender: string | null): LlmSpec {
     return {
       // Script, then the W2 documents verbatim, then the §9.4 block — the documents live
       // in the brief and are appended here, never stored in the prompt (ADR 0023). Belt
@@ -167,7 +171,10 @@ export class AgentRetellService {
       //
       // Transfer numbers are redacted from what the model reads and says — the script and
       // the greeting — and kept only as the transfer tools' destinations (BUG-005).
-      prompt: runtimePrompt(input.promptText, input.brief, input.guardrails),
+      //
+      // An Arabic agent also gets its dialect, the live voice's gender and how to say a
+      // number, in code like the rest of this tail (ADR 0027, `dialects.ts`).
+      prompt: runtimePrompt(input.promptText, input.brief, input.guardrails, languageBlock(input.primaryLanguage, voiceGender)),
       beginMessage: input.greeting === null ? null : redactTransferNumbers(input.greeting, transferTargets(input.brief)),
       // `agent_stack_configs` is data, so its model id is a string here and a union in the
       // SDK. Retell rejects an id it does not know, which is the check that matters — a
@@ -180,20 +187,21 @@ export class AgentRetellService {
   }
 
   /**
-   * The chosen voice's provider, from the catalogue (`voices.provider`, a global table),
-   * else its id prefix. A catalogue that cannot be read never fails a sync over it.
+   * The chosen voice's provider and gender, from the catalogue (`voices`, a global table);
+   * the provider falls back to the id prefix. A catalogue that cannot be read never fails
+   * a sync over it — the gender is then unknown and the language block says nothing.
    */
-  private async voiceProvider(voiceId: string): Promise<string | null> {
+  private async voiceFacts(voiceId: string): Promise<{ provider: string | null; gender: string | null }> {
     try {
       const row = await adminDb.voice.findUnique({
         where: { retellVoiceId: voiceId },
-        select: { provider: true },
+        select: { provider: true, gender: true },
       });
-      if (row?.provider) return row.provider;
+      if (row) return { provider: row.provider || providerOfVoiceId(voiceId), gender: row.gender };
     } catch {
       /* fall through to the prefix */
     }
-    return providerOfVoiceId(voiceId);
+    return { provider: providerOfVoiceId(voiceId), gender: null };
   }
 
   private agentSpec(
@@ -227,16 +235,17 @@ export class AgentRetellService {
       // the decision that overrides §W3's literal `multi` (reviewed again 21 Sep 2026);
       // if the spec owner wants the literal reading, this branch, the "what W3 promises"
       // tests and that ADR note change together.
-      language:
-        input.languages.length > 0
-          ? [...new Set<RetellLanguage>([input.primaryLanguage, ...input.languages])]
-          : input.primaryLanguage,
+      //
+      // Our locales are mapped to the platform's on the way out (`ar-AE` → `ar-SA`,
+      // ADR 0027), which can make two of them one.
+      language: platformLanguages(input.primaryLanguage, input.languages),
       maxCallDurationMs: this.maxDurationMs(input),
       postCallAnalysis: toRetellAnalysisFields(input.analysisFields),
       postCallAnalysisModel: input.stack.post_call_analysis_model as
         PostCallAnalysisModel | undefined,
       denoisingMode: input.stack.denoising_mode,
-      sttMode: input.stack.stt_mode,
+      // Arabic always transcribes `accurate`, whatever the tier says (ADR 0027).
+      sttMode: sttModeFor(input.primaryLanguage, input.stack.stt_mode),
       timezone: input.timezone,
     };
   }
@@ -286,8 +295,8 @@ export interface RetellSyncInput {
   voiceId: string | null;
   voiceSpeed: number | null;
   voiceTemperature: number | null;
-  primaryLanguage: RetellLanguage;
-  languages: RetellLanguage[];
+  primaryLanguage: AgentLanguage;
+  languages: AgentLanguage[];
   maxCallDurationS: number;
   timezone: string;
   businessName: string;

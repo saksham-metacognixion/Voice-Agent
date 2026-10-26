@@ -8524,7 +8524,8 @@
                         "ta-IN",
                         "ur-IN",
                         "yue-CN",
-                        "uk-UA"
+                        "uk-UA",
+                        "ar-AE"
                       ],
                       "type": "string"
                     },
@@ -8602,7 +8603,8 @@
                       "ta-IN",
                       "ur-IN",
                       "yue-CN",
-                      "uk-UA"
+                      "uk-UA",
+                      "ar-AE"
                     ],
                     "type": "string"
                   },
@@ -9269,7 +9271,8 @@
                         "ta-IN",
                         "ur-IN",
                         "yue-CN",
-                        "uk-UA"
+                        "uk-UA",
+                        "ar-AE"
                       ],
                       "type": "string"
                     },
@@ -9347,7 +9350,8 @@
                       "ta-IN",
                       "ur-IN",
                       "yue-CN",
-                      "uk-UA"
+                      "uk-UA",
+                      "ar-AE"
                     ],
                     "type": "string"
                   },
@@ -9880,7 +9884,8 @@
                 "ta-IN",
                 "ur-IN",
                 "yue-CN",
-                "uk-UA"
+                "uk-UA",
+                "ar-AE"
               ],
               "type": "string"
             },
@@ -9963,7 +9968,8 @@
               "ta-IN",
               "ur-IN",
               "yue-CN",
-              "uk-UA"
+              "uk-UA",
+              "ar-AE"
             ],
             "type": "string"
           },
@@ -10646,7 +10652,8 @@
                     "ta-IN",
                     "ur-IN",
                     "yue-CN",
-                    "uk-UA"
+                    "uk-UA",
+                    "ar-AE"
                   ],
                   "type": "string"
                 },
@@ -10724,7 +10731,8 @@
                   "ta-IN",
                   "ur-IN",
                   "yue-CN",
-                  "uk-UA"
+                  "uk-UA",
+                  "ar-AE"
                 ],
                 "type": "string"
               },
@@ -26154,9 +26162,10 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {ACTIVATION_IN_PROGRESS}",
+            "description": "Error envelope; `code` ∈ {ACTIVATION_IN_PROGRESS, AGENT_NOT_GENERATED}",
             "x-error-codes": [
-              "ACTIVATION_IN_PROGRESS"
+              "ACTIVATION_IN_PROGRESS",
+              "AGENT_NOT_GENERATED"
             ]
           },
           "422": {
@@ -26799,8 +26808,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {GENERATION_PAUSED}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, GENERATION_PAUSED}",
             "x-error-codes": [
+              "AGENT_NOT_GENERATED",
               "GENERATION_PAUSED"
             ]
           },
@@ -27751,8 +27761,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {PUBLISH_IN_PROGRESS}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, PUBLISH_IN_PROGRESS}",
             "x-error-codes": [
+              "AGENT_NOT_GENERATED",
               "PUBLISH_IN_PROGRESS"
             ]
           },
@@ -27883,6 +27894,19 @@
             "x-error-codes": [
               "NOT_FOUND"
             ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED}",
+            "x-error-codes": [
+              "AGENT_NOT_PUBLISHED"
+            ]
           }
         },
         "security": [
@@ -27947,9 +27971,8 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {BRIEF_INCOMPLETE, WORKSPACE_REQUIRED}",
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
             "x-error-codes": [
-              "BRIEF_INCOMPLETE",
               "WORKSPACE_REQUIRED"
             ]
           },
@@ -28017,8 +28040,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {CONCURRENCY_LIMIT, TESTS_PAUSED, VERSION_SYNCING}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, CONCURRENCY_LIMIT, TESTS_PAUSED, VERSION_SYNCING}",
             "x-error-codes": [
+              "AGENT_NOT_GENERATED",
               "CONCURRENCY_LIMIT",
               "TESTS_PAUSED",
               "VERSION_SYNCING"
@@ -32017,8 +32041,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONFLICT}",
             "x-error-codes": [
+              "AGENT_NOT_PUBLISHED",
               "CONFLICT"
             ]
           },

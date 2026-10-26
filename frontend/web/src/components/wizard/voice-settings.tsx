@@ -1,7 +1,7 @@
 'use client';
 
 import { isApiError, useApi, useListVoices, useUpdateAgentDraft } from '@portal/api-client';
-import type { AgentDetail, RetellLanguage, VoiceResponse } from '@portal/schemas';
+import type { AgentDetail, AgentLanguage, VoiceResponse } from '@portal/schemas';
 import { Alert, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Button, Field, Slider, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -46,8 +46,8 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
   const patch = useUpdateAgentDraft(api);
   const settings = agent.draft?.settings ?? agent.published?.settings;
 
-  const [primary, setPrimary] = React.useState<RetellLanguage>(settings?.primary_language ?? 'en-US');
-  const [languages, setLanguages] = React.useState<RetellLanguage[]>(settings?.languages ?? []);
+  const [primary, setPrimary] = React.useState<AgentLanguage>(settings?.primary_language ?? 'en-US');
+  const [languages, setLanguages] = React.useState<AgentLanguage[]>(settings?.languages ?? []);
   const [voiceId, setVoiceId] = React.useState<string | null>(settings?.voice_id ?? null);
   const [speed, setSpeed] = React.useState<number>(settings?.voice_speed ?? 1);
   const [temperature, setTemperature] = React.useState<number>(settings?.voice_temperature ?? 0.5);

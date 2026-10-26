@@ -183,7 +183,7 @@ export class NumbersService {
       if (patch.agent_id !== undefined && patch.agent_id !== current.agentId) {
         const agent = await this.loadAgent(db, ctx, patch.agent_id);
         if (!agent.retellAgentId || agent.publishedVersion === null) {
-          throw new AppError('BRIEF_INCOMPLETE', 'Publish that agent before pointing a number at it.', [{ field: 'agent_id', message: 'Agent is not published' }]);
+          throw new AppError('AGENT_NOT_PUBLISHED', 'Publish that agent before pointing a number at it.', [{ field: 'agent_id', message: 'Agent is not published' }]);
         }
         data.agentId = agent.id;
         if (current.e164 && current.status !== 'provisioning') repoint = { retellAgentId: agent.retellAgentId };

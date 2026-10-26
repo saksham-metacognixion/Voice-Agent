@@ -128,7 +128,7 @@ export class PromptingService {
 
       const wanted = request.base_version ?? agent.draftVersion;
       if (!wanted)
-        throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before giving feedback on it.');
+        throw new AppError('AGENT_NOT_GENERATED', 'Generate the agent before giving feedback on it.');
 
       const base = await db.agentVersion.findUnique({
         where: { agentId_versionNo: { agentId, versionNo: wanted } },
@@ -137,7 +137,7 @@ export class PromptingService {
       if (!base) throw AppError.notFound(`Version ${wanted}`);
       if (!base.promptText) {
         throw new AppError(
-          'BRIEF_INCOMPLETE',
+          'AGENT_NOT_GENERATED',
           'This version has no prompt to improve yet. Generate it first.',
         );
       }

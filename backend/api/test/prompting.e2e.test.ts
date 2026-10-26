@@ -578,11 +578,11 @@ describe('POST /agents/:id/feedback (§13.5)', () => {
     expect(await adminDb.agentVersion.count({ where: { agentId } })).toBe(2);
   });
 
-  it('refuses feedback on a version with no prompt', async () => {
+  it('refuses feedback on a version with no prompt — AGENT_NOT_GENERATED, not BRIEF_INCOMPLETE (QA-021)', async () => {
     const agentId = await readyAgent();
     const res = await req('POST', `/agents/${agentId}/feedback`, { text: 'Make it friendlier please.' });
-    expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('BRIEF_INCOMPLETE');
+    expect(res.statusCode).toBe(409);
+    expect(res.json().code).toBe('AGENT_NOT_GENERATED');
   });
 
   it('refuses text outside the §9.6 range of 10–500 characters', async () => {

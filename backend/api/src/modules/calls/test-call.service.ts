@@ -64,12 +64,12 @@ export class TestCallService {
       const agent = await db.agent.findFirst({ where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null } });
       if (!agent) throw AppError.notFound('Agent');
       const no = versionNo ?? agent.draftVersion ?? agent.publishedVersion;
-      if (!no) throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before testing it.');
+      if (!no) throw new AppError('AGENT_NOT_GENERATED', 'Generate the agent before testing it.');
       const version = await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo: no } } });
       if (!version) throw AppError.notFound('Version');
       // Nothing to ring yet: the brief has not been turned into a script. Distinct from a
       // version that has one and is still reaching the platform (VERSION_SYNCING below).
-      if (!version.promptText) throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before testing it.');
+      if (!version.promptText) throw new AppError('AGENT_NOT_GENERATED', 'Generate the agent before testing it.');
       return { agent, version };
     });
 

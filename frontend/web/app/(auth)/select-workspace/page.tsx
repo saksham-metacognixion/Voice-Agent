@@ -2,15 +2,13 @@
 
 import { Badge, Button, EmptyState, ErrorState, PageLoader } from '@portal/ui';
 import { Building2, ChevronRight, Plus } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { track } from '@/src/analytics/posthog';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
+import { useSwitchWorkspace } from '@/src/components/shell/workspace-switcher';
 import { RequireVerified } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
-import { readQuery } from '@/src/lib/query-string';
-import { routes, safeNext } from '@/src/routes';
+import { routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /** A7 — Workspace switcher as a page: the landing spot when several memberships exist and none is chosen. */
@@ -25,14 +23,11 @@ export default function SelectWorkspacePage() {
 function SelectInner() {
   const t = useTranslations();
   const ws = useWorkspace();
-  const router = useRouter();
+  const switchTo = useSwitchWorkspace();
 
-  function choose(id: string) {
-    ws.select(id);
-    track('workspace_switched');
-    // Back to the page that sent the person here, else `/` works out where they belong.
-    router.replace(safeNext(readQuery().get('next'), routes.root));
-  }
+  // Back to the page that sent the person here, else `/` works out where they belong —
+  // the same switch as the header and the account menu (QA-013).
+  const choose = (id: string) => switchTo(id, { force: true });
 
   return (
     <AuthLayout title={t('auth.select.title')} subtitle={t('auth.select.subtitle')}>

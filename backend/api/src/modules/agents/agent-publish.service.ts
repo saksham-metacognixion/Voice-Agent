@@ -75,7 +75,7 @@ export class AgentPublishService {
       if (!agent) throw AppError.notFound('Agent');
 
       const wanted = versionNo ?? agent.draftVersion;
-      if (!wanted) throw new AppError('BRIEF_INCOMPLETE', 'This agent has no version to publish yet.');
+      if (!wanted) throw new AppError('AGENT_NOT_GENERATED', 'This agent has no version to publish yet.');
 
       const version = await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo: wanted } } });
       if (!version) throw AppError.notFound(`Version ${wanted}`);
@@ -93,7 +93,7 @@ export class AgentPublishService {
     }
     if (!version.promptText) {
       throw new AppError(
-        'BRIEF_INCOMPLETE',
+        'AGENT_NOT_GENERATED',
         'This version has no prompt yet. Generate the agent before publishing.',
       );
     }
@@ -296,7 +296,7 @@ export class AgentPublishService {
       if (!agent) throw AppError.notFound('Agent');
       if (agent.status !== 'paused') return false;
       if (agent.publishedVersion === null) {
-        throw new AppError('BRIEF_INCOMPLETE', 'Publish this agent before putting it back on the phone.');
+        throw new AppError('AGENT_NOT_PUBLISHED', 'Publish this agent before putting it back on the phone.');
       }
 
       await db.agent.update({ where: { id: agentId }, data: { status: 'live' } });

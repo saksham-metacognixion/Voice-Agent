@@ -552,11 +552,25 @@ export const retellLanguage = z.enum([
 ]);
 export type RetellLanguage = z.infer<typeof retellLanguage>;
 
+/**
+ * The locales an agent can be set to (W3): every one the voice platform accepts, plus
+ * the ones we serve on a platform locale of the same language (ADR 0027).
+ *
+ * `ar-AE` is the only one so far. The platform has a single Arabic locale, `ar-SA`, and
+ * an Emirati agent is not a Saudi one: it speaks another dialect, sounds native with
+ * other voices, and validates numbers against another region. So the customer's choice
+ * is stored as `ar-AE`, and `platformLanguage()` in the gateway sends `ar-SA` — the
+ * speech recognition that understood Emirati callers in the 26 Oct proof calls. A
+ * locale the platform adds later moves from here into `retellLanguage`.
+ */
+export const agentLanguage = z.enum([...retellLanguage.options, 'ar-AE']);
+export type AgentLanguage = z.infer<typeof agentLanguage>;
+
 export const agentSettings = z.object({
   tier: agentTier,
-  primary_language: retellLanguage,
+  primary_language: agentLanguage,
   /** "Also speaks" (W3), up to four. */
-  languages: z.array(retellLanguage).max(4),
+  languages: z.array(agentLanguage).max(4),
   voice_id: z.string().min(1).max(120).nullable(),
   voice_speed: z.number().min(0.8).max(1.2).nullable(),
   voice_temperature: z.number().min(0).max(1).nullable(),
@@ -597,8 +611,8 @@ export const agentDraftPatch = z.object({
   /** Merged field by field; `null` clears an optional field (`briefPatch`). */
   brief: briefPatch.optional(),
   tier: agentTier.optional(),
-  primary_language: retellLanguage.optional(),
-  languages: z.array(retellLanguage).max(4).optional(),
+  primary_language: agentLanguage.optional(),
+  languages: z.array(agentLanguage).max(4).optional(),
   voice_id: z.string().min(1).max(120).nullable().optional(),
   voice_speed: z.number().min(0.8).max(1.2).optional(),
   voice_temperature: z.number().min(0).max(1).optional(),

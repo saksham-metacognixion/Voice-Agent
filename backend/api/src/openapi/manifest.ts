@@ -357,6 +357,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     roles: ['owner', 'admin', 'editor'],
     errors: [
       'NOT_FOUND',
+      'AGENT_NOT_GENERATED',
       'LINT_FAILED',
       'PUBLISH_IN_PROGRESS',
       'WORKSPACE_PAUSED',
@@ -382,7 +383,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     tag: 'agents',
     response: { schema: 'agentDetail' },
     roles: ['owner', 'admin'],
-    errors: ['NOT_FOUND'],
+    errors: ['NOT_FOUND', 'AGENT_NOT_PUBLISHED'],
   },
   {
     method: 'DELETE',
@@ -444,6 +445,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     roles: ['owner', 'admin', 'editor'],
     errors: [
       'NOT_FOUND',
+      'AGENT_NOT_GENERATED',
       'GENERATION_PAUSED',
       'WORKSPACE_PAUSED',
       'EMAIL_UNVERIFIED',
@@ -624,7 +626,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     body: 'updateNumberRequest',
     response: { schema: 'phoneNumberResponse' },
     roles: ['owner', 'admin', 'editor'],
-    errors: ['NOT_FOUND', 'CONFLICT', 'VALIDATION_FAILED'],
+    errors: ['NOT_FOUND', 'CONFLICT', 'VALIDATION_FAILED', 'AGENT_NOT_PUBLISHED'],
   },
   {
     method: 'DELETE',
@@ -650,6 +652,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     roles: ['owner', 'admin'],
     errors: [
       'NOT_FOUND',
+      'AGENT_NOT_GENERATED',
       'NO_CREDITS',
       'PLAN_LIMIT',
       'ACTIVATION_IN_PROGRESS',
@@ -728,7 +731,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
       'TESTS_PAUSED',
       'CONCURRENCY_LIMIT',
       'WORKSPACE_PAUSED',
-      'BRIEF_INCOMPLETE',
+      'AGENT_NOT_GENERATED',
       'VERSION_SYNCING',
       'UPSTREAM_UNAVAILABLE',
     ],

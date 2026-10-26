@@ -254,7 +254,8 @@ describe('PATCH and DELETE /numbers/:id', () => {
     // Re-point: only at a published agent, and the platform binding follows.
     const draftAgent = await publishedAgent(call, headers, { publish: false, name: 'Draft' });
     const refused = await call('PATCH', `/numbers/${row.id}`, headers, { agent_id: draftAgent });
-    expect(refused.status).toBe(400);
+    expect(refused.status).toBe(409);
+    expect(refused.body.code).toBe('AGENT_NOT_PUBLISHED');
     const nightAgent = await publishedAgent(call, headers, { name: 'Night' });
     const repointed = await call('PATCH', `/numbers/${row.id}`, headers, { agent_id: nightAgent });
     expect(repointed.body.agent_id).toBe(nightAgent);

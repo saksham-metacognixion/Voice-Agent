@@ -17,7 +17,7 @@ describe('classifyError', () => {
   });
 
   it('a lint failure, a missing brief, a paused workspace and a plan limit are permanent', () => {
-    for (const code of ['LINT_FAILED', 'BRIEF_INCOMPLETE', 'WORKSPACE_PAUSED', 'PLAN_LIMIT', 'NO_CREDITS', 'NOT_FOUND'] as const) {
+    for (const code of ['LINT_FAILED', 'BRIEF_INCOMPLETE', 'AGENT_NOT_GENERATED', 'AGENT_NOT_PUBLISHED', 'WORKSPACE_PAUSED', 'PLAN_LIMIT', 'NO_CREDITS', 'NOT_FOUND'] as const) {
       const classified = classifyError(new AppError(code, `because ${code}`));
       expect(classified.retryable, code).toBe(false);
       expect(classified.customerReason).toBe(`because ${code}`);

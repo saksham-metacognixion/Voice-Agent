@@ -21,7 +21,11 @@ export function voiceSampleFile(voiceId: string): string {
   return `${createHash('sha256').update(voiceId).digest('hex').slice(0, 16)}.mp3`;
 }
 
-export function ourVoiceSample(voiceId: string): string | null {
-  const file = VOICE_SAMPLE_FILES[voiceId];
+/**
+ * `key` is the platform voice id, or `curated:<key>` for a voice we added ourselves —
+ * its platform id differs per environment, the clip does not (`curated-voices.ts`).
+ */
+export function ourVoiceSample(key: string): string | null {
+  const file = VOICE_SAMPLE_FILES[key];
   return file ? `${VOICE_SAMPLE_PATH}${file}` : null;
 }
