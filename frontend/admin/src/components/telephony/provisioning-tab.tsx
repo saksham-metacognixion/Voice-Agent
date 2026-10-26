@@ -150,7 +150,6 @@ function ProvisioningTable({ rows }: { rows: AdminProvisioningJob[] }) {
         description={target ? `${TYPE_LABEL[target.type] ?? target.type} · ${shortId(target.id)}${target.tenant ? ` · ${target.tenant.name}` : ''}` : undefined}
         consequences={['The job is re-enqueued with the payload it was created with.', 'An activation resumes at its first incomplete step; nothing already done is repeated.']}
         confirmLabel="Retry"
-        defaultReason="service_issue"
         onConfirm={run}
       />
     </>

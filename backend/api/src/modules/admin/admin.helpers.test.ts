@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PricingConfig } from '@portal/schemas';
 import { diffConfig, marginsFor } from './admin-pricing.service';
-import { AT_RISK_AFTER_MS, CHURNED_AFTER_MS, customerStatusOf, idMatch } from './admin.helpers';
+import { AT_RISK_AFTER_MS, CHURNED_AFTER_MS, customerStatusOf, idMatch, phoneQuery } from './admin.helpers';
 
 import { pricingConfig } from '@portal/schemas';
 
@@ -83,6 +83,17 @@ describe('idMatch', () => {
       { id: '7aed1e2a-dc37-4bc0-a06d-c085b3898f4c' },
     ]);
     expect(idMatch('7aed1e2a')).toEqual([]);
+  });
+});
+
+describe('phoneQuery (QA-045)', () => {
+  it('matches numbers only for a query that is a number', () => {
+    expect(phoneQuery('Dental 1')).toBeNull();
+    expect(phoneQuery('Room 4567')).toBeNull();
+    expect(phoneQuery('123')).toBeNull();
+    expect(phoneQuery('+1 (416) 555-0100')).toBe('+14165550100');
+    expect(phoneQuery('5550100')).toBe('5550100');
+    expect(phoneQuery('555.0100')).toBe('5550100');
   });
 });
 

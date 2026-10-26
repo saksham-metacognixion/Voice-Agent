@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { createTransport } from 'nodemailer';
 import { withTimeout } from '../../common/timeout';
 
 /** One outbound email. Plain text always; HTML when a template has one. Never a token or a secret. */
@@ -7,9 +8,15 @@ export interface OutboundEmail {
   subject: string;
   text: string;
   html?: string;
+  /**
+   * Where a reply goes — the person behind the message (the inviter), never the shared
+   * sender address. Every email is sent *from* the platform's one address; this is how a
+   * reply to "Priya invited you" reaches Priya.
+   */
+  replyTo?: string;
 }
 
-/** Where an email goes. Resend in staging/prod; the log in dev, CI and tests. */
+/** Where an email goes. Resend or SMTP when configured; the log in dev, CI and tests. */
 export interface EmailSender {
   readonly name: string;
   /** Resolves with the provider's message id (or a synthetic one). Throws on a delivery failure. */
@@ -38,7 +45,14 @@ export class ResendEmailSender implements EmailSender {
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: { authorization: `Bearer ${this.apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ from: this.from, to: [email.to], subject: email.subject, text: email.text, ...(email.html ? { html: email.html } : {}) }),
+        body: JSON.stringify({
+          from: this.from,
+          to: [email.to],
+          subject: email.subject,
+          text: email.text,
+          ...(email.html ? { html: email.html } : {}),
+          ...(email.replyTo ? { reply_to: email.replyTo } : {}),
+        }),
         signal,
       });
       if (!response.ok) {
@@ -47,6 +61,74 @@ export class ResendEmailSender implements EmailSender {
       }
       const body = (await response.json().catch(() => ({}))) as { id?: string };
       return { id: body.id ?? `resend_${Date.now()}` };
+    });
+  }
+}
+
+/** SMTP needs a TCP connect, TLS and an AUTH round trip before the message; 5 s is Resend's budget, not this one's. */
+export const SMTP_TIMEOUT_MS = 15_000;
+
+/** The slice of a nodemailer transport this sender uses — what a test substitutes. */
+export interface SmtpTransport {
+  sendMail(message: { from: string; to: string; subject: string; text: string; html?: string; replyTo?: string }): Promise<{ messageId?: string }>;
+}
+
+/**
+ * Plain SMTP (`SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASS`) for a box without Resend —
+ * a Gmail app password on a dev machine, or any provider's SMTP relay. STARTTLS on 587,
+ * implicit TLS on 465. The password is read here, handed to the transport and never
+ * logged. One pooled connection, so an invite after the first does not pay the
+ * handshake again.
+ *
+ * Gmail sends only as the account it authenticates (it rewrites any other From), so
+ * `EMAIL_FROM` there is the account's own address with a display name.
+ */
+export class SmtpEmailSender implements EmailSender {
+  readonly name = 'smtp';
+
+  constructor(
+    private readonly transport: SmtpTransport,
+    private readonly from: string,
+  ) {}
+
+  static fromEnv(env: NodeJS.ProcessEnv): SmtpEmailSender | null {
+    const host = env.SMTP_HOST?.trim();
+    const user = env.SMTP_USER?.trim();
+    const pass = env.SMTP_PASS?.trim();
+    if (!host || !user || !pass) return null;
+    const port = Number(env.SMTP_PORT?.trim() || 587);
+    const transport = createTransport({
+      host,
+      port,
+      secure: port === 465,
+      requireTLS: port !== 465,
+      auth: { user, pass },
+      pool: true,
+      maxConnections: 2,
+      connectionTimeout: SMTP_TIMEOUT_MS,
+      greetingTimeout: SMTP_TIMEOUT_MS,
+      socketTimeout: SMTP_TIMEOUT_MS,
+    });
+    return new SmtpEmailSender(transport, env.EMAIL_FROM?.trim() || user);
+  }
+
+  async send(email: OutboundEmail): Promise<{ id: string }> {
+    return withTimeout(SMTP_TIMEOUT_MS, async () => {
+      try {
+        const info = await this.transport.sendMail({
+          from: this.from,
+          to: email.to,
+          subject: email.subject,
+          text: email.text,
+          ...(email.html ? { html: email.html } : {}),
+          ...(email.replyTo ? { replyTo: email.replyTo } : {}),
+        });
+        return { id: info.messageId ?? `smtp_${Date.now()}` };
+      } catch (error) {
+        // The server's answer can echo the envelope; keep the code, drop the rest.
+        const code = (error as { responseCode?: number; code?: string }).responseCode ?? (error as { code?: string }).code ?? 'error';
+        throw new Error(`smtp send failed: ${code}`);
+      }
     });
   }
 }
@@ -68,11 +150,12 @@ export class LogEmailSender implements EmailSender {
   }
 }
 
+/** Resend when it has a key, else SMTP when it has a host and a login, else the log. */
 export function createEmailSender(env: NodeJS.ProcessEnv = process.env): EmailSender {
   const key = env.RESEND_API_KEY?.trim();
   const from = env.EMAIL_FROM?.trim();
   if (key && from) return new ResendEmailSender(key, from);
-  return new LogEmailSender();
+  return SmtpEmailSender.fromEnv(env) ?? new LogEmailSender();
 }
 
 /** `s…m@example.com` — enough to recognise, not enough to harvest. */

@@ -1,7 +1,8 @@
 export { CallsModule } from './calls.module';
 export { CallsService } from './calls.service';
 export type { LifecycleOutcome } from './calls.service';
-export { CallsQueryService, resolveWindow } from './calls.query.service';
+export { CallsQueryService } from './calls.query.service';
+export { resolveWindow, startOfLocalDay } from './stats-window';
 export { CallsController, StatsController } from './calls.controller';
 export { InboundAuthorizationService, INBOUND_REDIS_BUDGET_MS, RedisBudgetExceeded, redisDownPolicy } from './inbound.service';
 export type { InboundOutcome, InboundMetrics, RedisDownPolicy } from './inbound.service';

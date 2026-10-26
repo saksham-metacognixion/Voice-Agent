@@ -1,7 +1,14 @@
 import * as React from 'react';
 
-/** A stable callback that fires `ms` after the last call; `flush()` runs it now, `cancel()` drops it. */
-export function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => void, ms: number) {
+/**
+ * A stable callback that fires `ms` after the last call; `flush()` runs it now, `cancel()` drops it.
+ *
+ * On unmount a pending call is dropped by default — right for a search box or a lint run.
+ * A *save* passes `{ flushOnUnmount: true }`: leaving the page inside the debounce window
+ * must send the edit, not lose it (QA-007).
+ */
+export function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => void, ms: number, options: { flushOnUnmount?: boolean } = {}) {
+  const flushOnUnmount = Boolean(options.flushOnUnmount);
   const fnRef = React.useRef(fn);
   fnRef.current = fn;
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,6 +44,6 @@ export function useDebouncedCallback<A extends unknown[]>(fn: (...args: A) => vo
     [ms],
   );
 
-  React.useEffect(() => cancel, [cancel]);
+  React.useEffect(() => (flushOnUnmount ? flush : cancel), [flushOnUnmount, flush, cancel]);
   return { call, flush, cancel, isPending: () => pending.current !== null };
 }

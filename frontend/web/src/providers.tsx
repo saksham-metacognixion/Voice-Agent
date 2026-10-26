@@ -3,6 +3,7 @@
 import { ApiProvider, createApiClient, createQueryClient } from '@portal/api-client';
 import { ThemeProvider, Toaster, TooltipProvider } from '@portal/ui';
 import { initErrorReporting } from '@portal/ui/error-reporting';
+import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import { AnalyticsProvider, identify, resetAnalytics, track } from './analytics/posthog';
 import { AuthProvider, useAuth, type AuthUser } from './auth/auth-provider';
@@ -39,11 +40,35 @@ export function Providers({ children }: { children: React.ReactNode }) {
               </WorkspaceProvider>
             </ApiBridge>
           </AuthProvider>
-          <Toaster />
+          <PortalToaster />
         </TooltipProvider>
       </LocaleProvider>
     </ThemeProvider>
   );
+}
+
+/**
+ * Toasts sit in the bottom end corner — on a phone, full width at the bottom. Under
+ * `/app` below `lg` that is where the fixed tab bar is (4rem + the home indicator,
+ * `z-40`), and a toast covered it (QA-029): there they are lifted above it, by the same
+ * height the shell pads `<main>` with. Elsewhere (the wizard, sign-in) nothing is there.
+ */
+const TAB_BAR_QUERY = '(max-width: 1023.98px)';
+
+function PortalToaster() {
+  const pathname = usePathname();
+  const belowLg = React.useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(TAB_BAR_QUERY);
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    },
+    () => window.matchMedia(TAB_BAR_QUERY).matches,
+    () => false,
+  );
+  const underApp = pathname === '/app' || Boolean(pathname?.startsWith(routes.app.home));
+  if (!(belowLg && underApp)) return <Toaster />;
+  return <Toaster offset={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }} mobileOffset={{ bottom: 'calc(5rem + env(safe-area-inset-bottom))' }} />;
 }
 
 const SEEN_KEY = 'portal:seen-users';

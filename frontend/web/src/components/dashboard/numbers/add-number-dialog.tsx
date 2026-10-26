@@ -16,6 +16,7 @@ import { formatCreditsValue } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { PRICING_STALE_MS } from '@/src/lib/pricing';
 import { useAgentsForNumbers } from './number-bits';
 
 /**
@@ -34,7 +35,7 @@ export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const queryClient = useQueryClient();
   const agents = useAgentsForNumbers();
   const flags = useGetFlags(api, { staleTime: 60_000, enabled: open });
-  const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000, enabled: open });
+  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS, enabled: open });
   const wallet = useGetWallet(api, { staleTime: 15_000, enabled: open });
 
   const [option, setOption] = React.useState<WizardPhoneOption>('new');

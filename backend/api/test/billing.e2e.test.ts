@@ -401,7 +401,10 @@ describe('POST /wallet/checkout/confirm — the return path when the webhook is 
 
     const first = await confirm(sessionId);
     expect(first.statusCode).toBe(201);
-    expect(first.json()).toEqual({ purchase_id: purchase.id, status: 'paid', credited: true });
+    expect(first.json()).toEqual({ purchase_id: purchase.id, status: 'paid', credited: true, purchase_created_at: expect.any(String) });
+    // The server's clock, so W7 never compares an activation's created_at with the browser's (QA-020).
+    const stored = await adminDb.purchase.findUniqueOrThrow({ where: { id: purchase.id }, select: { createdAt: true } });
+    expect(first.json().purchase_created_at).toBe(stored.createdAt.toISOString());
     expect(retrieve).toHaveBeenCalledWith(sessionId);
     expect(await adminDb.creditLot.count({ where: { purchaseId: purchase.id } })).toBe(1);
     expect(await ledgerSum(ws.tenantId)).toBe(before + 150);
@@ -409,7 +412,7 @@ describe('POST /wallet/checkout/confirm — the return path when the webhook is 
     // Refresh, second tab, "Check again": paid already, Stripe not asked again.
     const again = await confirm(sessionId);
     expect(again.statusCode).toBe(201);
-    expect(again.json()).toEqual({ purchase_id: purchase.id, status: 'paid', credited: false });
+    expect(again.json()).toEqual({ purchase_id: purchase.id, status: 'paid', credited: false, purchase_created_at: expect.any(String) });
     expect(retrieve).toHaveBeenCalledTimes(1);
 
     // Stripe finally delivers the webhook for the same session: same fulfilment, nothing more.
@@ -447,7 +450,7 @@ describe('POST /wallet/checkout/confirm — the return path when the webhook is 
 
     const res = await confirm(sessionId);
     expect(res.statusCode).toBe(201);
-    expect(res.json()).toEqual({ purchase_id: purchase.id, status: 'pending', credited: false });
+    expect(res.json()).toEqual({ purchase_id: purchase.id, status: 'pending', credited: false, purchase_created_at: expect.any(String) });
     expect(await adminDb.creditLot.count({ where: { purchaseId: { in: [purchase.id, otherPurchase.id] } } })).toBe(0);
   });
 
@@ -469,8 +472,8 @@ describe('POST /wallet/checkout/confirm — the return path when the webhook is 
       throw new Error(`unexpected session ${id}`);
     });
 
-    expect((await confirm(expired.sessionId)).json()).toEqual({ purchase_id: expired.purchase.id, status: 'abandoned', credited: false });
-    expect((await confirm(processing.sessionId)).json()).toEqual({ purchase_id: processing.purchase.id, status: 'pending', credited: false });
+    expect((await confirm(expired.sessionId)).json()).toEqual({ purchase_id: expired.purchase.id, status: 'abandoned', credited: false, purchase_created_at: expect.any(String) });
+    expect((await confirm(processing.sessionId)).json()).toEqual({ purchase_id: processing.purchase.id, status: 'pending', credited: false, purchase_created_at: expect.any(String) });
     expect(await adminDb.creditLot.count({ where: { purchaseId: { in: [expired.purchase.id, processing.purchase.id] } } })).toBe(0);
   });
 

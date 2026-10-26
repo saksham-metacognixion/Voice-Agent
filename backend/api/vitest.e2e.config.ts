@@ -13,6 +13,13 @@ export default defineConfig({
     include: ['test/**/*.e2e.test.ts'],
     environment: 'node',
     setupFiles: ['@portal/config/vitest/load-env'],
+    /**
+     * Never a real email from a test. `load-env` copies the developer's `.env`, and a dev box
+     * with SMTP or Resend set would mail every `@example.test` invitee and low-balance owner
+     * — and the suites read what was "sent" off the log sender. Set here (empty), so
+     * `load-env`, which never overrides a defined key, leaves them unset.
+     */
+    env: { RESEND_API_KEY: '', SMTP_HOST: '', SMTP_USER: '', SMTP_PASS: '' },
     testTimeout: 30_000,
     hookTimeout: 30_000,
     /**

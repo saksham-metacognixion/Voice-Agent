@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { errorMessage } from '@/src/lib/errors';
 import { formatCredits } from '@/src/wizard/plan-gates';
 import { useAfterCall } from '@/src/wizard/use-after-call';
+import { PhoneCheckNote, PhoneSummaryNote } from '@/src/components/dashboard/phone-check';
 
 /**
  * What `call_analyzed` stores in `calls.analysis_json` — the platform's post-call
@@ -75,6 +76,7 @@ function CallFacts({ call, agent, stage, late }: { call: CallDetail; agent: Agen
   const a = parsed.success ? parsed.data : null;
   const fieldDefs = new Map((agent.draft?.analysis_fields ?? []).map((f) => [f.name, f.description]));
   const custom = Object.entries(a?.custom_analysis_data ?? {}).filter(([, v]) => v !== null && v !== undefined && v !== '');
+  const phoneChecks = new Map(call.captured_checks.map((c) => [c.field, c]));
 
   return (
     <div className="flex flex-col gap-4">
@@ -89,6 +91,7 @@ function CallFacts({ call, agent, stage, late }: { call: CallDetail; agent: Agen
         <div className="flex flex-col gap-1">
           <p className="text-xs font-medium text-muted-foreground">{ta('summary')}</p>
           <p className="text-sm leading-relaxed">{a.call_summary}</p>
+          <PhoneSummaryNote checks={call.captured_checks} captured={ta('captured')} />
         </div>
       ) : stage === 'analyzed' ? null : stage === 'unavailable' ? (
         <Alert variant="neutral">{ta('unavailable')}</Alert>
@@ -105,7 +108,10 @@ function CallFacts({ call, agent, stage, late }: { call: CallDetail; agent: Agen
                 <dt className="text-muted-foreground" title={fieldDefs.get(name)}>
                   {copy.analysisField(name)}
                 </dt>
-                <dd className="text-end font-medium">{display(value, ta)}</dd>
+                <dd className="text-end font-medium">
+                  {display(value, ta)}
+                  <PhoneCheckNote check={phoneChecks.get(name)} />
+                </dd>
               </div>
             ))}
           </dl>

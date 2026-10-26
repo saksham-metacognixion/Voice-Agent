@@ -279,10 +279,11 @@ function VersionSheet({ agentId, versionNo, onClose }: { agentId: string; versio
 
 function VersionBody({ version }: { version: AgentVersionDetail }) {
   const t = useTranslations('dashboard.agents.versions');
+  const timeZone = useWorkspace().workspace?.timezone;
   return (
     <div className="flex flex-col gap-4 text-sm">
       <SheetDescription>
-        {t(`sources.${version.source}`)} · {formatDateTime(version.created_at)}
+        {t(`sources.${version.source}`)} · {formatDateTime(version.created_at, timeZone)}
         {version.lint ? ` · ${version.lint.publishable ? t('lintOk') : t('lintErrors')}` : ''}
       </SheetDescription>
       {version.greeting ? (

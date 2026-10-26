@@ -15,6 +15,7 @@ import { EventsService } from '../events';
 import { RuntimeCacheService } from '../runtime-cache';
 import { DAY_MS, iso, uuidParam, idMatch } from './admin.helpers';
 import { StaffAuditService } from './staff-audit.service';
+import { StaffLimitsService } from './staff-limits.service';
 
 const WITH = {
   tenant: { select: { name: true } },
@@ -43,6 +44,7 @@ export class AdminAgentsService {
     private readonly runtimeCache: RuntimeCacheService,
     private readonly events: EventsService,
     private readonly audit: StaffAuditService,
+    private readonly limits: StaffLimitsService,
   ) {}
 
   async list(query: AdminAgentsQuery): Promise<Page<AdminAgentResponse>> {
@@ -52,6 +54,8 @@ export class AdminAgentsService {
     if (query.q)
       where.OR = [
         { name: { contains: query.q, mode: 'insensitive' } },
+        // The search box promises "Agent name, customer…" (QA-047).
+        { tenant: { name: { contains: query.q, mode: 'insensitive' } } },
         { retellAgentId: query.q },
         ...idMatch(query.q),
       ];
@@ -80,11 +84,15 @@ export class AdminAgentsService {
     request: FastifyRequest,
   ): Promise<AdminAgentResponse> {
     const id = uuidParam(idRaw, 'Agent');
+    // The workspace pause's checks (QA-034): the role must be allowed to pause at all,
+    // and support only against one of this workspace's tickets.
+    await this.limits.assertCan(staff, 'can_pause_tenant');
     const agent = await adminDb.agent.findUnique({
       where: { id },
       select: { id: true, tenantId: true, status: true, deletedAt: true },
     });
     if (!agent || agent.deletedAt) throw AppError.notFound('Agent');
+    await this.limits.assertPauseTicket(staff, agent.tenantId, body.ticket_id, 'agent');
     if (agent.status !== 'paused') {
       await adminDb.$transaction(async (tx) => {
         await tx.agent.update({ where: { id }, data: { status: 'paused' } });
@@ -130,19 +138,18 @@ export class AdminAgentsService {
     request: FastifyRequest,
   ): Promise<AdminAgentResponse> {
     const id = uuidParam(idRaw, 'Agent');
+    await this.limits.assertCan(staff, 'can_pause_tenant');
     const agent = await adminDb.agent.findUnique({
       where: { id },
       select: { id: true, tenantId: true, status: true, deletedAt: true, publishedVersion: true },
     });
     if (!agent || agent.deletedAt) throw AppError.notFound('Agent');
     if (agent.status === 'paused') {
-      if (agent.publishedVersion === null)
-        throw new AppError(
-          'CONFLICT',
-          'This agent has never been published; there is no version to put back on the phone.',
-        );
+      // Back to what it was (QA-043): staff may pause a draft, and a draft has no version
+      // to put on the phone, so it resumes as a draft rather than staying stuck.
+      const status = agent.publishedVersion === null ? 'draft' : 'live';
       await adminDb.$transaction(async (tx) => {
-        await tx.agent.update({ where: { id }, data: { status: 'live' } });
+        await tx.agent.update({ where: { id }, data: { status } });
         await tx.auditLog.create({
           data: {
             tenantId: agent.tenantId,
@@ -166,7 +173,7 @@ export class AdminAgentsService {
             reasonCode: body.reason_code,
             note: body.note,
             before: { status: 'paused' },
-            after: { status: 'live' },
+            after: { status },
             request,
           },
           tx,

@@ -122,11 +122,57 @@ export const callSummary = z.object({
 });
 export type CallSummary = z.infer<typeof callSummary>;
 
+/**
+ * A captured field that holds a phone number (§9.8), recognised by its name: `phone`,
+ * `callback_number`, `mobile`, `contact_number`… Read on the name's words, not its
+ * letters, so `excellence_score` is not a `cell`.
+ */
+export function isPhoneFieldName(name: string): boolean {
+  const words = name
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .toLowerCase()
+    .split(/[^a-z]+/)
+    .filter(Boolean);
+  const has = (w: string) => words.includes(w);
+  return (
+    ['phone', 'telephone', 'tel', 'mobile', 'cell', 'callback', 'whatsapp'].some(has) ||
+    (has('call') && has('back')) ||
+    (has('contact') && has('number'))
+  );
+}
+
+/**
+ * The server's check of one captured phone number against the call itself.
+ *
+ * `mismatch` — its digits are not a sequence the caller said (nor the caller id): the
+ * voice agent or the analysis changed them, as in the 26 Oct call where nine spoken
+ * digits came back as ten. `invalid` — the caller's digits, but not a complete number
+ * for the workspace's country or the agent's languages. `heard` is what the caller did
+ * say, the phone-length digit runs of their own turns, so staff can call the right one.
+ */
+export const capturedPhoneStatus = z.enum(['ok', 'mismatch', 'invalid']);
+export type CapturedPhoneStatus = z.infer<typeof capturedPhoneStatus>;
+
+export const capturedPhoneCheck = z.object({
+  field: z.string(),
+  value: z.string(),
+  status: capturedPhoneStatus,
+  /** Digits in `value`. */
+  digits: z.number().int(),
+  heard: z.array(z.string()),
+});
+export type CapturedPhoneCheck = z.infer<typeof capturedPhoneCheck>;
+
 /** GET /calls/:id — the D2 detail adds transcript and analysis. */
 export const callDetail = callSummary.extend({
   transcript_text: z.string().nullable(),
   transcript_json: z.unknown().nullable(),
   analysis_json: z.unknown().nullable(),
+  /**
+   * One entry per captured phone field (`isPhoneFieldName`), checked against the
+   * transcript. Defaults to empty so a portal deployed ahead of the API still parses.
+   */
+  captured_checks: z.array(capturedPhoneCheck).default([]),
 });
 export type CallDetail = z.infer<typeof callDetail>;
 

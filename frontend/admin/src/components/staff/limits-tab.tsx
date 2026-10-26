@@ -21,7 +21,7 @@ type BooleanKey = Exclude<keyof StaffLimits, NumericKey>;
 const NUMERIC: Array<{ key: NumericKey; label: string; unit: string }> = [
   { key: 'credit_adjust_max_per_action', label: 'Credit adjustment, per action', unit: 'credits' },
   { key: 'credit_adjust_max_per_day', label: 'Credit adjustment, per day', unit: 'credits' },
-  { key: 'refund_max_cents', label: 'Refund, per refund', unit: 'cents' },
+  { key: 'refund_max_cents', label: 'Refund, per purchase', unit: 'cents' },
 ];
 const BOOLEAN: Array<{ key: BooleanKey; label: string }> = [
   { key: 'can_listen_recordings', label: 'Listen to recordings' },

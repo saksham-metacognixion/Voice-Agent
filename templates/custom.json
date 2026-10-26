@@ -58,7 +58,8 @@
     "Identify what the caller needs",
     "Help with what you know",
     "Capture the caller’s details",
-    "Close politely"
+    "Ask whether there is anything else the caller needs, and carry on if there is",
+    "Only once the caller says there is nothing else, thank them for calling and end the call"
   ],
   "analysis_fields": [
     {
@@ -83,5 +84,5 @@
   "example_texts": {
     "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
   },
-  "version": 1
+  "version": 2
 }

@@ -10,10 +10,13 @@ import { track } from '@/src/analytics/posthog';
 import { LanguagePicker } from '@/src/components/wizard/language-picker';
 import { VoicePicker, type VoiceFilters } from '@/src/components/wizard/voice-picker';
 import { errorMessage } from '@/src/lib/errors';
+import { useBeforeUnload } from '@/src/lib/use-before-unload';
 import { useDebouncedCallback } from '@/src/lib/use-debounced';
+import type { LanguageChoice } from '@/src/wizard/languages';
 
 export interface VoiceSettingsState {
   voiceId: string | null;
+  /** A save is in flight **or** waiting out its debounce — Continue must wait for both (QA-007). */
   saving: boolean;
 }
 
@@ -30,6 +33,10 @@ export interface VoiceSettingsState {
  * The sample is a recording, not the agent: there is no text-to-speech route to speak the
  * customer's own greeting with (ADR 0003 §9), so the copy says where they will hear it
  * instead of pretending. Speed is applied to the playback so that dial can at least be heard.
+ *
+ * The dials save 600 ms after the last move. That pending save counts as saving (Continue
+ * waits for it), is sent rather than dropped if the page goes away, and closing the tab
+ * with it pending asks first (QA-007).
  */
 export function VoiceSettings({ agent, disabled, onStateChange }: { agent: AgentDetail; disabled?: boolean; onStateChange?: (state: VoiceSettingsState) => void }) {
   const t = useTranslations();
@@ -48,13 +55,16 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
   const [q, setQ] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [tuningPending, setTuningPending] = React.useState(false);
+  const inFlight = React.useRef(0);
   const debouncedQ = useDebouncedCallback((v: string) => setQ(v), 250);
 
   const report = React.useRef(onStateChange);
   report.current = onStateChange;
+  const busy = saving || tuningPending;
   React.useEffect(() => {
-    report.current?.({ voiceId, saving });
-  }, [voiceId, saving]);
+    report.current?.({ voiceId, saving: busy });
+  }, [voiceId, busy]);
 
   const voices = useListVoices(
     api,
@@ -73,6 +83,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
 
   async function save(body: Parameters<typeof patch.mutateAsync>[0]['body']) {
     setError(null);
+    inFlight.current += 1;
     setSaving(true);
     try {
       await patch.mutateAsync({ params: { id: agent.id }, body });
@@ -84,21 +95,18 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
       toast.error(msg);
       throw e;
     } finally {
-      setSaving(false);
+      // Saves can overlap (a voice pick while a dial save is out); "saving" ends with the last.
+      inFlight.current -= 1;
+      if (inFlight.current === 0) setSaving(false);
     }
   }
 
-  function onPrimary(code: RetellLanguage) {
-    setPrimary(code);
-    const nextLangs = languages.filter((l) => l !== code);
-    setLanguages(nextLangs);
-    track('language_selected', { agent_id: agent.id, primary: code, extra: nextLangs.length });
-    void save({ primary_language: code, languages: nextLangs }).catch(() => undefined);
-  }
-  function onLanguages(codes: RetellLanguage[]) {
-    setLanguages(codes);
-    track('language_selected', { agent_id: agent.id, primary, extra: codes.length });
-    void save({ languages: codes }).catch(() => undefined);
+  /** Main language and "also speaks" move together, in one save (QA-011). */
+  function onLanguageChange(next: LanguageChoice) {
+    setPrimary(next.primary_language);
+    setLanguages(next.languages);
+    track('language_selected', { agent_id: agent.id, primary: next.primary_language, extra: next.languages.length });
+    void save(next.primary_language === primary ? { languages: next.languages } : next).catch(() => undefined);
   }
   function onSelect(voice: VoiceResponse) {
     const previous = voiceId;
@@ -107,14 +115,26 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
     if (settings && voice.tier !== settings.tier) toast.info(tw('tierChange', { tier: t(`common.${voice.tier}`) }));
     void save({ voice_id: voice.id, tier: voice.tier }).catch(() => setVoiceId(previous));
   }
-  const saveTuning = useDebouncedCallback((s: number, temp: number) => void save({ voice_speed: s, voice_temperature: temp }).catch(() => undefined), 600);
+  const saveTuning = useDebouncedCallback(
+    (s: number, temp: number) => {
+      setTuningPending(false);
+      void save({ voice_speed: s, voice_temperature: temp }).catch(() => undefined);
+    },
+    600,
+    { flushOnUnmount: true },
+  );
+  const tune = (s: number, temp: number) => {
+    setTuningPending(true);
+    saveTuning.call(s, temp);
+  };
+  useBeforeUnload(busy, saveTuning.flush);
   const locked = Boolean(disabled) || saving;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex flex-col gap-8">
         {error ? <Alert variant="danger">{error}</Alert> : null}
-        <LanguagePicker primary={primary} languages={languages} onPrimaryChange={onPrimary} onLanguagesChange={onLanguages} disabled={locked} />
+        <LanguagePicker primary={primary} languages={languages} onChange={onLanguageChange} disabled={locked} />
         {voices.data?.stale ? <Alert variant="warning">{tw('stale')}</Alert> : null}
         {voices.isError ? (
           <ErrorState title={t('errors.loadFailed')} description={errorMessage(voices.error, t)} action={<Button onClick={() => void voices.refetch()}>{t('common.retry')}</Button>} />
@@ -158,7 +178,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
                 onValueChange={([v]) => {
                   const s = (v ?? 100) / 100;
                   setSpeed(s);
-                  saveTuning.call(s, temperature);
+                  tune(s, temperature);
                 }}
               />
             </Field>
@@ -173,7 +193,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
                 onValueChange={([v]) => {
                   const temp = (v ?? 50) / 100;
                   setTemperature(temp);
-                  saveTuning.call(speed, temp);
+                  tune(speed, temp);
                 }}
               />
             </Field>

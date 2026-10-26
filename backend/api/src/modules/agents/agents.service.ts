@@ -10,6 +10,7 @@ import {
   type AgentsQuery,
   type AnalysisField,
   type Brief,
+  type BriefPatch,
   type CreateAgentRequest,
   type LintRequest,
   type LintResult,
@@ -290,10 +291,12 @@ export class AgentsService {
       // The brief changed, so the prompt that was generated from it is stale. It is kept
       // (the customer may still test the version) but re-linted against the new brief, so
       // "a transfer number with no hand-off rule" appears the moment it becomes true.
+      // Linted as it would run — current platform rules applied, as publish does — so a
+      // prompt stored before a rule was added is not reported as missing them.
       const lint = draft.promptText
         ? lintPrompt(
             {
-              prompt: draft.promptText,
+              prompt: applyGuardrails(draft.promptText, stack.guardrails),
               greeting: draft.greeting,
               brief: merged,
               primaryLanguage: settings.primary_language,
@@ -432,7 +435,9 @@ export class AgentsService {
         brief: briefValue,
         promptText,
         greeting,
-        closing: update.closing ?? base.closing,
+        // Omitted keeps the base version's closing; null or blank clears it (QA-023). The
+        // greeting has no such case: it is mandatory, and `promptUpdate` refuses a blank one.
+        closing: update.closing === undefined ? base.closing : update.closing || null,
         analysisFields: parseAnalysisFields(base.analysisSchemaJson),
         settings,
         briefCard: base.briefCardJson,
@@ -938,12 +943,14 @@ function parseScenarios(value: unknown): Scenario[] | null {
 /**
  * Field-by-field merge. An autosave sends the field that changed, so a `PATCH` carrying
  * `{about_business}` must not blank the twelve fields it did not mention. `undefined`
- * means "not sent"; `null` is not accepted by the schema, so there is no ambiguity.
+ * means "not sent"; `null` means "clear it" (`briefPatch`): an emptied agent name or
+ * address is removed from the brief rather than silently kept (QA-006).
  */
-export function mergeBrief(current: Brief, patch: Partial<Brief>): Brief {
+export function mergeBrief(current: Brief, patch: BriefPatch): Brief {
   const merged: Record<string, unknown> = { ...current };
   for (const [key, value] of Object.entries(patch)) {
-    if (value !== undefined) merged[key] = value;
+    if (value === null) delete merged[key];
+    else if (value !== undefined) merged[key] = value;
   }
   return briefSchema.parse(merged);
 }

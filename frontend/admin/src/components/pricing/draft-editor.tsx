@@ -6,9 +6,9 @@ import { Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Field, 
 import { useQueryClient } from '@tanstack/react-query';
 import { Plus } from 'lucide-react';
 import * as React from 'react';
-import { ConfirmDialog } from '@/src/components/common/confirm-dialog';
 import { PermissionButton } from '@/src/components/common/permission-button';
 import { LoadError } from '@/src/components/common/query-states';
+import { StaffActionDialog } from '@/src/components/common/staff-action-dialog';
 import { errorMessage } from '@/src/lib/errors';
 import { formatDateTime } from '@/src/lib/format';
 import { prettyJson } from '@/src/lib/json';
@@ -296,14 +296,15 @@ function Editor({ initial, meta }: { initial: PricingConfig; meta: Meta }) {
         </>
       )}
 
-      <ConfirmDialog
+      <StaffActionDialog
         open={discarding}
         onOpenChange={setDiscarding}
         title="Discard the pricing draft"
         consequences={['Every unpublished change is lost.', 'The current version stays in effect; nothing the customer sees changes.']}
         confirmLabel="Discard draft"
-        onConfirm={async () => {
-          await discard.mutateAsync();
+        destructive
+        onConfirm={async (body) => {
+          await discard.mutateAsync({ body });
           await Promise.all([queryClient.invalidateQueries({ queryKey: ['adminPricingDraft'] }), queryClient.invalidateQueries({ queryKey: ['adminPricingPreview'] })]);
           toast.success('Draft discarded');
         }}

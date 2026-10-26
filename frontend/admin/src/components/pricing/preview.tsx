@@ -1,9 +1,9 @@
 'use client';
 
 import { isApiError, useAdminPricingPreview, useAdminPublishPricing, useApi } from '@portal/api-client';
-import type { AdminPricingPreviewResponse } from '@portal/schemas';
+import type { AdminPricingPreviewResponse, ReasonCode } from '@portal/schemas';
 import {
-  Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EmptyState, Field, Input, Label, RadioGroup, RadioCard, Skeleton, Textarea, cn, toast,
+  Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EmptyState, Field, Input, Label, RadioGroup, RadioCard, Skeleton, Textarea, cn, toast,
 } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
@@ -11,6 +11,7 @@ import { PermissionButton } from '@/src/components/common/permission-button';
 import { LoadError } from '@/src/components/common/query-states';
 import { errorMessage } from '@/src/lib/errors';
 import { formatNumber, formatPercent, humanize, localInputToIso } from '@/src/lib/format';
+import { REASON_CODES, REASON_LABELS } from '@/src/lib/reason-codes';
 import { prettyJson } from '@/src/lib/json';
 import { useStaff } from '@/src/staff/staff-provider';
 
@@ -188,18 +189,22 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
   const [summary, setSummary] = React.useState('');
   const [override, setOverride] = React.useState(false);
   const [note, setNote] = React.useState('');
+  // Chosen, never pre-selected (QA-039/QA-041).
+  const [reason, setReason] = React.useState<ReasonCode | ''>('');
   const [typed, setTyped] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [stripeFailed, setStripeFailed] = React.useState<string | null>(null);
   const marginBlocked = preview.blockers.some(isMarginBlocker);
-  const ok = typed.trim().toUpperCase() === 'PUBLISH' && (!marginBlocked || (override && note.trim().length > 0));
+  const noteRequired = reason === 'other' || (marginBlocked && override);
+  const ok = typed.trim().toUpperCase() === 'PUBLISH' && Boolean(reason) && (!noteRequired || note.trim().length > 0) && (!marginBlocked || override);
 
   async function run() {
     if (!ok) return;
     setError(null);
     setStripeFailed(null);
     try {
-      const v = await publish.mutateAsync({ body: { effective_at: localInputToIso(effective), grandfather_mode: mode, change_summary: summary.trim() || undefined, override_margin: override, note: note.trim() || undefined } });
+      if (!reason) return;
+      const v = await publish.mutateAsync({ body: { effective_at: localInputToIso(effective), grandfather_mode: mode, change_summary: summary.trim() || undefined, override_margin: override, reason_code: reason, note: note.trim() || undefined } });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['adminPricingDraft'] }),
         queryClient.invalidateQueries({ queryKey: ['adminPricingPreview'] }),
@@ -248,11 +253,26 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
             <label className="flex items-center gap-2 text-sm font-medium">
               <Checkbox checked={override} onCheckedChange={(v) => setOverride(v === true)} /> Override the margin floor (super admin)
             </label>
-            <Field id="pub-note" label="Note" required description="Why publishing below the floor is acceptable.">
-              <Textarea id="pub-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500} className="min-h-16" disabled={!override} />
-            </Field>
+            <p className="text-xs text-muted-foreground">The note below says why publishing under the floor is acceptable.</p>
           </div>
         ) : null}
+        <Field id="pub-reason" label="Reason" required>
+          <Select value={reason} onValueChange={(v) => setReason(v as ReasonCode)}>
+            <SelectTrigger id="pub-reason" aria-label="Reason">
+              <SelectValue placeholder="Choose a reason" />
+            </SelectTrigger>
+            <SelectContent>
+              {REASON_CODES.map((code) => (
+                <SelectItem key={code} value={code}>
+                  {REASON_LABELS[code]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field id="pub-note" label="Note" required={noteRequired} optional={!noteRequired} description={noteRequired ? (reason === 'other' ? 'Required with reason "Other".' : 'Required to override the margin floor.') : 'Goes in the staff audit log.'}>
+          <Textarea id="pub-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500} className="min-h-16" />
+        </Field>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="pub-typed">
             Type <span className="font-mono">PUBLISH</span> to confirm

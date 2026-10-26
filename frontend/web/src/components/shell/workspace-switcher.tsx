@@ -10,8 +10,12 @@ import { track } from '@/src/analytics/posthog';
 import { routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
-/** A7 — the switcher in the shell header. Selecting resets every workspace-scoped query. */
-export function WorkspaceSwitcher({ className }: { className?: string }) {
+/**
+ * A7 — the switcher in the shell header. Selecting resets every workspace-scoped query.
+ * The wizard header (QA-013) passes `compact`: below `md` only the initial and the chevron
+ * show, so it fits beside the stepper on a phone; the name is still the button's label.
+ */
+export function WorkspaceSwitcher({ className, compact = false }: { className?: string; compact?: boolean }) {
   const t = useTranslations();
   const ws = useWorkspace();
   const router = useRouter();
@@ -24,7 +28,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
           <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-xs font-semibold uppercase text-accent-foreground">
             {active?.name.slice(0, 1) ?? '?'}
           </span>
-          <span className="flex min-w-0 flex-col items-start">
+          <span className={cn('min-w-0 flex-col items-start', compact ? 'hidden md:flex' : 'flex')}>
             {/* `max-w-full` against the column, not only 10rem: on a phone the header gives the name what is left. */}
             <span className="max-w-full truncate text-sm font-medium leading-tight sm:max-w-[10rem]">{active?.name ?? t('nav.workspace')}</span>
             {active ? <span className="text-[11px] leading-tight text-muted-foreground">{t(`shell.role.${active.role}` as never)}</span> : null}

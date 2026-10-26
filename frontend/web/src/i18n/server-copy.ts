@@ -24,6 +24,13 @@ export function matchSource(server: string, source: string): { destination: stri
   return { destination: server.slice(head.length, server.length - tail.length) };
 }
 
+/** The catalogue key of one of the server's fixed customer-facing sentences, or null. */
+export function serverReasonKey(text: string): string | null {
+  const sources = messages.en.errors.serverReasons as Record<string, string>;
+  const trimmed = text.trim();
+  return Object.keys(sources).find((k) => sources[k] === trimmed) ?? null;
+}
+
 /**
  * Text the API sends in English only — a template's name and tagline (the `templates`
  * table), its example copy, industry slugs, lint findings. In English the API's text is
@@ -42,10 +49,17 @@ export function useServerCopy() {
     const pick = (t: typeof tc | typeof tf, key: string, fallback: string) => (!english && t.has(key) ? t(key) : fallback);
     return {
       /**
-       * A free-text sentence from the API (a job's `customer_reason`, an activation's error):
-       * there is no id to translate it by, so outside English it gives way to our own line.
+       * A free-text sentence from the API (a job's `customer_reason`, an activation's error).
+       * One the catalogue knows (`errors.serverReasons`, the server's fixed lines) is shown
+       * from it, in every language (QA-010); any other is the server's English, and outside
+       * English it gives way to our own line (null).
        */
-      sentence: (text: string | null | undefined): string | null => (english && text ? text : null),
+      sentence: (text: string | null | undefined): string | null => {
+        if (!text) return null;
+        const key = serverReasonKey(text);
+        if (key) return (messages[locale].errors.serverReasons as Record<string, string>)[key] ?? (english ? text : null);
+        return english ? text : null;
+      },
       templateName: (tpl: Pick<TemplateSummary, 'id' | 'name'>) => pick(tc, `names.${tpl.id}`, tpl.name),
       templateTagline: (tpl: Pick<TemplateSummary, 'id' | 'tagline'>) => pick(tc, `taglines.${tpl.id}`, tpl.tagline),
       templateBestFor: (tpl: Pick<TemplateSummary, 'id' | 'best_for'>) => pick(tc, `bestFor.${tpl.id}`, tpl.best_for),

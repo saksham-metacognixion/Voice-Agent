@@ -5,20 +5,20 @@ import { Badge, Button, Field, Select, SelectContent, SelectItem, SelectTrigger,
 import { Check, Plus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
-import { languageName, sortedLanguages } from '@/src/wizard/languages';
+import { choosePrimary, languageName, sortedLanguages, type LanguageChoice } from '@/src/wizard/languages';
 
 export interface LanguagePickerProps {
   primary: RetellLanguage;
   languages: RetellLanguage[];
-  onPrimaryChange: (code: RetellLanguage) => void;
-  onLanguagesChange: (codes: RetellLanguage[]) => void;
+  /** Every change carries both halves, so the caller saves once (QA-011). */
+  onChange: (next: LanguageChoice) => void;
   disabled?: boolean;
 }
 
 const MAX_EXTRA = 4;
 
 /** W3 — main language (select) and "also speaks" (chips, up to four). */
-export function LanguagePicker({ primary, languages, onPrimaryChange, onLanguagesChange, disabled }: LanguagePickerProps) {
+export function LanguagePicker({ primary, languages, onChange, disabled }: LanguagePickerProps) {
   const t = useTranslations('wizard.w3');
   const all = React.useMemo(sortedLanguages, []);
   const [adding, setAdding] = React.useState(false);
@@ -31,10 +31,7 @@ export function LanguagePicker({ primary, languages, onPrimaryChange, onLanguage
         <Select
           value={primary}
           disabled={disabled}
-          onValueChange={(v) => {
-            onPrimaryChange(v as RetellLanguage);
-            if (languages.includes(v as RetellLanguage)) onLanguagesChange(languages.filter((l) => l !== v));
-          }}
+          onValueChange={(v) => onChange(choosePrimary(v as RetellLanguage, languages))}
         >
           <SelectTrigger id="primary-language">
             <SelectValue />
@@ -58,7 +55,7 @@ export function LanguagePicker({ primary, languages, onPrimaryChange, onLanguage
                 disabled={disabled}
                 aria-label={`${t('filters.clear')} ${languageName(code)}`}
                 className="rounded-full p-0.5 hover:bg-primary/20"
-                onClick={() => onLanguagesChange(extras.filter((l) => l !== code))}
+                onClick={() => onChange({ primary_language: primary, languages: extras.filter((l) => l !== code) })}
               >
                 <X className="size-3" aria-hidden />
               </button>
@@ -72,7 +69,7 @@ export function LanguagePicker({ primary, languages, onPrimaryChange, onLanguage
                 value=""
                 disabled={disabled}
                 onValueChange={(v) => {
-                  onLanguagesChange([...extras, v as RetellLanguage].slice(0, MAX_EXTRA));
+                  onChange({ primary_language: primary, languages: [...extras, v as RetellLanguage].slice(0, MAX_EXTRA) });
                   setAdding(false);
                 }}
               >

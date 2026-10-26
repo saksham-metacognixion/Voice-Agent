@@ -1,7 +1,7 @@
 'use client';
 
 import type { CallSort, CallSummary, SortOrder } from '@portal/schemas';
-import { Checkbox, cn } from '@portal/ui';
+import { Checkbox, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, cn } from '@portal/ui';
 import { ArrowDown, ArrowUp, ArrowUpDown, Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { CallStatusBadge, SentimentBadge } from '@/src/components/dashboard/status-badges';
@@ -14,6 +14,8 @@ export interface CallsTableProps {
   sort: CallSort;
   order: SortOrder;
   onSort: (sort: CallSort) => void;
+  /** The phone header's sort menu: a column and a direction at once. */
+  onSortChange: (sort: CallSort, order: SortOrder) => void;
   selected: Set<string>;
   onSelect: (id: string, checked: boolean) => void;
   onSelectAll: (checked: boolean) => void;
@@ -30,9 +32,21 @@ export interface CallsTableProps {
  * Below 640 px the rows become cards (§12.5) carrying every column the table does, and
  * the table is not rendered into the layout at all: Chrome sizes the mobile layout
  * viewport from a table's minimum width even inside a scrolling wrapper, so a 46-rem
- * table would widen every page it sits on. Sorting on a phone is the filter bar's.
+ * table would widen every page it sits on. The cards carry their own header instead of
+ * the table's: a sort menu (the same `?sort=&order=` in the URL) and, for an editor,
+ * "Select all" for the bulk bar (QA-026).
  */
-export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, selected, onSelect, onSelectAll, canSelect, activeId, onOpen }: CallsTableProps) {
+
+/** The phone sort menu, in the order it lists them; the value is `<sort>:<order>`. */
+export const MOBILE_SORTS: ReadonlyArray<{ sort: CallSort; order: SortOrder }> = [
+  { sort: 'started_at', order: 'desc' },
+  { sort: 'started_at', order: 'asc' },
+  { sort: 'duration_s', order: 'desc' },
+  { sort: 'duration_s', order: 'asc' },
+  { sort: 'credits_charged', order: 'desc' },
+  { sort: 'credits_charged', order: 'asc' },
+];
+export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, onSortChange, selected, onSelect, onSelectAll, canSelect, activeId, onOpen }: CallsTableProps) {
   const t = useTranslations('dashboard.calls.columns');
   const tl = useTranslations('dashboard.calls');
   const allSelected = calls.length > 0 && calls.every((c) => selected.has(c.id));
@@ -40,6 +54,36 @@ export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, se
 
   return (
     <>
+      <div className="flex flex-wrap items-center justify-between gap-3 sm:hidden">
+        {canSelect ? (
+          <div className="flex min-h-9 items-center gap-2 text-sm">
+            <Checkbox id="calls-select-all-mobile" checked={allSelected ? true : someSelected ? 'indeterminate' : false} onCheckedChange={(v) => onSelectAll(v === true)} aria-label={tl('selectAll')} />
+            <label htmlFor="calls-select-all-mobile" className="cursor-pointer">
+              {tl('selectAllShort')}
+            </label>
+          </div>
+        ) : (
+          <span />
+        )}
+        <Select
+          value={`${sort}:${order}`}
+          onValueChange={(v) => {
+            const [nextSort, nextOrder] = v.split(':') as [CallSort, SortOrder];
+            onSortChange(nextSort, nextOrder);
+          }}
+        >
+          <SelectTrigger className="h-9 w-[11.5rem]" aria-label={tl('sortBy')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {MOBILE_SORTS.map((o) => (
+              <SelectItem key={`${o.sort}:${o.order}`} value={`${o.sort}:${o.order}`}>
+                {tl(`sortOptions.${o.sort}_${o.order}`)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       <ul className="flex flex-col gap-3 sm:hidden" aria-label={tl('title')}>
         {calls.map((call) => (
           <CallCard

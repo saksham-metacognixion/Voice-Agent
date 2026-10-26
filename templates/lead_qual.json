@@ -63,7 +63,8 @@
     "Ask three to five qualifying questions from the brief: budget, timeline, location, decision-maker",
     "Collect name, phone and email",
     "Promise a specific next step",
-    "Close politely"
+    "Ask whether there is anything else the caller needs, and carry on if there is",
+    "Only once the caller says there is nothing else, thank them for calling and end the call"
   ],
   "analysis_fields": [
     {
@@ -118,5 +119,5 @@
     "legal": "We are a two-lawyer family law practice downtown. Divorce, custody and mediation. First consultation is thirty minutes and is paid.",
     "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
   },
-  "version": 1
+  "version": 2
 }

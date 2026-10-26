@@ -138,3 +138,20 @@ describe('retellLanguage', () => {
     expect(agentSettings.safeParse(defaultAgentSettings()).success).toBe(true);
   });
 });
+
+describe('briefPatch — the W2 autosave (QA-006)', () => {
+  it('takes null as "clear" for an optional field', () => {
+    const parsed = agentDraftPatch.parse({ brief: { agent_name: null, address: null, pricing: null, anything_else: null, never_do: null } });
+    expect(parsed.brief).toEqual({ agent_name: null, address: null, pricing: null, anything_else: null, never_do: null });
+  });
+
+  it('still validates a value that is sent', () => {
+    expect(agentDraftPatch.safeParse({ brief: { agent_name: 'x' } }).success).toBe(false);
+    expect(agentDraftPatch.safeParse({ brief: { pricing: 'x'.repeat(501) } }).success).toBe(false);
+  });
+
+  it('takes no null for an array field — [] is how one is cleared', () => {
+    expect(agentDraftPatch.safeParse({ brief: { services: null } }).success).toBe(false);
+    expect(agentDraftPatch.safeParse({ brief: { services: [] } }).success).toBe(true);
+  });
+});

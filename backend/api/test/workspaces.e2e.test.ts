@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Prisma, adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { EMAIL_SENDER, type LogEmailSender, NotificationsService } from '../src/modules/notifications';
 import { WalletService } from '../src/modules/wallet';
 import type { FakeAuth0Tenant } from './auth0-double';
 import { type TestUser, addMember, createUser, createWorkspace, startD5Harness } from './d5-fixtures';
@@ -248,6 +249,37 @@ describe('GET/PATCH /workspace', () => {
     const res = await get('/workspace', await auth(mine.sub, theirs.workspaceId));
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('NOT_A_MEMBER');
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('POST /workspace/onboarding-step (QA-005)', () => {
+  it('lets an editor move the wizard forward — and never back', async () => {
+    const owner = await createWorkspace('advance');
+    const editor = await addMember(owner.workspaceId, 'advance-editor', 'editor');
+    const headers = await auth(editor.sub, owner.workspaceId);
+
+    const forward = await post('/workspace/onboarding-step', headers, { step: 2 });
+    expect(forward.statusCode).toBe(201);
+    expect(forward.json()).toMatchObject({ onboarding_step: 2, role: 'editor' });
+
+    await post('/workspace/onboarding-step', headers, { step: 5 });
+    const back = await post('/workspace/onboarding-step', headers, { step: 3 });
+    expect(back.json().onboarding_step).toBe(5);
+    const row = await adminDb.tenant.findUniqueOrThrow({ where: { id: owner.workspaceId } });
+    expect(row.onboardingStep).toBe(5);
+  });
+
+  it('is closed to a viewer and refuses a step outside 1–7', async () => {
+    const owner = await createWorkspace('advance-viewer');
+    const viewer = await addMember(owner.workspaceId, 'advance-viewer-v', 'viewer');
+
+    const res = await post('/workspace/onboarding-step', await auth(viewer.sub, owner.workspaceId), { step: 2 });
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('FORBIDDEN_ROLE');
+
+    const bad = await post('/workspace/onboarding-step', await auth(owner.sub, owner.workspaceId), { step: 8 });
+    expect(bad.statusCode).toBe(422);
   });
 });
 
@@ -530,7 +562,8 @@ describe('invites (A8)', () => {
 
     const res = await post(`/invites/${token}/accept`, await auth(other.sub));
     expect(res.statusCode).toBe(400);
-    expect(res.json().code).toBe('INVITE_INVALID');
+    // Its own code since QA-016, so the join screen can say "wrong address", not "invalid".
+    expect(res.json().code).toBe('INVITE_WRONG_EMAIL');
     expect(res.json().message).toContain(intended.email);
     expect(await adminDb.membership.count({ where: { tenantId: owner.workspaceId } })).toBe(1);
   });
@@ -544,6 +577,158 @@ describe('invites (A8)', () => {
     const res = await post(`/invites/${token}/accept`, await auth(newcomer.sub));
     expect(res.statusCode).toBe(400);
     expect(res.json().message).toContain('expired');
+  });
+
+  // A8 copy by code: the join screen says "expired" and "already used" apart from "not valid".
+  it('names an expired invite and one used by somebody else with their own codes', async () => {
+    const owner = await createWorkspace('invite-codes');
+    const late = await createUser('codes-late');
+    const expired = (await invite(owner, late.email)).json();
+    await adminDb.invite.update({ where: { id: expired.id }, data: { expiresAt: new Date(Date.now() - 1_000) } });
+    const res = await post(`/invites/${expired.token}/accept`, await auth(late.sub));
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('INVITE_EXPIRED');
+
+    const first = await createUser('codes-first');
+    const used = (await invite(owner, first.email)).json();
+    expect((await post(`/invites/${used.token}/accept`, await auth(first.sub))).statusCode).toBe(201);
+    // Same address on a second account: the invite is spent.
+    const second = await createUser('codes-second');
+    await adminDb.user.update({ where: { id: second.userId }, data: { email: first.email.toUpperCase() } });
+    const again = await post(`/invites/${used.token}/accept`, await auth(second.sub));
+    expect(again.statusCode).toBe(400);
+    expect(again.json().code).toBe('INVITE_USED');
+  });
+
+  // D11 / BUG-010: an expired invite was listed as pending with no way to resend it.
+  it('lists each unaccepted invite with its server-derived status, and never an accepted one', async () => {
+    const owner = await createWorkspace('invite-status');
+    const fresh = await createUser('status-fresh');
+    const stale = await createUser('status-stale');
+    const joined = await createUser('status-joined');
+    await invite(owner, fresh.email);
+    const old = (await invite(owner, stale.email)).json();
+    await adminDb.invite.update({ where: { id: old.id }, data: { expiresAt: new Date(Date.now() - 60_000) } });
+    const done = (await invite(owner, joined.email)).json();
+    expect((await post(`/invites/${done.token}/accept`, await auth(joined.sub))).statusCode).toBe(201);
+
+    const list = (await get('/invites', await auth(owner.sub, owner.workspaceId))).json() as Array<{ email: string; status: string }>;
+    const byEmail = Object.fromEntries(list.map((i) => [i.email, i.status]));
+    expect(byEmail).toEqual({ [fresh.email]: 'pending', [stale.email]: 'expired' });
+  });
+
+  it('resends an expired invite: a new pending link that works, the old one dead', async () => {
+    const owner = await createWorkspace('invite-resend');
+    const late = await createUser('resend-late');
+    const old = (await invite(owner, late.email, 'viewer')).json();
+    await adminDb.invite.update({ where: { id: old.id }, data: { expiresAt: new Date(Date.now() - 60_000) } });
+
+    const resent = await invite(owner, late.email, 'viewer');
+    expect(resent.statusCode).toBe(201);
+    expect(resent.json()).toMatchObject({ status: 'pending', role: 'viewer' });
+    expect(resent.json().token).not.toBe(old.token);
+
+    const list = (await get('/invites', await auth(owner.sub, owner.workspaceId))).json() as Array<{ status: string }>;
+    expect(list.map((i) => i.status)).toEqual(['pending']);
+
+    expect((await post(`/invites/${old.token}/accept`, await auth(late.sub))).json().code).toBe('INVITE_INVALID');
+    const joined = await post(`/invites/${resent.json().token}/accept`, await auth(late.sub));
+    expect(joined.statusCode).toBe(201);
+    expect(joined.json()).toMatchObject({ workspace_id: owner.workspaceId, role: 'viewer' });
+  });
+
+  it('keeps the invite list and resend to owners and admins', async () => {
+    const owner = await createWorkspace('invite-list-role');
+    const editor = await addMember(owner.workspaceId, 'invite-list-editor', 'editor');
+    expect((await get('/invites', await auth(editor.sub, owner.workspaceId))).statusCode).toBe(403);
+  });
+
+  // D6 "Send invite" sends the email; the token never reaches the outbox row (A8 stores its hash).
+  it('emails the invitation with the link, and stores the email without the token', async () => {
+    const emails = app.get(EMAIL_SENDER) as LogEmailSender;
+    const owner = await createWorkspace('invite-email');
+    const before = emails.sent.length;
+    const res = await invite(owner, 'emailed@example.test', 'viewer');
+    expect(res.statusCode).toBe(201);
+    const body = res.json();
+    // The log sender delivers nothing: the portal says so and shows the link to share.
+    expect(body.email_status).toBe('not_configured');
+
+    const sent = emails.sent.slice(before).find((e) => e.to === 'emailed@example.test')!;
+    expect(sent.subject).toContain('invited you to join');
+    expect(sent.text).toContain(`/invite/?token=${encodeURIComponent(body.token)}`);
+    expect(sent.text).toContain('as Viewer');
+
+    const row = await adminDb.notification.findUniqueOrThrow({ where: { dedupeKey: `invite:${body.id}` } });
+    expect(row).toMatchObject({ kind: 'invite', recipient: 'emailed@example.test', userId: null, status: 'sent' });
+    expect(JSON.stringify(row)).not.toContain(body.token);
+    expect((row.payloadJson as { text: string }).text).toContain('{invite_link}');
+  });
+
+  it('never re-sends an invitation email from the stored row: the link is not there', async () => {
+    const emails = app.get(EMAIL_SENDER) as LogEmailSender;
+    const owner = await createWorkspace('invite-email-retry');
+    const { id } = (await invite(owner, 'retry@example.test')).json();
+    await adminDb.notification.update({
+      where: { dedupeKey: `invite:${id}` },
+      data: { status: 'failed', attempts: 1, updatedAt: new Date(Date.now() - 60 * 60_000) },
+    });
+    const before = emails.sent.length;
+    await app.get(NotificationsService).retryFailed();
+    expect(emails.sent.slice(before).filter((e) => e.to === 'retry@example.test')).toHaveLength(0);
+    const row = await adminDb.notification.findUniqueOrThrow({ where: { dedupeKey: `invite:${id}` } });
+    expect(row.status).toBe('failed');
+    expect(row.error).toMatch(/resend from the Team page/);
+  });
+
+  describe('preview (A8 join screen)', () => {
+    function preview(token: string, headers: Record<string, string>) {
+      return get(`/invites/${token}/preview`, headers);
+    }
+
+    it('tells the invited address the workspace, the inviter and the role — and writes nothing', async () => {
+      const owner = await createWorkspace('preview-ok', { name: 'Preview Bistro' });
+      await adminDb.user.update({ where: { id: owner.userId }, data: { name: 'Priya Owner' } });
+      const newcomer = await createUser('preview-newcomer');
+      const { token } = (await invite(owner, newcomer.email, 'editor')).json();
+
+      const res = await preview(token, await auth(newcomer.sub));
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ workspace_name: 'Preview Bistro', role: 'editor', invited_by: 'Priya Owner', already_member: false });
+      expect(await adminDb.membership.count({ where: { tenantId: owner.workspaceId, userId: newcomer.userId } })).toBe(0);
+      expect((await adminDb.invite.findFirstOrThrow({ where: { tenantId: owner.workspaceId, email: newcomer.email } })).acceptedAt).toBeNull();
+    });
+
+    it('tells anyone else nothing about the workspace', async () => {
+      const owner = await createWorkspace('preview-other', { name: 'Secret Clinic' });
+      const intended = await createUser('preview-intended');
+      const other = await createUser('preview-other-user');
+      const { token } = (await invite(owner, intended.email)).json();
+
+      const res = await preview(token, await auth(other.sub));
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('INVITE_WRONG_EMAIL');
+      expect(res.body).not.toContain('Secret Clinic');
+      expect(res.body).not.toContain(intended.email);
+    });
+
+    it('answers expired, used, unknown, already-member and signed-out with their own outcome', async () => {
+      const owner = await createWorkspace('preview-states');
+      const late = await createUser('preview-late');
+      const expired = (await invite(owner, late.email)).json();
+      await adminDb.invite.update({ where: { id: expired.id }, data: { expiresAt: new Date(Date.now() - 1_000) } });
+      expect((await preview(expired.token, await auth(late.sub))).json().code).toBe('INVITE_EXPIRED');
+
+      const joiner = await createUser('preview-joiner');
+      const used = (await invite(owner, joiner.email)).json();
+      expect((await post(`/invites/${used.token}/accept`, await auth(joiner.sub))).statusCode).toBe(201);
+      const again = await preview(used.token, await auth(joiner.sub));
+      expect(again.statusCode).toBe(200);
+      expect(again.json().already_member).toBe(true);
+
+      expect((await preview('y'.repeat(43), await auth(late.sub))).json().code).toBe('INVITE_INVALID');
+      expect((await preview(used.token, {})).statusCode).toBe(401);
+    });
   });
 
   it('refuses a token that never existed', async () => {

@@ -340,6 +340,39 @@ describe('GET /calls/:id', () => {
     expect(res.statusCode).toBe(403);
     expect(res.json().code).toBe('NOT_A_MEMBER');
   });
+
+  it('checks a captured phone number against what the caller said (26 Oct: nine digits said, ten captured)', async () => {
+    const id = callId();
+    await adminDb.call.create({
+      data: {
+        id, tenantId: ws.tenantId, agentId: ws.agentId, channel: 'web', direction: 'inbound', isTest: true,
+        startedAt: new Date(), endedAt: new Date(), durationS: 90, rate: new Prisma.Decimal(1), status: 'analyzed',
+        transcriptJson: [
+          { role: 'agent', content: 'Can I get a phone number to reach you?' },
+          { role: 'user', content: "Yeah. It's eight seven, six, five, four. Three. Two. One. Zero." },
+          { role: 'agent', content: 'Thank you — I have your phone number as 876-543-2100.' },
+        ],
+        analysisJson: { call_summary: 'Reservation for Priya, phone 876-543-2100.', custom_analysis_data: { caller_name: 'Priya', callback_number: '876-543-2100' } },
+      },
+    });
+
+    const res = await get(`/calls/${id}`);
+    expect(res.statusCode).toBe(200);
+    // The analysis is returned as the platform stored it; the verdict sits beside it.
+    expect(res.json().analysis_json.custom_analysis_data.callback_number).toBe('876-543-2100');
+    expect(res.json().captured_checks).toEqual([
+      { field: 'callback_number', value: '876-543-2100', status: 'mismatch', digits: 10, heard: ['876543210'] },
+    ]);
+
+    // PATCH answers the same detail, check included.
+    const patched = await app.inject({ method: 'PATCH', url: `/calls/${id}`, headers: await headers(), payload: { handled: true } });
+    expect(patched.json().captured_checks[0].status).toBe('mismatch');
+
+    // A call with nothing captured carries an empty list, not a missing key.
+    expect((await get(`/calls/${ids.web}`)).json().captured_checks).toEqual([]);
+    // Out of the history the list, export and /stats cases below count.
+    await adminDb.call.delete({ where: { id } });
+  });
 });
 
 describe('PATCH /calls/:id', () => {

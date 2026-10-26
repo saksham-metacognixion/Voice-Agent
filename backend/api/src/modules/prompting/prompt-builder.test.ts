@@ -14,10 +14,13 @@ import {
   briefForModel,
   buildFeedbackPrompt,
   buildUserPrompt,
+  closingSection,
+  documentsSection,
   describeHours,
   identitySection,
   knowledgeSection,
   normaliseAnalysisFields,
+  transferSection,
 } from './prompt-builder';
 
 /*
@@ -142,10 +145,13 @@ describe('briefForModel', () => {
     expect(described).toContain('Warm, never rushed.');
   });
 
-  it('spells out the hand-off rules with their numbers', () => {
+  // BUG-005: this test used to require the number. The model wrote what it was shown, and
+  // the agent read the staff number aloud; the number is the transfer tool's destination only.
+  it('spells out the hand-off rules without the staff number', () => {
     expect(briefForModel(BRIEF).handoff_rules).toEqual([
-      'The caller says it is an emergency → transfer to +15145550123',
+      'The caller says it is an emergency → offer to transfer the caller to our staff',
     ]);
+    expect(JSON.stringify(briefForModel(BRIEF))).not.toContain('5145550123');
   });
 
   it('hands the model a read-a-message rule with the exact words to read', () => {
@@ -378,5 +384,97 @@ describe('identity and knowledge in the user turn', () => {
     const lines = knowledgeSection([{ name: 'FAQ page', role: null }]);
     expect(lines.join('\n')).toContain('  - FAQ page');
     expect(lines.join('\n')).not.toMatch(/menu/i);
+  });
+});
+
+/*
+ * The closing line (26 Oct 2026, ADR 0012). A restaurant agent said "Thank you for calling
+ * Spice Garden Restaurant" straight after a reservation read-back, and again after an
+ * answer about parking: every template ended "confirm the details → close politely" and
+ * the skeleton's ending was a bare `{closing_line}`. The model wrote exactly that.
+ */
+describe('the closing line', () => {
+  const ALL = ['receptionist', 'appointment', 'afterhours', 'lead_qual', 'faq_support', 'restaurant', 'custom'];
+
+  it('no template closes the call as the step after a task', () => {
+    for (const id of ALL) {
+      const steps = loadTemplate(id).steps;
+      expect(steps, id).not.toContain('Close politely');
+      const anythingElse = steps.findIndex((step) => /anything else/i.test(step));
+      const goodbye = steps.findIndex((step) => /thank them for calling/i.test(step));
+      expect(anythingElse, `${id}: asks whether there is anything else`).toBeGreaterThan(-1);
+      expect(goodbye, `${id}: says goodbye only after that`).toBe(anythingElse + 1);
+      expect(steps[goodbye], id).toMatch(/only once the caller says there is nothing else/i);
+    }
+  });
+
+  it('the restaurant asks for anything else after the read-back, not a goodbye', () => {
+    const steps = loadTemplate('restaurant').steps;
+    const readBack = steps.findIndex((step) => /confirm the details back/i.test(step));
+    expect(steps[readBack + 1]).toMatch(/anything else/i);
+  });
+
+  it('the user turn says when the closing line is said, whatever skeleton the stack row carries', () => {
+    const v1Ending = APPENDIX_B_SKELETON.replace(/## Ending\n.*$/s, '## Ending\n{closing_line}');
+    const prompt = buildUserPrompt({ ...CONTEXT, template: loadTemplate('restaurant'), skeleton: v1Ending });
+    expect(prompt).toContain(closingSection().join('\n'));
+    expect(prompt).toMatch(/Finishing one task is not the end of the call/);
+    expect(prompt).toMatch(/says the closing line only\s+once the caller says they need nothing else/);
+    expect(prompt).toMatch(/ends the call in the same\s+turn/);
+  });
+
+  it('the compiled-in skeleton ties the ending to the caller, not to the read-back', () => {
+    expect(APPENDIX_B_SKELETON).not.toContain('before ending');
+    expect(APPENDIX_B_SKELETON).toMatch(/then ask whether there is anything else/);
+    expect(APPENDIX_B_SKELETON).toMatch(/## Ending\nOnly once the caller says there is nothing else or says goodbye: \{closing_line\} End the call in the same turn\./);
+  });
+});
+
+// BUG-005: the staff transfer number reached the model through the brief and the
+// skeleton, and the agent read it aloud. Neither turn may carry it.
+describe('staff transfers in the generation turns', () => {
+  it('never hands the model the transfer number, in the user turn or the feedback turn', () => {
+    const user = buildUserPrompt(CONTEXT);
+    const feedback = buildFeedbackPrompt({ brief: BRIEF, prompt: 'You are Sophie.', greeting: 'Hello', feedback: 'Be quicker.', primaryLanguage: 'en-US' });
+    for (const turn of [user, feedback]) {
+      expect(turn).not.toMatch(/5145550123|514.?555.?0123/);
+      expect(turn).toContain('# Transfers');
+      expect(turn).toContain('Would you like me to transfer you to our staff?');
+      expect(turn).toMatch(/never reads out a staff phone\s+number/);
+    }
+  });
+
+  it('says what to do when the transfer cannot happen', () => {
+    expect(transferSection(BRIEF).join(' ')).toMatch(/does not go through.*offers to take a\s+message/);
+  });
+
+  it('adds nothing about transfers for an agent that cannot transfer', () => {
+    const noTransfer = { ...BRIEF, handoff_rules: [{ condition: 'After hours', action: 'take_message' as const }] };
+    expect(transferSection(noTransfer)).toEqual([]);
+    expect(buildUserPrompt({ ...CONTEXT, brief: noTransfer })).not.toContain('# Transfers');
+  });
+});
+
+// BUG-007: asked for vegetarian dishes, the agent read the whole menu with prices and drinks.
+describe('menu listing rules', () => {
+  it('asks for three or four items and an offer of more when there is a menu', () => {
+    const lines = knowledgeSection([{ name: 'Dinner menu', role: 'menu' }]).join(' ');
+    expect(lines).toMatch(/at most three or four items/);
+    expect(lines).toMatch(/ask whether they would like to hear more/);
+    expect(lines).toMatch(/whole list only when the caller asks for all of it/);
+    expect(lines).toMatch(/no drinks when the caller asked about food/);
+    expect(lines).toMatch(/price only when the caller asks/);
+    // Still never invented.
+    expect(lines).toMatch(/never invent a dish, a price or an ingredient/);
+  });
+
+  it('asks the same of a W2 document, and keeps the "do not copy it" rule', () => {
+    const lines = documentsSection([{ name: 'menu.pdf', text: 'Margherita 14\nHouse red 9', truncated: false }] as never).join('\n');
+    expect(lines).toMatch(/at most three or four items/);
+    expect(lines).toMatch(/do NOT copy their contents/);
+  });
+
+  it('says nothing about menus to an agent without one', () => {
+    expect(knowledgeSection([{ name: 'FAQ page', role: null }]).join(' ')).not.toMatch(/three or four/);
   });
 });

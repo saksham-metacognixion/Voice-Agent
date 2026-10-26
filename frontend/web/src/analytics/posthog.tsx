@@ -5,12 +5,21 @@ import * as React from 'react';
 import { usePathname } from 'next/navigation';
 import { config } from '../config';
 import { workspaceStore } from '../workspace/store';
+import { sanitizeCapture, sanitizeUrl } from './sanitize';
 
 /**
  * PostHog (spec §12.1). Off when no key is set, so a dev box sends nothing. Identity is
  * the Auth0 `sub` — pseudonymous — and event properties are ids, step names and counts,
  * never brief text, email addresses or phone numbers. Page views are captured by hand on
  * route change (the static export has no server to count them).
+ *
+ * No URL leaves with its query string or fragment (QA-008): those carry the Auth0 code
+ * and state, invite tokens, view-as keys and Stripe session ids. `sanitizeCapture` runs
+ * as `before_send` on every event, ours and the SDK's. Three things carry URLs that
+ * `before_send` never sees, so they are off: session replay and heatmaps (URLs inside
+ * their payloads), and the `/flags` request, which posts the person's properties —
+ * `$initial_current_url` included — to evaluate feature flags. The portal's flags are
+ * `GET /flags` on our API; PostHog's are not used.
  */
 let initialised = false;
 
@@ -24,6 +33,10 @@ export function initAnalytics(): boolean {
     autocapture: false,
     persistence: 'localStorage+cookie',
     person_profiles: 'identified_only',
+    before_send: sanitizeCapture,
+    disable_session_recording: true,
+    enable_heatmaps: false,
+    advanced_disable_flags: true,
   });
   posthog.register({ app: 'portal', app_env: config.appEnv });
   initialised = true;
@@ -118,14 +131,19 @@ export function resetAnalytics() {
   if (initialised) posthog.reset();
 }
 
+/** The hand-made page view: path and workspace, and the URL without its query or fragment. */
+export function capturePageview(pathname: string) {
+  if (!initialised || !pathname) return;
+  posthog.capture('$pageview', { $current_url: sanitizeUrl(window.location.href), path: pathname, workspace_id: workspaceStore.get() });
+}
+
 export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   React.useEffect(() => {
     initAnalytics();
   }, []);
   React.useEffect(() => {
-    if (!initialised || !pathname) return;
-    posthog.capture('$pageview', { $current_url: window.location.href, path: pathname, workspace_id: workspaceStore.get() });
+    capturePageview(pathname);
   }, [pathname]);
   return <>{children}</>;
 }

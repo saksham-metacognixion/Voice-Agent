@@ -48,6 +48,16 @@ export default function AgentDetailPage() {
   const canEdit = roleAtLeast(role, 'editor');
   const canAdmin = roleAtLeast(role, 'admin');
 
+  // The Advanced editor stays mounted once opened, hidden while another tab is shown, so
+  // a tab switch never throws unsaved script edits away (QA-024); its dirty state is
+  // lifted here so Publish waits for a save rather than publishing the last saved
+  // version under the person's eyes (QA-025). Leaving the page asks (`useLeaveGuard`).
+  const [promptOpened, setPromptOpened] = React.useState(tab === 'prompt');
+  const [promptDirty, setPromptDirty] = React.useState(false);
+  React.useEffect(() => {
+    if (tab === 'prompt') setPromptOpened(true);
+  }, [tab]);
+
   const setTab = (next: string) => {
     setParams((q) => {
       if (next === 'overview') q.delete('tab');
@@ -101,12 +111,15 @@ export default function AgentDetailPage() {
           {AGENT_TABS.map((key) => (
             <TabsTrigger key={key} value={key}>
               {ta(`tabs.${key}`)}
+              {key === 'prompt' && promptDirty ? <span className="ms-1.5 inline-block size-1.5 rounded-full bg-warning" role="img" aria-label={t('common.unsaved')} /> : null}
             </TabsTrigger>
           ))}
         </TabsList>
         <TabsContent value="overview">{tab === 'overview' ? <OverviewTab agent={data} /> : null}</TabsContent>
         <TabsContent value="brief">{tab === 'brief' ? <BriefTab key={data.draft?.version_no ?? 'none'} agent={data} canEdit={canEdit} /> : null}</TabsContent>
-        <TabsContent value="prompt">{tab === 'prompt' ? <PromptTab agent={data} canEdit={canEdit} /> : null}</TabsContent>
+        <TabsContent value="prompt" forceMount className="data-[state=inactive]:hidden">
+          {promptOpened ? <PromptTab agent={data} canEdit={canEdit} onDirtyChange={setPromptDirty} /> : null}
+        </TabsContent>
         <TabsContent value="voice">{tab === 'voice' ? <VoiceTab key={data.draft?.version_no ?? 'none'} agent={data} canEdit={canEdit} /> : null}</TabsContent>
         <TabsContent value="knowledge">{tab === 'knowledge' ? <KnowledgeTab agent={data} canEdit={canEdit} /> : null}</TabsContent>
         <TabsContent value="test">{tab === 'test' ? <TestTab agent={data} canEdit={canEdit} /> : null}</TabsContent>
@@ -114,7 +127,7 @@ export default function AgentDetailPage() {
         <TabsContent value="settings">{tab === 'settings' ? <SettingsTab key={data.draft?.version_no ?? 'none'} agent={data} canEdit={canEdit} canAdmin={canAdmin} /> : null}</TabsContent>
       </Tabs>
 
-      {tab !== 'test' ? <PublishBar agent={data} canEdit={canEdit} /> : null}
+      {tab !== 'test' ? <PublishBar agent={data} canEdit={canEdit} editorDirty={promptDirty} /> : null}
     </>
   );
 }

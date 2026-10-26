@@ -138,6 +138,9 @@ function BottomTabBar() {
                       <Link
                         href={item.href}
                         aria-current={active ? 'page' : undefined}
+                        // The pathname effect above closes the sheet on a route change; picking
+                        // the page already open changes no pathname, so the link closes it too.
+                        onClick={() => setMoreOpen(false)}
                         className={cn('flex min-h-12 items-center gap-3 rounded-md px-3 text-sm font-medium transition-colors hover:bg-muted', active && 'bg-sidebar-accent text-sidebar-accent-foreground')}
                       >
                         <item.icon className="size-5 shrink-0" aria-hidden />

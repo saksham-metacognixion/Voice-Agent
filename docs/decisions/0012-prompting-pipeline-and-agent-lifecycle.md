@@ -465,6 +465,95 @@ order I would take it:
 4. **Fast mode on `claude-opus-5`** (≈ 2.5× output speed) — a model change at roughly five
    times the cost per generation; not measured, listed for completeness.
 
+## Addendum — the closing line (26 Oct 2026)
+
+**Problem.** A staging restaurant agent said "Thank you for calling Spice Garden
+Restaurant" straight after a reservation read-back and after an answer about parking,
+while the caller still had questions. The call stayed up; the caller had to interrupt.
+
+**Cause.** Everything that told the model how a call ends put the goodbye right after the
+read-back, and nothing tied it to the caller: all seven templates ended `… confirm the
+details back` → `Close politely`; Appendix B's step 4 said "confirm … before ending" and its
+`## Ending` was a bare `{closing_line}`; §9.4's sixth rule reads "Confirm captured details
+back to the caller. End the call when the caller is done."; the `end_call` tool said "when
+the conversation is over". The Standard model wrote and then followed exactly that.
+
+**Decision.** Four changes, prompt and configuration only — the call lifecycle is untouched:
+
+1. `CLOSING_RULE` in `FIXED_PLATFORM_GUARDRAILS` — appended whatever the stack row says, so
+   it reaches a live agent whose stored script still has the old ending at its next sync
+   (draft sync or publish), without a regenerate and without a new stack version. It is not
+   §9.4 text; it sits beside the spec's seven rules, which stay verbatim.
+2. `closingSection()` in the generation user turn, in code beside `identitySection()`,
+   because the skeleton is `agent_stack_configs` data and staging serves v1. It tells the
+   model to write the confirm step as "then ask whether there is anything else" and the
+   `## Ending` as condition + line + hang-up. The compiled-in skeleton says the same.
+3. Every template's last step is now two: ask whether there is anything else, and only
+   once there is nothing else, thank the caller and end the call (template `version` + 1;
+   `pnpm db:seed` upserts the rows).
+4. The `end_call` tool description: end the call once the caller has said they need
+   nothing else, goodbye and hang-up in the same turn, never after an ordinary answer.
+
+**Measured.** Text conversations against the dev platform workspace on the Standard model,
+the same LLM object a voice agent gets (prompt, greeting, `end_call` and transfer tools),
+through a chat agent so a script could hold the turns. Seven scenarios (hours, parking,
+reservation, several questions, a question after "anything else?", explicit goodbye, an
+ambiguous "Okay."), a Spice Garden brief, scripts from the real generator:
+
+| Variant                                   | Premature closing line | Premature hang-up |
+| ----------------------------------------- | ---------------------- | ----------------- |
+| Before (old script, v1 rules)             | 24 / 28                | 0                 |
+| Existing agent, re-synced (old script)    | 8 / 46                 | 0                 |
+| Regenerated (new script)                  | 2 / 74                 | 0                 |
+
+Both remaining regenerated misses are the ambiguous "Okay." after "anything else?". On an
+explicit goodbye the new scripts say the line every time but call `end_call` in that turn
+only about 60 % of the time (before: 4 / 4, because the old script said goodbye eagerly);
+otherwise the caller hangs up, as callers do after "bye". Naming `end_call` in the rule
+raised that to 15 / 16 but made agents on old scripts call it mid-booking — 5 / 24
+conversations hung up on the caller — so the rule does not name it.
+
+**Consequences.** An existing agent improves at its next sync; the full fix is a regenerate
+(W2 Generate, or D3). Staging's `agent_stack_configs` v1 still carries the old skeleton;
+`closingSection()` overrides it in the user turn, and a v2 row is not required.
+
+## Addendum — staff transfers and category answers (26 Oct 2026, BUG-005, BUG-007)
+
+**Transfers.** An agent read the staff transfer number aloud when it offered a transfer, and
+again on the retry. The number reached the model by three routes: `briefForModel`
+(`→ transfer to +1…`), the skeleton's `{transfer_targets}`, and the `transfer_call` tool
+description (`Transfer the caller to +1…`). The number now goes only where the platform
+dials it: the tool's `transfer_destination` and the §9.7 `transfer_number_N` variables.
+What the model reads instead:
+
+- `briefForModel` says `→ offer to transfer the caller to our staff`, and `transferSection()`
+  in the generation and feedback turns (only when a transfer rule exists) says to fill
+  `{transfer_targets}` with a label, never digits, and to word it as an offer.
+- `transferCallTools()` (gateway) describes each tool by the brief's conditions for that
+  number (`transferRoutes()`), with the offer wording, "never say the number", and what
+  to say when it does not go through.
+- `redactTransferNumbers()` runs on the script (`runtimePrompt`) and the greeting
+  (`llmSpec`) at the platform boundary. It replaces the number in any common written
+  form, and `{{transfer_number_N}}`, with "our staff". A script stored before this fix
+  reaches the phone without the number, with no regenerate. Business documents are the
+  business's own words and are not touched.
+- `TRANSFER_RULE` joins `FIXED_PLATFORM_GUARDRAILS`. It is conditional ("when a hand-off
+  rule says to transfer"), so an agent with no transfer never offers one. `lint`'s
+  `handoff_rule_missing` now reads the script without the platform block, because the
+  rule says "transfer" for every agent.
+
+**Category answers.** Asked for vegetarian dishes, an agent read the whole menu with its
+prices, drinks included. `LIST_RULE` (fixed) asks for three or four fitting items, then an
+offer of more; the full list only when the caller asks for it; no other categories mixed
+in; a price only when asked or when it helps the caller choose. `MENU_LISTING_RULES` say
+the same in the generation turn for a menu source or a W2 document. The restaurant
+template gained a matching step. These rules are wording only and do not trim the menu
+data the agent can draw on.
+
+**Not measured.** Unlike the closing line, these wordings have not been run against the
+real model on dev. `bench:generation` and a text chat with a transfer rule and a menu are
+the check.
+
 ## What is deliberately still open
 
 - **Voice preview is the provider's sample clip**, not the customer's greeting spoken aloud.

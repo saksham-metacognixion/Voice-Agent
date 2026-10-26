@@ -16,8 +16,12 @@ import { errorMessage } from '@/src/lib/errors';
  * version. Publish is §13.6 — lint (errors block, warnings publish), push to the voice
  * platform, go live; numbers bound to `latest_published` pick it up on the next call.
  * A publish does not un-pause a paused agent (ADR 0012 §4), and the bar says so.
+ *
+ * Publish sends the last *saved* draft. While the Advanced editor holds unsaved edits
+ * (`editorDirty`) the button waits and the bar says "save first" — otherwise the person
+ * would publish a version that is not what they see on screen (QA-025).
  */
-export function PublishBar({ agent, canEdit }: { agent: AgentDetail; canEdit: boolean }) {
+export function PublishBar({ agent, canEdit, editorDirty = false }: { agent: AgentDetail; canEdit: boolean; editorDirty?: boolean }) {
   const t = useTranslations('dashboard.agents.publish');
   const tc = useTranslations();
   const copy = useServerCopy();
@@ -66,10 +70,10 @@ export function PublishBar({ agent, canEdit }: { agent: AgentDetail; canEdit: bo
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/40 bg-popover px-4 py-3 shadow-popover">
         <div className="text-sm">
           <p className="font-medium">{agent.published_version === null ? t('firstTitle', { n: draft.version_no }) : t('title', { n: draft.version_no, live: agent.published_version })}</p>
-          <p className="text-xs text-muted-foreground">{agent.status === 'paused' ? t('pausedHint') : t('hint')}</p>
+          <p className={editorDirty ? 'text-xs text-warning-emphasis' : 'text-xs text-muted-foreground'}>{editorDirty ? t('saveFirst') : agent.status === 'paused' ? t('pausedHint') : t('hint')}</p>
         </div>
         {canEdit ? (
-          <Button onClick={() => void run()} loading={publish.isPending} disabled={!draft.has_prompt}>
+          <Button onClick={() => void run()} loading={publish.isPending} disabled={!draft.has_prompt || editorDirty}>
             <Rocket /> {t('button', { n: draft.version_no })}
           </Button>
         ) : null}

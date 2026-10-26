@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RetellGateway, TierStack } from '../retell';
-import { AgentRetellService, toRetellAnalysisFields, type RetellSyncInput } from './agent-retell.service';
+import { AgentRetellService, PHONE_FIELD_RULE, toRetellAnalysisFields, type RetellSyncInput } from './agent-retell.service';
 
 /*
  * D5 review finding 8: no compiled-in model, voice or plan ceiling. The tier stack is
@@ -153,6 +153,16 @@ describe('toRetellAnalysisFields', () => {
     const [mapped] = toRetellAnalysisFields([{ name: 'reason', type: 'text', description: 'Why.' }]);
     expect(mapped && 'choices' in mapped).toBe(false);
   });
+
+  it('tells the analysis to copy a phone field from the caller, never the read-back (26 Oct)', () => {
+    const [phone, name] = toRetellAnalysisFields([
+      { name: 'callback_number', type: 'text', description: 'The number to call back on.' },
+      { name: 'caller_name', type: 'text', description: 'The name the booking is under.' },
+    ]);
+    expect(phone?.description).toBe(`The number to call back on. ${PHONE_FIELD_RULE}`);
+    expect(phone?.description).toMatch(/not from the agent's read-back/);
+    expect(name?.description).toBe('The name the booking is under.');
+  });
 });
 
 /*
@@ -244,5 +254,39 @@ describe('AgentRetellService: what W3 promises actually reaches Retell', () => {
     const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as Record<string, unknown>;
     expect(agent.voiceSpeed).toBeUndefined();
     expect(agent.voiceTemperature).toBeUndefined();
+  });
+});
+
+// BUG-005: the platform dials the staff number; the model never reads it.
+describe('AgentRetellService staff transfers', () => {
+  const brief = {
+    services: [],
+    faqs: [],
+    handoff_rules: [{ condition: 'Asks for the manager', action: 'transfer' as const, transfer_number: '+14165550142' }],
+    ai_disclosure: 'if_asked' as const,
+    documents: [],
+  };
+
+  it('sends the number as a transfer destination and keeps it out of the prompt and greeting', async () => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft(
+      input({
+        brief,
+        promptText: 'You are Sophie. If they ask for the manager, transfer them to +1 416 555 0142.',
+        greeting: 'Hi! For the manager dial 416-555-0142.',
+      }),
+    );
+    const llm = gw.calls.find((c) => c.method === 'createLlm')!.args[0] as {
+      prompt: string;
+      beginMessage: string;
+      transfers: Array<{ number: string; conditions: string[] }>;
+      defaultDynamicVariables: Record<string, string>;
+    };
+    expect(llm.transfers).toEqual([{ number: '+14165550142', conditions: ['Asks for the manager'] }]);
+    expect(llm.prompt).not.toMatch(/555.?0142/);
+    expect(llm.prompt).toContain('transfer them to our staff.');
+    expect(llm.beginMessage).toBe('Hi! For the manager dial our staff.');
+    // §9.7: the variable stays for the platform; nothing in the prompt references it.
+    expect(llm.defaultDynamicVariables.transfer_number_1).toBe('+14165550142');
   });
 });

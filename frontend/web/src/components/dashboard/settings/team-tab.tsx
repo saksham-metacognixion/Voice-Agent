@@ -4,9 +4,9 @@ import { createInvite, removeMember, revokeInvite, transferOwnership, updateMemb
 import { inviteRequest, type AssignableRole, type InviteResponse, type MemberResponse } from '@portal/schemas';
 import {
   Alert, Avatar, AvatarFallback, AvatarImage, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Input, Select, SelectContent, SelectItem,
-  SelectTrigger, SelectValue, Skeleton, initials, toast,
+  SelectTrigger, SelectValue, Skeleton, cn, initials, toast,
 } from '@portal/ui';
-import { Copy, Crown, MailPlus, UserMinus, Users } from 'lucide-react';
+import { Copy, Crown, MailPlus, RotateCw, UserMinus, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
@@ -183,12 +183,11 @@ export function TeamTab() {
   );
 }
 
-/** Invite by email and role; the API returns the token once, so the link is shown once to copy (no email is sent yet). */
+/** Invite by email and role: the API emails the link and returns the token once, so the link is also shown once to copy. */
 function InviteCard() {
   const t = useTranslations('dashboard.settings.team');
   const tc = useTranslations();
   const api = useApi();
-  const ws = useWorkspace();
   const queryClient = useQueryClient();
   const [email, setEmail] = React.useState('');
   const [role, setRole] = React.useState<AssignableRole>('editor');
@@ -213,8 +212,8 @@ function InviteCard() {
       setCreated(invite);
       setEmail('');
       await queryClient.invalidateQueries({ queryKey: ['listInvites'] });
-      track('member_invited', { role: parsed.data.role });
-      toast.success(t('invited', { email: invite.email }));
+      track('member_invited', { role: parsed.data.role, email_status: invite.email_status ?? null });
+      announceInvite(invite, t);
     } catch (err) {
       setError(errorMessage(err, tc));
     } finally {
@@ -222,7 +221,6 @@ function InviteCard() {
     }
   }
 
-  const link = created?.token && typeof window !== 'undefined' ? `${window.location.origin}${routes.invite}?token=${encodeURIComponent(created.token)}` : null;
 
   return (
     <Card>
@@ -257,24 +255,46 @@ function InviteCard() {
         </form>
         <p className="text-xs text-muted-foreground">{t(`roleHints.${role}`)}</p>
         {error ? <Alert variant="danger">{error}</Alert> : null}
-        {created && link ? (
-          <Alert variant="success" title={t('linkTitle', { email: created.email })}>
-            <p className="mb-2">{t('linkBody', { email: created.email, date: formatDate(created.expires_at, ws.workspace?.timezone) })}</p>
-            <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
-              <Input value={link} readOnly aria-label={t('linkTitle', { email: created.email })} className="min-w-0 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
-              <Button
-                variant="outline"
-                onClick={() => {
-                  void navigator.clipboard?.writeText(link).then(() => toast.success(tc('common.copied')));
-                }}
-              >
-                <Copy /> {tc('common.copy')}
-              </Button>
-            </div>
-          </Alert>
-        ) : null}
+        {created ? <InviteLink invite={created} /> : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The toast after an invite or a resend, by what the email did: sent, failed (the link
+ * below still works — share it), or not set up on this box (share the link).
+ */
+function announceInvite(invite: InviteResponse, t: ReturnType<typeof useTranslations<'dashboard.settings.team'>>, resend = false) {
+  if (invite.email_status === 'sent') toast.success(t(resend ? 'resentEmailed' : 'invitedEmailed', { email: invite.email }));
+  else if (invite.email_status === 'failed') toast.warning(t('emailFailed', { email: invite.email }));
+  else toast.success(t(resend ? 'resent' : 'invited', { email: invite.email }));
+}
+
+/** The link for a just-created invite, shown once to copy: the API never returns the token again. */
+function InviteLink({ invite }: { invite: InviteResponse }) {
+  const t = useTranslations('dashboard.settings.team');
+  const tc = useTranslations();
+  const ws = useWorkspace();
+  const link = invite.token && typeof window !== 'undefined' ? `${window.location.origin}${routes.invite}?token=${encodeURIComponent(invite.token)}` : null;
+  if (!link) return null;
+  return (
+    <Alert variant="success" title={t('linkTitle', { email: invite.email })}>
+      <p className="mb-2">
+        {t(invite.email_status === 'sent' ? 'linkBodyEmailed' : 'linkBody', { email: invite.email, date: formatDate(invite.expires_at, ws.workspace?.timezone) })}
+      </p>
+      <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+        <Input value={link} readOnly aria-label={t('linkTitle', { email: invite.email })} className="min-w-0 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} />
+        <Button
+          variant="outline"
+          onClick={() => {
+            void navigator.clipboard?.writeText(link).then(() => toast.success(tc('common.copied')));
+          }}
+        >
+          <Copy /> {tc('common.copy')}
+        </Button>
+      </div>
+    </Alert>
   );
 }
 
@@ -286,38 +306,87 @@ function PendingInvites() {
   const queryClient = useQueryClient();
   const invites = useListInvites(api, { staleTime: 30_000 });
   const [revoking, setRevoking] = React.useState<string | null>(null);
-  const pending = (invites.data ?? []).filter((i) => !i.accepted_at);
+  const [resending, setResending] = React.useState<string | null>(null);
+  const [resent, setResent] = React.useState<InviteResponse | null>(null);
+  const [confirming, setConfirming] = React.useState<InviteResponse | null>(null);
+  // `status` is the server's (its clock is the one the accept route checks). Accepted
+  // invites are members now and are not listed; the filter is belt and braces.
+  const open = (invites.data ?? []).filter((i) => i.status !== 'accepted' && !i.accepted_at);
+  const busy = revoking !== null || resending !== null;
+
+  // Resend = the same POST /invites the invite form uses: it replaces the row with a fresh
+  // token, expiry and email, so the old link stops working (BUG-010). An expired invite
+  // goes at once; a pending one asks first, because its link may already be shared.
+  async function resend(i: InviteResponse) {
+    setResending(i.id);
+    try {
+      const fresh = await createInvite(api, { email: i.email, role: i.role as AssignableRole });
+      setResent(fresh);
+      await queryClient.invalidateQueries({ queryKey: ['listInvites'] });
+      track('member_invited', { role: fresh.role, resend: true, email_status: fresh.email_status ?? null });
+      announceInvite(fresh, t, true);
+    } catch (e) {
+      toast.error(errorMessage(e, tc));
+    } finally {
+      setResending(null);
+    }
+  }
 
   const columns: Array<DataColumn<InviteResponse>> = [
     { key: 'email', header: t('inviteColumns.email'), card: 'title', cell: (i) => <span className="break-all">{i.email}</span> },
-    { key: 'role', header: t('inviteColumns.role'), card: 'badge', cell: (i) => <Badge variant="outline">{t(`roles.${i.role}`)}</Badge> },
-    { key: 'expires', header: t('inviteColumns.expires'), cell: (i) => formatDate(i.expires_at, ws.workspace?.timezone) },
+    { key: 'role', header: t('inviteColumns.role'), cell: (i) => <Badge variant="outline">{t(`roles.${i.role}`)}</Badge> },
+    {
+      key: 'status',
+      header: t('inviteColumns.status'),
+      card: 'badge',
+      cell: (i) => (i.status === 'expired' ? <Badge variant="warning">{t('inviteStatus.expired')}</Badge> : <Badge variant="info">{t('inviteStatus.pending')}</Badge>),
+    },
+    {
+      key: 'expires',
+      header: t('inviteColumns.expires'),
+      cell: (i) => (
+        <span className={cn(i.status === 'expired' && 'text-muted-foreground')}>
+          {i.status === 'expired' ? t('expiredOn', { date: formatDate(i.expires_at, ws.workspace?.timezone) }) : formatDate(i.expires_at, ws.workspace?.timezone)}
+        </span>
+      ),
+    },
     {
       key: 'actions',
       header: <span className="sr-only">{t('inviteColumns.actions')}</span>,
       card: 'actions',
       align: 'right',
       cell: (i) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          loading={revoking === i.id}
-          disabled={revoking !== null}
-          onClick={async () => {
-            setRevoking(i.id);
-            try {
-              await revokeInvite(api, { id: i.id });
-              await queryClient.invalidateQueries({ queryKey: ['listInvites'] });
-              toast.success(t('revoked'));
-            } catch (e) {
-              toast.error(errorMessage(e, tc));
-            } finally {
-              setRevoking(null);
-            }
-          }}
-        >
-          {t('revoke')}
-        </Button>
+        <div className="flex w-full flex-wrap justify-end gap-2">
+          <Button
+            variant={i.status === 'expired' ? 'outline' : 'ghost'}
+            size="sm"
+            loading={resending === i.id}
+            disabled={busy}
+            onClick={() => (i.status === 'expired' ? void resend(i) : setConfirming(i))}
+          >
+            <RotateCw /> {t('resend')}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            loading={revoking === i.id}
+            disabled={busy}
+            onClick={async () => {
+              setRevoking(i.id);
+              try {
+                await revokeInvite(api, { id: i.id });
+                await queryClient.invalidateQueries({ queryKey: ['listInvites'] });
+                toast.success(t('revoked'));
+              } catch (e) {
+                toast.error(errorMessage(e, tc));
+              } finally {
+                setRevoking(null);
+              }
+            }}
+          >
+            {t('revoke')}
+          </Button>
+        </div>
       ),
     },
   ];
@@ -332,11 +401,27 @@ function PendingInvites() {
           <Skeleton className="h-16 w-full" aria-busy />
         ) : invites.isError ? (
           <LoadError compact error={invites.error} onRetry={() => void invites.refetch()} />
-        ) : pending.length === 0 ? (
+        ) : open.length === 0 ? (
           <EmptyState className="py-6" icon={<MailPlus />} title={t('invitesEmpty')} />
         ) : (
-          <DataTable label={t('invitesLabel')} rows={pending} columns={columns} rowKey={(i) => i.id} />
+          <DataTable label={t('invitesLabel')} rows={open} columns={columns} rowKey={(i) => i.id} />
         )}
+        {resent ? (
+          <div className="mt-4">
+            <InviteLink invite={resent} />
+          </div>
+        ) : null}
+        <ConfirmDialog
+          open={Boolean(confirming)}
+          onOpenChange={(open) => (open ? undefined : setConfirming(null))}
+          title={confirming ? t('resendTitle', { email: confirming.email }) : ''}
+          description={t('resendBody')}
+          confirmLabel={t('resend')}
+          destructive={false}
+          onConfirm={async () => {
+            if (confirming) await resend(confirming);
+          }}
+        />
       </CardContent>
     </Card>
   );

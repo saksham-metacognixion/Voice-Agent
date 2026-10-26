@@ -20,6 +20,17 @@ export function idMatch(q: string): Array<{ id: string }> {
   return UUID_RE.test(q) ? [{ id: q.toLowerCase() }] : [];
 }
 
+/**
+ * The digits to match a phone number on, or null when the query is not one (QA-045):
+ * "Dental 1" used to match every number containing a 1. A phone query has no letters
+ * and at least four digits; spaces, dashes, dots, brackets and a leading + are allowed.
+ */
+export function phoneQuery(q: string): string | null {
+  if (/[^\d\s+().-]/.test(q)) return null;
+  const digits = q.replace(/[^\d+]/g, '');
+  return digits.replace(/\D/g, '').length >= 4 ? digits : null;
+}
+
 export function num(value: Prisma.Decimal | number | null | undefined): number {
   if (value === null || value === undefined) return 0;
   return typeof value === 'number' ? value : value.toNumber();

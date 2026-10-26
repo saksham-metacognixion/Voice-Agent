@@ -5,7 +5,9 @@ import { agentDetail, type Brief } from '@portal/schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
+import { useBeforeUnload } from '@/src/lib/use-before-unload';
 import { useDebouncedCallback } from '@/src/lib/use-debounced';
+import { briefDiff } from '@/src/wizard/brief-patch';
 
 export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
 
@@ -16,7 +18,9 @@ export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
  * while a save is in flight is sent after it, never alongside.
  *
  * `flush()` awaits everything pending; Generate calls it so the model reads what is on
- * the screen, not what was on it 1.5 s ago.
+ * the screen, not what was on it 1.5 s ago. Leaving the page sends a pending save rather
+ * than dropping it, and closing the tab with one pending asks first (QA-007). An emptied
+ * field is sent as `null` — "clear it" — by `briefDiff` (QA-006).
  */
 export function useBriefAutosave(agentId: string | null, initial: Brief | undefined) {
   const api = useApi();
@@ -28,6 +32,15 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
   const latest = React.useRef<Brief | undefined>(initial);
   const inFlight = React.useRef<Promise<void> | null>(null);
   const queued = React.useRef(false);
+  // A save flushed by unmount lands after the page is gone; the next screen must not
+  // read the brief from before it.
+  const mounted = React.useRef(true);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (initial && lastSaved.current === undefined) {
@@ -42,7 +55,7 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
       queued.current = true;
       return inFlight.current;
     }
-    const patch = diff(lastSaved.current, latest.current);
+    const patch = briefDiff(lastSaved.current, latest.current);
     if (Object.keys(patch).length === 0) {
       setState((s) => (s === 'dirty' ? 'saved' : s));
       return;
@@ -57,6 +70,7 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
         setError(null);
         setState('saved');
         track('brief_field_saved', { agent_id: agentId, fields: Object.keys(patch).length });
+        if (!mounted.current) void queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agentId }] });
       } catch (e) {
         setError(e);
         setState('error');
@@ -75,9 +89,9 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
     })();
     inFlight.current = run;
     return run;
-  }, [agentId, api]);
+  }, [agentId, api, queryClient]);
 
-  const debounced = useDebouncedCallback(() => void save(), 1_500);
+  const debounced = useDebouncedCallback(() => void save(), 1_500, { flushOnUnmount: true });
 
   const onChange = React.useCallback(
     (brief: Brief) => {
@@ -96,17 +110,8 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
   }, [debounced, save, queryClient, agentId]);
 
   const retry = React.useCallback(() => void save(), [save]);
+  const isDirty = state === 'dirty' || state === 'saving';
+  useBeforeUnload(isDirty, debounced.flush);
 
-  return { state, error, fieldErrors, onChange, flush, retry, isDirty: state === 'dirty' || state === 'saving' };
-}
-
-/** Top-level fields whose JSON differs. */
-function diff(prev: Brief | undefined, next: Brief): Partial<Brief> {
-  const out: Partial<Brief> = {};
-  for (const k of Object.keys(next) as Array<keyof Brief>) {
-    const a = prev ? JSON.stringify(prev[k] ?? null) : undefined;
-    const b = JSON.stringify(next[k] ?? null);
-    if (a !== b) (out as Record<string, unknown>)[k] = next[k];
-  }
-  return out;
+  return { state, error, fieldErrors, onChange, flush, retry, isDirty };
 }

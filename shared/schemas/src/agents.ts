@@ -175,6 +175,26 @@ export const brief = z.object({
 export type Brief = z.infer<typeof brief>;
 
 /**
+ * The `brief` of `PATCH /agents/:id/draft`: every field optional (only what is sent is
+ * merged), and every optional scalar field also takes `null`, which means "clear it".
+ * Without `null` an emptied field could not be saved at all — the client's `undefined`
+ * vanishes from the JSON body and the server reads "unchanged" (QA-006). The array fields
+ * have defaults, so `[]` already clears them and they take no `null`.
+ */
+export const briefPatch = brief.partial().extend({
+  about_business: brief.shape.about_business.unwrap().nullable().optional(),
+  goal: brief.shape.goal.unwrap().nullable().optional(),
+  business_hours: brief.shape.business_hours.unwrap().nullable().optional(),
+  address: brief.shape.address.unwrap().nullable().optional(),
+  pricing: brief.shape.pricing.unwrap().nullable().optional(),
+  never_do: brief.shape.never_do.unwrap().nullable().optional(),
+  agent_name: brief.shape.agent_name.unwrap().nullable().optional(),
+  personality: brief.shape.personality.unwrap().nullable().optional(),
+  anything_else: brief.shape.anything_else.unwrap().nullable().optional(),
+});
+export type BriefPatch = z.infer<typeof briefPatch>;
+
+/**
  * W2: "Generate is disabled until 1 & 2 are valid." Fields 1 and 2 have a *minimum*
  * length in the spec (20 chars) that the at-rest schema cannot enforce, because an
  * autosave of three characters must still be storable. This is where it is enforced.
@@ -572,8 +592,10 @@ export function defaultAgentSettings(tier: z.infer<typeof agentTier> = 'standard
  */
 export const agentDraftPatch = z.object({
   name: z.string().min(2).max(60).optional(),
-  industry: z.string().min(1).max(60).optional(),
-  brief: brief.partial().optional(),
+  /** W1 on an existing agent (QA-015); `null` is W1's "Other" — no industry. */
+  industry: z.string().min(1).max(60).nullable().optional(),
+  /** Merged field by field; `null` clears an optional field (`briefPatch`). */
+  brief: briefPatch.optional(),
   tier: agentTier.optional(),
   primary_language: retellLanguage.optional(),
   languages: z.array(retellLanguage).max(4).optional(),
@@ -594,11 +616,16 @@ export type AgentDraftPatch = z.infer<typeof agentDraftPatch>;
  * It carries the **editable body only**. There is no field here through which a client
  * could send, remove or replace the §9.4 guardrails: the backend strips whatever block
  * the text contains and appends the canonical one (§9.4 "appended, non-editable").
+ *
+ * Omitted means "keep the base version's"; the two lines differ on clearing (QA-023).
+ * The **greeting is mandatory** — it is `begin_message`, the generator must return one
+ * (`generatedPrompt`) and `no_greeting` is a §9.5 *error* — so it cannot be cleared here:
+ * blank is a 422. The **closing is optional**, and `null` (or blank) clears it.
  */
 export const promptUpdate = z.object({
   prompt: z.string().min(50).max(20_000),
-  greeting: z.string().min(1).max(500).optional(),
-  closing: z.string().min(1).max(500).optional(),
+  greeting: z.string().trim().min(1).max(500).optional(),
+  closing: z.string().trim().max(500).nullable().optional(),
 });
 export type PromptUpdate = z.infer<typeof promptUpdate>;
 

@@ -27,6 +27,41 @@
 export const GUARDRAIL_HEADING = '## Platform rules (fixed)';
 
 /**
+ * Not in §9.4. Agents said "Thank you for calling …" straight after a reservation
+ * read-back or an answer about parking while the caller still had questions (26 Oct):
+ * every template ended "confirm the details → close politely", the skeleton's `## Ending`
+ * was a bare `{closing_line}`, and §9.4's sixth rule puts "confirm" and "end the call" side
+ * by side. Fixed rather than a stack-row bullet, so it reaches an agent whose stored
+ * script still carries the old ending at its next sync — no regenerate, no new stack
+ * version (staging serves v1).
+ *
+ * It does not name the `end_call` tool. Doing so raised hang-ups on a real goodbye from
+ * ~60 % to 15/16 in text conversations on the dev platform, but an agent still running an
+ * old script then called it mid-booking — 5 of 24 conversations hung up on the caller
+ * (ADR 0012, "The closing line").
+ */
+export const CLOSING_RULE =
+  'Say goodbye only when the caller is done. After you answer a question or confirm a request, ask whether there is anything else. A pause or a short reply such as "okay" is not a goodbye: ask once more. Once the caller says there is nothing else or says goodbye, thank them for calling and end the call in the same turn.';
+
+/**
+ * Not in §9.4. An agent read the restaurant manager's mobile number aloud when it offered
+ * a transfer, and again when the transfer was retried (BUG-005, 26 Oct). The number no
+ * longer reaches the model at all (`staff-transfer.ts`); this says what to do instead,
+ * and what to say when the transfer cannot happen — a browser test call, nobody answering.
+ * Conditional on a hand-off rule, so an agent with no transfer never offers one.
+ */
+export const TRANSFER_RULE =
+  'Never say a phone number you would transfer a caller to. When a hand-off rule says to transfer, ask "Would you like me to transfer you to our staff?" and transfer only once the caller agrees. If the transfer is not available or does not go through, say the team cannot take the call right now and offer to take a message.';
+
+/**
+ * Not in §9.4. Asked for vegetarian dishes, an agent read every menu item with its price,
+ * drinks included (BUG-007, 26 Oct). On the phone a long list is noise. Fixed, like
+ * `CLOSING_RULE`, so it reaches an agent generated before the menu prompt rules changed.
+ */
+export const LIST_RULE =
+  'When the caller asks what is available in a category, name at most three or four items that fit what they asked for, then ask whether they would like to hear more. Read a full list only when the caller asks for all of it. Do not mix in other categories, such as drinks with food, unless the caller asks. Say a price only when the caller asks or it helps them choose, exactly as written.';
+
+/**
  * The §9.4 bullets, verbatim from the spec.
  *
  * This copy is the guarantee. `agent_stack_configs.guardrails_text` (SA6) may replace the
@@ -44,12 +79,39 @@ export const DEFAULT_PLATFORM_GUARDRAILS: readonly string[] = [
   'Respect business hours: when the business is closed, say so and follow the after-hours rules.',
 ];
 
+/**
+ * Rules the platform's own checks depend on, so no stack row can word them away: SA6
+ * replaces the §9.4 bullets above, and these are appended after whatever it chose (once —
+ * a row that already carries one word for word is not given a second copy).
+ *
+ * Phone numbers, since 26 Oct: a caller who said nine digits twice heard ten read back,
+ * and the invented number was captured for staff to ring. `captured-phones.ts` flags a
+ * number the caller never said; this is what stops the agent saying one. Measured on dev
+ * (gpt-5-mini, text chats, 16 runs per case): this wording never padded a number and
+ * never rejected a valid one, and a nine-digit number was read back as said, so the
+ * caller's correction caught it every time. **Do not make the rule branch on the digit
+ * count.** A length-gated variant ("count its digits; if not 10, do not read it back")
+ * miscounted "eight seven six, five four three, two one zero zero" as 11 and re-asked a
+ * valid number 15/16 times, and the bookings behind it dead-ended; a stated length as a
+ * separate bullet had no effect. Counting is the code's job, after the call.
+ *
+ * The closing line, since 26 Oct (ADR 0012, "The closing line"): see `CLOSING_RULE`.
+ * Transfers and lists, since 26 Oct (BUG-005, BUG-007): see `TRANSFER_RULE`, `LIST_RULE`.
+ */
+export const FIXED_PLATFORM_GUARDRAILS: readonly string[] = [
+  CLOSING_RULE,
+  TRANSFER_RULE,
+  LIST_RULE,
+  'Phone numbers: callers often say digits in groups ("eight seven six, five four three") and every digit said counts, whatever the grouping. Read back exactly the digits the caller said, in their order, one at a time. Never add, drop, repeat or change a digit to make a number look complete, and never guess a digit you did not hear clearly or treat a pause as zero. Ask again only when a number sounds too short, too long or unclear: say so and ask for the whole number again, slowly. It is confirmed only when the caller says your read-back is right. After two unclear tries, stop asking, say the team will confirm the number, and carry on with the request.',
+];
+
 /** A stack row stores the bullets as one newline-separated string; both forms are accepted. */
 export function guardrailLines(source: string | readonly string[] | null | undefined): string[] {
   const lines = (typeof source === 'string' ? source.split('\n') : (source ?? []))
     .map((line) => line.replace(/^\s*[-*•]\s*/, '').trim())
     .filter(Boolean);
-  return lines.length > 0 ? lines : [...DEFAULT_PLATFORM_GUARDRAILS];
+  const base = lines.length > 0 ? lines : [...DEFAULT_PLATFORM_GUARDRAILS];
+  return [...base, ...FIXED_PLATFORM_GUARDRAILS.filter((rule) => !base.includes(rule))];
 }
 
 /** The canonical block, exactly as it appears at the end of every prompt. */

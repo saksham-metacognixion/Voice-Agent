@@ -60,7 +60,7 @@ export class AdminSystemService {
     const concurrencySignal: Check['signal'] =
       concurrency.live === null
         ? 'unknown'
-        : concurrency.allowance === 0
+        : !concurrency.allowance
           ? 'ok'
           : concurrency.live >= concurrency.allowance
             ? 'down'

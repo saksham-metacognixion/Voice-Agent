@@ -25,4 +25,12 @@ describe('format helpers', () => {
     expect(startOfLocalDay('2026-11-02', 'America/Toronto').toISOString()).toBe('2026-11-02T05:00:00.000Z');
     expect(shiftDate('2026-03-01', -1)).toBe('2026-02-28');
   });
+  it('resolves each day with that day’s own offset, the same instants GET /stats uses (QA-027)', () => {
+    // Seven days back from 3 Nov 2026 (EST) is 28 Oct, still EDT: 04:00 UTC, not 05:00.
+    expect(startOfLocalDay(shiftDate(localDate(new Date('2026-11-03T15:00:00Z'), 'America/Toronto'), -6), 'America/Toronto').toISOString()).toBe('2026-10-28T04:00:00.000Z');
+    // The 25-hour day starts on summer time; the spring change goes the other way.
+    expect(startOfLocalDay('2026-11-01', 'America/Toronto').toISOString()).toBe('2026-11-01T04:00:00.000Z');
+    expect(startOfLocalDay('2026-03-08', 'America/Toronto').toISOString()).toBe('2026-03-08T05:00:00.000Z');
+    expect(startOfLocalDay('2026-03-09', 'America/Toronto').toISOString()).toBe('2026-03-09T04:00:00.000Z');
+  });
 });

@@ -4,7 +4,7 @@ import type { AdminKpisResponse } from '@portal/schemas';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, cn } from '@portal/ui';
 import Link from 'next/link';
 import * as React from 'react';
-import { formatCents, formatCredits, formatNumber } from '@/src/lib/format';
+import { concurrencyText, formatCents, formatCredits, formatNumber } from '@/src/lib/format';
 import { billingPath, routes, systemPath, telephonyPath } from '@/src/routes';
 
 function Stat({ label, value, hint, tone }: { label: string; value: React.ReactNode; hint?: React.ReactNode; tone?: 'danger' | 'warning' }) {
@@ -74,7 +74,7 @@ export function KpiCards({ k }: { k: AdminKpisResponse }) {
         <Stat label="Minutes" value={formatNumber(k.calls.minutes, 1)} />
       </KpiCard>
       <KpiCard title="Platform">
-        <Stat label="Concurrency" value={`${k.concurrency.live ?? '?'} / ${k.concurrency.allowance}`} hint="Live calls / platform allowance" />
+        <Stat label="Concurrency" value={concurrencyText(k.concurrency)} hint={k.concurrency.allowance ? 'Live calls / platform allowance' : 'Live calls · no platform allowance set'} />
         <Stat label="Knowledge bases" value={formatNumber(k.knowledge.bases, 0)} />
       </KpiCard>
     </div>
@@ -97,8 +97,8 @@ export function AttentionList({ a }: { a: AdminKpisResponse['attention'] }) {
     { label: 'Failed jobs (24 h)', count: a.failed_jobs_24h, href: systemPath('jobs'), tone: 'danger' },
     { label: 'Paid, onboarding not finished (> 7 d)', count: a.onboarding_stuck, href: `${routes.customers}?status=onboarding`, tone: 'warning' },
     { label: 'Unprocessed webhooks', count: a.unprocessed_webhooks, href: systemPath('webhooks'), tone: 'warning' },
-    { label: 'Pending purchases', count: a.pending_purchases, href: `${routes.customers}`, tone: 'warning' },
-    { label: 'Overdue number rentals', count: a.overdue_rentals, href: `${routes.customers}?status=at_risk`, tone: 'warning' },
+    { label: 'Pending purchases', count: a.pending_purchases, href: `${routes.billing}?status=pending&auto=false`, tone: 'warning' },
+    { label: 'Overdue number rentals', count: a.overdue_rentals, href: `${routes.telephony}?overdue=true`, tone: 'warning' },
     { label: 'Open customer alerts', count: a.open_alerts, href: `${routes.customers}?sort=balance&order=asc`, tone: 'warning' },
   ];
   const open = items.filter((i) => i.count > 0);

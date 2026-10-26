@@ -8,7 +8,8 @@ import * as React from 'react';
 import { useAuth } from '@/src/auth/auth-provider';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RequireAuth } from '@/src/guards/guards';
-import { routes } from '@/src/routes';
+import { readQuery } from '@/src/lib/query-string';
+import { routes, safeNext } from '@/src/routes';
 
 /**
  * A3 — Verify email. The claim on the token gates the API (`403 EMAIL_UNVERIFIED`), so
@@ -28,17 +29,20 @@ function VerifyInner() {
   const router = useRouter();
   const [checking, setChecking] = React.useState(false);
   const [still, setStill] = React.useState(false);
+  // Where the person was going before A3 stopped them — an invite, a deep link — validated
+  // as same-origin; `/` and its gate otherwise (BUG-008, QA-002). Read once on the client.
+  const next = React.useMemo(() => safeNext(readQuery().get('next'), routes.root), []);
 
   React.useEffect(() => {
-    if (auth.user?.emailVerified) router.replace(routes.root);
-  }, [auth.user?.emailVerified, router]);
+    if (auth.user?.emailVerified) router.replace(next);
+  }, [auth.user?.emailVerified, router, next]);
 
   async function check() {
     setChecking(true);
     setStill(false);
     const fresh = await auth.refresh();
     setChecking(false);
-    if (fresh?.emailVerified) router.replace(routes.root);
+    if (fresh?.emailVerified) router.replace(next);
     else setStill(true);
   }
 

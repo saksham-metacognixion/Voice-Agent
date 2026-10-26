@@ -109,6 +109,19 @@ describe('POST /agents/:id/test/web', () => {
     expect((await call('POST', `/agents/${agentId}/test/web`, headers, { version_no: 99 })).status).toBe(404);
   });
 
+  it('answers 409 VERSION_SYNCING, not BRIEF_INCOMPLETE, for a version whose platform copy is not ready yet (QA-021)', async () => {
+    const ws = await trialWorkspace('tw-syncing');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    // The brief is complete and the version has a prompt; only the platform's copy is missing.
+    await adminDb.agentVersion.update({ where: { agentId_versionNo: { agentId, versionNo: 1 } }, data: { retellAgentVersion: null } });
+    const before = retell.calls.filter((c) => c.method === 'createWebCall').length;
+    const res = await call('POST', `/agents/${agentId}/test/web`, headers, { version_no: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('VERSION_SYNCING');
+    expect(retell.calls.filter((c) => c.method === 'createWebCall').length).toBe(before);
+  });
+
   it('answers 402 NO_CREDITS on an empty wallet and mints nothing', async () => {
     const ws = await trialWorkspace('tw-empty');
     const headers = await auth(ws.sub, ws.workspaceId);

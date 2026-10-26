@@ -52,7 +52,6 @@ function useJobActions() {
       confirmLabel={target?.action === 'retry' ? 'Retry' : 'Discard'}
       destructive={target?.action === 'discard'}
       typeToConfirm={target?.action === 'discard' ? 'DISCARD' : undefined}
-      defaultReason="service_issue"
       onConfirm={run}
     />
   );

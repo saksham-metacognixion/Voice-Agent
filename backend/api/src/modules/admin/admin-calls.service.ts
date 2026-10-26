@@ -3,7 +3,7 @@ import { Prisma, adminDb } from '@portal/db';
 import type { AdminCallResponse, AdminCallsQuery, Page } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, toPage } from '../../common/pagination';
-import { iso, num, numOrNull, record } from './admin.helpers';
+import { iso, num, numOrNull, phoneQuery, record } from './admin.helpers';
 
 const WITH = {
   tenant: { select: { name: true } },
@@ -23,16 +23,18 @@ export class AdminCallsService {
     if (query.tenant_id) where.tenantId = query.tenant_id;
     if (query.status === 'missed') where.status = 'declined';
     else if (query.status) where.status = query.status;
-    if (query.q)
+    if (query.q) {
       // SA8: call id, either number, and — D13 QA — the customer's or the agent's name,
-      // so a support person can type what the caller told them.
+      // so a support person can type what the caller told them. Numbers only for a query
+      // that looks like one (QA-045).
+      const digits = phoneQuery(query.q);
       where.OR = [
         { id: { startsWith: query.q } },
-        { fromNumber: { contains: query.q.replace(/[^\d+]/g, '') || query.q } },
-        { toNumber: { contains: query.q.replace(/[^\d+]/g, '') || query.q } },
+        ...(digits ? [{ fromNumber: { contains: digits } }, { toNumber: { contains: digits } }] : []),
         { tenant: { name: { contains: query.q, mode: 'insensitive' } } },
         { agent: { name: { contains: query.q, mode: 'insensitive' } } },
       ];
+    }
     const rows = await adminDb.call.findMany({
       where,
       include: WITH,

@@ -5,9 +5,9 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { useAuth } from '../auth/auth-provider';
-import { currentPathWithQuery } from '../lib/query-string';
+import { currentPathWithQuery, readQuery } from '../lib/query-string';
 import { errorMessage } from '../lib/errors';
-import { routes, stepPath, withNext } from '../routes';
+import { routes, samePath, signedInDestination, stepAllowed, stepPath, withNext } from '../routes';
 import { useWorkspace } from '../workspace/workspace-provider';
 import { useSessionGate } from './session-gate';
 
@@ -32,7 +32,11 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** Signed in AND email confirmed (A3). */
+/**
+ * Signed in AND email confirmed (A3). The page asked for rides along as `?next=`, so a
+ * new account opening an invite link comes back to it once confirmed instead of being
+ * sent to create a workspace (BUG-008, QA-002).
+ */
 export function RequireVerified({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const router = useRouter();
@@ -40,7 +44,7 @@ export function RequireVerified({ children }: { children: React.ReactNode }) {
   const unverified = auth.status === 'authenticated' && !auth.user?.emailVerified;
 
   React.useEffect(() => {
-    if (unverified) router.replace(routes.verifyEmail);
+    if (unverified) router.replace(withNext(routes.verifyEmail, currentPathWithQuery()));
   }, [unverified, router]);
 
   return <RequireAuth>{unverified ? <PageLoader label={t('common.loading')} /> : children}</RequireAuth>;
@@ -59,10 +63,14 @@ function WorkspaceGate({ children }: { children: React.ReactNode }) {
   const ws = useWorkspace();
   const router = useRouter();
   const t = useTranslations();
-  const destination = ws.status === 'ready' ? (ws.memberships.length === 0 ? routes.setupWorkspace : !ws.active ? routes.selectWorkspace : null) : null;
+  const destination = ws.status === 'ready' ? (ws.memberships.length === 0 ? 'setup' : !ws.active ? 'select' : null) : null;
 
   React.useEffect(() => {
-    if (destination) router.replace(destination);
+    if (destination === 'setup') router.replace(routes.setupWorkspace);
+    // The switcher carries the page asked for (QA-001), so a deep link opened on a browser
+    // that has not chosen a workspace continues there once one is picked. Read here, after
+    // the commit: a render inside a router transition still sees the previous address.
+    else if (destination === 'select') router.replace(withNext(routes.selectWorkspace, currentPathWithQuery()));
   }, [destination, router]);
 
   if (ws.status === 'error') {
@@ -100,20 +108,35 @@ function WorkspaceGate({ children }: { children: React.ReactNode }) {
 export function OnboardingStepGuard({ step, completeRedirect, children }: { step: number; completeRedirect?: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const gate = useSessionGate(pathname);
+  const ws = useWorkspace();
   const router = useRouter();
   const t = useTranslations();
 
-  const allowed = gate.ready && gate.onboardingStep !== null && !gate.onboardingComplete && step <= gate.onboardingStep;
+  // A step with no page of its own (4, ADR 0024) counts as the next one, the page
+  // `stepPath` sends it to (QA-004).
+  const allowed = gate.ready && gate.onboardingStep !== null && !gate.onboardingComplete && stepAllowed(step, gate.onboardingStep);
   const destination = gate.onboardingComplete && completeRedirect ? completeRedirect : gate.destination;
   // Never redirect on a workspace row that is being re-read: the step may have just advanced.
-  const redirect = gate.ready && !gate.settling && destination && !allowed && destination !== pathname ? destination : null;
+  const redirect = gate.ready && !gate.settling && destination && !allowed && !samePath(destination, pathname) ? destination : null;
 
   React.useEffect(() => {
     if (redirect) router.replace(redirect);
   }, [redirect, router]);
 
-  if (!gate.ready || redirect) return <PageLoader label={t('common.loading')} />;
-  if (!allowed) return <PageLoader label={t('common.loading')} />;
+  if (!gate.ready || redirect || (!allowed && gate.settling)) return <PageLoader label={t('common.loading')} />;
+  if (!allowed) {
+    // Not allowed here and nowhere else to go (the gate points at this very page): say so
+    // and offer a re-read, never a spinner that waits for ever (QA-004).
+    return (
+      <div className="p-6">
+        <ErrorState
+          title={t('errors.loadFailed')}
+          description={t('errors.stepUnavailable')}
+          action={<Button onClick={() => void ws.refetchWorkspace()}>{t('common.retry')}</Button>}
+        />
+      </div>
+    );
+  }
   return <>{children}</>;
 }
 
@@ -154,8 +177,9 @@ export function AppGuard({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * The opposite guard, for /login and /signup: a signed-in person is sent to where they
- * belong instead of seeing a sign-in button.
+ * The opposite guard, for /login and /signup: a signed-in person is sent on to `?next=`
+ * when it is a safe same-origin path (QA-001), else to where they belong, instead of
+ * seeing a sign-in button.
  */
 export function RedirectIfSignedIn({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -163,13 +187,15 @@ export function RedirectIfSignedIn({ children }: { children: React.ReactNode }) 
   const t = useTranslations();
   const pathname = usePathname();
   const gate = useSessionGate(pathname);
-  const shouldRedirect = auth.status === 'authenticated' && gate.ready && gate.destination;
+  // Read once; the prerendered HTML has no query, and this only matters once signed in.
+  const next = React.useMemo(() => readQuery().get('next'), []);
+  const target = auth.status === 'authenticated' ? signedInDestination(next, gate.ready ? gate.destination : null) : null;
 
   React.useEffect(() => {
-    if (shouldRedirect && gate.destination) router.replace(gate.destination);
-  }, [shouldRedirect, gate.destination, router]);
+    if (target) router.replace(target);
+  }, [target, router]);
 
-  if (auth.status === 'loading' || shouldRedirect) return <PageLoader label={t('common.loading')} />;
+  if (auth.status === 'loading' || target) return <PageLoader label={t('common.loading')} />;
   return <>{children}</>;
 }
 

@@ -195,12 +195,22 @@ export class AdminJobsService {
           'The queue did not answer; try again in a moment.',
         );
       if (state !== 'missing') {
-        const job = await this.queues.queue(queue.queue).getJob(queue.bullId(id));
-        await job
-          ?.remove()
-          .catch((error: unknown) =>
-            this.log.warn(`discard ${id}: could not remove queue job (${String(error)})`),
+        // The request is on record before the queue is touched, and a removal that fails is
+        // a failure, not a success with a log line (QA-038): a job left in the queue would
+        // still run while the row and the console said "discarded".
+        const audit = { staff, targetType: 'job', targetId: id, tenantId: row.tenantId, reasonCode: body.reason_code, note: body.note, request } as const;
+        await this.audit.record({ ...audit, action: 'job.discard_requested', before: { status: row.status, queue_state: state } });
+        try {
+          const job = await this.queues.queue(queue.queue).getJob(queue.bullId(id));
+          await job?.remove();
+        } catch (error) {
+          this.log.warn(`discard ${id}: could not remove queue job (${String(error)})`);
+          await this.audit.record({ ...audit, action: 'job.discard_failed', after: { error: 'queue job could not be removed' } });
+          throw new AppError(
+            'CONFLICT',
+            'The job could not be taken off the queue — it may have just started. Nothing was discarded; check its state and try again.',
           );
+        }
       }
     }
     const steps = {

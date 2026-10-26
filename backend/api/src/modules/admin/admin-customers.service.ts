@@ -426,23 +426,7 @@ export class AdminCustomersService {
     const id = uuidParam(idRaw, 'Customer');
     await this.limits.assertCan(staff, 'can_pause_tenant');
     const tenant = await this.exists(id);
-    // Admin §2.2: support may pause only against a ticket — one of this workspace's, not
-    // any number typed into the field (review, 28 Sep).
-    if (staff.role === 'support') {
-      const ticket = body.ticket_id
-        ? await adminDb.supportTicket.findFirst({
-            where: { id: body.ticket_id, tenantId: id },
-            select: { id: true },
-          })
-        : null;
-      if (!ticket)
-        throw new AppError(
-          'STAFF_LIMIT_EXCEEDED',
-          body.ticket_id
-            ? `Ticket #${body.ticket_id} is not one of this workspace's tickets.`
-            : 'Support pauses a workspace against a ticket. Add the ticket number.',
-        );
-    }
+    await this.limits.assertPauseTicket(staff, id, body.ticket_id, 'workspace');
     if (!tenant.pausedAt) {
       const reason = body.note ? `${body.reason_code}: ${body.note}` : body.reason_code;
       await adminDb.$transaction(async (tx) => {
@@ -590,6 +574,9 @@ export class AdminCustomersService {
     let result: Awaited<ReturnType<WalletService['grant']>>;
     try {
     result = await this.wallet.withWallet(id, async (tx, wallet) => {
+      // The check above fails fast; this one binds — under a per-staff lock, in the same
+      // transaction as the `credit_adjustments` insert (QA-037).
+      await this.limits.assertCreditAdjustment(staff, body.delta, new Date(), tx);
       const write =
         body.delta > 0
           ? await wallet.grant({

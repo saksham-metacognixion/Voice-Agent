@@ -3,12 +3,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, adminDb, isUniqueViolation, withWorkspace } from '@portal/db';
 import type {
   AcceptInviteResponse,
+  InvitePreviewResponse,
   InviteRequest,
   InviteResponse,
   MemberResponse,
   UpdateMemberRequest,
 } from '@portal/schemas';
+import { inviteStatusAt } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
+import { portalUrl } from '../../common/env';
+import { NotificationsService } from '../notifications';
+import { inviteLink, renderInviteEmail } from './invite-email';
 import type { AuthenticatedUser, WorkspaceContext } from '../auth';
 
 /** A8: "Token single-use, 7-day TTL." */
@@ -33,6 +38,8 @@ export const INVITE_TTL_MS = 7 * 86_400_000;
 @Injectable()
 export class MembersService {
   private readonly log = new Logger(MembersService.name);
+
+  constructor(private readonly notifications: NotificationsService) {}
 
   // ------------------------------------------------------------------ members
 
@@ -222,7 +229,12 @@ export class MembersService {
         },
       });
       await this.audit(db, ctx, 'invite.created', row.id, { email: input.email, role: input.role });
-      return row;
+      // Read here, sent after the commit: no network I/O inside `withWorkspace`.
+      const [tenant, inviter] = await Promise.all([
+        db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { name: true, timezone: true } }),
+        db.user.findUnique({ where: { id: ctx.userId }, select: { name: true, email: true } }),
+      ]);
+      return { ...row, tenant, inviter };
     }).catch((error: unknown) => {
       if (isUniqueViolation(error)) {
         throw new AppError('CONFLICT', 'An invite for that address is already on its way.');
@@ -231,9 +243,48 @@ export class MembersService {
     });
 
     this.log.log(`workspace ${ctx.workspaceId}: invited ${input.email} as ${input.role}`);
-    // The one and only time the token exists outside the invitee's inbox. D6 shows it as
-    // a copyable link; the email that carries it lands with the notifications module.
-    return { ...toInvite(invite), token };
+    const email_status = await this.sendInviteEmail(ctx.workspaceId, invite, token);
+    // The one and only time the token exists outside the invitee's inbox. D6 also shows it
+    // as a copyable link, so a failed or unconfigured email never strands the invite.
+    return { ...toInvite(invite), token, email_status };
+  }
+
+  /**
+   * D6 "Send invite": the invitation by email, through the outbox like every customer
+   * message. The link goes in as a one-time secret — the row stores `{invite_link}`, never
+   * the token — so a send that fails is not retried from the row; the inviter sees
+   * `failed`, still has the link on screen, and can resend (a new token, a new row: the
+   * dedupe key is the invite row's id). A failure here never fails the invite.
+   */
+  private async sendInviteEmail(
+    workspaceId: string,
+    invite: { id: string; email: string; role: string; expiresAt: Date; tenant: { name: string; timezone: string }; inviter: { name: string | null; email: string } | null },
+    token: string,
+  ): Promise<NonNullable<InviteResponse['email_status']>> {
+    try {
+      const outcome = await this.notifications.deliver({
+        workspaceId,
+        userId: null,
+        kind: 'invite',
+        dedupeKey: `invite:${invite.id}`,
+        email: renderInviteEmail({
+          to: invite.email,
+          inviter: invite.inviter?.name?.trim() || invite.inviter?.email || 'A teammate',
+          workspace: invite.tenant.name,
+          role: invite.role as InviteResponse['role'],
+          expiresAt: invite.expiresAt,
+          timezone: invite.tenant.timezone,
+          replyTo: invite.inviter?.email ?? null,
+        }),
+        secrets: { invite_link: inviteLink(portalUrl(), token) },
+        payload: { invite_id: invite.id, role: invite.role },
+      });
+      if (outcome.outcome === 'failed') return 'failed';
+      return this.notifications.sender.name === 'log' ? 'not_configured' : 'sent';
+    } catch (error) {
+      this.log.error(`workspace ${workspaceId}: invite ${invite.id} email not sent: ${error instanceof Error ? error.message : String(error)}`);
+      return 'failed';
+    }
   }
 
   /** GET /invites — the pending ones. Tokens are never included (A8). */
@@ -254,6 +305,45 @@ export class MembersService {
       await this.audit(db, ctx, 'invite.revoked', inviteId, { email: invite.email });
       return { revoked: true };
     });
+  }
+
+  /**
+   * GET /invites/:token/preview — the A8 join screen's "who, where, which role".
+   *
+   * The same checks as accepting, in the same order, and no write. Only the invited
+   * address learns anything: a different signed-in address gets `INVITE_WRONG_EMAIL` and
+   * no workspace, inviter or role — a forwarded link is a dead end for anyone else. On
+   * `adminDb` for the same reason as `acceptInvite`: the caller is not a member yet.
+   */
+  async previewInvite(user: AuthenticatedUser, token: string): Promise<InvitePreviewResponse> {
+    const tokenHash = hashToken(token);
+    const invite = await adminDb.invite.findUnique({
+      where: { tokenHash },
+      include: { tenant: { select: { name: true } }, inviter: { select: { name: true, email: true } } },
+    });
+    if (!invite || !constantTimeEqual(invite.tokenHash, tokenHash)) {
+      throw new AppError('INVITE_INVALID', 'That invite link is not valid.');
+    }
+    if (invite.expiresAt.getTime() < Date.now()) {
+      throw new AppError('INVITE_EXPIRED', 'That invite has expired. Ask for a new one.');
+    }
+    if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
+      throw new AppError('INVITE_WRONG_EMAIL', 'That invite was sent to a different email address. Sign in with that address to see it.');
+    }
+    const member = await adminDb.membership.findUnique({
+      where: { tenantId_userId: { tenantId: invite.tenantId, userId: user.userId } },
+      select: { id: true },
+    });
+    if (invite.acceptedAt && !member) {
+      throw new AppError('INVITE_USED', 'That invite has already been used.');
+    }
+    return {
+      workspace_name: invite.tenant.name,
+      role: invite.role as InvitePreviewResponse['role'],
+      invited_by: invite.inviter.name?.trim() || invite.inviter.email,
+      expires_at: invite.expiresAt.toISOString(),
+      already_member: Boolean(member),
+    };
   }
 
   /**
@@ -280,11 +370,11 @@ export class MembersService {
         throw new AppError('INVITE_INVALID', 'That invite link is not valid.');
       }
       if (invite.expiresAt.getTime() < Date.now()) {
-        throw new AppError('INVITE_INVALID', 'That invite has expired. Ask for a new one.');
+        throw new AppError('INVITE_EXPIRED', 'That invite has expired. Ask for a new one.');
       }
       if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
         throw new AppError(
-          'INVITE_INVALID',
+          'INVITE_WRONG_EMAIL',
           `That invite was sent to ${invite.email}. Sign in with that address to accept it.`,
         );
       }
@@ -299,7 +389,7 @@ export class MembersService {
       }
       if (invite.acceptedAt) {
         // Single-use: accepted by somebody, and it was not this user.
-        throw new AppError('INVITE_INVALID', 'That invite has already been used.');
+        throw new AppError('INVITE_USED', 'That invite has already been used.');
       }
 
       await tx.membership.create({ data: { tenantId: invite.tenantId, userId: user.userId, role: invite.role } });
@@ -357,6 +447,8 @@ function toInvite(row: {
     expires_at: row.expiresAt.toISOString(),
     accepted_at: row.acceptedAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
+    // The server's clock, the one `acceptInvite` checks against (BUG-010).
+    status: inviteStatusAt({ expires_at: row.expiresAt, accepted_at: row.acceptedAt }),
   };
 }
 

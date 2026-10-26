@@ -29,6 +29,7 @@ import { useCursorPager } from '@/src/lib/use-cursor-pager';
 import { formatMoney } from '@/src/wizard/plan-gates';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
 // ------------------------------------------------------------------ Balance
 
@@ -45,7 +46,7 @@ export function BalanceCard() {
   const { canAdmin } = useRole();
   const stream = useDashboardLive();
   const wallet = useGetWallet(api, { staleTime: 15_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000 });
+  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
   const flags = useGetFlags(api, { staleTime: 60_000 });
   const [buying, setBuying] = React.useState(false);
   const purchasesPaused = flags.data?.kill_switches.pause_purchases === true;
@@ -131,7 +132,7 @@ export function AutoTopupCard({ wallet }: { wallet: WalletResponse }) {
   const api = useApi();
   const ws = useWorkspace();
   const queryClient = useQueryClient();
-  const pricing = useGetPricing(api, ws.workspace?.country ? { region: ws.workspace.country } : undefined, { staleTime: 5 * 60_000 });
+  const pricing = useGetPricing(api, ws.workspace?.country ? { region: ws.workspace.country } : undefined, { staleTime: PRICING_STALE_MS });
   const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order), [pricing.data]);
   const current = wallet.auto_topup;
   const [enabled, setEnabled] = React.useState(current?.enabled ?? false);
@@ -291,7 +292,7 @@ export function ExpiringCard() {
   const api = useApi();
   const ws = useWorkspace();
   const lots = useListCreditLots(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000 });
+  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
   const months = pricing.data?.wallet_policy.credit_expiry_months;
   const soon = React.useMemo(() => (lots.data ? expiringSoon(lots.data, new Date()) : []), [lots.data]);
   return (

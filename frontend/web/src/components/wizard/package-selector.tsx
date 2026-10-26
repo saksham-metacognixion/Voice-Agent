@@ -12,6 +12,7 @@ import { errorMessage } from '@/src/lib/errors';
 import { checkoutMarker } from '@/src/wizard/checkout-marker';
 import { formatCredits, formatMoney } from '@/src/wizard/plan-gates';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
 type Pack = PricingResponse['packs'][number];
 
@@ -31,7 +32,7 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
   const tp = useTranslations('wizard.w7.packs');
   const api = useApi();
   const ws = useWorkspace();
-  const pricing = useGetPricing(api, ws.workspace?.country ? { region: ws.workspace.country } : undefined, { staleTime: 60_000 });
+  const pricing = useGetPricing(api, ws.workspace?.country ? { region: ws.workspace.country } : undefined, { staleTime: PRICING_STALE_MS });
   const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.price_cents - b.price_cents), [pricing.data]);
   const [packId, setPackId] = React.useState<string | null>(null);
   const [autoTopup, setAutoTopup] = React.useState<boolean | null>(null);

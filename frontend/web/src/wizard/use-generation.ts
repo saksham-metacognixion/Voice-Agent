@@ -1,6 +1,8 @@
 'use client';
 
-import { isApiError, useApi, useJobWatch, useWorkspaceEvents } from '@portal/api-client';
+import { isApiError, useApi, useJobWatch } from '@portal/api-client';
+// The shell's stream under /app (ADR 0019 §1), a stream of its own in the wizard.
+import { useLiveEvents } from '../dashboard/use-live-events';
 import { acceptedJob, type AgentDetail } from '@portal/schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
@@ -64,7 +66,7 @@ export function useGeneration(agent: AgentDetail | undefined) {
   );
 
   // SSE
-  useWorkspaceEvents(
+  useLiveEvents(
     agentId ? [`agent:${agentId}`] : undefined,
     (event) => {
       if (!active) return;

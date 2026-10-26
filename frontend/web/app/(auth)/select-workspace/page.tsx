@@ -9,7 +9,8 @@ import { track } from '@/src/analytics/posthog';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RequireVerified } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
-import { routes } from '@/src/routes';
+import { readQuery } from '@/src/lib/query-string';
+import { routes, safeNext } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /** A7 — Workspace switcher as a page: the landing spot when several memberships exist and none is chosen. */
@@ -29,7 +30,8 @@ function SelectInner() {
   function choose(id: string) {
     ws.select(id);
     track('workspace_switched');
-    router.replace(routes.root);
+    // Back to the page that sent the person here, else `/` works out where they belong.
+    router.replace(safeNext(readQuery().get('next'), routes.root));
   }
 
   return (

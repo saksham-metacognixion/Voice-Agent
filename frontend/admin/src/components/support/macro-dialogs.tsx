@@ -66,7 +66,6 @@ export function CompCreditsDialog({ ticket, open, onOpenChange }: { ticket: Admi
       description={`${ticket.tenant.name} · balance ${formatCredits(ticket.tenant.balance)}${cap !== null ? ` · your cap per action: ${formatCredits(cap)}` : ''}`}
       consequences={['A ledger row and a credit adjustment linked to this ticket.', 'A system line on the thread; the customer sees the credit in their wallet.']}
       confirmLabel="Add credits"
-      defaultReason="goodwill"
       extraValid={valid && !overCap}
       onConfirm={(action) =>
         runMacro(
@@ -101,9 +100,8 @@ export function RefundCallDialog({ ticket, open, onOpenChange }: { ticket: Admin
       onOpenChange={onOpenChange}
       title="Refund a call"
       description={`${ticket.tenant.name} · the call’s charge is credited back in full.`}
-      consequences={['Only a charged call of this workspace can be refunded, and once per ticket.', 'A ledger row and a credit adjustment linked to this ticket, plus a system line on the thread.']}
+      consequences={['Only a charged call of this workspace can be refunded, and only once — a call already refunded from any ticket is refused.', 'A ledger row and a credit adjustment linked to this ticket, plus a system line on the thread.']}
       confirmLabel="Refund call"
-      defaultReason="billing_error"
       extraValid={valid}
       onConfirm={(action) => runMacro('refund_call', macroBody(action, { call_id: callId.trim() }), (res) => `Refunded ${formatCredits(res.adjustment?.delta ?? 0)} credits for call ${shortId(callId, 14)}`)}
     >
@@ -141,7 +139,6 @@ export function RerunActivationDialog({ ticket, open, onOpenChange }: { ticket: 
       description={`${ticket.tenant.name} · queues the go-live job for the workspace’s agent again.`}
       consequences={['Publishes the agent, provisions or re-binds its number and marks it live — each step resumes where it stopped.', 'Refused while an activation is already running, or when the workspace has no generated agent.']}
       confirmLabel="Re-run activation"
-      defaultReason="service_issue"
       onConfirm={(action) => runMacro('rerun_activation', macroBody(action, {}), (res) => `Activation queued (job ${shortId(res.job_id, 8)})`)}
     />
   );

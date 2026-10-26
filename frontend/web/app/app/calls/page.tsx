@@ -195,6 +195,7 @@ export default function CallsPage() {
             sort={view.sort}
             order={view.order}
             onSort={onSort}
+            onSortChange={(sort, order) => update({ sort, order, cursor: null, page: 1 })}
             selected={selected}
             onSelect={(id, checked) =>
               setSelected((s) => {

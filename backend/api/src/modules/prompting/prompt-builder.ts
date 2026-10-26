@@ -8,6 +8,7 @@ import type {
   ModelAnalysisField,
 } from '@portal/schemas';
 import type { BusinessHours } from '@portal/schemas';
+import { STAFF_LABEL } from './staff-transfer';
 
 /**
  * §9.3 step 2 — building the LLM request, and Appendix B, the skeleton it fills in.
@@ -69,7 +70,7 @@ export const APPENDIX_B_SKELETON = [
   '1. Greet in {primary_language}; switch languages if the caller does ({languages}).',
   "2. Identify the caller's need in one question.",
   '3. {template_specific_steps}',
-  '4. Confirm captured details back to the caller before ending.',
+  '4. Confirm captured details back to the caller, then ask whether there is anything else.',
   '',
   '## Rules',
   '- Never: {never_rules}',
@@ -80,7 +81,7 @@ export const APPENDIX_B_SKELETON = [
   '{handoff_rules} → use transfer to {transfer_targets}; otherwise take a message.',
   '',
   '## Ending',
-  '{closing_line}',
+  'Only once the caller says there is nothing else or says goodbye: {closing_line} End the call in the same turn.',
 ].join('\n');
 
 export const DEFAULT_SYSTEM_PROMPT = [
@@ -127,6 +128,9 @@ export function buildUserPrompt(context: GenerationContext): string {
     `- Agent tier: ${context.tier}`,
     '',
     ...identitySection(context),
+    '',
+    ...closingSection(),
+    ...withGap(transferSection(brief)),
   ];
 
   if (template) {
@@ -202,6 +206,55 @@ export function identitySection(
 }
 
 /**
+ * When the closing line is said. In code, like `identitySection`, because the skeleton is
+ * a stack row (staging serves v1, whose `## Ending` is a bare `{closing_line}`) and every
+ * template used to end "confirm the details → close politely": the model wrote exactly
+ * that, and agents said "Thank you for calling …" after a read-back or an answer about
+ * parking while the caller still had questions (26 Oct). `CLOSING_RULE` says the same at
+ * runtime; this is so the script itself does not contradict it.
+ */
+export function closingSection(): string[] {
+  return [
+    '# Ending the call',
+    'Finishing one task is not the end of the call. After every answer, confirmation or read-back, the',
+    'agent asks whether there is anything else and carries on if there is. It says the closing line only',
+    'once the caller says they need nothing else or says goodbye, and then it ends the call in the same',
+    'turn. A pause, or a short "okay" or "no" whose meaning is unclear, is not a goodbye: it asks once',
+    'more. "No, that\'s everything" or "bye" is clear: it does not ask again. Never write a step that',
+    'closes the call straight after an answer, a confirmation or a read-back: write the confirm step as',
+    '"confirm the details back, then ask whether there is anything else", never "before ending". Write',
+    'the "## Ending" section as that condition, the line, and the hang-up — "Only once the caller says',
+    'they need nothing else or says goodbye, say: … and end the call." — never the bare line. The',
+    '`closing` you return is that goodbye line alone.',
+  ];
+}
+
+/**
+ * How the script talks about a transfer (BUG-005). The skeleton's `{transfer_targets}` is
+ * a stack row and asks for "the targets"; a model given a number wrote the number, and
+ * the agent read the manager's mobile to the caller. The numbers are not in this turn at
+ * all — the platform dials them — so this says what goes in their place. Empty when the
+ * brief has no transfer rule: an agent that cannot transfer must not offer to.
+ */
+export function transferSection(brief: Pick<Brief, 'handoff_rules'>): string[] {
+  if (!brief.handoff_rules.some((rule) => rule.action === 'transfer' && rule.transfer_number)) return [];
+  return [
+    '# Transfers',
+    'The phone system holds the staff numbers and dials them itself; the script never contains a phone',
+    `number for a transfer. Fill {transfer_targets} with who the caller reaches — "${STAFF_LABEL}",`,
+    '"the team", "the manager" — never digits. Write each transfer as an offer:',
+    '"Would you like me to transfer you to our staff?", and transfer only once the caller agrees.',
+    'If the transfer is not available or does not go through, the agent says the team cannot take',
+    'the call right now and offers to take a message. The agent never reads out a staff phone',
+    'number, when offering, retrying or explaining.',
+  ];
+}
+
+function withGap(lines: string[]): string[] {
+  return lines.length ? ['', ...lines] : [];
+}
+
+/**
  * What the agent can look up during a call. The sources are attached to the agent on
  * the voice platform and searched automatically; the prompt has to say what to do with
  * them — and, for a menu, what to say when a dish is *not* there.
@@ -221,6 +274,7 @@ export function knowledgeSection(knowledge: KnowledgeForPrompt[]): string[] {
       'Menu rules to write into the prompt: answer questions about dishes, prices, ingredients, portions and dietary details from the menu;',
       'when a caller asks for something that is not on the menu, say it is not on the menu and offer what is; never invent a dish, a price or an ingredient;',
       'if the menu marks an item unavailable or seasonal, say so.',
+      ...MENU_LISTING_RULES,
     );
   }
   lines.push(
@@ -228,6 +282,19 @@ export function knowledgeSection(knowledge: KnowledgeForPrompt[]): string[] {
   );
   return lines;
 }
+
+/**
+ * A caller who asks "what vegetarian dishes do you have?" wants a few, not the menu read
+ * out with every price — and not the drinks list with it (BUG-007, 26 Oct). Written into
+ * the script when there is a menu or a document; `LIST_RULE` in the platform rules says
+ * the same at runtime for agents generated before it.
+ */
+export const MENU_LISTING_RULES: readonly string[] = [
+  'Listing rules to write into the prompt: when a caller asks about a category (vegetarian dishes, desserts, starters, a type of service),',
+  'name at most three or four items that fit it, then ask whether they would like to hear more; read the whole list only when the caller asks for all of it;',
+  'name only items in the category asked about — no drinks when the caller asked about food, unless they asked for both;',
+  'say a price only when the caller asks for it or it helps them choose, and only as the menu or document gives it.',
+];
 
 /** How much of each W2 document the model is shown. Enough to know what is in it, not to retype it. */
 export const DOCUMENT_EXCERPT_CHARS = 1_200;
@@ -247,7 +314,9 @@ export function documentsSection(documents: readonly BriefDocument[]): string[] 
     'your script, under the heading "## Business documents (attached)" — do NOT copy their contents',
     'into the prompt. Write the rules for using them: answer items, prices, options and details from',
     'the documents word for word; when a caller asks for something they do not cover, say so and offer',
-    'what they do; never invent an item, a price or a detail. Here is the start of each one:',
+    'what they do; never invent an item, a price or a detail.',
+    ...MENU_LISTING_RULES,
+    'Here is the start of each one:',
   ];
   for (const doc of documents) {
     const excerpt = doc.text.slice(0, DOCUMENT_EXCERPT_CHARS).trim();
@@ -292,6 +361,8 @@ export function buildFeedbackPrompt(input: {
     JSON.stringify(briefForModel(input.brief), null, 2),
     '```',
     '',
+    ...withGap(transferSection(input.brief)),
+    '',
     '# What the customer said',
     input.feedback,
   ].join('\n');
@@ -322,8 +393,10 @@ export function briefForModel(brief: Brief): Record<string, unknown> {
   put(
     'handoff_rules',
     brief.handoff_rules.map((rule) =>
+      // Never the number: the model writes what it is shown, and the agent read it aloud
+      // (BUG-005). The number is the transfer tool's destination; see `transferSection`.
       rule.action === 'transfer'
-        ? `${rule.condition} → transfer to ${rule.transfer_number}`
+        ? `${rule.condition} → offer to transfer the caller to ${STAFF_LABEL}`
         : rule.action === 'read_message'
           ? `${rule.condition} → read this message to the caller word for word: "${rule.message?.trim() ?? ''}"`
           : `${rule.condition} → ${rule.action.replace(/_/g, ' ')}`,

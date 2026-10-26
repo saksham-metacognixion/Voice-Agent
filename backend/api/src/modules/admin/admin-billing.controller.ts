@@ -13,6 +13,7 @@ import {
   adminPurchasesQuery,
   adminRefundRequest,
   staffActionRequest,
+  STAFF_ROUTE_ROLES,
 } from '@portal/schemas';
 import { StaffCtx, StaffRoles } from '../auth';
 import type { StaffContext } from '../auth';
@@ -25,7 +26,7 @@ import { AdminBillingService } from './admin-billing.service';
  * and `StaffLimitsService.assertRefund` (`refund_max_cents`) inside the refund.
  */
 
-const MONEY = ['super_admin', 'ops', 'finance', 'support'] as const;
+const MONEY = STAFF_ROUTE_ROLES.money;
 
 @Controller('admin')
 export class AdminBillingController {

@@ -9,10 +9,15 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { BalancePill } from '@/src/components/shell/balance-pill';
 import { UserMenu } from '@/src/components/shell/user-menu';
+import { WorkspaceSwitcher } from '@/src/components/shell/workspace-switcher';
 import { LAST_IMPLEMENTED_STEP, WIZARD_STEPPER, routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
-/** The §8 wizard frame: logo, stepper, balance, account. Pages render inside. */
+/**
+ * The §8 wizard frame: logo, workspace, stepper, balance, account. Pages render inside.
+ * The workspace switcher is the dashboard's own (QA-013): someone with two workspaces can
+ * leave a half-built agent in one and carry on in the other without finishing the wizard.
+ */
 export function WizardShell({ children }: { children: React.ReactNode }) {
   const t = useTranslations();
   const pathname = usePathname();
@@ -41,8 +46,9 @@ export function WizardShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-2 px-4 sm:gap-4 sm:px-6">
           <Logo variant="mark" />
+          <WorkspaceSwitcher compact className="shrink-0 md:max-w-[14rem]" />
           <div className="min-w-0 flex-1">
             <Stepper
               steps={steps}

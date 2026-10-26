@@ -8,7 +8,9 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { errorMessage } from '@/src/lib/errors';
 import { formatCredits } from '@/src/wizard/plan-gates';
+import { canTransfer, needsPhoneTransfer } from '@/src/wizard/test-scenarios';
 import { useTestCall, type TestCallFailure } from '@/src/wizard/use-test-call';
+import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
 /**
  * W5 TestCallPanel (§12.3, §12.4): talk to the draft in the browser. Microphone, one
@@ -24,7 +26,7 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
   const draft = agent.draft;
   const { state, start, end } = useTestCall(agent.id, draft?.version_no ?? null);
   const wallet = useGetWallet(api, { staleTime: 15_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000 });
+  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
   const transcriptEnd = React.useRef<HTMLDivElement>(null);
   const reported = React.useRef<string | null>(null);
 
@@ -48,6 +50,7 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
   }, [state.status, state.callId, state.elapsedS, onEnded]);
 
   const noCredits = balance !== null && balance <= 0;
+  const transfers = canTransfer(draft?.brief);
 
   return (
     <Card>
@@ -104,13 +107,19 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
           </div>
         </div>
 
+        {/* A browser call has no phone line: a transfer to staff cannot complete here (BUG-006). */}
+        {transfers ? <p className="text-xs text-muted-foreground">{tt('transferNote')}</p> : null}
+
         {draft?.scenarios?.length ? (
           <div className="flex flex-col gap-2">
             <p className="text-xs font-medium text-muted-foreground">{tt('tryThese')}</p>
             <ul className="flex flex-col gap-1.5 text-sm">
               {draft.scenarios.slice(0, 4).map((s) => (
                 <li key={s.title} className="rounded-md border border-border px-3 py-2">
-                  <span className="font-medium">{s.title}</span>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{s.title}</span>
+                    {needsPhoneTransfer(s, draft.brief) ? <Badge variant="outline">{tt('phoneOnly')}</Badge> : null}
+                  </span>
                   <span className="block text-xs text-muted-foreground">“{s.say_this}”</span>
                 </li>
               ))}

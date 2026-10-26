@@ -70,6 +70,7 @@ import {
   paginationQuery,
   retellCostInputs,
   staffActionRequest,
+  STAFF_ROUTE_ROLES,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, toPage } from '../../common/pagination';
@@ -103,12 +104,18 @@ import { StaffLimitsService } from './staff-limits.service';
  * the reads, the writes, and the audit rows.
  */
 
-const MUTATE = ['super_admin', 'ops', 'support'] as const;
-const MONEY = ['super_admin', 'ops', 'finance', 'support'] as const;
-const SYSTEM = ['super_admin', 'ops'] as const;
-const PRICING_EDIT = ['super_admin', 'finance'] as const;
-const PRICING_PUBLISH = ['super_admin'] as const;
-const VIEW_AS = ['super_admin', 'ops', 'finance', 'support'] as const;
+// One matrix for the routes and the console's buttons (`STAFF_ROUTE_ROLES`, QA-048).
+const MUTATE = STAFF_ROUTE_ROLES.mutate;
+const MONEY = STAFF_ROUTE_ROLES.money;
+const SYSTEM = STAFF_ROUTE_ROLES.system;
+const PRICING_EDIT = STAFF_ROUTE_ROLES.pricingEdit;
+const PRICING_PUBLISH = STAFF_ROUTE_ROLES.pricingPublish;
+const VIEW_AS = STAFF_ROUTE_ROLES.viewAs;
+/**
+ * A stored webhook body (QA-033): every staff role that works customer cases, not
+ * read-only. What is in it is narrowed again by `can_listen_recordings` in the service.
+ */
+const PAYLOAD_VIEW = STAFF_ROUTE_ROLES.payloadView;
 
 @Controller('admin')
 export class AdminMeController {
@@ -547,8 +554,13 @@ export class AdminWebhooksController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string): Promise<AdminWebhookEventDetail> {
-    return this.webhooks.get(id);
+  @StaffRoles(...PAYLOAD_VIEW)
+  get(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminWebhookEventDetail> {
+    return this.webhooks.get(staff, id, request);
   }
 
   @Post(':id/replay')
@@ -630,9 +642,11 @@ export class AdminPricingController {
   @StaffRoles(...PRICING_EDIT)
   discardDraft(
     @StaffCtx() staff: StaffContext,
+    @Body() body: unknown,
     @Req() request: FastifyRequest,
   ): Promise<DeletedResponse> {
-    return this.pricing.discardDraft(staff, request);
+    // A body on a DELETE, as for flags: throwing away a draft someone built is audited with a reason (QA-039).
+    return this.pricing.discardDraft(staff, staffActionRequest.parse(body ?? {}), request);
   }
 
   @Get('pricing/preview')

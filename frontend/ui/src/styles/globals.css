@@ -196,6 +196,13 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+  /* Header cells line up with their values. Browsers centre a `<th>` whose table says
+     `text-align: start`, and Tailwind's preflight leaves that alone, so every table with a
+     left-aligned body had centred headers (BUG-009). A base rule, so a column's own
+     `text-end` / `text-center` utility still wins. Logical, so Arabic aligns right. */
+  th {
+    text-align: start;
+  }
   input::placeholder,
   textarea::placeholder {
     color: var(--muted-foreground);

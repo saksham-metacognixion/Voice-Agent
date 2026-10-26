@@ -1,7 +1,7 @@
 'use client';
 
 import { useAdminImpersonate, useAdminPauseCustomer, useAdminResumeCustomer, useApi } from '@portal/api-client';
-import type { AdminCustomerDetail, StaffActionRequest } from '@portal/schemas';
+import { IMPERSONATE_NOTE_MAX, type AdminCustomerDetail, type StaffActionRequest } from '@portal/schemas';
 import { Badge, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Eye } from 'lucide-react';
@@ -117,10 +117,9 @@ export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
         destructive
         typeToConfirm={c.name}
         typeLabel="Type the customer name to confirm"
-        defaultReason="abuse_policy"
         onConfirm={doPause}
       />
-      <StaffActionDialog open={resuming} onOpenChange={setResuming} title={`Resume ${c.name}`} consequences={['Numbers answer again; generate and publish work again.']} confirmLabel="Resume workspace" defaultReason="customer_request" onConfirm={doResume} />
+      <StaffActionDialog open={resuming} onOpenChange={setResuming} title={`Resume ${c.name}`} consequences={['Numbers answer again; generate and publish work again.']} confirmLabel="Resume workspace" onConfirm={doResume} />
       <StaffActionDialog
         open={viewing}
         onOpenChange={setViewing}
@@ -128,7 +127,7 @@ export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
         description="Admin §7.4 — the portal opens in a new tab as the workspace owner would see it."
         consequences={['Every screen is read-only; no write goes through, and recordings are refused.', 'The session lasts one hour and is audited at both ends, with this reason.', 'Exit from the banner when you are done.']}
         confirmLabel="Open portal"
-        defaultReason="support_investigation"
+        noteMax={IMPERSONATE_NOTE_MAX}
         onConfirm={viewAs}
       />
     </>

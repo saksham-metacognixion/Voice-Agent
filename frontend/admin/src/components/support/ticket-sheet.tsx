@@ -3,7 +3,7 @@
 import { useAdminGetTicket, useAdminListCannedResponses, useAdminTicketMessage, useAdminUpdateTicket, useApi } from '@portal/api-client';
 import { ticketPriority, ticketStatus, type AdminTicketDetail, type AdminTicketMessage, type TicketPriority, type TicketStatus } from '@portal/schemas';
 import {
-  Badge, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Textarea, cn, toast,
+  Badge, Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Textarea, cn, toast,
 } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, Lock, Send, Wand2 } from 'lucide-react';
@@ -12,6 +12,7 @@ import * as React from 'react';
 import { DetailSheet } from '@/src/components/common/detail-sheet';
 import { PermissionButton } from '@/src/components/common/permission-button';
 import { Fact, FactGrid, LoadError } from '@/src/components/common/query-states';
+import { CannedResponsesDialog } from '@/src/components/support/canned-responses-dialog';
 import { CompCreditsDialog, RefundCallDialog, RerunActivationDialog, type MacroKind } from '@/src/components/support/macro-dialogs';
 import { SlaCell, TicketPriorityBadge, TicketStatusBadge } from '@/src/components/support/ticket-badges';
 import { errorMessage } from '@/src/lib/errors';
@@ -259,7 +260,9 @@ function Composer({ ticket }: { ticket: AdminTicketDetail }) {
   const canned = useAdminListCannedResponses(api, { staleTime: 60_000 });
   const [body, setBody] = React.useState('');
   const [internal, setInternal] = React.useState(false);
+  const [managing, setManaging] = React.useState(false);
   const denied = can.supportTickets();
+  const manageDenied = can.manageCanned();
   const closed = ticket.status === 'closed';
   const blocked = closed && !internal;
 
@@ -297,6 +300,13 @@ function Composer({ ticket }: { ticket: AdminTicketDetail }) {
             </SelectContent>
           </Select>
         ) : null}
+        {/* The list is managed here (QA-049); with none yet, this is the way to add the first. */}
+        {!manageDenied ? (
+          <Button variant="link" size="sm" className={cn('h-auto px-0', canned.data?.length ? '' : 'ml-auto')} onClick={() => setManaging(true)}>
+            {canned.data?.length ? 'Manage' : 'Add canned responses'}
+          </Button>
+        ) : null}
+        <CannedResponsesDialog open={managing} onOpenChange={setManaging} />
       </div>
       <Textarea
         value={body}

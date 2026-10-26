@@ -8,7 +8,7 @@ import { useAuth } from '@/src/auth/auth-provider';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RedirectIfSignedIn } from '@/src/guards/guards';
 import { readQuery } from '@/src/lib/query-string';
-import { routes, safeNext } from '@/src/routes';
+import { routes, safeNext, withNext } from '@/src/routes';
 
 /** A2 — Login. Universal Login does the form; this page carries `next` through and shows errors. */
 export default function LoginPage() {
@@ -24,9 +24,13 @@ function LoginInner() {
   const auth = useAuth();
   const [busy, setBusy] = React.useState(false);
   const [reason, setReason] = React.useState<string | null>(null);
+  // Carried to "Create an account" too: an invitee without an account signs up from here,
+  // and dropping `next` sent them to set up a workspace instead of the invite (BUG-008, QA-003).
+  const [next, setNext] = React.useState('');
 
   React.useEffect(() => {
     setReason(readQuery().get('reason'));
+    setNext(safeNext(readQuery().get('next'), ''));
   }, []);
 
   async function go() {
@@ -45,7 +49,7 @@ function LoginInner() {
       footer={
         <>
           {t('auth.login.noAccount')}{' '}
-          <Link href={routes.signup} className="font-medium text-primary hover:underline">
+          <Link href={withNext(routes.signup, next)} className="font-medium text-primary hover:underline">
             {t('auth.login.createAccount')}
           </Link>
         </>

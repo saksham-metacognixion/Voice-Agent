@@ -10,6 +10,7 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { capturedFields, parseAnalysis } from '@/src/dashboard/analysis';
 import { useServerCopy } from '@/src/i18n/server-copy';
+import { PhoneCheckNote, PhoneSummaryNote } from '@/src/components/dashboard/phone-check';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { RecordingPlayer } from '@/src/components/dashboard/recording-player';
 import { CallStatusBadge, SentimentBadge, TierBadge } from '@/src/components/dashboard/status-badges';
@@ -67,6 +68,7 @@ function CallBody({ call }: { call: CallDetail }) {
   const agent = useGetAgent(api, { id: call.agent_id ?? '' }, { enabled: Boolean(call.agent_id), staleTime: 60_000 });
   const analysis = parseAnalysis(call.analysis_json);
   const captured = capturedFields(analysis);
+  const phoneChecks = new Map(call.captured_checks.map((c) => [c.field, c]));
   const fieldDefs = React.useMemo(() => {
     const defs = agent.data?.published?.analysis_fields ?? agent.data?.draft?.analysis_fields ?? [];
     return new Map(defs.map((f) => [f.name, f.description]));
@@ -111,6 +113,7 @@ function CallBody({ call }: { call: CallDetail }) {
         ) : (
           <p className="text-sm text-muted-foreground">{t('summaryUnavailable')}</p>
         )}
+        {analysis?.call_summary ? <PhoneSummaryNote checks={call.captured_checks} captured={t('captured')} /> : null}
         <dl className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <Fact label={t('sentiment')}>
             <SentimentBadge value={call.sentiment ?? analysis?.user_sentiment} />
@@ -128,7 +131,10 @@ function CallBody({ call }: { call: CallDetail }) {
                 <dt className="text-muted-foreground" title={fieldDefs.get(name)}>
                   {copy.analysisField(name)}
                 </dt>
-                <dd className="text-end font-medium">{displayValue(value, tc)}</dd>
+                <dd className="text-end font-medium">
+                  {displayValue(value, tc)}
+                  <PhoneCheckNote check={phoneChecks.get(name)} />
+                </dd>
               </div>
             ))}
           </dl>
@@ -175,6 +181,8 @@ function CallBody({ call }: { call: CallDetail }) {
 function HandledControls({ call, canEdit }: { call: CallDetail; canEdit: boolean }) {
   const t = useTranslations('dashboard.calls.detail');
   const tc = useTranslations();
+  // The workspace's clock, like every other time in the drawer — not the browser's.
+  const timeZone = useWorkspace().workspace?.timezone;
   const api = useApi();
   const queryClient = useQueryClient();
   const update = useUpdateCall(api);
@@ -219,7 +227,7 @@ function HandledControls({ call, canEdit }: { call: CallDetail; canEdit: boolean
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium">{t('handled')}</p>
-          <p className="text-xs text-muted-foreground">{call.handled_at ? t('handledAt', { when: formatDateTime(call.handled_at) }) : t('handledHint')}</p>
+          <p className="text-xs text-muted-foreground">{call.handled_at ? t('handledAt', { when: formatDateTime(call.handled_at, timeZone) }) : t('handledHint')}</p>
         </div>
         <Switch checked={Boolean(call.handled_at)} disabled={!canEdit || togglingHandled} onCheckedChange={(v) => void toggleHandled(v)} aria-label={t('handled')} />
       </div>

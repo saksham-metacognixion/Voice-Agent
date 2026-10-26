@@ -171,14 +171,15 @@ export class BillingService {
    */
   async confirmCheckout(ctx: WorkspaceContext, sessionId: string): Promise<CheckoutConfirmResponse> {
     const purchase = await withWorkspace(ctx, (db) =>
-      db.purchase.findFirst({ where: { tenantId: ctx.workspaceId, stripeSessionId: sessionId, isAutoTopup: false }, select: { id: true, status: true } }),
+      db.purchase.findFirst({ where: { tenantId: ctx.workspaceId, stripeSessionId: sessionId, isAutoTopup: false }, select: { id: true, status: true, createdAt: true } }),
     );
     if (!purchase) throw AppError.notFound('Checkout');
-    if (purchase.status !== 'pending') return { purchase_id: purchase.id, status: purchase.status, credited: false };
+    const purchaseCreatedAt = purchase.createdAt.toISOString();
+    if (purchase.status !== 'pending') return { purchase_id: purchase.id, status: purchase.status, credited: false, purchase_created_at: purchaseCreatedAt };
 
     const outcome = await this.settleFromStripe(purchase.id, sessionId);
     const after = await adminDb.purchase.findUniqueOrThrow({ where: { id: purchase.id }, select: { status: true } });
-    return { purchase_id: purchase.id, status: after.status, credited: outcome.outcome === 'credited' };
+    return { purchase_id: purchase.id, status: after.status, credited: outcome.outcome === 'credited', purchase_created_at: purchaseCreatedAt };
   }
 
   /**

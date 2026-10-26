@@ -59,10 +59,12 @@
     "Greet the caller and name the restaurant",
     "Ask whether this is a reservation, a question about the menu, or something else",
     "For a menu question, answer from the uploaded menu: dishes, prices, ingredients and dietary details; if the item is not on the menu, say so and offer what is",
+    "Asked about a kind of dish (vegetarian, desserts), name three or four that fit and offer more; read the whole menu only if asked; no drinks in a food answer",
     "For a reservation, collect party size, date, time, name and phone",
     "For a large party, follow the hand-off rule instead of taking the booking",
     "Confirm the details back to the caller",
-    "Close politely"
+    "Ask whether there is anything else the caller needs, and carry on if there is",
+    "Only once the caller says there is nothing else, thank them for calling and end the call"
   ],
   "analysis_fields": [
     {
@@ -100,5 +102,5 @@
   "example_texts": {
     "restaurant": "We are a forty-seat bistro. Lunch and dinner, closed Mondays. Reservations for parties up to eight; larger groups are arranged with the manager."
   },
-  "version": 2
+  "version": 3
 }

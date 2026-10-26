@@ -24,6 +24,9 @@ import type { WorkspaceContext } from '../auth';
 import { JobQueues } from '../jobs';
 import { RetellGateway } from '../retell';
 import { unsettledCallKind } from './call-recovery.rules';
+import { resolveWindow } from './stats-window';
+import { phoneRegions } from '../../common/phone-regions';
+import { callerUtterances, checkCapturedPhones } from './captured-phones';
 import { csvHeader, csvRow } from './csv';
 import { RecordingSigner } from './recording';
 
@@ -58,8 +61,20 @@ const CALL_SELECT = {
   createdAt: true,
 } satisfies Prisma.CallSelect;
 
-/** `recoveryChecks` feeds `unsettledCallKind` (ADR 0011 §7) and is not on the wire. */
-const DETAIL_SELECT = { ...CALL_SELECT, transcriptText: true, transcriptJson: true, recoveryChecks: true } satisfies Prisma.CallSelect;
+/**
+ * `recoveryChecks` feeds `unsettledCallKind` (ADR 0011 §7) and is not on the wire; the
+ * workspace's country and the agent's locales are the regions a captured phone number
+ * is validated in (`captured_checks`).
+ */
+const DETAIL_SELECT = {
+  ...CALL_SELECT,
+  transcriptText: true,
+  transcriptJson: true,
+  recoveryChecks: true,
+  tenant: { select: { country: true } },
+  agent: { select: { primaryLanguage: true, languages: true } },
+} satisfies Prisma.CallSelect;
+type DetailRow = Prisma.CallGetPayload<{ select: typeof DETAIL_SELECT }>;
 
 /** The columns a keyset cursor resumes from: the sort column, then the tiebreakers. */
 const POSITION_SELECT = { id: true, startedAt: true, durationS: true, creditsCharged: true, createdAt: true } satisfies Prisma.CallSelect;
@@ -367,13 +382,27 @@ function invalidCursor(): AppError {
   return new AppError('INVALID_CURSOR', 'That page link is no longer valid. Start from the first page.');
 }
 
-function toDetail(row: CallRow & { transcriptText: string | null; transcriptJson: Prisma.JsonValue | null }): CallDetail {
+function toDetail(row: DetailRow): CallDetail {
   return {
     ...toSummary(row),
     transcript_text: row.transcriptText,
     transcript_json: row.transcriptJson ?? null,
     analysis_json: row.analysisJson ?? null,
+    captured_checks: capturedChecks(row),
   };
+}
+
+/** Every captured phone number, checked against the caller's own words (`captured-phones.ts`). */
+function capturedChecks(row: DetailRow): CallDetail['captured_checks'] {
+  const analysis = row.analysisJson;
+  if (!analysis || typeof analysis !== 'object' || Array.isArray(analysis)) return [];
+  return checkCapturedPhones({
+    captured: (analysis as Record<string, unknown>).custom_analysis_data,
+    callerTurns: callerUtterances(row.transcriptJson, row.transcriptText),
+    // Our end of an outbound leg is from_number; the caller is only ever the other party.
+    callerId: row.direction === 'outbound' ? row.toNumber : row.fromNumber,
+    regions: phoneRegions(row.tenant.country, [row.agent?.primaryLanguage, ...(row.agent?.languages ?? [])]),
+  });
 }
 
 /** `analysis_json.user_sentiment`, when the platform wrote one. */
@@ -434,33 +463,4 @@ function isFresh(url: string): boolean {
 
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
-/**
- * `today` and the `Nd` ranges are whole local days in the workspace timezone, so "today"
- * means the customer's today and not UTC's.
- */
-export function resolveWindow(query: StatsQuery, timeZone: string): { from: Date; to: Date } {
-  if (query.range === 'custom') return { from: new Date(query.from!), to: new Date(query.to!) };
-  const now = new Date();
-  const to = new Date(now.getTime() + 1_000);
-  const days = query.range === 'today' ? 1 : query.range === '7d' ? 7 : 30;
-  return { from: startOfLocalDay(now, timeZone, days - 1), to };
-}
-
-/** Midnight, `daysBack` local days ago, expressed as an instant. */
-function startOfLocalDay(now: Date, timeZone: string, daysBack: number): Date {
-  let offsetMs = 0;
-  try {
-    const fmt = new Intl.DateTimeFormat('en-US', { timeZone, hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const p = Object.fromEntries(fmt.formatToParts(now).map((x) => [x.type, x.value])) as Record<string, string>;
-    const asUtc = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute), Number(p.second));
-    offsetMs = asUtc - Math.floor(now.getTime() / 1000) * 1000;
-  } catch {
-    offsetMs = 0;
-  }
-  const local = new Date(now.getTime() + offsetMs);
-  local.setUTCHours(0, 0, 0, 0);
-  local.setUTCDate(local.getUTCDate() - daysBack);
-  return new Date(local.getTime() - offsetMs);
 }

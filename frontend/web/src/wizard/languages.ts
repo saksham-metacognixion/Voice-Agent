@@ -34,3 +34,18 @@ export function sortedLanguages(): RetellLanguage[] {
 export function baseLanguage(code: string): string {
   return code.split('-')[0]!;
 }
+
+/** W3's language choice as one value, so a change is one `PATCH /agents/:id/draft`. */
+export interface LanguageChoice {
+  primary_language: RetellLanguage;
+  languages: RetellLanguage[];
+}
+
+/**
+ * `code` becomes the main language. If it was one of the "also speaks" languages it leaves
+ * that list in the same change — one save carrying both, never two racing saves where the
+ * second could put the old main language back (QA-011).
+ */
+export function choosePrimary(code: RetellLanguage, languages: RetellLanguage[]): LanguageChoice {
+  return { primary_language: code, languages: languages.filter((l) => l !== code) };
+}

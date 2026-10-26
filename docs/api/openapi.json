@@ -2398,6 +2398,7 @@
           "concurrency": {
             "properties": {
               "allowance": {
+                "nullable": true,
                 "type": "integer"
               },
               "live": {
@@ -3711,22 +3712,82 @@
           },
           "note": {
             "maxLength": 500,
+            "minLength": 1,
             "type": "string"
           },
           "override_margin": {
             "default": false,
             "type": "boolean"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
           }
         },
+        "required": [
+          "reason_code"
+        ],
         "type": "object"
       },
       "adminPricingRollbackRequest": {
         "properties": {
           "note": {
             "maxLength": 500,
+            "minLength": 1,
             "type": "string"
+          },
+          "override_margin": {
+            "default": false,
+            "type": "boolean"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
           }
         },
+        "required": [
+          "reason_code"
+        ],
         "type": "object"
       },
       "adminPricingVersion": {
@@ -6014,6 +6075,7 @@
           "concurrency": {
             "properties": {
               "allowance": {
+                "nullable": true,
                 "type": "integer"
               },
               "detail": {
@@ -7401,6 +7463,7 @@
           },
           "note": {
             "maxLength": 500,
+            "minLength": 1,
             "type": "string"
           },
           "reason_code": {
@@ -7436,6 +7499,9 @@
             "type": "object"
           }
         },
+        "required": [
+          "reason_code"
+        ],
         "type": "object"
       },
       "adminUserActionResponse": {
@@ -7644,6 +7710,9 @@
             "type": "string"
           },
           "payload": {},
+          "payload_redacted": {
+            "type": "boolean"
+          },
           "processed_at": {
             "format": "date-time",
             "nullable": true,
@@ -7702,7 +7771,8 @@
           "error",
           "queue_state",
           "attempts",
-          "payload"
+          "payload",
+          "payload_redacted"
         ],
         "type": "object"
       },
@@ -7882,6 +7952,21 @@
           "event",
           "outcome",
           "reason"
+        ],
+        "type": "object"
+      },
+      "advanceOnboardingRequest": {
+        "properties": {
+          "step": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 7,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "step"
         ],
         "type": "object"
       },
@@ -9491,15 +9576,18 @@
             "properties": {
               "about_business": {
                 "maxLength": 1000,
+                "nullable": true,
                 "type": "string"
               },
               "address": {
                 "maxLength": 200,
+                "nullable": true,
                 "type": "string"
               },
               "agent_name": {
                 "maxLength": 30,
                 "minLength": 2,
+                "nullable": true,
                 "type": "string"
               },
               "ai_disclosure": {
@@ -9513,9 +9601,11 @@
               },
               "anything_else": {
                 "maxLength": 800,
+                "nullable": true,
                 "type": "string"
               },
               "business_hours": {
+                "nullable": true,
                 "properties": {
                   "closed_dates": {
                     "default": [],
@@ -9624,6 +9714,7 @@
               },
               "goal": {
                 "maxLength": 800,
+                "nullable": true,
                 "type": "string"
               },
               "handoff_rules": {
@@ -9663,9 +9754,11 @@
               },
               "never_do": {
                 "maxLength": 500,
+                "nullable": true,
                 "type": "string"
               },
               "personality": {
+                "nullable": true,
                 "properties": {
                   "brevity": {
                     "default": 0.5,
@@ -9700,6 +9793,7 @@
               },
               "pricing": {
                 "maxLength": 500,
+                "nullable": true,
                 "type": "string"
               },
               "services": {
@@ -9718,6 +9812,7 @@
           "industry": {
             "maxLength": 60,
             "minLength": 1,
+            "nullable": true,
             "type": "string"
           },
           "languages": {
@@ -11038,6 +11133,45 @@
           "analysis_json": {
             "nullable": true
           },
+          "captured_checks": {
+            "default": [],
+            "items": {
+              "properties": {
+                "digits": {
+                  "type": "integer"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "heard": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "status": {
+                  "enum": [
+                    "ok",
+                    "mismatch",
+                    "invalid"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "field",
+                "value",
+                "status",
+                "digits",
+                "heard"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "channel": {
             "enum": [
               "phone",
@@ -11533,6 +11667,9 @@
           "credited": {
             "type": "boolean"
           },
+          "purchase_created_at": {
+            "type": "string"
+          },
           "purchase_id": {
             "format": "uuid",
             "type": "string"
@@ -11550,7 +11687,8 @@
         "required": [
           "purchase_id",
           "status",
-          "credited"
+          "credited",
+          "purchase_created_at"
         ],
         "type": "object"
       },
@@ -12520,6 +12658,40 @@
         ],
         "type": "object"
       },
+      "invitePreviewResponse": {
+        "properties": {
+          "already_member": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invited_by": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "owner",
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "type": "string"
+          },
+          "workspace_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspace_name",
+          "role",
+          "invited_by",
+          "expires_at",
+          "already_member"
+        ],
+        "type": "object"
+      },
       "inviteRequest": {
         "properties": {
           "email": {
@@ -12556,6 +12728,14 @@
           "email": {
             "type": "string"
           },
+          "email_status": {
+            "enum": [
+              "sent",
+              "failed",
+              "not_configured"
+            ],
+            "type": "string"
+          },
           "expires_at": {
             "format": "date-time",
             "type": "string"
@@ -12577,6 +12757,14 @@
             ],
             "type": "string"
           },
+          "status": {
+            "enum": [
+              "pending",
+              "expired",
+              "accepted"
+            ],
+            "type": "string"
+          },
           "token": {
             "type": "string"
           }
@@ -12588,7 +12776,8 @@
           "invited_by",
           "expires_at",
           "accepted_at",
-          "created_at"
+          "created_at",
+          "status"
         ],
         "type": "object"
       },
@@ -14529,7 +14718,7 @@
         "properties": {
           "closing": {
             "maxLength": 500,
-            "minLength": 1,
+            "nullable": true,
             "type": "string"
           },
           "greeting": {
@@ -16599,10 +16788,11 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
             "x-error-codes": [
               "FORBIDDEN_ROLE",
               "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
               "STAFF_ONLY"
             ]
           },
@@ -16706,10 +16896,11 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
             "x-error-codes": [
               "FORBIDDEN_ROLE",
               "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
               "STAFF_ONLY"
             ]
           },
@@ -20838,6 +21029,18 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "rental_overdue",
+            "required": false,
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -21057,10 +21260,11 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
             "x-error-codes": [
               "FORBIDDEN_ROLE",
               "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
               "STAFF_ONLY"
             ]
           },
@@ -21177,10 +21381,11 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
             "x-error-codes": [
               "FORBIDDEN_ROLE",
               "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
               "STAFF_ONLY"
             ]
           },
@@ -21244,6 +21449,16 @@
     "/admin/pricing/draft": {
       "delete": {
         "operationId": "adminDiscardPricingDraft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -21284,6 +21499,19 @@
               "STAFF_LIMIT_EXCEEDED",
               "STAFF_ONLY"
             ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
           }
         },
         "security": [
@@ -21291,7 +21519,7 @@
             "staffAuth": []
           }
         ],
-        "summary": "Discard the pricing draft",
+        "summary": "Discard the pricing draft (with a reason code)",
         "tags": [
           "admin-pricing"
         ],
@@ -21691,8 +21919,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "description": "Error envelope; `code` ∈ {MARGIN_FLOOR, VALIDATION_FAILED}",
             "x-error-codes": [
+              "MARGIN_FLOOR",
               "VALIDATION_FAILED"
             ]
           },
@@ -25218,8 +25447,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
             "x-error-codes": [
+              "FORBIDDEN_ROLE",
               "MFA_REQUIRED",
               "STAFF_ONLY"
             ]
@@ -25243,11 +25473,17 @@
             "staffAuth": []
           }
         ],
-        "summary": "One event with its stored payload",
+        "summary": "One event with its stored payload; recordings and transcripts need can_listen_recordings (audited)",
         "tags": [
           "admin-system"
         ],
-        "x-auth": "staff"
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance",
+          "support"
+        ]
       }
     },
     "/admin/webhook-events/{id}/replay": {
@@ -27781,10 +28017,11 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {CONCURRENCY_LIMIT, TESTS_PAUSED}",
+            "description": "Error envelope; `code` ∈ {CONCURRENCY_LIMIT, TESTS_PAUSED, VERSION_SYNCING}",
             "x-error-codes": [
               "CONCURRENCY_LIMIT",
-              "TESTS_PAUSED"
+              "TESTS_PAUSED",
+              "VERSION_SYNCING"
             ]
           },
           "422": {
@@ -29840,7 +30077,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "Pending invitations",
+        "summary": "Unaccepted invitations, each with its server-derived status (pending or expired)",
         "tags": [
           "workspaces"
         ],
@@ -29954,7 +30191,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "Invite by email; the token is returned once",
+        "summary": "Invite by email (the invitation is emailed), or resend: replaces any unaccepted invite for that address; the token is returned once",
         "tags": [
           "workspaces"
         ],
@@ -30097,9 +30334,12 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {INVITE_INVALID}",
+            "description": "Error envelope; `code` ∈ {INVITE_EXPIRED, INVITE_INVALID, INVITE_USED, INVITE_WRONG_EMAIL}",
             "x-error-codes": [
-              "INVITE_INVALID"
+              "INVITE_EXPIRED",
+              "INVITE_INVALID",
+              "INVITE_USED",
+              "INVITE_WRONG_EMAIL"
             ]
           },
           "401": {
@@ -30149,6 +30389,87 @@
           }
         ],
         "summary": "A8 — accept an invitation as the signed-in user",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user",
+        "x-email-verified": true
+      }
+    },
+    "/invites/{token}/preview": {
+      "get": {
+        "operationId": "previewInvite",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/invitePreviewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVITE_EXPIRED, INVITE_INVALID, INVITE_USED, INVITE_WRONG_EMAIL}",
+            "x-error-codes": [
+              "INVITE_EXPIRED",
+              "INVITE_INVALID",
+              "INVITE_USED",
+              "INVITE_WRONG_EMAIL"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A8 — the workspace, inviter and role behind an invitation, for the invited address only",
         "tags": [
           "workspaces"
         ],
@@ -34116,6 +34437,109 @@
           "notifications"
         ],
         "x-auth": "workspace"
+      }
+    },
+    "/workspace/onboarding-step": {
+      "post": {
+        "description": "Spec §6.4.",
+        "operationId": "advanceOnboardingStep",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/advanceOnboardingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workspaceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Move the wizard resume pointer forward (never back)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
       }
     },
     "/workspace/transfer-ownership": {

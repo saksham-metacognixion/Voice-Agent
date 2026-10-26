@@ -129,8 +129,18 @@ export interface LlmSpec {
   knowledgeBaseIds?: string[];
   /** Compiled from `brief_json` + §9.7; the inbound webhook overrides per call. */
   defaultDynamicVariables?: Record<string, string>;
-  /** Transfer targets (§11) become Retell transfer_call tools. Phase 2 for the billing split. */
-  transferNumbers?: string[];
+  /**
+   * Transfer targets (§11) become Retell transfer_call tools. Phase 2 for the billing split.
+   * The number is the tool's destination only; the model is shown the conditions, never
+   * the digits (BUG-005).
+   */
+  transfers?: TransferTarget[];
+}
+
+/** One staff number to transfer to, and the brief's conditions that lead there. */
+export interface TransferTarget {
+  number: string;
+  conditions: string[];
 }
 
 /** Agent-level settings. `webhookUrl` is always ours; callers cannot change it. */

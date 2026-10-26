@@ -1,7 +1,7 @@
 'use client';
 
 import { useAdminDeleteFlag, useAdminListFlags, useAdminSetKillSwitch, useAdminUpsertFlag, useApi } from '@portal/api-client';
-import type { AdminFeatureFlag, AdminKillSwitch, ReasonCode, StaffActionRequest } from '@portal/schemas';
+import { FLAG_KEY_PATTERN, adminUpsertFlagRequest, type AdminFeatureFlag, type AdminKillSwitch, type ReasonCode, type StaffActionRequest } from '@portal/schemas';
 import {
   Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, Input, Skeleton, Switch, Textarea, cn, toast,
 } from '@portal/ui';
@@ -112,7 +112,6 @@ function KillSwitches({ switches }: { switches: AdminKillSwitch[] }) {
         confirmLabel="Turn on"
         destructive
         typeToConfirm={turningOn?.key}
-        defaultReason="service_issue"
         onConfirm={turnOn}
       >
         <Field id="ks-expires" label="Expires" optional description="Leave empty to keep it on until someone turns it off.">
@@ -125,7 +124,6 @@ function KillSwitches({ switches }: { switches: AdminKillSwitch[] }) {
         title={`Turn off ${turningOff?.key ?? ''}`}
         description="Normal behaviour resumes within seconds."
         confirmLabel="Turn off"
-        defaultReason="service_issue"
         onConfirm={turnOff}
       />
     </section>
@@ -193,7 +191,6 @@ function FeatureFlags({ flags }: { flags: AdminFeatureFlag[] }) {
         confirmLabel="Delete flag"
         destructive
         typeToConfirm={deleting?.key}
-        defaultReason="testing_internal"
         onConfirm={async (body) => {
           if (!deleting) return;
           await del.mutateAsync({ params: { key: deleting.key }, body });
@@ -216,23 +213,27 @@ function FlagDialog({ flag, onClose }: { flag: AdminFeatureFlag | null; onClose:
   // when the default is off, so 100 here would ship the flag to everyone (D13 QA).
   const [rollout, setRollout] = React.useState(String(flag?.rollout_pct ?? 0));
   const [overrides, setOverrides] = React.useState<Array<{ tenant: string; on: boolean }>>(Object.entries(flag?.tenant_overrides ?? {}).map(([tenant, on]) => ({ tenant, on })));
-  const [reason, setReason] = React.useState<ReasonCode>('testing_internal');
+  // No reason until one is chosen (QA-035/QA-041): the audit row records what staff picked.
+  const [reason, setReason] = React.useState<ReasonCode | ''>('');
   const [note, setNote] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
-  const keyOk = /^[a-z][a-z0-9_.-]{1,63}$/.test(key);
+  const keyOk = FLAG_KEY_PATTERN.test(key);
   const pct = Number(rollout);
   const pctOk = Number.isInteger(pct) && pct >= 0 && pct <= 100;
+  const noteRequired = reason === 'other';
+  const reasonOk = Boolean(reason) && (!noteRequired || Boolean(note.trim()));
 
   async function save() {
-    if (!keyOk || !pctOk) return;
+    if (!keyOk || !pctOk || !reasonOk) return;
     setBusy(true);
     setError(null);
     try {
       const tenant_overrides: Record<string, boolean> = {};
       for (const o of overrides) if (o.tenant.trim()) tenant_overrides[o.tenant.trim()] = o.on;
-      await upsert.mutateAsync({ params: { key }, body: { description: description.trim() || null, default_on: defaultOn, rollout_pct: pct, tenant_overrides, reason_code: reason, note: note.trim() || undefined } });
+      const body = adminUpsertFlagRequest.parse({ description: description.trim() || null, default_on: defaultOn, rollout_pct: pct, tenant_overrides, reason_code: reason, note: note.trim() || undefined });
+      await upsert.mutateAsync({ params: { key }, body });
       await queryClient.invalidateQueries({ queryKey: ['adminListFlags'] });
       toast.success(`${key} saved`);
       onClose();
@@ -251,7 +252,7 @@ function FlagDialog({ flag, onClose }: { flag: AdminFeatureFlag | null; onClose:
           <DialogDescription>Workspaces re-read flags within 60 s.</DialogDescription>
         </DialogHeader>
         {!flag ? (
-          <Field id="flag-key" label="Key" required error={key && !keyOk ? 'Lowercase letters, digits, _ . - ; 2–64 characters.' : undefined}>
+          <Field id="flag-key" label="Key" required error={key && !keyOk ? 'Lowercase letters, digits and _ ; starts with a letter; 2–64 characters.' : undefined}>
             <Input id="flag-key" value={key} onChange={(e) => setKey(e.target.value)} placeholder="e.g. web_widget_beta" autoComplete="off" />
           </Field>
         ) : null}
@@ -285,8 +286,11 @@ function FlagDialog({ flag, onClose }: { flag: AdminFeatureFlag | null; onClose:
           </div>
         </Field>
         <div className="grid grid-cols-2 gap-4">
-          <Field id="flag-reason" label="Reason">
-            <select id="flag-reason" value={reason} onChange={(e) => setReason(e.target.value as ReasonCode)} className="h-10 rounded-md border border-input bg-card px-3 text-sm">
+          <Field id="flag-reason" label="Reason" required>
+            <select id="flag-reason" value={reason} onChange={(e) => setReason(e.target.value as ReasonCode | '')} className="h-10 rounded-md border border-input bg-card px-3 text-sm">
+              <option value="" disabled>
+                Choose a reason
+              </option>
               {(['testing_internal', 'service_issue', 'promo', 'partner_deal', 'customer_request', 'other'] as ReasonCode[]).map((r) => (
                 <option key={r} value={r}>
                   {r}
@@ -294,7 +298,7 @@ function FlagDialog({ flag, onClose }: { flag: AdminFeatureFlag | null; onClose:
               ))}
             </select>
           </Field>
-          <Field id="flag-note" label="Note" optional>
+          <Field id="flag-note" label="Note" required={noteRequired} optional={!noteRequired} error={noteRequired && !note.trim() ? 'Required with "other".' : undefined}>
             <Textarea id="flag-note" value={note} onChange={(e) => setNote(e.target.value)} rows={1} maxLength={500} className="min-h-10" />
           </Field>
         </div>
@@ -303,7 +307,7 @@ function FlagDialog({ flag, onClose }: { flag: AdminFeatureFlag | null; onClose:
           <Button variant="outline" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button onClick={() => void save()} disabled={!keyOk || !pctOk || busy} loading={busy}>
+          <Button onClick={() => void save()} disabled={!keyOk || !pctOk || !reasonOk || busy} loading={busy}>
             Save flag
           </Button>
         </DialogFooter>

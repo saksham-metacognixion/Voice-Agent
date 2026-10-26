@@ -66,7 +66,8 @@
     "Collect two preferred days and times",
     "Collect name and phone number",
     "Confirm the details and explain that a person will call to confirm the slot",
-    "Close politely"
+    "Ask whether there is anything else the caller needs, and carry on if there is",
+    "Only once the caller says there is nothing else, thank them for calling and end the call"
   ],
   "analysis_fields": [
     {
@@ -108,5 +109,5 @@
     "plumbing": "We are a residential plumbing company covering the West Island. Drain cleaning, burst pipes, water heaters and bathroom renovations. We run a 24-hour emergency line.",
     "legal": "We are a two-lawyer family law practice downtown. Divorce, custody and mediation. First consultation is thirty minutes and is paid."
   },
-  "version": 1
+  "version": 2
 }

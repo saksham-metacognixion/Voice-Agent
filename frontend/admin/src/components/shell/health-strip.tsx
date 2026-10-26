@@ -4,6 +4,7 @@ import { useAdminSystemHealth, useApi } from '@portal/api-client';
 import type { AdminSystemHealthResponse } from '@portal/schemas';
 import { Badge, Tooltip, TooltipContent, TooltipTrigger, cn } from '@portal/ui';
 import Link from 'next/link';
+import { concurrencyText } from '@/src/lib/format';
 import { routes, systemPath } from '@/src/routes';
 
 /**
@@ -61,7 +62,7 @@ export function HealthStrip({ className }: { className?: string }) {
         {h.webhooks.unprocessed} unprocessed
       </Link>
       <Link href={systemPath('health')} className="hidden whitespace-nowrap rounded-md px-1.5 py-1 tabular-nums text-muted-foreground hover:bg-muted lg:inline-flex" title="Live calls / platform allowance">
-        {h.concurrency.live ?? '?'} / {h.concurrency.allowance}
+        {concurrencyText(h.concurrency)}
       </Link>
       {h.kill_switches_on.length ? (
         <Link href={systemPath('flags')}>

@@ -9,6 +9,7 @@ import {
   type AdminUpsertFlagRequest,
   type KillSwitchKey,
   type StaffActionRequest,
+  FLAG_KEY_PATTERN,
   killSwitchKey,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
@@ -93,7 +94,7 @@ export class AdminFlagsService {
     request: FastifyRequest,
   ): Promise<AdminFeatureFlag> {
     await this.limits.assertCan(staff, 'can_manage_flags');
-    if (!/^[a-z][a-z0-9_]{1,63}$/.test(key))
+    if (!FLAG_KEY_PATTERN.test(key))
       throw new AppError(
         'VALIDATION_FAILED',
         'A flag key is lower-case letters, digits and underscores.',

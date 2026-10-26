@@ -20,6 +20,7 @@ export function ConfirmDialog({
   typeToConfirm,
   typeLabel,
   destructive = true,
+  confirmDisabled = false,
   children,
   onConfirm,
 }: {
@@ -33,6 +34,8 @@ export function ConfirmDialog({
   typeToConfirm?: string;
   typeLabel?: React.ReactNode;
   destructive?: boolean;
+  /** Keeps the button disabled while the fields above do not make a valid request. */
+  confirmDisabled?: boolean;
   /** Extra fields between the bullets and the typed confirmation. */
   children?: React.ReactNode;
   onConfirm: () => Promise<void>;
@@ -52,7 +55,7 @@ export function ConfirmDialog({
   const matches = !typeToConfirm || normalise(typed) === normalise(typeToConfirm);
 
   async function confirm() {
-    if (busy || !matches) return;
+    if (busy || !matches || confirmDisabled) return;
     setBusy(true);
     setError(null);
     try {
@@ -91,7 +94,7 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button variant={destructive ? 'danger' : 'primary'} onClick={() => void confirm()} disabled={!matches || busy} loading={busy}>
+          <Button variant={destructive ? 'danger' : 'primary'} onClick={() => void confirm()} disabled={!matches || busy || confirmDisabled} loading={busy}>
             {confirmLabel}
           </Button>
         </DialogFooter>

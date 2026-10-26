@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { adminDb } from '@portal/db';
 import { type PricingConfig, pricingConfig } from '@portal/schemas';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
-import { JOBS, JobRecordsService } from '../src/modules/jobs';
+import { JOBS, JobQueues, JobRecordsService } from '../src/modules/jobs';
 import { RedisCache, redisKeys } from '../src/modules/redis';
 import { WebhookEventsService } from '../src/modules/webhooks';
 import { Auth0ManagementService } from '../src/modules/auth';
@@ -71,6 +73,17 @@ const reason = { reason_code: 'service_issue', note: 'd12 e2e' };
 
 async function lastAudit(action: string) {
   return adminDb.staffAuditLog.findFirst({ where: { action }, orderBy: { createdAt: 'desc' } });
+}
+
+/** Flip one role's `can_pause_tenant` for a case, and put it back. */
+async function withPauseCapability<T>(role: 'support', value: boolean, fn: () => Promise<T>): Promise<T> {
+  const before = (await adminDb.staffRoleLimit.findUniqueOrThrow({ where: { role } })).canPauseTenant;
+  await adminDb.staffRoleLimit.update({ where: { role }, data: { canPauseTenant: value } });
+  try {
+    return await fn();
+  } finally {
+    await adminDb.staffRoleLimit.update({ where: { role }, data: { canPauseTenant: before } });
+  }
 }
 
 beforeAll(async () => {
@@ -314,6 +327,28 @@ describe('SA2 customers and the 360', () => {
     await call('POST', `/admin/customers/${ws.workspaceId}/credits/adjust`, staff.ops.token, { delta: -3, reason_code: 'testing_internal' });
   });
 
+  it('QA-037: one person\'s daily cap holds when two workspaces are adjusted at the same moment', async () => {
+    const other = await paidWorkspace(h.app, `d12-qa037-${randomUUID().slice(0, 6)}`, 'starter');
+    const row = await adminDb.staffRoleLimit.findUniqueOrThrow({ where: { role: 'support' } });
+    const used = (await adminDb.creditAdjustment.findMany({ where: { staffId: staff.support.id, createdAt: { gte: new Date(Date.now() - 86_400_000) } }, select: { delta: true } }))
+      .reduce((n, r) => n + Math.abs(r.delta.toNumber()), 0);
+    // Room for 10 more today; each request is 6 (0.6 × the room), so only one may pass.
+    await adminDb.staffRoleLimit.update({ where: { role: 'support' }, data: { creditAdjustMaxPerDay: used + 10, creditAdjustMaxPerAction: null } });
+    try {
+      const body = { delta: 6, reason_code: 'goodwill' };
+      const results = await Promise.all([
+        call('POST', `/admin/customers/${ws.workspaceId}/credits/adjust`, staff.support.token, body),
+        call('POST', `/admin/customers/${other.workspaceId}/credits/adjust`, staff.support.token, body),
+      ]);
+      expect(results.map((r) => r.status).sort()).toEqual([201, 403]);
+      expect(results.find((r) => r.status === 403)?.body.code).toBe('STAFF_LIMIT_EXCEEDED');
+    } finally {
+      await adminDb.staffRoleLimit.update({ where: { role: 'support' }, data: { creditAdjustMaxPerDay: row.creditAdjustMaxPerDay, creditAdjustMaxPerAction: row.creditAdjustMaxPerAction } });
+    }
+    const passed = await adminDb.creditAdjustment.findFirst({ where: { staffId: staff.support.id, tenantId: ws.workspaceId }, orderBy: { createdAt: 'desc' } });
+    if (passed && passed.delta.toNumber() === 6) await call('POST', `/admin/customers/${ws.workspaceId}/credits/adjust`, staff.ops.token, { delta: -6, reason_code: 'testing_internal' });
+  });
+
   it('adjusts credits through the wallet with a reason, a record and an audit row', async () => {
     const missing = await call(
       'POST',
@@ -440,11 +475,51 @@ describe('SA2 customers and the 360', () => {
 // --------------------------------------------------------------------------- agents, numbers, users
 
 describe('agent, number and user controls', () => {
-  it('pauses and resumes an agent (local state, no platform call) and refuses to resume an unpublished one', async () => {
+  it('QA-034: agent pause/resume take the workspace pause\'s checks — role, can_pause_tenant, support ticket', async () => {
+    const status = async () => (await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } })).status;
+    const ticket = await adminDb.supportTicket.create({ data: { tenantId: ws.workspaceId, subject: 'QA-034 agent' } });
+    const other = await paidWorkspace(h.app, `d12-qa034a-${randomUUID().slice(0, 6)}`, 'starter');
+    const foreign = await adminDb.supportTicket.create({ data: { tenantId: other.workspaceId, subject: 'not this one' } });
+
+    const noTicket = await call('POST', `/admin/agents/${agentId}/pause`, staff.support.token, reason);
+    expect(noTicket.status).toBe(403);
+    expect(noTicket.body.code).toBe('STAFF_LIMIT_EXCEEDED');
+    expect(noTicket.body.message).toMatch(/against a ticket/);
+    const foreignTicket = await call('POST', `/admin/agents/${agentId}/pause`, staff.support.token, { ...reason, ticket_id: foreign.id });
+    expect(foreignTicket.status).toBe(403);
+    expect(foreignTicket.body.message).toMatch(/not one of this workspace/);
+    for (const who of [staff.finance, staff.readOnly]) {
+      const denied = await call('POST', `/admin/agents/${agentId}/pause`, who.token, { ...reason, ticket_id: ticket.id });
+      expect(denied.status).toBe(403);
+      expect(denied.body.code).toBe('FORBIDDEN_ROLE');
+    }
+    // A role on the route whose `staff_role_limits` row says it may not pause.
+    await withPauseCapability('support', false, async () => {
+      for (const action of ['pause', 'resume']) {
+        const limited = await call('POST', `/admin/agents/${agentId}/${action}`, staff.support.token, { ...reason, ticket_id: ticket.id });
+        expect(limited.status).toBe(403);
+        expect(limited.body.code).toBe('STAFF_LIMIT_EXCEEDED');
+        expect(limited.body.message).toMatch(/cannot pause a workspace/);
+      }
+    });
+    // Nothing moved: the agent is live, no audit row, and the customer saw no frame.
+    expect(await status()).toBe('live');
+    expect(await adminDb.staffAuditLog.count({ where: { action: 'agent.paused', targetId: agentId } })).toBe(0);
+
+    const paused = await call('POST', `/admin/agents/${agentId}/pause`, staff.support.token, { ...reason, ticket_id: ticket.id });
+    expect(paused.status).toBe(200);
+    expect(paused.body.status).toBe('paused');
+    // Resume takes no ticket, as on the workspace.
+    const resumed = await call('POST', `/admin/agents/${agentId}/resume`, staff.support.token, reason);
+    expect(resumed.status).toBe(200);
+    expect(resumed.body.status).toBe('live');
+  });
+
+  it('pauses and resumes an agent (local state, no platform call); an unpublished one resumes as a draft (QA-043)', async () => {
     const paused = await call(
       'POST',
       `/admin/agents/${agentId}/pause`,
-      staff.support.token,
+      staff.ops.token,
       reason,
     );
     expect(paused.status).toBe(200);
@@ -456,8 +531,42 @@ describe('agent, number and user controls', () => {
     const draft = await adminDb.agent.create({
       data: { tenantId: ws.workspaceId, name: 'Never published', status: 'paused' },
     });
-    const refused = await call('POST', `/admin/agents/${draft.id}/resume`, staff.ops.token, reason);
-    expect(refused.status).toBe(409);
+    const back = await call('POST', `/admin/agents/${draft.id}/resume`, staff.ops.token, reason);
+    expect(back.status).toBe(200);
+    expect(back.body.status).toBe('draft');
+  });
+
+  it('QA-034: number pause takes the workspace pause\'s checks; resume needs the capability only', async () => {
+    const status = async () => (await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: numberId } })).status;
+    const ticket = await adminDb.supportTicket.create({ data: { tenantId: ws.workspaceId, subject: 'QA-034 number' } });
+
+    const noTicket = await call('POST', `/admin/numbers/${numberId}/pause`, staff.support.token, reason);
+    expect(noTicket.status).toBe(403);
+    expect(noTicket.body.code).toBe('STAFF_LIMIT_EXCEEDED');
+    const bogus = await call('POST', `/admin/numbers/${numberId}/pause`, staff.support.token, { ...reason, ticket_id: 2_000_000_000 });
+    expect(bogus.status).toBe(403);
+    expect(bogus.body.message).toMatch(/not one of this workspace/);
+    expect((await call('POST', `/admin/numbers/${numberId}/pause`, staff.readOnly.token, reason)).body.code).toBe('FORBIDDEN_ROLE');
+    await withPauseCapability('support', false, async () => {
+      const limited = await call('POST', `/admin/numbers/${numberId}/pause`, staff.support.token, { ...reason, ticket_id: ticket.id });
+      expect(limited.status).toBe(403);
+      expect(limited.body.code).toBe('STAFF_LIMIT_EXCEEDED');
+    });
+    expect(await status()).toBe('active');
+    expect(await adminDb.staffAuditLog.count({ where: { action: 'number.paused', targetId: numberId } })).toBe(0);
+
+    const paused = await call('POST', `/admin/numbers/${numberId}/pause`, staff.support.token, { ...reason, ticket_id: ticket.id });
+    expect(paused.status).toBe(200);
+    expect(paused.body.status).toBe('paused');
+    await withPauseCapability('support', false, async () => {
+      const limited = await call('POST', `/admin/numbers/${numberId}/resume`, staff.support.token, reason);
+      expect(limited.status).toBe(403);
+      expect(limited.body.code).toBe('STAFF_LIMIT_EXCEEDED');
+    });
+    expect(await status()).toBe('paused');
+    const resumed = await call('POST', `/admin/numbers/${numberId}/resume`, staff.support.token, reason);
+    expect(resumed.status).toBe(200);
+    expect(resumed.body.status).toBe('active');
   });
 
   it('pauses and resumes a number', async () => {
@@ -474,6 +583,28 @@ describe('agent, number and user controls', () => {
     );
     expect(resumed.body.status).toBe('active');
     expect(resumed.body.paused_at).toBeNull();
+  });
+
+  it('QA-043: a draft agent paused by staff resumes as a draft, not stuck and not live', async () => {
+    const draft = await adminDb.agent.create({ data: { tenantId: ws.workspaceId, name: `Draft ${randomUUID().slice(0, 6)}`, status: 'draft', tier: 'standard', draftVersion: 1 } });
+    expect((await call('POST', `/admin/agents/${draft.id}/pause`, staff.ops.token, reason)).body.status).toBe('paused');
+    const resumed = await call('POST', `/admin/agents/${draft.id}/resume`, staff.ops.token, reason);
+    expect(resumed.status).toBe(200);
+    expect(resumed.body.status).toBe('draft');
+    await adminDb.agent.update({ where: { id: draft.id }, data: { deletedAt: new Date() } });
+  });
+
+  it('QA-051: rental_overdue=true lists exactly the numbers SA1 counts as overdue', async () => {
+    const has = async (q: string) =>
+      ((await call('GET', `/admin/numbers?tenant_id=${ws.workspaceId}&${q}`, staff.readOnly.token)).body.items as Array<{ id: string }>).some((n) => n.id === numberId);
+    expect(await has('rental_overdue=true')).toBe(false);
+    await adminDb.phoneNumber.update({ where: { id: numberId }, data: { rentalOverdueSince: new Date() } });
+    try {
+      expect(await has('rental_overdue=true')).toBe(true);
+      expect(await has('rental_overdue=false')).toBe(false);
+    } finally {
+      await adminDb.phoneNumber.update({ where: { id: numberId }, data: { rentalOverdueSince: null } });
+    }
   });
 
   it('QA 28 Sep: force logout refuses the token the person already holds; a new sign-in works', async () => {
@@ -502,6 +633,19 @@ describe('agent, number and user controls', () => {
     expect(((await lastAudit('user.force_logout'))?.afterJson as { sessions_revoked_at: string }).sessions_revoked_at).toBeTruthy();
     expect(((await lastAudit('user.force_logout_provider_failed'))?.afterJson as { provider: string }).provider).toBe('failed');
     spy.mockRestore();
+    await new Promise((r) => setTimeout(r, 1100));
+  });
+
+  it('QA-042: a lock whose session revoke the provider refuses still locks, and says so in the audit', async () => {
+    const auth0 = h.app.get(Auth0ManagementService);
+    const spy = vi.spyOn(auth0, 'revokeSessions').mockRejectedValueOnce(new Error('Auth0 Management API answered 403'));
+    const locked = await call('POST', `/admin/users/${ws.userId}/lock`, staff.support.token, reason);
+    spy.mockRestore();
+    expect(locked.status).toBe(200);
+    expect(locked.body.provider_error).toMatch(/did not revoke/);
+    expect(((await lastAudit('user.locked'))?.afterJson as { sessions: string }).sessions).toBe('failed');
+    expect(await lastAudit('user.lock_provider_failed')).toBeTruthy();
+    await call('POST', `/admin/users/${ws.userId}/unlock`, staff.support.token, reason);
     await new Promise((r) => setTimeout(r, 1100));
   });
 
@@ -597,8 +741,29 @@ describe('SA12 jobs and webhook events', () => {
       409,
     );
 
+    // QA-038: a queue job that cannot be removed is a refused discard, on record — not a
+    // "discarded" row with the job still waiting to run.
+    const queues = h.app.get(JobQueues);
+    const realQueue = queues.queue.bind(queues);
+    const stuck = vi.spyOn(queues, 'queue').mockImplementation((name) => {
+      const q = realQueue(name);
+      return Object.assign(Object.create(q) as typeof q, {
+        // The real job (its state still reads), whose removal the queue refuses.
+        getJob: async (id: string) => {
+          const job = await q.getJob(id);
+          return job && Object.assign(Object.create(job) as typeof job, { remove: async () => { throw new Error('job is locked'); } });
+        },
+      });
+    });
+    const refused = await call('POST', `/admin/jobs/${jobId}/discard`, staff.ops.token, reason);
+    stuck.mockRestore();
+    expect(refused.status).toBe(409);
+    expect((await adminDb.job.findUniqueOrThrow({ where: { id: jobId } })).status).toBe('queued');
+    expect((await lastAudit('job.discard_failed'))?.targetId).toBe(jobId);
+
     const discarded = await call('POST', `/admin/jobs/${jobId}/discard`, staff.ops.token, reason);
     expect(discarded.body.status).toBe('failed');
+    expect((await lastAudit('job.discard_requested'))?.targetId).toBe(jobId);
     expect(discarded.body.customer_reason).toMatch(/cancelled by support/);
     const list = await call(
       'GET',
@@ -652,8 +817,87 @@ describe('SA12 jobs and webhook events', () => {
     expect(await adminDb.user.count({ where: { authProviderId: sub } })).toBe(1);
     expect((await lastAudit('webhook.replayed'))?.targetId).toBe(stored.id);
     expect((await lastAudit('webhook.replay_requested'))?.targetId).toBe(stored.id);
-    const detail = await call('GET', `/admin/webhook-events/${stored.id}`, staff.readOnly.token);
+    // The replay answer is the row, not its body (QA-033).
+    expect(replay.body.event).not.toHaveProperty('payload');
+    const detail = await call('GET', `/admin/webhook-events/${stored.id}`, staff.ops.token);
     expect((detail.body.payload as { external_id: string }).external_id).toBe(sub);
+    expect(detail.body.payload_redacted).toBe(false);
+  });
+
+  it('QA-033: a call payload\'s recordings and transcript need can_listen_recordings, and every view is audited', async () => {
+    const fixture = JSON.parse(
+      readFileSync(join(__dirname, 'fixtures/retell/call_analyzed-inbound.json'), 'utf8'),
+    ) as { body: { call: Record<string, unknown> } };
+    const callId = `call_qa033_${randomUUID().slice(0, 8)}`;
+    const body: { call: Record<string, unknown> } = {
+      ...fixture.body,
+      call: { ...fixture.body.call, call_id: callId, recording_url: 'https://cdn.example/rec-SECRET.wav', metadata: { tenant_id: ws.workspaceId } },
+    };
+    const transcript = String(body.call.transcript);
+    const stored = await h.app.get(WebhookEventsService).store({
+      provider: 'retell',
+      externalId: callId,
+      eventType: 'call_analyzed',
+      payload: body,
+    });
+    // Never handled here: this suite runs no worker, and a later sweeper must not either.
+    await adminDb.webhookEvent.update({ where: { id: stored.id }, data: { processedAt: new Date() } });
+    const leaked = (res: { body: unknown }) => {
+      const text = JSON.stringify(res.body);
+      return text.includes('rec-SECRET') || text.includes(transcript.slice(0, 40)) || text.includes('Maple Dental');
+    };
+    const views = () => adminDb.staffAuditLog.findMany({ where: { action: 'webhook.payload_viewed', targetId: stored.id }, orderBy: { createdAt: 'asc' } });
+
+    // Read-only is not on the route at all.
+    const ro = await call('GET', `/admin/webhook-events/${stored.id}`, staff.readOnly.token);
+    expect(ro.status).toBe(403);
+    expect(ro.body.code).toBe('FORBIDDEN_ROLE');
+    expect(leaked(ro)).toBe(false);
+
+    // Finance is, but its role has no can_listen_recordings: the operational fields stay.
+    const fin = await call('GET', `/admin/webhook-events/${stored.id}`, staff.finance.token);
+    expect(fin.status).toBe(200);
+    expect(leaked(fin)).toBe(false);
+    expect(fin.body.payload_redacted).toBe(true);
+    const finCall = (fin.body.payload as { call: Record<string, unknown> }).call;
+    expect(finCall.recording_url).toMatch(/redacted/);
+    expect(finCall.transcript).toMatch(/redacted/);
+    expect(finCall.call_id).toBe(callId);
+    expect(finCall.disconnection_reason).toBe(body.call.disconnection_reason);
+    expect(fin.body.tenant_id).toBe(ws.workspaceId);
+
+    // The same role with the permission turned on sees the whole body.
+    const before = (await adminDb.staffRoleLimit.findUniqueOrThrow({ where: { role: 'finance' } })).canListenRecordings;
+    await adminDb.staffRoleLimit.update({ where: { role: 'finance' }, data: { canListenRecordings: true } });
+    try {
+      const allowed = await call('GET', `/admin/webhook-events/${stored.id}`, staff.finance.token);
+      expect(allowed.body.payload_redacted).toBe(false);
+      expect((allowed.body.payload as { call: Record<string, unknown> }).call.recording_url).toBe('https://cdn.example/rec-SECRET.wav');
+    } finally {
+      await adminDb.staffRoleLimit.update({ where: { role: 'finance' }, data: { canListenRecordings: before } });
+    }
+    // Support has it in the seed.
+    const sup = await call('GET', `/admin/webhook-events/${stored.id}`, staff.support.token);
+    expect(sup.status).toBe(200);
+    expect((sup.body.payload as { call: { transcript: string } }).call.transcript).toBe(transcript);
+
+    // Three views, three audit rows: who, which event, which workspace, the outcome — never the body.
+    const rows = await views();
+    expect(rows.map((r) => [r.staffId, (r.afterJson as { access: string }).access])).toEqual([
+      [staff.finance.id, 'redacted'],
+      [staff.finance.id, 'full'],
+      [staff.support.id, 'full'],
+    ]);
+    expect(rows[0]!.tenantId).toBe(ws.workspaceId);
+    expect((rows[0]!.afterJson as { sensitive_fields: string[] }).sensitive_fields).toEqual(
+      expect.arrayContaining(['call.recording_url', 'call.transcript']),
+    );
+    for (const r of rows) expect(JSON.stringify(r)).not.toMatch(/rec-SECRET|Maple Dental/);
+
+    // The list never carried a body, for any role.
+    const list = await call('GET', `/admin/customers/${ws.workspaceId}/webhook-events`, staff.readOnly.token);
+    expect(list.status).toBe(200);
+    expect(leaked(list)).toBe(false);
   });
 });
 
@@ -665,12 +909,11 @@ describe('SA12 flags and kill switches', () => {
     expect(
       (await call('PUT', `/admin/flags/${key}`, staff.support.token, { default_on: true })).status,
     ).toBe(403);
-    const created = await call('PUT', `/admin/flags/${key}`, staff.ops.token, {
-      description: 'e2e',
-      default_on: true,
-      rollout_pct: 50,
-      tenant_overrides: { [ws.workspaceId]: false },
-    });
+    const body = { description: 'e2e', default_on: true, rollout_pct: 50, tenant_overrides: { [ws.workspaceId]: false } };
+    // QA-035: a flag save carries a reason, and "other" carries a note.
+    expect((await call('PUT', `/admin/flags/${key}`, staff.ops.token, body)).status).toBe(422);
+    expect((await call('PUT', `/admin/flags/${key}`, staff.ops.token, { ...body, reason_code: 'other' })).status).toBe(422);
+    const created = await call('PUT', `/admin/flags/${key}`, staff.ops.token, { ...body, reason_code: 'testing_internal' });
     expect(created.status).toBe(200);
     expect(created.body.rollout_pct).toBe(50);
     const list = await call('GET', '/admin/flags', staff.readOnly.token);
@@ -773,13 +1016,16 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
     });
     const preview = await call('GET', '/admin/pricing/preview', staff.finance.token);
     expect((preview.body.blockers as string[]).length).toBeGreaterThan(0);
-    const blocked = await call('POST', '/admin/pricing/publish', staff.superAdmin.token, {});
+    // QA-039: a publish carries a reason.
+    expect((await call('POST', '/admin/pricing/publish', staff.superAdmin.token, {})).body.code).toBe('VALIDATION_FAILED');
+    const blocked = await call('POST', '/admin/pricing/publish', staff.superAdmin.token, { reason_code: 'promo' });
     expect(blocked.status).toBe(422);
     expect(blocked.body.code).toBe('MARGIN_FLOOR');
     expect(
       (
         await call('POST', '/admin/pricing/publish', staff.ops.token, {
           override_margin: true,
+          reason_code: 'promo',
           note: 'x',
         })
       ).status,
@@ -801,6 +1047,7 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
 
     const failed = await call('POST', '/admin/pricing/publish', staff.superAdmin.token, {
       change_summary: 'growth +$10, premium +0.25',
+      reason_code: 'promo',
     });
     expect(failed.status).toBe(503);
     expect(failed.body.code).toBe('STRIPE_SYNC_FAILED');
@@ -815,6 +1062,7 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
     create.mockImplementation(async (input) => `price_${input.pack.id}_${input.pack.currency}`);
     const ok = await call('POST', '/admin/pricing/publish', staff.superAdmin.token, {
       change_summary: 'growth +$10, premium +0.25',
+      reason_code: 'promo',
     });
     expect(ok.status).toBe(201);
     expect(ok.body.version).toBe(pending!.version);
@@ -842,6 +1090,7 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
     );
     expect((await call('GET', '/admin/pricing/draft', staff.finance.token)).body.id).toBeNull();
     expect((await lastAudit('pricing.published'))?.staffId).toBe(staff.superAdmin.id);
+    expect((await lastAudit('pricing.published'))?.reasonCode).toBe('promo');
     const versions = await call('GET', '/admin/pricing/versions', staff.readOnly.token);
     expect(
       (versions.body as unknown as Array<{ version: number; is_current: boolean }>).find(
@@ -855,10 +1104,14 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
     const res = await call('POST', '/admin/pricing/publish', staff.superAdmin.token, {
       grandfather_mode: 'apply_now',
       effective_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+      reason_code: 'promo',
     });
     expect(res.status).toBe(422);
     expect((res.body.fields as Array<{ field: string }>)[0]?.field).toBe('grandfather_mode');
-    await call('DELETE', '/admin/pricing/draft', staff.finance.token);
+    // QA-039: discarding a draft takes a reason too, and is audited with it.
+    expect((await call('DELETE', '/admin/pricing/draft', staff.finance.token)).status).toBe(422);
+    expect((await call('DELETE', '/admin/pricing/draft', staff.finance.token, reason)).body.deleted).toBe(true);
+    expect((await lastAudit('pricing.draft_discarded'))?.reasonCode).toBe('service_issue');
   });
 
   it('rolls back to the previous version as a new version, keeping history', async () => {
@@ -874,11 +1127,12 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
           'POST',
           `/admin/pricing/rollback/${publishedVersion}`,
           staff.superAdmin.token,
-          {},
+          { reason_code: 'service_issue' },
         )
       ).status,
     ).toBe(409);
     const rolled = await call('POST', `/admin/pricing/rollback/${target}`, staff.superAdmin.token, {
+      reason_code: 'service_issue',
       note: 'back out',
     });
     expect(rolled.status).toBe(201);
@@ -905,6 +1159,44 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
     // Checkout still finds an active Price for every pack of the version in effect.
     for (const p of originalPricing.packs.filter((p) => p.active))
       expect(rolledRows.find((r) => r.packId === p.id)?.active).toBe(true);
+  });
+
+  it('QA-040: a rollback that would remove a pack bought this year is refused, like a publish', async () => {
+    expect(await adminDb.purchase.count({ where: { tenantId: ws.workspaceId, packId: 'growth', status: 'paid' } })).toBeGreaterThan(0);
+    const latest = (await adminDb.pricingConfig.aggregate({ _max: { version: true } }))._max.version!;
+    const withoutGrowth = { ...originalPricing, packs: originalPricing.packs.filter((p) => p.id !== 'growth') };
+    // Dated ahead, so it is a version that "was in effect" for the rollback check without being current.
+    await adminDb.pricingConfig.create({ data: { version: latest + 1, configJson: withoutGrowth as object, effectiveAt: new Date(Date.now() + 30 * 86_400_000) } });
+    try {
+      const res = await call('POST', `/admin/pricing/rollback/${latest + 1}`, staff.superAdmin.token, { reason_code: 'service_issue' });
+      expect(res.status).toBe(409);
+      expect(res.body.message).toMatch(/"growth" was bought/);
+      expect(await adminDb.pricingConfig.count({ where: { version: { gt: latest + 1 } } })).toBe(0);
+    } finally {
+      await adminDb.pricingConfig.delete({ where: { version: latest + 1 } });
+    }
+  });
+
+  it('QA-040: a rollback retried after a Stripe failure resumes its version instead of adding orphans', async () => {
+    const stripe = h.app.get(StripeGateway);
+    vi.spyOn(stripe, 'archivePrice').mockResolvedValue(undefined);
+    vi.spyOn(stripe, 'ensureProduct').mockResolvedValue('prod_d12');
+    vi.spyOn(stripe, 'findPriceByLookupKey').mockResolvedValue(null);
+    const create = vi.spyOn(stripe, 'createPrice').mockRejectedValue(new Error('stripe down'));
+    const body = { reason_code: 'service_issue' };
+    const latest = (await adminDb.pricingConfig.aggregate({ _max: { version: true } }))._max.version!;
+    expect((await call('POST', `/admin/pricing/rollback/${publishedVersion}`, staff.superAdmin.token, body)).body.code).toBe('STRIPE_SYNC_FAILED');
+    expect((await call('POST', `/admin/pricing/rollback/${publishedVersion}`, staff.superAdmin.token, body)).body.code).toBe('STRIPE_SYNC_FAILED');
+    expect((await adminDb.pricingConfig.aggregate({ _max: { version: true } }))._max.version).toBe(latest + 1);
+    expect((await lastAudit('pricing.rollback_failed'))?.reasonCode).toBe('service_issue');
+
+    create.mockImplementation(async (input) => `price_rb2_${input.pack.id}_${input.lookupKey}`);
+    const ok = await call('POST', `/admin/pricing/rollback/${publishedVersion}`, staff.superAdmin.token, body);
+    expect(ok.status).toBe(201);
+    expect(ok.body.version).toBe(latest + 1);
+    expect(ok.body.change_summary).toMatch(new RegExp(`Rollback to v${publishedVersion}`));
+    // Back to the original config for the suites after this one.
+    await call('POST', `/admin/pricing/rollback/${publishedVersion - 1}`, staff.superAdmin.token, body);
   });
 });
 

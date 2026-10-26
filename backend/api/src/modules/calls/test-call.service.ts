@@ -67,6 +67,9 @@ export class TestCallService {
       if (!no) throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before testing it.');
       const version = await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo: no } } });
       if (!version) throw AppError.notFound('Version');
+      // Nothing to ring yet: the brief has not been turned into a script. Distinct from a
+      // version that has one and is still reaching the platform (VERSION_SYNCING below).
+      if (!version.promptText) throw new AppError('BRIEF_INCOMPLETE', 'Generate the agent before testing it.');
       return { agent, version };
     });
 
@@ -107,7 +110,10 @@ export class TestCallService {
       }
     }
     if (!retellAgentId || retellAgentVersion === null) {
-      throw new AppError('BRIEF_INCOMPLETE', 'This version is still being prepared. Try again in a few seconds.');
+      // Not the brief's fault: the version exists and has a prompt, the platform copy is
+      // still being written (a test straight after Improve). Its own code, so the portal
+      // does not answer it with "tell us more about the business" (QA-021).
+      throw new AppError('VERSION_SYNCING', 'This version is still being prepared. Try again in a few seconds.');
     }
 
     // min(the version's ceiling, what the wallet covers after the other live calls),

@@ -43,6 +43,16 @@ export const updateWorkspaceRequest = z.object({
 });
 export type UpdateWorkspaceRequest = z.infer<typeof updateWorkspaceRequest>;
 
+/**
+ * POST /workspace/onboarding-step — the wizard's resume pointer (§6.4), editor and up.
+ * Editors build, test and route the agent (W1–W6), so they move the pointer too; the
+ * server only ever moves it forward (QA-005). Settings stay on PATCH /workspace.
+ */
+export const advanceOnboardingRequest = z.object({
+  step: z.number().int().min(1).max(7),
+});
+export type AdvanceOnboardingRequest = z.infer<typeof advanceOnboardingRequest>;
+
 export const workspaceResponse = z.object({
   id: uuid,
   name: z.string(),
@@ -109,6 +119,21 @@ export type InviteRequest = z.infer<typeof inviteRequest>;
  * The token is returned **once**, on creation, because only its hash is stored (A8).
  * Nothing can read it back afterwards, including staff.
  */
+/**
+ * Where an invite is in its life, derived by the server from `accepted_at` and
+ * `expires_at` against its own clock (D11, BUG-010): an expired link was listed as
+ * pending, and a browser's clock is not the one the accept route checks.
+ */
+export const inviteStatus = z.enum(['pending', 'expired', 'accepted']);
+export type InviteStatus = z.infer<typeof inviteStatus>;
+
+/** The status an invite row is in at `now`. Accepted wins over expired: it was used in time. */
+export function inviteStatusAt(row: { expires_at: string | Date; accepted_at: string | Date | null }, now: Date = new Date()): InviteStatus {
+  if (row.accepted_at) return 'accepted';
+  // The same comparison the accept route makes: usable up to and including `expires_at`.
+  return new Date(row.expires_at).getTime() < now.getTime() ? 'expired' : 'pending';
+}
+
 export const inviteResponse = z.object({
   id: uuid,
   email: z.string(),
@@ -117,9 +142,31 @@ export const inviteResponse = z.object({
   expires_at: isoDateTime,
   accepted_at: isoDateTime.nullable(),
   created_at: isoDateTime,
+  status: inviteStatus,
   token: z.string().optional(),
+  /**
+   * POST /invites only: what happened to the invitation email. `not_configured` is a box
+   * with no email provider (dev): the link is still returned to share by hand.
+   */
+  email_status: z.enum(['sent', 'failed', 'not_configured']).optional(),
 });
 export type InviteResponse = z.infer<typeof inviteResponse>;
+
+/**
+ * GET /invites/:token/preview — what the A8 join screen shows before the click: which
+ * workspace, who asked, which role. Answered only to a verified sign-in *as the invited
+ * address*, so a forwarded or leaked link tells anyone else nothing beyond "not for you".
+ */
+export const invitePreviewResponse = z.object({
+  workspace_name: z.string(),
+  role: memberRole,
+  /** The inviter's name, else their email. */
+  invited_by: z.string(),
+  expires_at: isoDateTime,
+  /** Already in the workspace: accepting just opens it. */
+  already_member: z.boolean(),
+});
+export type InvitePreviewResponse = z.infer<typeof invitePreviewResponse>;
 
 export const acceptInviteResponse = z.object({
   workspace_id: uuid,

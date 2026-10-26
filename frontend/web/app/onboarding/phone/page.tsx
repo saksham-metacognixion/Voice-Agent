@@ -20,6 +20,7 @@ import { routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
 import { useAdvanceOnboarding } from '@/src/wizard/use-onboarding-agent';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
 /**
  * W6 — How callers reach your agent (§11). The choice is saved as the agent's pending
@@ -88,7 +89,7 @@ function PhoneInner({ agent, saved }: { agent: AgentDetail; saved: PhonePlanResp
   const advance = useAdvanceOnboarding();
   const ws = useWorkspace();
   const flags = useGetFlags(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000 });
+  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
 
   const [form, setForm] = React.useState<FormState>(() => initialState(saved, ws.workspace?.country));
   const [targets, setTargets] = React.useState<TransferTargetDraft[]>(() => toDrafts(saved?.transfer_targets ?? []));

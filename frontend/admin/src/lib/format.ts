@@ -141,3 +141,9 @@ export function localInputToIso(value: string): string | undefined {
   if (Number.isNaN(d.getTime())) return undefined;
   return d.toISOString();
 }
+
+/** "3 / 20" against an allowance, "3 live" when none is set — never "3 / 0" (QA-051). */
+export function concurrencyText(c: { live: number | null; allowance: number | null }): string {
+  const live = c.live ?? '?';
+  return c.allowance ? `${live} / ${c.allowance}` : `${live} live`;
+}

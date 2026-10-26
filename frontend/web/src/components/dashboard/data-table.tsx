@@ -26,6 +26,16 @@ export interface DataColumn<T> {
 }
 
 /**
+ * One alignment for a column's header and its cells. The default is spelled out
+ * (`text-start`) rather than inherited: a `<th>` does not inherit `text-align: start`
+ * from its table — the browser's own stylesheet centres it, and Tailwind's preflight
+ * does not reset that — so headers sat centred over left-aligned values (BUG-009).
+ */
+export function alignClass(align: DataColumn<unknown>['align']): string {
+  return align === 'right' ? 'text-end' : align === 'center' ? 'text-center' : 'text-start';
+}
+
+/**
  * The dashboard's list pattern: the D10 table at ≥ 640 px, a stack of cards below it.
  * Both are rendered and CSS picks one, so nothing depends on measuring the viewport and
  * the first paint is already right. A card shows every column the table does (nothing
@@ -73,7 +83,7 @@ export function DataTable<T>({
           <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
               {columns.map((c) => (
-                <th key={c.key} scope="col" className={cn('px-3 py-2.5 font-medium', c.align === 'right' && 'text-end', c.align === 'center' && 'text-center', c.className)}>
+                <th key={c.key} scope="col" className={cn('px-3 py-2.5 font-medium', alignClass(c.align), c.className)}>
                   {c.header}
                 </th>
               ))}
@@ -89,7 +99,7 @@ export function DataTable<T>({
                 tabIndex={onRowClick ? 0 : undefined}
               >
                 {columns.map((c) => (
-                  <td key={c.key} className={cn('px-3 py-2.5 align-middle', c.align === 'right' && 'text-end tabular-nums', c.align === 'center' && 'text-center', c.className)}>
+                  <td key={c.key} className={cn('px-3 py-2.5 align-middle', alignClass(c.align), c.align === 'right' && 'tabular-nums', c.className)}>
                     {c.cell(row)}
                   </td>
                 ))}

@@ -347,7 +347,7 @@ export class AdminKpisService {
 
   /** Live calls platform-wide from `active:*`, the same hashes the inbound checks read. Null when Redis did not answer. */
   async liveConcurrency(now = new Date()): Promise<AdminKpisResponse['concurrency']> {
-    const allowance = platformConcurrencyLimit() ?? 0;
+    const allowance = platformConcurrencyLimit() ?? null;
     const scan = await this.cache.scanKeys(redisKeys.activeCallsPattern);
     if (!scan) return { live: null, allowance };
     let live = 0;

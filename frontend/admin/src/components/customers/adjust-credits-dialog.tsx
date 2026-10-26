@@ -20,7 +20,8 @@ export function AdjustCreditsDialog({ customerId, customerName, balance, onClose
   const cap = can.creditCap();
   const adjust = useAdminAdjustCredits(api);
   const [delta, setDelta] = React.useState('');
-  const [reason, setReason] = React.useState<ReasonCode>('goodwill');
+  // Chosen, never pre-selected (QA-041).
+  const [reason, setReason] = React.useState<ReasonCode | ''>('');
   const [note, setNote] = React.useState('');
   const [customerText, setCustomerText] = React.useState('');
   const [ticket, setTicket] = React.useState('');
@@ -37,7 +38,7 @@ export function AdjustCreditsDialog({ customerId, customerName, balance, onClose
   async function submit() {
     const parsed = adminCreditAdjustRequest.safeParse({
       delta: Math.round(parsedDelta * 100) / 100,
-      reason_code: reason,
+      reason_code: reason || undefined,
       note: note.trim() || undefined,
       customer_text: customerText.trim() || undefined,
       ticket_id: ticket.trim() ? Number(ticket.trim()) : undefined,
@@ -45,7 +46,7 @@ export function AdjustCreditsDialog({ customerId, customerName, balance, onClose
     });
     if (!parsed.success) {
       const errs: Record<string, string> = {};
-      for (const i of parsed.error.issues) errs[String(i.path[0] ?? 'form')] = i.message;
+      for (const i of parsed.error.issues) errs[String(i.path[0] ?? 'form')] = i.path[0] === 'reason_code' ? 'Pick a reason.' : i.message;
       setErrors(errs);
       return;
     }
@@ -81,7 +82,7 @@ export function AdjustCreditsDialog({ customerId, customerName, balance, onClose
         <Field id="adj-reason" label="Reason" required error={errors.reason_code}>
           <Select value={reason} onValueChange={(v) => setReason(v as ReasonCode)}>
             <SelectTrigger id="adj-reason">
-              <SelectValue />
+              <SelectValue placeholder="Choose a reason" />
             </SelectTrigger>
             <SelectContent>
               {REASON_CODES.map((c) => (
@@ -106,7 +107,7 @@ export function AdjustCreditsDialog({ customerId, customerName, balance, onClose
           <Button variant="outline" onClick={onClose} disabled={adjust.isPending}>
             Cancel
           </Button>
-          <Button onClick={() => void submit()} disabled={!deltaOk || overCap || adjust.isPending} loading={adjust.isPending} variant={deltaOk && parsedDelta < 0 ? 'danger' : 'primary'}>
+          <Button onClick={() => void submit()} disabled={!deltaOk || !reason || overCap || adjust.isPending} loading={adjust.isPending} variant={deltaOk && parsedDelta < 0 ? 'danger' : 'primary'}>
             {deltaOk && parsedDelta < 0 ? 'Remove credits' : 'Add credits'}
           </Button>
         </DialogFooter>

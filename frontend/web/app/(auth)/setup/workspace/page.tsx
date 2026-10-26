@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { track } from '@/src/analytics/posthog';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RequireVerified } from '@/src/guards/guards';
-import { COUNTRIES, browserTimezone, countryName, timezoneLabel, timezones } from '@/src/lib/countries';
+import { COUNTRIES, browserTimezone, countryName, countryOfZone, defaultZoneFor, timezoneLabel, timezones, zoneInCountry } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -48,10 +48,25 @@ function SetupInner() {
   const [serverError, setServerError] = React.useState<string | null>(null);
   const zones = React.useMemo(timezones, []);
 
+  // The country the browser's zone is in, else Canada; the zone follows the country
+  // (BUG-008 #4: Canada with Asia/Calcutta ran hours and the digest on India time).
+  const [browserZone] = React.useState(browserTimezone);
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { name: '', country: 'CA', timezone: browserTimezone(), phone: '', website: '' },
+    defaultValues: (() => {
+      const country = countryOfZone(browserZone) ?? 'CA';
+      return { name: '', country, timezone: defaultZoneFor(country, browserZone), phone: '', website: '' };
+    })(),
   });
+  const country = form.watch('country');
+  const timezone = form.watch('timezone');
+  const zoneMismatch = Boolean(country && timezone) && !zoneInCountry(timezone, country);
+
+  function changeCountry(next: string) {
+    form.setValue('country', next, { shouldValidate: true });
+    // A zone of the old country is not a choice the person made for the new one.
+    if (!zoneInCountry(form.getValues('timezone'), next)) form.setValue('timezone', defaultZoneFor(next, browserZone), { shouldValidate: true });
+  }
 
   async function submit(values: FormValues) {
     setServerError(null);
@@ -94,7 +109,7 @@ function SetupInner() {
               control={form.control}
               name="country"
               render={({ field }) => (
-                <Select value={field.value} onValueChange={field.onChange}>
+                <Select value={field.value} onValueChange={changeCountry}>
                   <SelectTrigger id="country" invalid={Boolean(err.country)}>
                     <SelectValue placeholder={t('auth.setup.countryPlaceholder')} />
                   </SelectTrigger>
@@ -109,7 +124,13 @@ function SetupInner() {
               )}
             />
           </Field>
-          <Field id="timezone" label={t('auth.setup.timezone')} required description={t('auth.setup.timezoneHint')} error={err.timezone ? t('validation.required') : undefined}>
+          <Field
+            id="timezone"
+            label={t('auth.setup.timezone')}
+            required
+            description={zoneMismatch ? t('auth.setup.timezoneMismatch', { country: countryName(country) }) : t('auth.setup.timezoneHint')}
+            error={err.timezone ? t('validation.required') : undefined}
+          >
             <Controller
               control={form.control}
               name="timezone"

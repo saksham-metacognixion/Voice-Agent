@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { adminDb } from '@portal/db';
 import type { AnalysisField, Brief, RetellLanguage } from '@portal/schemas';
-import { transferTargets } from '@portal/schemas';
+import { isPhoneFieldName, transferTargets } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { runtimePrompt } from '../prompting/documents';
+import { redactTransferNumbers, transferRoutes } from '../prompting/staff-transfer';
 import {
   RetellGateway,
   clampDuration,
@@ -163,15 +164,18 @@ export class AgentRetellService {
       // and braces on the guardrails: the stored prompt already carries them, and applying
       // them again is a no-op, so a row written by an older build still reaches Retell
       // with the platform rules attached.
+      //
+      // Transfer numbers are redacted from what the model reads and says — the script and
+      // the greeting — and kept only as the transfer tools' destinations (BUG-005).
       prompt: runtimePrompt(input.promptText, input.brief, input.guardrails),
-      beginMessage: input.greeting,
+      beginMessage: input.greeting === null ? null : redactTransferNumbers(input.greeting, transferTargets(input.brief)),
       // `agent_stack_configs` is data, so its model id is a string here and a union in the
       // SDK. Retell rejects an id it does not know, which is the check that matters — a
       // typo in SA6 fails at the gateway with a clear message rather than at compile time.
       model: input.stack.model as LlmModel,
       knowledgeBaseIds: input.retellKbId ? [input.retellKbId] : undefined,
       defaultDynamicVariables: this.dynamicVariables(input),
-      transferNumbers: transferTargets(input.brief),
+      transfers: transferRoutes(input.brief),
     };
   }
 
@@ -333,10 +337,19 @@ export function toRetellAnalysisFields(fields: AnalysisField[]): PostCallAnalysi
     return {
       type: field.type === 'text' ? 'string' : field.type,
       name: field.name,
-      description: field.description,
+      description: field.type === 'text' && isPhoneFieldName(field.name) ? `${field.description} ${PHONE_FIELD_RULE}` : field.description,
     };
   });
 }
+
+/**
+ * Appended to every captured phone field, whoever wrote its description (a template, the
+ * generation model, a customer): the analysis must copy the caller's digits, not the
+ * agent's read-back — on 26 Oct the read-back was the one with an invented digit.
+ * `captured-phones.ts` checks the result against the transcript either way.
+ */
+export const PHONE_FIELD_RULE =
+  "Copy the digits exactly as the caller said them, in their order, from the caller's own words and not from the agent's read-back. Never add, drop or change a digit, even when the number looks incomplete.";
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);

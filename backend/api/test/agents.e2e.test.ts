@@ -153,6 +153,47 @@ describe('PATCH /agents/:id/draft', () => {
     expect(res.json().draft.brief.goal).toContain('Answer calls');
   });
 
+  it('clears an optional field sent as null, and keeps it cleared on the next read (QA-006)', async () => {
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id;
+    const filled = {
+      agent_name: 'Camille',
+      address: '12 Rue Principale, Laval',
+      pricing: 'Cleaning $120.',
+      anything_else: 'Parking at the back.',
+      never_do: 'Never quote a wait time.',
+    };
+    await req('PATCH', `/agents/${agentId}/draft`, { brief: filled });
+
+    const res = await req('PATCH', `/agents/${agentId}/draft`, {
+      brief: { agent_name: null, address: null, pricing: null, anything_else: null, never_do: null },
+    });
+    expect(res.statusCode).toBe(200);
+    for (const key of Object.keys(filled)) expect(res.json().draft.brief).not.toHaveProperty(key);
+    // Only what was cleared is gone.
+    expect(res.json().draft.brief.goal).toContain('Answer calls');
+
+    const reread = await req('GET', `/agents/${agentId}`);
+    for (const key of Object.keys(filled)) expect(reread.json().draft.brief).not.toHaveProperty(key);
+  });
+
+  it('refuses null on an array field — an empty list is how a list is cleared', async () => {
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id;
+    const res = await req('PATCH', `/agents/${agentId}/draft`, { brief: { services: null } });
+    expect(res.statusCode).toBe(422);
+  });
+
+  it('saves an industry change on its own (W1, QA-015)', async () => {
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist', industry: 'dental' })).json().id;
+    const res = await req('PATCH', `/agents/${agentId}/draft`, { industry: 'veterinary' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().industry).toBe('veterinary');
+    expect((await req('GET', `/agents/${agentId}`)).json().industry).toBe('veterinary');
+    // W1's "Other" is no industry at all.
+    const cleared = await req('PATCH', `/agents/${agentId}/draft`, { industry: null });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().industry).toBeNull();
+  });
+
   it('writes tier, voice, languages and limits to the draft version — the live agent is untouched until publish', async () => {
     const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id;
     // The voice has to be one the catalogue knows: `agents.voice_id` is a foreign key.
@@ -398,6 +439,34 @@ describe('PUT /agents/:id/versions/:v/prompt — the Advanced editor', () => {
       where: { agentId_versionNo: { agentId, versionNo: 1 } },
     });
     expect(after.promptText).toBe(before.promptText);
+  });
+
+  it('clears the closing on null or blank, and keeps it when omitted (QA-023)', async () => {
+    const agentId = await agentWithPrompt();
+    const prompt = 'You are Sophie, the receptionist for Maple Dental and you answer the telephone.';
+
+    const kept = await req('PUT', `/agents/${agentId}/versions/1/prompt`, { prompt });
+    expect(kept.statusCode).toBe(200);
+    expect(kept.json().closing).toBe('Thanks for calling, goodbye.');
+
+    const cleared = await req('PUT', `/agents/${agentId}/versions/1/prompt`, { prompt, greeting: 'Thank you for calling Maple Dental.', closing: null });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().closing).toBeNull();
+    expect(cleared.json().greeting).toBe('Thank you for calling Maple Dental.');
+
+    const blank = await req('PUT', `/agents/${agentId}/versions/1/prompt`, { prompt, closing: '   ' });
+    expect(blank.json().closing).toBeNull();
+  });
+
+  it('refuses a blank greeting — it is mandatory (begin_message, lint `no_greeting` is an error)', async () => {
+    const agentId = await agentWithPrompt();
+    const res = await req('PUT', `/agents/${agentId}/versions/1/prompt`, {
+      prompt: 'You are Sophie, the receptionist for Maple Dental and you answer the telephone.',
+      greeting: '  ',
+    });
+    expect(res.statusCode).toBe(422);
+    expect(res.json().fields.map((f: { field: string }) => f.field)).toContain('greeting');
+    expect(await adminDb.agentVersion.count({ where: { agentId } })).toBe(1);
   });
 });
 

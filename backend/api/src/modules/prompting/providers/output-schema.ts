@@ -43,7 +43,7 @@ export const GENERATED_PROMPT_JSON_SCHEMA = {
       type: 'string',
       description: 'The first thing the agent says, one sentence, at most 25 words, in the primary language.',
     },
-    closing: { type: 'string', description: 'How the agent ends a call.' },
+    closing: { type: 'string', description: 'The goodbye line, said only once the caller has nothing else. Never after an ordinary answer.' },
     brief_card: {
       type: 'object',
       additionalProperties: false,

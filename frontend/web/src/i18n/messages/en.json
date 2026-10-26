@@ -200,6 +200,7 @@
       "countryPlaceholder": "Choose a country",
       "timezone": "Time zone",
       "timezoneHint": "Business hours and reports use this time zone.",
+      "timezoneMismatch": "This time zone is not one of {country}’s. Business hours and reports will run on it — check it is the one your business works in.",
       "phone": "Business phone",
       "phoneHint": "E.164 format, e.g. +14155550123. You can add this later.",
       "website": "Website",
@@ -216,6 +217,12 @@
       "open": "Open workspace",
       "missing": "This invitation link is missing its token. Ask the person who invited you to send it again.",
       "invalid": "This invitation is not valid or has expired. Ask the person who invited you to send a new one.",
+      "expired": "This invitation has expired. Ask the person who invited you to send a new one.",
+      "used": "This invitation has already been used. Ask the person who invited you to send a new one.",
+      "wrongEmail": "This invitation was sent to a different email address than {email}. Sign out, then sign in with the address the invitation went to.",
+      "details": "{inviter} invited you to join {workspace} as {role}.",
+      "expires": "The invitation expires on {date}.",
+      "alreadyMemberHint": "You are already a member of this workspace.",
       "alreadyMember": "You are already a member of this workspace.",
       "wrongAccount": "Signed in as {email}. If the invitation went to another address, sign out and sign in with that one."
     },
@@ -246,6 +253,9 @@
     "TEST_RATE_LIMIT": "Too many test calls. Wait a moment and try again.",
     "NO_CREDITS": "You are out of credits.",
     "INVITE_INVALID": "This invitation is not valid or has expired.",
+    "INVITE_EXPIRED": "This invitation has expired.",
+    "INVITE_USED": "This invitation has already been used.",
+    "INVITE_WRONG_EMAIL": "This invitation was sent to a different email address.",
     "ALREADY_MEMBER": "You are already a member of this workspace.",
     "PLAN_LIMIT": "Your plan does not include that.",
     "DOCUMENT_UNREADABLE": "We could not read any text in that file. For a photo, try a sharper, straight-on picture; for a scan, export it as text or PDF.",
@@ -272,7 +282,29 @@
     "MFA_REQUIRED": "Sign in again with two-factor authentication to continue.",
     "AGENT_IN_USE": "A phone number still answers with this agent. Move or release the number first.",
     "PUBLISH_IN_PROGRESS": "This agent is being published. Try again in a moment.",
-    "VERSION_IMMUTABLE": "This version is published and can no longer be changed. Your edit starts a new draft."
+    "VERSION_IMMUTABLE": "This version is published and can no longer be changed. Your edit starts a new draft.",
+    "VERSION_SYNCING": "Your latest changes are still being prepared for calls. Try again in a few seconds.",
+    "stepUnavailable": "We could not open this step of the setup. Try again, and if it keeps happening, contact support.",
+    "serverReasons": {
+      "briefUnreadable": "We could not read your brief just now. Your answers are saved — try again in a minute.",
+      "noPrompt": "This version has no prompt to improve yet. Generate it first.",
+      "workspacePaused": "This workspace is paused. Contact support to continue.",
+      "agentMissing": "This agent no longer exists.",
+      "draftMissing": "The draft this job was about no longer exists.",
+      "generationInternal": "Something went wrong while writing your agent.",
+      "generationSlow": "Writing your agent took too long. Your brief is saved — try again.",
+      "generationRefused": "We could not write an agent from this brief. Try describing the business differently.",
+      "generationUnavailable": "Agent generation is unavailable right now. We have been notified.",
+      "generationDefault": "Couldn't generate — try again.",
+      "generationNotQueued": "We could not start the generation just now. Try again in a moment.",
+      "jobLost": "This job was interrupted before it finished. Your brief is saved — try again.",
+      "jobGeneric": "Something went wrong. Your brief is saved — try again.",
+      "jobCancelled": "This job was cancelled by support. Start it again when you are ready.",
+      "activationGeneric": "We could not put your agent on the phone. Nothing was charged for the number; try again or contact support.",
+      "activationNotQueued": "We could not start putting your agent live just now. Try again in a moment.",
+      "numberGeneric": "Something went wrong while setting up your number. We will try again shortly.",
+      "numberRejected": "Your phone number settings were not accepted. Check the number options and try again."
+    }
   },
   "validation": {
     "required": "Required",
@@ -788,6 +820,8 @@
         "agent": "Agent",
         "you": "You",
         "tryThese": "Try saying",
+        "phoneOnly": "Phone calls only",
+        "transferNote": "Transfers to staff can only be tested on real phone calls. Here the agent can offer the transfer, but it will not connect.",
         "status": {
           "idle": "Ready",
           "connecting": "Connecting",
@@ -1081,7 +1115,8 @@
         "check": "Check again",
         "paidTitle": "Payment confirmed",
         "paidBody": "Your credits are in. Starting the go-live steps now.",
-        "notPaid": "There is no completed payment for this checkout. If you paid, wait a moment and check again; otherwise choose a pack below."
+        "notPaid": "There is no completed payment for this checkout. If you paid, wait a moment and check again; otherwise choose a pack below.",
+        "refunded": "This payment was refunded, so it added no credits. Choose a pack below to go live."
       },
       "otherPack": "Need a different pack?",
       "otherPackAction": "Choose again",
@@ -1238,6 +1273,16 @@
       "creditsShort": "{n} cr",
       "perMin": "{n}/min",
       "selectAll": "Select all calls on this page",
+      "selectAllShort": "Select all",
+      "sortBy": "Sort calls",
+      "sortOptions": {
+        "started_at_desc": "Newest first",
+        "started_at_asc": "Oldest first",
+        "duration_s_desc": "Longest first",
+        "duration_s_asc": "Shortest first",
+        "credits_charged_desc": "Most credits first",
+        "credits_charged_asc": "Fewest credits first"
+      },
       "selectOne": "Select this call",
       "handledYes": "Handled",
       "showing": "Showing {first}–{last} of {total}",
@@ -1415,6 +1460,12 @@
         "error_user_not_joined": "Caller never joined",
         "sip_routing_error": "Phone routing error",
         "error": "Technical error"
+      },
+      "phoneCheck": {
+        "mismatch": "This is not the number the caller said. Check the transcript before calling back.",
+        "invalid": "This number looks incomplete ({digits} digits). Check the transcript before calling back.",
+        "heard": "The caller said: <num>{numbers}</num>",
+        "summary": "The summary may repeat a phone number the caller did not say. Use the checked number under “{captured}”."
       }
     },
     "agents": {
@@ -1482,7 +1533,8 @@
         "done": "Version {n} is live.",
         "alreadyLive": "Version {n} was already live.",
         "blocked": "Fix these before publishing",
-        "warnings": "Published with warnings"
+        "warnings": "Published with warnings",
+        "saveFirst": "Save your script edits first. Publishing sends the last saved version, not what is in the editor."
       },
       "overview": {
         "configuration": "Configuration",
@@ -1543,6 +1595,9 @@
         "versionNote": "Every save is a new immutable version. Restore any earlier one from the Versions tab.",
         "noVersion": "This agent has no version yet.",
         "noPrompt": "Generate the script from the Brief tab first.",
+        "greetingRequired": "Every agent needs a greeting: without one the caller hears silence when the call connects.",
+        "leaveConfirm": "You have script edits that are not saved. Leave and lose them?",
+        "ruleFallback": "Check",
         "rules": {
           "prompt_empty": "Empty script",
           "prompt_too_long": "Script length",
@@ -2048,20 +2103,34 @@
         "inviteColumns": {
           "email": "Email",
           "role": "Role",
+          "status": "Status",
           "expires": "Expires",
           "actions": "Actions"
         },
+        "inviteStatus": {
+          "pending": "Pending",
+          "expired": "Expired"
+        },
         "revoke": "Revoke",
         "revoked": "Invitation revoked.",
+        "resend": "Resend",
+        "resent": "New invitation link created for {email}. The old link no longer works.",
+        "resentEmailed": "A new invitation was emailed to {email}. The old link no longer works.",
+        "resendTitle": "Send {email} a new invitation?",
+        "resendBody": "This creates a new link and emails it. The link sent before stops working at once.",
+        "expiredOn": "Expired {date}",
         "inviteTitle": "Invite someone",
-        "inviteBody": "They get a link to join with this role.",
+        "inviteBody": "We email them a link to join with this role.",
         "email": "Email",
         "emailError": "Enter a valid email address.",
         "role": "Role",
         "invite": "Send invite",
         "invited": "Invitation created for {email}.",
+        "invitedEmailed": "Invitation emailed to {email}.",
+        "emailFailed": "We could not email {email}. Copy the link below and send it yourself.",
         "linkTitle": "Share this link with {email}",
         "linkBody": "Only its holder can join, and only when signed in as {email}. It is shown once and expires on {date}.",
+        "linkBodyEmailed": "We emailed this link to {email}; you can also copy it and send it yourself. Only its holder can join, and only when signed in as {email}. It is shown once and expires on {date}.",
         "roles": {
           "owner": "Owner",
           "admin": "Admin",
@@ -2127,7 +2196,11 @@
           "workspace": "Workspace",
           "phone_plan": "Phone plans",
           "billing": "Billing",
-          "auto_topup": "Auto top-up"
+          "auto_topup": "Auto top-up",
+          "credits": "Credits",
+          "purchase": "Purchases",
+          "user": "Sign-in and security",
+          "support": "Support"
         },
         "empty": "Nothing recorded yet.",
         "emptyFiltered": "Nothing in this area yet.",
@@ -2140,6 +2213,7 @@
           "ip": "IP address"
         },
         "system": "Oraly",
+        "staff": "Support team",
         "formerMember": "Former member",
         "adminOnly": "Only an owner or admin can see the audit log.",
         "actions": {
@@ -2171,7 +2245,19 @@
           "phone_plan_updated": "Changed the phone number option",
           "billing_portal_session": "Opened payment settings",
           "auto_topup_enabled": "Turned auto top-up on",
-          "auto_topup_disabled": "Turned auto top-up off"
+          "auto_topup_disabled": "Turned auto top-up off",
+          "workspace_paused": "Paused the workspace",
+          "workspace_resumed": "Resumed the workspace",
+          "number_paused": "Paused a number",
+          "number_resumed": "Resumed a number",
+          "credits_adjusted": "Adjusted the credit balance",
+          "purchase_refunded": "Refunded a purchase",
+          "user_email_verified": "Verified a member’s email",
+          "user_mfa_reset": "Reset a member’s two-step sign-in",
+          "user_locked": "Locked a member’s account",
+          "user_unlocked": "Unlocked a member’s account",
+          "user_force_logout": "Signed a member out everywhere",
+          "support_ticket_opened": "Opened a support ticket"
         },
         "meta": {
           "agent_id": "Agent",
@@ -2206,7 +2292,33 @@
           "timezone": "Timezone",
           "trial_credits": "Trial credits",
           "lint_warnings": "Warnings",
-          "existing_agents": "Agents before"
+          "existing_agents": "Agents before",
+          "from": "From",
+          "to": "To",
+          "pack_id": "Pack",
+          "threshold": "When the balance falls below",
+          "card_last4": "Card ending",
+          "reason_code": "Reason",
+          "delta": "Credits",
+          "credits_reversed": "Credits reversed",
+          "text": "Message",
+          "subject": "Subject"
+        },
+        "reasons": {
+          "goodwill": "Goodwill",
+          "service_issue": "Service issue",
+          "billing_error": "Billing error",
+          "promo": "Promotion",
+          "partner_deal": "Partner agreement",
+          "fraud_suspected": "Suspected fraud",
+          "abuse_policy": "Acceptable use policy",
+          "customer_request": "At your request",
+          "chargeback": "Chargeback",
+          "expiry_extension": "Expiry extension",
+          "testing_internal": "Internal testing",
+          "support_investigation": "Support investigation",
+          "legal_request": "Legal request",
+          "other": "Other"
         }
       },
       "language": "Language",

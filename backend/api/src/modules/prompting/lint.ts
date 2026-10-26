@@ -250,8 +250,12 @@ function normaliseForMatch(text: string): string {
     .trim();
 }
 
+/**
+ * The script's own hand-off instruction, never the platform block: `TRANSFER_RULE` names
+ * transfers for every agent, and counting it would silence this rule for all of them.
+ */
 function mentionsHandoff(prompt: string): boolean {
-  return HANDOFF_WORDS.test(prompt);
+  return HANDOFF_WORDS.test(stripGuardrails(prompt));
 }
 
 /**

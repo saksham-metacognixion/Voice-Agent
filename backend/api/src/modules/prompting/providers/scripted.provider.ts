@@ -180,7 +180,7 @@ function defaultPrompt(request: ProviderRequest): GeneratedPrompt {
       ...readMessageRules(request.user),
       '',
       '## Ending',
-      'Thank the caller and end the call.',
+      'Only once the caller says there is nothing else, thank them and end the call.',
     ].join('\n'),
     greeting: `Thank you for calling ${business}. How can I help?`,
     closing: 'Thanks for calling, goodbye.',

@@ -2,15 +2,15 @@
 
 import { useAdminGetPricingVersion, useAdminPricingVersions, useAdminRollbackPricing, useApi } from '@portal/api-client';
 import type { AdminPricingVersion } from '@portal/schemas';
-import { Badge, Field, Skeleton, Textarea, toast } from '@portal/ui';
+import { Badge, Checkbox, Skeleton, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
-import { ConfirmDialog } from '@/src/components/common/confirm-dialog';
 import { CellActions, DataTable, type DataColumn } from '@/src/components/common/data-table';
 import { DetailSheet } from '@/src/components/common/detail-sheet';
 import { JsonView } from '@/src/components/common/json-view';
 import { PermissionButton } from '@/src/components/common/permission-button';
 import { Fact, FactGrid, LoadError } from '@/src/components/common/query-states';
+import { StaffActionDialog } from '@/src/components/common/staff-action-dialog';
 import { StripeSyncBadge } from '@/src/components/common/status-badges';
 import { formatDateTime, humanize } from '@/src/lib/format';
 import { useStaff } from '@/src/staff/staff-provider';
@@ -25,7 +25,7 @@ export function PricingVersions() {
   const rollback = useAdminRollbackPricing(api);
   const [open, setOpen] = React.useState<number | null>(null);
   const [rolling, setRolling] = React.useState<AdminPricingVersion | null>(null);
-  const [note, setNote] = React.useState('');
+  const [override, setOverride] = React.useState(false);
 
   if (versions.isPending) return <Skeleton className="h-64" aria-busy />;
   if (versions.isError) return <LoadError error={versions.error} onRetry={() => void versions.refetch()} />;
@@ -67,31 +67,32 @@ export function PricingVersions() {
     <>
       <DataTable rows={versions.data} columns={columns} rowKey={(r) => String(r.version)} label="Pricing versions" onRowClick={(r) => setOpen(r.version)} />
       <VersionSheet version={open} onClose={() => setOpen(null)} />
-      <ConfirmDialog
+      <StaffActionDialog
         open={Boolean(rolling)}
         onOpenChange={(o) => {
           if (!o) {
             setRolling(null);
-            setNote('');
+            setOverride(false);
           }
         }}
         title={`Roll back to v${rolling?.version ?? ''}`}
-        description="Publishes that version's config as a new version, effective now, with a Stripe sync."
-        consequences={['Existing customers keep their current rates until their next purchase.', 'The current draft is untouched.']}
+        description="Publishes that version's config as a new version, effective now, with a Stripe sync. Publish's checks apply: a pack bought in the last 12 months cannot be removed, and the margin floor needs an override with a note."
+        consequences={['Existing customers keep their current rates until their next purchase.', 'The current draft is discarded.']}
         confirmLabel="Roll back"
+        destructive
         typeToConfirm="ROLLBACK"
-        onConfirm={async () => {
+        onConfirm={async (body) => {
           if (!rolling) return;
-          const v = await rollback.mutateAsync({ params: { version: String(rolling.version) }, body: { note: note.trim() || undefined } });
+          const v = await rollback.mutateAsync({ params: { version: String(rolling.version) }, body: { ...body, override_margin: override } });
           await Promise.all([queryClient.invalidateQueries({ queryKey: ['adminPricingVersions'] }), queryClient.invalidateQueries({ queryKey: ['adminPricingPreview'] }), queryClient.invalidateQueries({ queryKey: ['adminPricingDraft'] })]);
           toast.success(`Rolled back: v${v.version} published from v${rolling.version}`);
-          setNote('');
+          setOverride(false);
         }}
       >
-        <Field id="rb-note" label="Note" optional>
-          <Textarea id="rb-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500} className="min-h-16" />
-        </Field>
-      </ConfirmDialog>
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox checked={override} onCheckedChange={(v) => setOverride(v === true)} /> Override the margin floor if it blocks (super admin; the note says why)
+        </label>
+      </StaffActionDialog>
     </>
   );
 }

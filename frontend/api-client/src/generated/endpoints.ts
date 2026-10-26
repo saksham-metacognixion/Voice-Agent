@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallResponse, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminMemberResponse, adminNumberResponse, adminNumbersQuery, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, selectVersionRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallResponse, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminMemberResponse, adminNumberResponse, adminNumbersQuery, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, selectVersionRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -451,13 +451,13 @@ export function useAdminResumeNumber(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminResumeNumber(api, vars.params, vars.body) });
 }
 
-/** DELETE /admin/pricing/draft — Discard the pricing draft (staff: super_admin, finance). */
-export function adminDiscardPricingDraft(api: ApiClient) {
-  return api.del(`/admin/pricing/draft`, deletedResponse);
+/** DELETE /admin/pricing/draft — Discard the pricing draft (with a reason code) (staff: super_admin, finance). */
+export function adminDiscardPricingDraft(api: ApiClient, body: z.input<typeof staffActionRequest>) {
+  return api.del(`/admin/pricing/draft`, deletedResponse, { body });
 }
 
 export function useAdminDiscardPricingDraft(api: ApiClient) {
-  return useMutation({ mutationFn: (_vars: void) => adminDiscardPricingDraft(api) });
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof staffActionRequest> }) => adminDiscardPricingDraft(api, vars.body) });
 }
 
 /** GET /admin/pricing/draft — SA5 — the pricing draft (the current config when there is none) — admin §5. */
@@ -793,7 +793,7 @@ export function useAdminListWebhookEvents(api: ApiClient, query?: z.input<typeof
   return useQuery({ queryKey: ['adminListWebhookEvents', query ?? null], queryFn: () => adminListWebhookEvents(api, query), ...options });
 }
 
-/** GET /admin/webhook-events/:id — One event with its stored payload. */
+/** GET /admin/webhook-events/:id — One event with its stored payload; recordings and transcripts need can_listen_recordings (audited) (staff: super_admin, ops, finance, support). */
 export function adminGetWebhookEvent(api: ApiClient, params: { id: string }) {
   return api.get(`/admin/webhook-events/${enc(params.id)}`, adminWebhookEventDetail);
 }
@@ -1144,7 +1144,7 @@ export function useEndImpersonation(api: ApiClient) {
   return useMutation({ mutationFn: (_vars: void) => endImpersonation(api) });
 }
 
-/** GET /invites — Pending invitations (roles: owner, admin). */
+/** GET /invites — Unaccepted invitations, each with its server-derived status (pending or expired) (roles: owner, admin). */
 export function listInvites(api: ApiClient) {
   return api.get(`/invites`, inviteResponse.array());
 }
@@ -1153,7 +1153,7 @@ export function useListInvites(api: ApiClient, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['listInvites'], queryFn: () => listInvites(api), ...options });
 }
 
-/** POST /invites — Invite by email; the token is returned once (roles: owner, admin) — §6.1. */
+/** POST /invites — Invite by email (the invitation is emailed), or resend: replaces any unaccepted invite for that address; the token is returned once (roles: owner, admin) — §6.1. */
 export function createInvite(api: ApiClient, body: z.input<typeof inviteRequest>) {
   return api.post(`/invites`, body, inviteResponse);
 }
@@ -1178,6 +1178,15 @@ export function acceptInvite(api: ApiClient, params: { token: string }) {
 
 export function useAcceptInvite(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { token: string } }) => acceptInvite(api, vars.params) });
+}
+
+/** GET /invites/:token/preview — A8 — the workspace, inviter and role behind an invitation, for the invited address only. */
+export function previewInvite(api: ApiClient, params: { token: string }) {
+  return api.get(`/invites/${enc(params.token)}/preview`, invitePreviewResponse);
+}
+
+export function usePreviewInvite(api: ApiClient, params: { token: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['previewInvite', params], queryFn: () => previewInvite(api, params), ...options });
 }
 
 /** GET /jobs/:id — Poll a 202 job (fallback for SSE). */
@@ -1502,6 +1511,15 @@ export function updateNotificationSettings(api: ApiClient, body: z.input<typeof 
 
 export function useUpdateNotificationSettings(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { body: z.input<typeof updateNotificationSettingsRequest> }) => updateNotificationSettings(api, vars.body) });
+}
+
+/** POST /workspace/onboarding-step — Move the wizard resume pointer forward (never back) (roles: owner, admin, editor) — §6.4. */
+export function advanceOnboardingStep(api: ApiClient, body: z.input<typeof advanceOnboardingRequest>) {
+  return api.post(`/workspace/onboarding-step`, body, workspaceResponse);
+}
+
+export function useAdvanceOnboardingStep(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof advanceOnboardingRequest> }) => advanceOnboardingStep(api, vars.body) });
 }
 
 /** POST /workspace/transfer-ownership — Hand the owner role to another member (roles: owner) — §6.1. */

@@ -2,7 +2,7 @@
 
 import { useAdminGetWebhookEvent, useAdminReplayWebhookEvent, useApi } from '@portal/api-client';
 import type { AdminWebhookEventResponse, StaffActionRequest } from '@portal/schemas';
-import { Badge, Skeleton, toast } from '@portal/ui';
+import { Alert, Badge, Skeleton, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import * as React from 'react';
@@ -48,7 +48,6 @@ function useReplay() {
       description={target ? `${providerLabel(target.provider)} · ${target.event_type} · ${shortId(target.external_id, 16)}` : undefined}
       consequences={['The stored body is run through its handler again.', 'Handlers are idempotent: a call already billed is not billed twice, a credited purchase is not credited again.', 'The outcome is reported in the toast and the event row.']}
       confirmLabel="Replay"
-      defaultReason="service_issue"
       onConfirm={run}
     />
   );
@@ -109,12 +108,17 @@ export function WebhookSheet({ id, onClose }: { id: string | null; onClose: () =
   const api = useApi();
   const { can } = useStaff();
   const denied = can.operateQueues();
-  const event = useAdminGetWebhookEvent(api, { id: id ?? '' }, { enabled: Boolean(id) });
+  const payloadDenied = can.viewWebhookPayload();
+  // Every open is an audited payload view (QA-033), so it is read once per open, not on
+  // every window focus; a replay still invalidates it.
+  const event = useAdminGetWebhookEvent(api, { id: id ?? '' }, { enabled: Boolean(id) && !payloadDenied, staleTime: Infinity });
   const { setTarget, dialog } = useReplay();
   const e = event.data;
   return (
     <DetailSheet open={Boolean(id)} onOpenChange={(o) => (o ? undefined : onClose())} title={e ? `${providerLabel(e.provider)} · ${e.event_type}` : 'Webhook event'} description={e ? <Copyable value={e.external_id} full /> : undefined}>
-      {event.isPending ? (
+      {payloadDenied ? (
+        <Alert variant="warning">Opening a stored webhook body is not part of your role. {payloadDenied}</Alert>
+      ) : event.isPending ? (
         <Skeleton className="h-64" />
       ) : event.isError ? (
         <LoadError error={event.error} onRetry={() => void event.refetch()} compact />
@@ -148,6 +152,11 @@ export function WebhookSheet({ id, onClose }: { id: string | null; onClose: () =
           </FactGrid>
           <div>
             <p className="mb-1 text-xs font-medium text-muted-foreground">Payload</p>
+            {e.payload_redacted ? (
+              <Alert variant="info" className="mb-2">
+                Recording links, transcripts and the call summary are hidden: your role cannot listen to recordings.
+              </Alert>
+            ) : null}
             <JsonView value={e.payload} />
           </div>
         </>

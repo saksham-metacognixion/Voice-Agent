@@ -109,6 +109,12 @@ export const checkoutConfirmResponse = z.object({
   status: purchaseStatus,
   /** True when this call is what credited the pack — the webhook had not arrived. */
   credited: z.boolean(),
+  /**
+   * When the purchase was created (the checkout started), on the server's clock. W7 shows
+   * only an activation created after it — never compared with the browser's clock, which
+   * may be minutes off (QA-020).
+   */
+  purchase_created_at: z.string(),
 });
 export type CheckoutConfirmResponse = z.infer<typeof checkoutConfirmResponse>;
 

@@ -10,6 +10,7 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { useDebouncedCallback } from '@/src/lib/use-debounced';
+import { useLeaveGuard } from '@/src/lib/use-leave-guard';
 import { formatNumber } from '@/src/lib/format';
 import { useServerCopy } from '@/src/i18n/server-copy';
 
@@ -23,7 +24,12 @@ const MAX_PROMPT = 20_000;
  * typing runs the §9.5 lint on the server (`POST …/versions/:v/lint`, the same function a
  * save and a publish run) and the findings point at the field they concern. Save is
  * `PUT …/versions/:v/prompt`: a **new immutable version** (`source: manual`) that becomes
- * the draft; the version it was based on is kept. Leaving with unsaved changes asks first.
+ * the draft; the version it was based on is kept. Leaving with unsaved changes asks first
+ * (a reload, or a link to another screen — `useLeaveGuard`); D3 keeps this tab mounted
+ * while another tab is open, and its Publish bar waits for a save (`onDirtyChange`).
+ *
+ * The greeting is mandatory (`promptUpdate`, lint `no_greeting`) and Save stays off while
+ * it is blank; the closing is optional and clearing it saves a version without one.
  *
  * Also the W2 "script" section: the wizard hosts the same editor under the brief once a
  * script exists, and listens to `onDirtyChange` so Continue waits for a save.
@@ -61,14 +67,7 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
     return () => onDirtyChange?.(false);
   }, [dirty, onDirtyChange]);
 
-  React.useEffect(() => {
-    if (!dirty) return;
-    const onLeave = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-    };
-    window.addEventListener('beforeunload', onLeave);
-    return () => window.removeEventListener('beforeunload', onLeave);
-  }, [dirty]);
+  useLeaveGuard(dirty, t('leaveConfirm'));
 
   // Lint replies can land out of order: a slow reply for text that has since changed must
   // not overwrite the findings for the text on screen. Each request takes a number and
@@ -103,19 +102,20 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
 
   const tooShort = prompt.trim().length < MIN_PROMPT;
   const tooLong = prompt.length > MAX_PROMPT;
+  const noGreeting = !greeting.trim();
   const errors = lint?.findings.filter((f) => f.severity === 'error') ?? [];
   const warnings = lint?.findings.filter((f) => f.severity === 'warning') ?? [];
   const fieldFindings = (field: string) => lint?.findings.filter((f) => f.field === field) ?? [];
 
   async function save() {
-    if (!base || !dirty || tooShort || tooLong) return;
+    if (!base || !dirty || tooShort || tooLong || noGreeting) return;
     setSaving(true);
     setError(null);
     debouncedLint.cancel();
     lintSeq.current += 1; // a reply still in flight is for the text being saved; the save's own lint wins
     setLinting(false);
     try {
-      const version = await updateVersionPrompt(api, { id: agent.id, v: String(base.version_no) }, { prompt, ...(greeting.trim() ? { greeting: greeting.trim() } : {}), ...(closing.trim() ? { closing: closing.trim() } : {}) });
+      const version = await updateVersionPrompt(api, { id: agent.id, v: String(base.version_no) }, { prompt, greeting: greeting.trim(), closing: closing.trim() || null });
       dirtyRef.current = false;
       setLint(version.lint);
       track('prompt_saved', { agent_id: agent.id, version_no: version.version_no, base_version: base.version_no, chars: prompt.length });
@@ -142,7 +142,7 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
           <div className="flex items-center gap-2">
             {dirty ? <Badge variant="warning">{tc('common.unsaved')}</Badge> : null}
             {canEdit ? (
-              <Button onClick={() => void save()} disabled={!dirty || tooShort || tooLong} loading={saving}>
+              <Button onClick={() => void save()} disabled={!dirty || tooShort || tooLong || noGreeting} loading={saving}>
                 <Save /> {t('save')}
               </Button>
             ) : null}
@@ -150,8 +150,8 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
         </div>
         {error ? <Alert variant="danger">{error}</Alert> : null}
 
-        <Field id="prompt-greeting" label={t('greeting')} description={t('greetingHint')} error={fieldFindings('greeting').map((f) => f.message).join(' ') || undefined}>
-          <Input id="prompt-greeting" value={greeting} maxLength={500} disabled={!canEdit} onChange={(e) => onGreeting(e.target.value)} invalid={fieldFindings('greeting').some((f) => f.severity === 'error')} />
+        <Field id="prompt-greeting" label={t('greeting')} description={t('greetingHint')} error={noGreeting && canEdit ? t('greetingRequired') : fieldFindings('greeting').map((f) => f.message).join(' ') || undefined}>
+          <Input id="prompt-greeting" value={greeting} maxLength={500} disabled={!canEdit} onChange={(e) => onGreeting(e.target.value)} invalid={(noGreeting && canEdit) || fieldFindings('greeting').some((f) => f.severity === 'error')} />
         </Field>
 
         <Field
@@ -236,7 +236,8 @@ function Finding({ finding }: { finding: LintFinding }) {
       <div className="min-w-0">
         <p className="leading-snug">{copy.finding(finding)}</p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
-          {t(`rules.${finding.rule}`)}
+          {/* A rule the API added after this build has no label yet: a generic one, never the raw key. */}
+          {t.has(`rules.${finding.rule}`) ? t(`rules.${finding.rule}`) : t('ruleFallback')}
           {finding.field ? ` · ${t('field', { field: finding.field })}` : ''}
         </p>
       </div>

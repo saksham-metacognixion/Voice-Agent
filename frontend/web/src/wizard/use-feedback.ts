@@ -1,6 +1,8 @@
 'use client';
 
-import { isApiError, sendAgentFeedback, useApi, useJobWatch, useWorkspaceEvents } from '@portal/api-client';
+import { isApiError, sendAgentFeedback, useApi, useJobWatch } from '@portal/api-client';
+// The shell's stream under /app (ADR 0019 §1), a stream of its own in the wizard.
+import { useLiveEvents } from '../dashboard/use-live-events';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
@@ -54,7 +56,7 @@ export function useFeedback(agentId: string | null) {
     [agentId, queryClient],
   );
 
-  useWorkspaceEvents(
+  useLiveEvents(
     agentId ? [`agent:${agentId}`] : undefined,
     (event) => {
       if (!working) return;

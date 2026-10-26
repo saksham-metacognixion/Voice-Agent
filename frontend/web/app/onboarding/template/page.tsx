@@ -1,6 +1,6 @@
 'use client';
 
-import { useApi, useCreateAgent, useListTemplates } from '@portal/api-client';
+import { useApi, useCreateAgent, useListTemplates, useUpdateAgentDraft } from '@portal/api-client';
 import type { TemplateId } from '@portal/schemas';
 import { Alert, Button, EmptyState, ErrorState, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@portal/ui';
 import { ArrowRight } from 'lucide-react';
@@ -21,8 +21,9 @@ import { useAdvanceOnboarding, useOnboardingAgent } from '@/src/wizard/use-onboa
 /**
  * W1 — Choose what your agent does. `POST /agents {template_id, industry}` creates the
  * agent and its v1 draft pre-filled from the template (§9.2), then onboarding_step → 2.
- * Coming back with an agent already created: Continue keeps it; picking another template
- * makes a new agent (the old one stays in D3).
+ * Coming back with an agent already created: Continue keeps it — saving a changed
+ * industry onto it with `PATCH /agents/:id/draft {industry}` (QA-015) — and picking
+ * another template makes a new agent (the old one stays in D3).
  */
 export default function TemplatePage() {
   return (
@@ -41,6 +42,7 @@ function TemplateInner() {
   const templates = useListTemplates(api, { staleTime: 5 * 60_000 });
   const { agent, query: agentQuery } = useOnboardingAgent();
   const create = useCreateAgent(api);
+  const patchDraft = useUpdateAgentDraft(api);
   const advance = useAdvanceOnboarding();
 
   const [selected, setSelected] = React.useState<TemplateId | null>(null);
@@ -62,7 +64,7 @@ function TemplateInner() {
   }, [templates.data]);
 
   const keepExisting = agent && selected === agent.template_id;
-  const busy = create.isPending;
+  const busy = create.isPending || patchDraft.isPending;
 
   // The chosen industry against the chosen template. A mismatch — Restaurant for a
   // dental practice — is said out loud with the template that would fit, and left to
@@ -79,6 +81,15 @@ function TemplateInner() {
     setError(null);
     try {
       if (keepExisting) {
+        // The industry is the agent's category (ADR 0020 §1): W2's placeholders and the
+        // restaurant menu read it, so a change made here has to reach the agent.
+        if ((agent.industry ?? '') !== industry) {
+          await patchDraft.mutateAsync({ params: { id: agent.id }, body: { industry: industry || null } });
+          await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['listAgents'] }),
+            queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agent.id }] }),
+          ]);
+        }
         track('template_selected', { template_id: selected, industry: industry || null, reused: true });
       } else {
         const created = await create.mutateAsync({ body: { template_id: selected, ...(industry ? { industry } : {}) } });

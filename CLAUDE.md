@@ -386,6 +386,35 @@ job settles.
   one, and is idempotent, so publish re-applies it for free. There is no request shape through
   which a customer can edit, replace or delete them. Feedback that conflicts with a guardrail
   returns `changes: []` plus an explanation, and the _stored_ prompt is the one they already had.
+- **`FIXED_PLATFORM_GUARDRAILS` are appended after whatever the stack row says** (SA6 can
+  reword §9.4, not these): the closing rule and the phone-number rule — read back only the
+  digits said, never pad or guess one, digits said in groups count, ask again only when it sounds incomplete or unclear, give up after two tries and carry on
+  (26 Oct: nine digits said, ten read back and captured). **The rule never branches on a
+  digit count**: gpt-5-mini miscounts spoken digits, and a length-gated variant re-asked a
+  valid ten-digit number 15/16 times on dev; a short number is caught by the read-back and
+  by the check below, not by the model counting. Captured phone numbers are not
+  trusted either: a text field named like a phone (`isPhoneFieldName`) gets
+  `PHONE_FIELD_RULE` in its analysis description, and `GET|PATCH /calls/:id` answers
+  `captured_checks` — each number checked against the caller's own transcript turns and
+  `libphonenumber-js` for the workspace country + the agent's locale regions
+  (`modules/calls/captured-phones.ts`, `mismatch` / `invalid` / `ok`, with the digits the
+  caller did say). Read-time only: the platform's analysis is never rewritten, and nothing
+  repairs a number. D2 and the W5 card show the warning (`PhoneCheckNote`).
+- **A staff transfer number is never in anything the model reads** (ADR 0012, "staff
+  transfers", BUG-005). It is the `transfer_call` destination and the `transfer_number_N`
+  variables only; `briefForModel`, `transferSection()` and the tool description
+  (`transferCallTools()`) name *who* the caller reaches, and `redactTransferNumbers()`
+  strips it from the script and greeting at `llmSpec`, so old scripts are covered too.
+  `TRANSFER_RULE` and `LIST_RULE` (a category answer is three or four items and an offer
+  of more, BUG-007) are fixed rules like `CLOSING_RULE`.
+- **The closing line is said only once the caller is done** (ADR 0012, "The closing line",
+  26 Oct: "Thank you for calling …" after a read-back or an answer about parking). Four
+  places say so: `CLOSING_RULE` (fixed, so it reaches a live agent at its next sync without
+  a regenerate), `closingSection()` in the generation user turn (in code, because the
+  skeleton is the stack row and staging's v1 ends in a bare `{closing_line}`), every
+  template's last two steps ("anything else?" → goodbye only once there is nothing else),
+  and the `end_call` tool description. Do not name `end_call` in the rule: agents on old
+  scripts then hung up mid-booking. The full fix for an existing agent is a regenerate.
 - Nothing the model returns is trusted: `generatedPrompt` / `generatedPatch` in `@portal/schemas`
   are the gate, and there is no path from provider output to `agent_versions` that skips it.
   The provider sits behind `PromptProvider` (ADR 0009); `GENERATION_PROVIDER=scripted` answers
@@ -482,6 +511,10 @@ job settles.
 - A `voice_model` from another provider than the voice is a **400** on `update-agent`, and
   omitting it keeps the stored one: `voiceModelFor()` sends the stack's model only with a
   voice of its provider (`voices.provider`) and `null` otherwise (ADR 0003, D9 addendum).
+- A brief field sent as **`null` is cleared** (`briefPatch` in `@portal/schemas`, QA-006):
+  `mergeBrief` deletes the key; arrays clear with `[]`. The W2 autosave sends `null` for a
+  field emptied by the customer (`briefDiff`), flushes on unmount and guards `beforeunload`.
+  A version still syncing to the platform answers `409 VERSION_SYNCING` on a test call (QA-021).
 - `PATCH /agents/:id/draft` does not touch the platform. `POST /agents/:id/test/web`
   re-syncs the unpublished draft (`AgentDraftSyncService`, shared with the generation
   worker) before minting, so a test call rings the voice and languages W3 saved.
@@ -599,7 +632,15 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   INSERT is the claim and carries the body (`payload_json.text`/`html`) from the start, the
   inserter sends, and a `failed`/`pending` row — including one a crash left between the
   INSERT and the send — is re-sent by `retryFailed()` from what it stored. Nothing else calls the email sender. Bodies carry no
-  token, key or secret; the log sender logs recipient (masked) and subject only.
+  token, key or secret; the log sender logs recipient (masked) and subject only. **The D6
+  invitation email** is the one message with a link that must work: `deliver({secrets})`
+  fills `{invite_link}` into the copy handed to the sender only, the row keeps the
+  placeholder (`one_time_secret`), and `retryFailed()` writes such a row off instead of
+  mailing a dead link — the inviter resends (new token, new row `invite:<id>`). Senders:
+  Resend when `RESEND_API_KEY` is set, else SMTP (`SMTP_HOST`/`PORT`/`USER`/`PASS`, e.g. a
+  Gmail app password on a dev box), else the log. Mail is always *from* `EMAIL_FROM`; the
+  invitation's `replyTo` is the inviter. The e2e config blanks all of them, so a test never
+  mails anyone.
 - Low-balance thresholds are `low_balance_thresholds_pct` of the last paid pack (the trial
   size before a purchase), crossed at or below (`decideLowBalance()`), evaluated on every
   ledger write and by the 15-minute sweep. **One evaluation sends at most one email, for
@@ -661,11 +702,25 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   (tenant MFA policy "Never", One-time Password + recovery codes enabled; the Action
   challenges on that request and on every interactive sign-in of an enrolled person,
   never on a refresh grant; status = the `https://portal/mfa_enrolled` ID-token claim or
-  `amr` `mfa`); A6 is Auth0's `dbconnections/change_password`.
+  `amr` `mfa`); A6 is Auth0's `dbconnections/change_password`. **The return path survives
+  sign-in** (QA-001): the callback only cleans `/`'s address and hands the validated
+  `appState.returnTo` to `RootPage` as `auth.returnTo`, which `router.replace`s there
+  (rewriting the URL with `replaceState` left `/` mounted and its gate sent everyone to
+  `/app/`); `RedirectIfSignedIn` honours `?next=`, and the workspace switcher carries it.
+  `safeNext()` is the one validator — same-origin paths only, no `//`, `\`, control
+  characters or `/login`/`/signup` targets; `signedInDestination()` picks return path over gate.
+  **An invite survives sign-up and verification too** (BUG-008): `?next=` rides the
+  login ↔ signup links and `RequireVerified` → `/verify-email?next=`, and the invite page
+  remembers itself (`pendingInvite`, localStorage, `/invite/?token=` paths only, 7 days)
+  while it cannot be accepted, for what a query string cannot cross (the confirmation
+  link in a new tab, "Sign out" to switch address). `/` prefers `returnTo`, then that,
+  then the gate; the join screen clears it. Nothing accepts without the click.
 - Gating is `useSessionGate()` + `RequireAuth` / `RequireVerified` / `RequireWorkspace` /
   `OnboardingStepGuard(step)` / `AppGuard`. A wizard page W-k is allowed while
-  `k ≤ onboarding_step`; the portal advances the step with `PATCH /workspace`, never
-  backwards, single-flight; a guard never redirects while the workspace row is refetching.
+  `k ≤ onboarding_step`; the portal advances the step with `POST /workspace/onboarding-step`
+  (editor and up — editors build, test and route the agent; `PATCH /workspace` is settings,
+  owner/admin, and its 403 used to bounce an editor back to W1, QA-005), never backwards
+  (the server's conditional update refuses to as well), single-flight; a guard never redirects while the workspace row is refetching.
   `LAST_IMPLEMENTED_STEP` is 7 since D9, so `/app` opens only once `onboarding_completed_at`
   is set (the activation job's `mark_live`). **W4 is after payment** (ADR 0024):
   `ONBOARDING_STEPS` is 1, 2, 3, 5, 6, 7 (4 unused, `stepPath(4)` → W5), W3 advances to 5,
@@ -710,7 +765,11 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   mirrored by one rule in `globals.css`; phone/email/URL inputs stay LTR; free text is
   `dir="auto"`. The console has no provider and is English, left to right.
 - Analytics: `track()` from `src/analytics/posthog.tsx` only; ids, step names and counts,
-  never brief text, emails or phone numbers.
+  never brief text, emails or phone numbers. **No URL reaches PostHog with its query or
+  fragment** (QA-008: invite tokens, `code`/`state`, `session_id`, view-as keys):
+  `sanitizeCapture` (`src/analytics/sanitize.ts`) is `before_send` for every event and
+  person property, another site's URL keeps only its origin, and `/flags`, session replay
+  and heatmaps are off — they carry URLs `before_send` never sees.
 - Retell is never named; say "voice", "what your agent knows".
 - Local run without the Auth0 tenant: `pnpm dev:issuer`, then the API with
   `AUTH0_CUSTOMER_DOMAIN=http://localhost:9999` and the portal built with
@@ -722,7 +781,11 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - W5 test calls: `useTestCall` gives `RetellClient` a `fetch` that answers create-web-call
   from `POST /agents/:id/test/web`, and replaces `client.api.monitorSocket` so only the
   live-transcript socket goes to our relay (`${apiUrl}/test-calls/v2/monitor-call/:id`)
-  while WebRTC signalling stays on the platform (ADR 0003, D9 addendum). W7 remembers the
+  while WebRTC signalling stays on the platform (ADR 0003, D9 addendum). Every await in
+  `start()` is followed by `TestCallLifecycle.isActive(run)` (QA-017): a microphone answer
+  after the page left stops its tracks and mints nothing, a mint that returns after it is
+  never joined (unjoined = `error_user_not_joined`, billed zero), and unmount hangs up
+  whatever session is held. W7 remembers the
   started checkout in `checkoutMarker` as a hint only; paid is whatever the activation says.
   Back from Stripe it posts the URL's `session_id` to `POST /wallet/checkout/confirm` once
   on mount and again on "Check again", so a late or lost webhook cannot strand a paid
@@ -789,6 +852,11 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   every `getWallet` cache entry (the pill and D5 move on the frame) and then re-read;
   `walletFrame()` refuses anything without a finite number and an older frame never
   overwrites a newer balance. Nothing else subscribes to `GET /events` under `/app`.
+- **Screens under `/app` listen on the shell's stream, they do not open one** (QA-031):
+  `DashboardLiveProvider` fans its frames out through `event-bus.ts`, and
+  `useLiveEvents()` (`src/dashboard/use-live-events.ts`) registers a topic listener there;
+  outside the shell (the wizard) it opens its own stream exactly as `useWorkspaceEvents`.
+  Generation, feedback and the after-call card use it.
 - **The stream closes on `pagehide` and reopens on a persisted `pageshow`** (ADR 0019
   §2): a document in Chrome's back/forward cache keeps its fetches, six cached dashboard
   documents held the six HTTP/1.1 sockets a host gets, and the seventh page's first
@@ -836,13 +904,36 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   target, workspace, reason, redacted before/after, IP, request id) plus the workspace's own
   `audit_log` row with `actor_user_id = NULL`, `meta.by = 'staff'`. No audit row, no write.
   That includes `DELETE /admin/flags/:key` (a body on a DELETE, `api.del(path, schema,
-  {body})`), both directions of a kill switch and starting a view-as session — none of
-  them defaults the reason. A write that ends in something no transaction can hold — a
+  {body})`), both directions of a kill switch, starting a view-as session, a flag save,
+  pricing publish / rollback / draft discard (`DELETE /admin/pricing/draft` takes a body
+  too) — none of them defaults the reason, and the console never pre-selects one: every
+  reason picker starts empty and the button stays disabled until one is chosen (QA-035,
+  QA-039, QA-041). The draft save and the cost inputs carry no reason but still audit in
+  their own transaction. A write that ends in something no transaction can hold — a
   queue enqueue, a webhook replay, the identity provider after a force logout — records
   its request in the transaction and the outcome as a second row (`job.retry_failed`,
-  `webhook.replay_requested` → `webhook.replayed`, `user.force_logout_provider[_failed]`).
+  `webhook.replay_requested` → `webhook.replayed`, `user.force_logout_provider[_failed]`,
+  `user.lock_provider_failed`, `job.discard_requested` → `job.discard_failed`). A job
+  discard records its request **before** removing the queue job, and a removal the queue
+  refuses is a `409` with the row left as it was — never "discarded" with the job still
+  queued (QA-038). A lock whose session revoke the provider refuses still locks and answers
+  `provider_error` (QA-042).
   `redact()` blanks credential-named fields (`secret`, `password`, `token`, `api_key`…),
   never the substring `key`: a flag's `key` and an `idempotency_key` are identifiers.
+- **Pause is one rule at every level** (QA-034): workspace, agent and number pause all
+  take `can_pause_tenant` (`StaffLimitsService.assertCan`) and, for support, a ticket of
+  that workspace (`assertPauseTicket`); resume takes the capability, no ticket. A staff
+  resume puts an agent back to what it was: `live` when published, `draft` when it never
+  was (QA-043; the customer's own resume still refuses an unpublished agent).
+- **One staff role matrix** (QA-048): `STAFF_ROUTE_ROLES` in `@portal/schemas` is what the
+  controllers spread into `@StaffRoles` and what the console's `can()` checks, **and**
+  `can()` checks the `staff_role_limits` on top — a limit ticked in SA13 for a role the
+  route refuses never enables a button that answers `403 FORBIDDEN_ROLE`.
+- **A stored webhook body is a logged read** (QA-033): `GET /admin/webhook-events/:id`
+  is not read-only's, recording links, transcripts, the call log and the call summary are
+  blanked (`webhook-payload.ts`) unless the role has `can_listen_recordings`, and every
+  view writes `webhook.payload_viewed` (outcome and field names, never values). The list
+  and the replay answer carry no body.
 - Reads cross workspaces on `adminDb`; writes reuse the customer path's services: credits
   through `WalletService.withWallet` (a `credit_adjustments` row references the ledger row,
   same transaction), pause/resume through `runtime-cache.refresh`, switches through
@@ -868,7 +959,10 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   with a future `effective_at` (they would move every tenant's caps today). Blockers: a pack bought in
   the last 12 months cannot be removed; a tier under the margin floor (`retell_cost_inputs`)
   is `422 MARGIN_FLOOR` unless a super admin overrides with a note. Rollback inserts a new
-  version with the old config; history is never rewritten. A keyless dev box records
+  version with the old config; history is never rewritten. **Rollback takes publish's
+  checks** (`blockersFor` + `assertPublishable`, one function for preview, publish and
+  rollback, QA-040) and a rollback whose sync failed resumes its unpublished version
+  through `pendingOrNewVersion` instead of adding an orphan per attempt. A keyless dev box records
   `skipped`, never `synced`.
 - **View-as is an API-minted credential** (`ImpersonationTokenService`, `imp_<payload>.<hmac>`,
   `IMPERSONATION_SIGNING_SECRET` → `RECORDING_SIGNING_SECRET`), one hour, one open session per
@@ -893,7 +987,10 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `delete:guardian_enrollments` `delete:sessions` `delete:refresh_tokens` (runbook §1).
 - Credit adjustments take an `idempotency_key` (the console makes one per opened dialog; it is
   the adjustment id): a double click, a retry or a second tab moves credits once. A ticket number
-  is linked only when `support_tickets` holds it and is otherwise kept in the audit row.
+  is linked only when `support_tickets` holds it and is otherwise kept in the audit row. The
+  per-day cap is checked again **inside the wallet transaction under a per-staff advisory
+  lock** (`staff-credit-adjust:<staff id>`, taken after the wallet lock — always wallet →
+  staff), so one person adjusting two workspaces at once cannot pass it twice (QA-037).
 - **SA9 billing (D13, ADR 0022).** `GET /admin/purchases` (+ `:id`), `POST /admin/purchases/:id/refund`,
   `GET /admin/topups/failed`, `POST /admin/topups/:id/retry`, `POST /admin/customers/:id/auto-topup/disable`,
   `GET /admin/billing/summary`. **A refund is claim → Stripe → settle**: a `refunds` row
@@ -942,7 +1039,9 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `test/d12-admin.e2e.test.ts` (26 cases: the boundary, limits, audit rows, credits, pauses,
   users, jobs, webhooks, flags, the pricing publish/failure/resume/rollback, view-as).
 - **SA4 support tickets (D13)** live in `modules/admin/admin-support.service.ts` on the
-  D2 `support_tickets` / `ticket_messages` / `canned_responses` rows, and the customer's
+  D2 `support_tickets` / `ticket_messages` / `canned_responses` rows (canned responses:
+  six starters from `seed-data/canned-responses-v1.ts`, only into an empty table, then
+  managed from the composer's `CannedResponsesDialog`, QA-049), and the customer's
   side in `modules/support` (`POST/GET /support/tickets`, `POST /support/tickets/:id/messages`,
   all inside `withWorkspace` — the `ticket_messages` RLS policy is what hides an internal
   note from the customer, not the response shape). Ticket ids are integers; anything else
@@ -1109,7 +1208,16 @@ throws and never waits past its budget (ADR 0010 §6).
 - D11 routes: `GET /audit-log` (owner/admin, `?area=&cursor=&limit=`, a §16 page of
   `auditEntryResponse` — action, target, actor or null, IP, `meta`, time; `area` is the
   part of `action` before the dot). `phoneNumberResponse` carries `sip` (host, username,
-  `has_password` — never the password) and `calls_7d`.
+  `has_password` — never the password) and `calls_7d`. `inviteResponse.status` is
+  `pending` / `expired` / `accepted`, derived on the server's clock (`inviteStatusAt`);
+  D6 Team resends an expired one through `POST /invites` (which replaces the row and its
+  token), and A8 answers `INVITE_EXPIRED` / `INVITE_USED` / `INVITE_WRONG_EMAIL` apart from
+  `INVITE_INVALID` (BUG-010, QA-016). Resend is offered on pending invites too, behind a
+  confirmation (the shared link dies). `POST /invites` emails the link and answers
+  `email_status` (`sent` / `failed` / `not_configured` on the log sender); the link is still
+  shown once to copy. `GET /invites/:token/preview` (no workspace, verified) gives the A8
+  join screen workspace, inviter and role — to the invited address only; anyone else gets
+  `INVITE_WRONG_EMAIL` and nothing about the workspace.
 - D9 routes: `POST /agents/:id/test/web` (201, editor+, verified email; §13.4:
   `402 NO_CREDITS`, `429 TEST_RATE_LIMIT` at 10/h per workspace — a **fixed** window
   (`RedisCache.increment`, `SET NX` + `INCR`, counted only after the platform minted),

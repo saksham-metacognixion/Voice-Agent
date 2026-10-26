@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { adminDb } from '@portal/db';
+import { type Prisma, adminDb } from '@portal/db';
 import type { StaffLimits, StaffRole } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { StaffContext } from '../auth';
@@ -104,14 +104,50 @@ export class StaffLimitsService {
   }
 
   /**
+   * Admin §2.2: support may pause only against a ticket, and one of this workspace's —
+   * not any number typed into the field (review, 28 Sep). The same rule for a workspace,
+   * an agent and a number (QA-034): pulling one agent or one number off the phone is the
+   * same act as pausing the workspace, one level down. Resuming takes no ticket, as on
+   * the workspace. Run after `assertCan(staff, 'can_pause_tenant')`.
+   */
+  async assertPauseTicket(
+    staff: StaffContext,
+    tenantId: string,
+    ticketId: number | undefined,
+    what: 'workspace' | 'agent' | 'number',
+  ): Promise<void> {
+    if (staff.role !== 'support') return;
+    const ticket = ticketId
+      ? await adminDb.supportTicket.findFirst({
+          where: { id: ticketId, tenantId },
+          select: { id: true },
+        })
+      : null;
+    if (ticket) return;
+    throw new AppError(
+      'STAFF_LIMIT_EXCEEDED',
+      ticketId
+        ? `Ticket #${ticketId} is not one of this workspace's tickets.`
+        : `Support pauses ${what === 'workspace' ? 'a workspace' : `an ${what}`} against a ticket. Add the ticket number.`,
+    );
+  }
+
+  /**
    * Credit adjustments have two ceilings: per action and per rolling day, both in absolute
    * credits. Per day counts what this staff member already moved in the last 24 h across
    * every workspace, from `credit_adjustments` (the staff-side record of every adjustment).
+   *
+   * With `tx` it is the binding check (QA-037): a per-staff advisory lock is taken in that
+   * transaction and the day is re-summed under it, so two adjustments by one person on two
+   * workspaces — each under its own wallet lock — cannot both read the same "today" and
+   * both pass. Call it inside the transaction that inserts the `credit_adjustments` row,
+   * after the wallet lock (always wallet → staff, so the two locks cannot deadlock).
    */
   async assertCreditAdjustment(
     staff: StaffContext,
     delta: number,
     now = new Date(),
+    tx?: Prisma.TransactionClient,
   ): Promise<StaffLimits> {
     const limits = await this.limitsFor(staff.role);
     const amount = Math.abs(delta);
@@ -127,7 +163,8 @@ export class StaffLimitsService {
       );
     }
     if (limits.credit_adjust_max_per_day !== null) {
-      const rows = await adminDb.creditAdjustment.findMany({
+      if (tx) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'staff-credit-adjust:' + staff.staffId}))`;
+      const rows = await (tx ?? adminDb).creditAdjustment.findMany({
         where: { staffId: staff.staffId, createdAt: { gte: new Date(now.getTime() - DAY_MS) } },
         select: { delta: true },
       });

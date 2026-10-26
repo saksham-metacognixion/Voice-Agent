@@ -15,6 +15,7 @@
  */
 import { PrismaClient, PlanTier, StaffRole, type Prisma } from '@prisma/client';
 import { readTemplateFiles, templateRowFrom, templatesDir } from '../src/templates.js';
+import { CANNED_RESPONSES_V1 } from './seed-data/canned-responses-v1.js';
 import { FEATURE_FLAGS, KILL_SWITCHES, PRICING_V1 } from './seed-data/pricing-v1.js';
 import {
   AGENT_STACK_V1_TIERS,
@@ -260,6 +261,15 @@ async function main() {
     });
   }
   console.log(`seeded ${KILL_SWITCHES.length} kill_switches (admin SA12), all off`);
+
+  // SA4 (QA-049): a starter set, only into an empty table — the desk owns the list after that.
+  const canned = await db.cannedResponse.count();
+  if (canned === 0) {
+    await db.cannedResponse.createMany({ data: CANNED_RESPONSES_V1 });
+    console.log(`seeded ${CANNED_RESPONSES_V1.length} canned_responses (admin SA4)`);
+  } else {
+    console.log(`canned_responses already has ${canned} row(s); not touching it`);
+  }
 
   const templates = await seedTemplates();
   if (templates) console.log(`seeded ${templates} templates from templates/*.json (§9.2)`);

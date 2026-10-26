@@ -4,6 +4,7 @@ import { useWorkspaceEvents, type StreamState } from '@portal/api-client';
 import type { SseEvent, WalletResponse } from '@portal/schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
+import { createEventBus, type EventBus } from './event-bus';
 import { walletFrame } from './wallet-frame';
 
 export interface NewCallFrame {
@@ -18,6 +19,11 @@ interface DashboardLive {
   state: StreamState;
   /** Returns the unsubscribe. */
   subscribeNewCall: (listener: (call: NewCallFrame) => void) => () => void;
+  /**
+   * Every frame of the stream, narrowed to `topics` (undefined = all) — for a screen that
+   * would otherwise open a stream of its own (`useLiveEvents`). Returns the unsubscribe.
+   */
+  subscribeEvents: EventBus['subscribe'];
 }
 
 export const DashboardLiveContext = React.createContext<DashboardLive | null>(null);
@@ -47,6 +53,7 @@ export function DashboardLiveProvider({ children, enabled = true }: { children: 
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastWalletTs = React.useRef<string>('');
   const listeners = React.useRef<Set<(call: NewCallFrame) => void>>(new Set());
+  const [bus] = React.useState(createEventBus);
 
   const flush = React.useCallback(() => {
     timer.current = null;
@@ -83,6 +90,7 @@ export function DashboardLiveProvider({ children, enabled = true }: { children: 
   const state = useWorkspaceEvents(
     undefined,
     (event: SseEvent) => {
+      bus.emit(event);
       if (event.topic === 'wallet') {
         const frame = walletFrame(event);
         if (frame && event.ts >= lastWalletTs.current) {
@@ -128,6 +136,6 @@ export function DashboardLiveProvider({ children, enabled = true }: { children: 
     enabled,
   );
 
-  const value = React.useMemo(() => ({ state, subscribeNewCall }), [state, subscribeNewCall]);
+  const value = React.useMemo(() => ({ state, subscribeNewCall, subscribeEvents: bus.subscribe }), [state, subscribeNewCall, bus]);
   return <DashboardLiveContext.Provider value={value}>{children}</DashboardLiveContext.Provider>;
 }

@@ -28,6 +28,12 @@ export interface GateResult {
   dashboardAllowed: boolean;
   /** The workspace row is being re-read; a redirect decided now could be on stale data. */
   settling: boolean;
+  /**
+   * Ready, but the answer could not be read: the workspace list or the active workspace
+   * failed to load. `destination` is null then, so a page that only follows the gate must
+   * show an error and a retry rather than wait (QA-012).
+   */
+  failed?: 'memberships' | 'workspace';
 }
 
 export function useSessionGate(currentPath: string): GateResult {
@@ -41,12 +47,12 @@ export function useSessionGate(currentPath: string): GateResult {
   if (!auth.user?.emailVerified) return { ready: true, destination: routes.verifyEmail, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
 
   if (ws.status === 'loading' || ws.status === 'idle') return { ready: false, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
-  if (ws.status === 'error') return { ready: true, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
+  if (ws.status === 'error') return { ready: true, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false, failed: 'memberships' };
   if (ws.memberships.length === 0) return { ready: true, destination: routes.setupWorkspace, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
   if (!ws.active) return { ready: true, destination: routes.selectWorkspace, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
 
   if (ws.workspaceStatus === 'loading' || ws.workspaceStatus === 'idle') return { ready: false, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
-  if (ws.workspaceStatus === 'error' || !ws.workspace) return { ready: true, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
+  if (ws.workspaceStatus === 'error' || !ws.workspace) return { ready: true, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false, failed: 'workspace' };
 
   const step = ws.workspace.onboarding_step;
   const complete = Boolean(ws.workspace.onboarding_completed_at);

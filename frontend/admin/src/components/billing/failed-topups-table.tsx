@@ -109,7 +109,6 @@ export function FailedTopupsTable({ rows }: { rows: AdminFailedTopup[] }) {
         }
         confirmLabel={target?.action === 'retry' ? 'Charge now' : 'Disable'}
         destructive={target?.action === 'disable'}
-        defaultReason={target?.action === 'retry' ? 'service_issue' : 'customer_request'}
         onConfirm={run}
       />
     </>

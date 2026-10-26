@@ -42,6 +42,11 @@ const CHECKS = [
   { key: 'RECORDING_SIGNING_SECRET', phase: 'D4', required: false, secret: true },
   { key: 'INBOUND_REDIS_DOWN_POLICY', phase: 'D4', required: false },
   { key: 'RESEND_API_KEY', phase: 'D5', required: false, secret: true },
+  // Without Resend, SMTP delivers instead (a Gmail app password on a dev box). Neither set =
+  // every email is a log line.
+  { key: 'SMTP_HOST', phase: 'D7', required: false },
+  { key: 'SMTP_USER', phase: 'D7', required: false },
+  { key: 'SMTP_PASS', phase: 'D7', required: false, secret: true },
   // The Auth0 Deploy CLI and the portal's session revocation both authenticate as these.
   // Not required to boot — nothing in the request path reads them — but without them the
   // tenants can only be configured by hand, which is how the two Actions drift from

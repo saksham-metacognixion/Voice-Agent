@@ -38,7 +38,7 @@ function Telephony() {
   return (
     <>
       <PageHeader title="Telephony" crumbs={[{ label: 'Telephony' }]} description="Numbers, agents, the provisioning queue and live concurrency across every workspace (SA7)." />
-      <Tabs value={tab} onValueChange={(v) => setQuery((n) => { setParam(n, 'tab', v === 'numbers' ? null : v); setParam(n, 'id', null); setParam(n, 'status', null); })}>
+      <Tabs value={tab} onValueChange={(v) => setQuery((n) => { setParam(n, 'tab', v === 'numbers' ? null : v); setParam(n, 'id', null); setParam(n, 'status', null); setParam(n, 'q', null); setParam(n, 'overdue', null); })}>
         <TabsList>
           <TabsTrigger value="numbers">Numbers</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
@@ -73,17 +73,19 @@ function NumbersTab({ params, setQuery }: { params: URLSearchParams; setQuery: S
   const debouncedQ = useDebouncedValue(q.trim(), 300);
   const status = pickParam(params, 'status', phoneNumberStatus.options, '' as PhoneNumberStatus | '') || undefined;
   const tenantId = params.get('tenant_id') || undefined;
+  const overdue = params.get('overdue') === 'true' ? 'true' : undefined;
   React.useEffect(() => {
     setQuery((n) => setParam(n, 'q', debouncedQ), 'replace');
   }, [debouncedQ, setQuery]);
   const { reset } = pager;
-  React.useEffect(() => reset(), [debouncedQ, status, tenantId, reset]);
-  const list = useAdminListNumbers(api, { q: debouncedQ || undefined, status, tenant_id: tenantId, cursor: pager.cursor, limit: LIMIT });
+  React.useEffect(() => reset(), [debouncedQ, status, tenantId, overdue, reset]);
+  const list = useAdminListNumbers(api, { q: debouncedQ || undefined, status, tenant_id: tenantId, rental_overdue: overdue, cursor: pager.cursor, limit: LIMIT });
   return (
     <>
       <FilterBar>
         <SearchBox value={q} onChange={setQ} placeholder="E.164, customer, agent…" />
         <FilterSelect label="Status" value={status} onChange={(v) => setQuery((n) => setParam(n, 'status', v))} options={phoneNumberStatus.options.map((s) => ({ value: s, label: humanize(s) }))} />
+        <FilterSelect label="Rental" allLabel="Any rental" value={overdue} onChange={(v) => setQuery((n) => setParam(n, 'overdue', v))} options={[{ value: 'true', label: 'Rental overdue' }]} />
       </FilterBar>
       <QueryList query={list} rows={list.data?.items} empty={{ title: 'No numbers match' }}>
         {(rows) => <NumbersTable rows={rows} onOpen={(id) => setQuery((n) => setParam(n, 'id', id), 'replace')} />}

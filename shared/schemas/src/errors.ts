@@ -27,6 +27,12 @@ export const ErrorCode = {
   PROMO_INVALID: 'PROMO_INVALID',
   BRIEF_INCOMPLETE: 'BRIEF_INCOMPLETE',
   INVITE_INVALID: 'INVITE_INVALID',
+  /** A8: the link was real but is past `expires_at` — the inviter can resend it (D11). */
+  INVITE_EXPIRED: 'INVITE_EXPIRED',
+  /** A8: the link was already used by someone else. */
+  INVITE_USED: 'INVITE_USED',
+  /** A8: signed in as another address than the one the invite was sent to. */
+  INVITE_WRONG_EMAIL: 'INVITE_WRONG_EMAIL',
   /** Auto top-up asked for with no saved card, or a portal session with no Stripe customer. */
   NO_PAYMENT_METHOD: 'NO_PAYMENT_METHOD',
   /** A phone plan or number request that the plan tier does not allow (max_numbers, sip_import, knowledge_base). */
@@ -72,6 +78,8 @@ export const ErrorCode = {
   VERSION_IMMUTABLE: 'VERSION_IMMUTABLE',
   ACTIVATION_IN_PROGRESS: 'ACTIVATION_IN_PROGRESS',
   NUMBER_IN_USE: 'NUMBER_IN_USE',
+  /** The version exists but its voice-platform copy is not ready yet (a test call right after Improve). Transient (QA-021). */
+  VERSION_SYNCING: 'VERSION_SYNCING',
   // 422
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   LINT_FAILED: 'LINT_FAILED',
@@ -101,6 +109,9 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   PROMO_INVALID: 400,
   BRIEF_INCOMPLETE: 400,
   INVITE_INVALID: 400,
+  INVITE_EXPIRED: 400,
+  INVITE_USED: 400,
+  INVITE_WRONG_EMAIL: 400,
   NO_PAYMENT_METHOD: 400,
   PLAN_LIMIT: 400,
   DOCUMENT_UNREADABLE: 400,
@@ -132,6 +143,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   VERSION_IMMUTABLE: 409,
   ACTIVATION_IN_PROGRESS: 409,
   NUMBER_IN_USE: 409,
+  VERSION_SYNCING: 409,
   VALIDATION_FAILED: 422,
   LINT_FAILED: 422,
   GENERATION_FAILED: 422,

@@ -16,6 +16,7 @@ import { WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { LiveGuard } from '@/src/guards/guards';
 import { routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
+import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
 /**
  * W4 — What your agent knows, **after payment** (ADR 0024). Sources need the
@@ -42,7 +43,7 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
   const api = useApi();
   const router = useRouter();
   const flags = useGetFlags(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000 });
+  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
   const [leaving, setLeaving] = React.useState(false);
 
   // An unreadable /flags is not a reason to lock the form: the API enforces the gate and

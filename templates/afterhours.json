@@ -69,7 +69,8 @@
     "Ask whether the matter is urgent",
     "If it is an emergency per the rules, follow the emergency instruction",
     "Otherwise take a message: name, callback number, what they need",
-    "Close politely"
+    "Ask whether there is anything else the caller needs, and carry on if there is",
+    "Only once the caller says there is nothing else, thank them for calling and end the call"
   ],
   "analysis_fields": [
     {
@@ -106,5 +107,5 @@
     "legal": "We are a two-lawyer family law practice downtown. Divorce, custody and mediation. First consultation is thirty minutes and is paid.",
     "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
   },
-  "version": 1
+  "version": 2
 }

@@ -21,7 +21,7 @@ export function NumbersTable({ rows, showCustomer = true, onOpen }: { rows: Admi
   const pause = useAdminPauseNumber(api);
   const resume = useAdminResumeNumber(api);
   const [target, setTarget] = React.useState<{ number: AdminNumberResponse; action: 'pause' | 'resume' } | null>(null);
-  const denied = can.supportActions();
+  const denied = can.pauseAgentOrNumber();
 
   async function run(body: StaffActionRequest) {
     if (!target) return;
@@ -91,7 +91,6 @@ export function NumbersTable({ rows, showCustomer = true, onOpen }: { rows: Admi
         consequences={target?.action === 'pause' ? ['Inbound calls to this number are declined (busy tone, no charge).', 'Rental keeps accruing; the number is not released.'] : ['Inbound calls are answered again by the bound agent.']}
         confirmLabel={target?.action === 'pause' ? 'Pause number' : 'Resume number'}
         destructive={target?.action === 'pause'}
-        defaultReason={target?.action === 'pause' ? 'abuse_policy' : 'customer_request'}
         onConfirm={run}
       />
     </>

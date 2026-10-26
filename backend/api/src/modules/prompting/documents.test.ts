@@ -67,3 +67,21 @@ describe('stripDocuments / stripGuardrails', () => {
     expect(documentsBlock([])).toBe('');
   });
 });
+
+// BUG-005: a script stored with the staff number in it reaches the platform without it.
+describe('runtimePrompt and staff transfer numbers', () => {
+  const handoff_rules = [{ condition: 'Asks for the manager', action: 'transfer' as const, transfer_number: '+14165550142' }];
+
+  it('strips the transfer number from the script but keeps the business documents as written', () => {
+    const doc: BriefDocument = { ...MENU, text: 'Call us on +1 416 555 0142 for catering.' };
+    const out = runtimePrompt(`${SCRIPT}\nIf they ask for the manager, transfer to +1 (416) 555-0142.`, { documents: [doc], handoff_rules });
+    const script = out.slice(0, out.indexOf(DOCUMENTS_HEADING));
+    expect(script).not.toMatch(/555.?0142/);
+    expect(script).toContain('transfer to our staff.');
+    expect(out).toContain('Call us on +1 416 555 0142 for catering.');
+  });
+
+  it('carries the transfer rule in the platform rules', () => {
+    expect(runtimePrompt(SCRIPT, { documents: [], handoff_rules })).toContain('Never say a phone number you would transfer a caller to.');
+  });
+});

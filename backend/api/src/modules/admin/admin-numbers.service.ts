@@ -11,8 +11,9 @@ import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import type { StaffContext } from '../auth';
 import { RuntimeCacheService } from '../runtime-cache';
-import { DAY_MS, iso, uuidParam, idMatch } from './admin.helpers';
+import { DAY_MS, iso, uuidParam, idMatch, phoneQuery } from './admin.helpers';
 import { StaffAuditService } from './staff-audit.service';
+import { StaffLimitsService } from './staff-limits.service';
 
 const WITH = {
   tenant: { select: { name: true } },
@@ -34,14 +35,20 @@ export class AdminNumbersService {
   constructor(
     private readonly runtimeCache: RuntimeCacheService,
     private readonly audit: StaffAuditService,
+    private readonly limits: StaffLimitsService,
   ) {}
 
   async list(query: AdminNumbersQuery): Promise<Page<AdminNumberResponse>> {
     const where: Prisma.PhoneNumberWhereInput = {};
     if (query.tenant_id) where.tenantId = query.tenant_id;
     if (query.status) where.status = query.status;
+    // The same predicate as the SA1 "Overdue number rentals" count (admin-kpis.service.ts).
+    if (query.rental_overdue === 'true') {
+      where.rentalOverdueSince = { not: null };
+      if (!query.status) where.status = { in: ['active', 'paused'] };
+    } else if (query.rental_overdue === 'false') where.rentalOverdueSince = null;
     if (query.q) {
-      const digits = query.q.replace(/[^\d+]/g, '');
+      const digits = phoneQuery(query.q);
       where.OR = [
         ...(digits ? [{ e164: { contains: digits } }] : []),
         { nickname: { contains: query.q, mode: 'insensitive' } },
@@ -95,11 +102,15 @@ export class AdminNumbersService {
     paused: boolean,
   ): Promise<AdminNumberResponse> {
     const id = uuidParam(idRaw, 'Number');
+    // The workspace pause's checks (QA-034): the role must be allowed to pause at all,
+    // and support pauses only against one of this workspace's tickets (resume takes none).
+    await this.limits.assertCan(staff, 'can_pause_tenant');
     const row = await adminDb.phoneNumber.findUnique({
       where: { id },
       select: { id: true, tenantId: true, status: true, pausedAt: true },
     });
     if (!row) throw AppError.notFound('Number');
+    if (paused) await this.limits.assertPauseTicket(staff, row.tenantId, body.ticket_id, 'number');
     if (row.status === 'released' || row.status === 'releasing')
       throw new AppError('CONFLICT', 'This number has been released.');
     if (row.status === 'failed' || row.status === 'provisioning')

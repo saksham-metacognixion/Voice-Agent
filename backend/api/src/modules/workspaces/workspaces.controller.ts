@@ -4,10 +4,12 @@ import {
   type AcceptInviteResponse,
   type AuditEntryResponse,
   type Page,
+  type InvitePreviewResponse,
   type InviteResponse,
   type MemberResponse,
   type WorkspaceChecklist,
   type WorkspaceResponse,
+  advanceOnboardingRequest,
   auditLogQuery,
   createWorkspaceRequest,
   inviteRequest,
@@ -75,6 +77,17 @@ export class WorkspacesController {
     return this.workspaces.update(ctx, updateWorkspaceRequest.parse(body), request.ip);
   }
 
+  /**
+   * §6.4 resume pointer, forward only. Editor and up (QA-005): an editor can create, brief,
+   * test and route the agent, and PATCH /workspace is settings — owner/admin — so an
+   * editor's advance used to 403 and the next step's guard sent them back to W1.
+   */
+  @Post('workspace/onboarding-step')
+  @Roles('owner', 'admin', 'editor')
+  advanceOnboarding(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<WorkspaceResponse> {
+    return this.workspaces.advanceOnboarding(ctx, advanceOnboardingRequest.parse(body).step);
+  }
+
   @Get('workspace/checklist')
   checklist(@Ctx() ctx: WorkspaceContext): Promise<WorkspaceChecklist> {
     return this.workspaces.checklist(ctx);
@@ -132,6 +145,20 @@ export class WorkspacesController {
   @Roles('owner', 'admin')
   revokeInvite(@Ctx() ctx: WorkspaceContext, @Param('id') id: string): Promise<{ revoked: boolean }> {
     return this.members.revokeInvite(ctx, membershipId(id));
+  }
+
+  /**
+   * A8 join screen: which workspace, who invited, which role — before the click. Same
+   * token rules as accept, and only for the invited address (`previewInvite`).
+   */
+  @Get('invites/:token/preview')
+  @NoWorkspace()
+  @RequireEmailVerified()
+  previewInvite(@Req() request: FastifyRequest, @Param('token') token: string): Promise<InvitePreviewResponse> {
+    if (!token || token.length < 16 || token.length > 200) {
+      throw new AppError('INVITE_INVALID', 'That invite link is not valid.');
+    }
+    return this.members.previewInvite(authOf(request), token);
   }
 
   /**

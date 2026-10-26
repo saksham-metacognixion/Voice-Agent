@@ -7,6 +7,7 @@ import * as React from 'react';
 import { RetellClient, type WebCallSession } from 'retell-client-js-sdk';
 import { track } from '@/src/analytics/posthog';
 import { config } from '@/src/config';
+import { TestCallLifecycle } from './test-call-lifecycle';
 import { mergeTranscript, type TranscriptLine } from './transcript';
 
 export type TestCallStatus = 'idle' | 'mic' | 'connecting' | 'live' | 'ended' | 'failed';
@@ -75,32 +76,34 @@ function routeMonitorToRelay(client: RetellClient, token: () => string): boolean
  *
  * Start is single-flight through a ref, not state — a double click or a StrictMode
  * re-run must not mint two calls, which would be two calls on the customer's bill.
+ *
+ * Every await is followed by a check that the page still wants the call
+ * (`TestCallLifecycle`, QA-017): leaving W5 with the microphone prompt open stops the
+ * tracks and mints nothing, leaving during the mint never joins, and leaving once joined
+ * hangs up. A call minted but never joined ends on the platform unconnected and is billed
+ * zero (`error_user_not_joined`, metering's not-connected list).
  */
 export function useTestCall(agentId: string | null, versionNo: number | null) {
   const api = useApi();
   const queryClient = useQueryClient();
   const [state, setState] = React.useState<TestCallState>(IDLE);
-  const session = React.useRef<WebCallSession | null>(null);
-  const starting = React.useRef(false);
+  const [lifecycle] = React.useState(() => new TestCallLifecycle<WebCallSession>());
   const liveAt = React.useRef<number | null>(null);
-  const mounted = React.useRef(true);
 
-  const patch = React.useCallback((next: Partial<TestCallState> | ((s: TestCallState) => Partial<TestCallState>)) => {
-    if (!mounted.current) return;
-    setState((s) => ({ ...s, ...(typeof next === 'function' ? next(s) : next) }));
-  }, []);
+  const patch = React.useCallback(
+    (next: Partial<TestCallState> | ((s: TestCallState) => Partial<TestCallState>)) => {
+      if (!lifecycle.isMounted()) return;
+      setState((s) => ({ ...s, ...(typeof next === 'function' ? next(s) : next) }));
+    },
+    [lifecycle],
+  );
 
-  // Leaving the page hangs up. A call left running in a detached component would keep
-  // spending credits with no button to stop it.
+  // Leaving the page hangs up and abandons a start still in flight. A call left running
+  // in a detached component would keep spending credits with no button to stop it.
   React.useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-      session.current?.disconnect();
-      session.current = null;
-      starting.current = false;
-    };
-  }, []);
+    lifecycle.mount();
+    return () => lifecycle.dispose();
+  }, [lifecycle]);
 
   // The timer ticks from "live", not from the click: connecting time is not billed.
   React.useEffect(() => {
@@ -117,18 +120,20 @@ export function useTestCall(agentId: string | null, versionNo: number | null) {
   }, [queryClient]);
 
   const start = React.useCallback(async () => {
-    if (!agentId || starting.current || session.current) return;
-    starting.current = true;
+    if (!agentId) return;
+    const run = lifecycle.begin();
+    if (!run) return;
     liveAt.current = null;
     setState({ ...IDLE, status: 'mic' });
 
     // Ask for the microphone before minting: a refusal then costs nothing and says why.
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((t) => t.stop());
-    } catch (error) {
-      const name = error instanceof DOMException ? error.name : '';
-      starting.current = false;
+    // The prompt can outlive the page; an answer that arrives after it stops the tracks
+    // and goes no further.
+    const mic = await lifecycle.acquireMicrophone(run, () => navigator.mediaDevices.getUserMedia({ audio: true }));
+    if (!mic.ok) {
+      lifecycle.finish(run);
+      if ('inactive' in mic) return;
+      const name = mic.error instanceof DOMException ? mic.error.name : '';
       const kind = name === 'NotFoundError' || name === 'OverconstrainedError' ? 'mic_missing' : 'mic_denied';
       patch({ status: 'failed', failure: { kind } });
       track('test_call_failed', { agent_id: agentId, reason: kind });
@@ -138,11 +143,16 @@ export function useTestCall(agentId: string | null, versionNo: number | null) {
     patch({ status: 'connecting' });
     let apiFailure: ApiError | null = null;
     let liveToken = '';
+    let held: WebCallSession | null = null;
     const proxiedFetch: typeof fetch = async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       if (!new URL(url).pathname.endsWith(CREATE_WEB_CALL)) throw new Error('not proxied');
+      // The page left between the click and the SDK's request: mint nothing.
+      if (!lifecycle.isActive(run)) throw new Error('test call abandoned');
       try {
         const minted = await startTestWebCall(api, { id: agentId }, versionNo ? { version_no: versionNo } : {});
+        // ...or during the mint: never join it. Unjoined, the platform ends it unbilled.
+        if (!lifecycle.isActive(run)) throw new Error('test call abandoned');
         patch({ mint: { rate: minted.rate, balance: minted.balance, max_call_duration_s: minted.max_call_duration_s, version_no: minted.version_no }, callId: minted.call_id });
         liveToken = minted.live_token;
         const { rate: _r, balance: _b, max_call_duration_s: _m, version_no: _v, live_token: _l, ...forSdk } = minted;
@@ -168,7 +178,7 @@ export function useTestCall(agentId: string | null, versionNo: number | null) {
             track('test_call_started', { agent_id: agentId, version_no: versionNo });
           }
           if (next === 'ended') {
-            session.current = null;
+            if (held) lifecycle.release(held);
             patch((cur) => (cur.status === 'failed' ? { agentTalking: false } : { status: 'ended', agentTalking: false }));
             settle();
           }
@@ -183,7 +193,7 @@ export function useTestCall(agentId: string | null, versionNo: number | null) {
           track('test_call_ended', { agent_id: agentId, duration_s: elapsed, reason: e.disconnection_reason ?? null });
         },
         onError: (e) => {
-          session.current = null;
+          if (held) lifecycle.release(held);
           const failure: TestCallFailure = apiFailure ? { kind: 'api', error: apiFailure } : { kind: 'connection', message: e.message };
           patch({ status: 'failed', failure, agentTalking: false });
           track('test_call_failed', { agent_id: agentId, reason: apiFailure ? apiFailure.code : 'connection' });
@@ -191,26 +201,31 @@ export function useTestCall(agentId: string | null, versionNo: number | null) {
         },
       },
     });
-    session.current = s;
+    held = s;
+    // Unmounted while the SDK was being set up: `attach` hangs it up instead of keeping it.
+    if (!lifecycle.attach(run, s)) {
+      lifecycle.finish(run);
+      return;
+    }
     try {
       await s.ready;
     } catch {
       /* onError has the reason; `ready` also rejects on a hang-up before joining */
     } finally {
-      starting.current = false;
+      lifecycle.finish(run);
     }
-  }, [agentId, versionNo, api, patch, settle]);
+  }, [agentId, versionNo, api, patch, settle, lifecycle]);
 
   const end = React.useCallback(() => {
-    const s = session.current;
+    const s = lifecycle.session();
     if (!s) return;
     void s.end().catch(() => s.disconnect());
-  }, []);
+  }, [lifecycle]);
 
   const reset = React.useCallback(() => {
-    if (session.current) return;
+    if (lifecycle.session()) return;
     setState(IDLE);
-  }, []);
+  }, [lifecycle]);
 
   return { state, start, end, reset };
 }

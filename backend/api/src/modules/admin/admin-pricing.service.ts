@@ -12,6 +12,7 @@ import {
   type AdminRetellCostsResponse,
   type PricingConfig,
   type RetellCostInputs,
+  type StaffActionRequest,
   type StripeSyncResult,
   pricingConfig,
   rateForTier,
@@ -97,33 +98,47 @@ export class AdminPricingService {
       configJson: config as unknown as Prisma.InputJsonValue,
       editedBy: staff.staffId,
     };
-    const row = existing
-      ? await adminDb.pricingDraft.update({ where: { id: existing.id }, data })
-      : await adminDb.pricingDraft.create({ data });
-    await this.audit.record({
-      staff,
-      action: 'pricing.draft_saved',
-      targetType: 'pricing_draft',
-      targetId: row.id,
-      after: {
-        based_on_version: current.version,
-        changes: diffConfig(current.config, config).length,
-      },
-      request,
+    // The row and its audit row commit together (QA-039: no audit row, no write).
+    await adminDb.$transaction(async (tx) => {
+      const row = existing
+        ? await tx.pricingDraft.update({ where: { id: existing.id }, data })
+        : await tx.pricingDraft.create({ data });
+      await this.audit.record(
+        {
+          staff,
+          action: 'pricing.draft_saved',
+          targetType: 'pricing_draft',
+          targetId: row.id,
+          after: {
+            based_on_version: current.version,
+            changes: diffConfig(current.config, config).length,
+          },
+          request,
+        },
+        tx,
+      );
     });
     return this.draft();
   }
 
-  async discardDraft(staff: StaffContext, request: FastifyRequest): Promise<{ deleted: boolean }> {
+  async discardDraft(staff: StaffContext, body: StaffActionRequest, request: FastifyRequest): Promise<{ deleted: boolean }> {
     await this.limits.assertCan(staff, 'can_edit_pricing_draft');
-    const { count } = await adminDb.pricingDraft.deleteMany({});
-    if (count)
-      await this.audit.record({
-        staff,
-        action: 'pricing.draft_discarded',
-        targetType: 'pricing_draft',
-        request,
-      });
+    const count = await adminDb.$transaction(async (tx) => {
+      const { count } = await tx.pricingDraft.deleteMany({});
+      if (count)
+        await this.audit.record(
+          {
+            staff,
+            action: 'pricing.draft_discarded',
+            targetType: 'pricing_draft',
+            reasonCode: body.reason_code,
+            note: body.note ?? null,
+            request,
+          },
+          tx,
+        );
+      return count;
+    });
     return { deleted: count > 0 };
   }
 
@@ -149,7 +164,6 @@ export class AdminPricingService {
           .filter((id): id is string => Boolean(id) && currentIds.has(id!) && draftIds.has(id!)),
       ),
     ];
-    const margins = marginsFor(draft, costs?.costs ?? null);
     const previousRows = await this.prices.rowsFor(current.version);
     const stripe = planPriceSync(draft, current.config, previousRows).map((a) => ({
       pack_id: a.packId,
@@ -158,28 +172,8 @@ export class AdminPricingService {
       detail: a.detail,
     }));
 
-    const blockers: string[] = [];
+    const { margins, blockers } = await this.blockersFor(draft, current.config, costs?.costs ?? null);
     const warnings: string[] = [];
-    for (const m of margins)
-      if (m.below_floor)
-        blockers.push(
-          `${m.tier} margin ${m.margin_pct}% is under the ${m.floor_pct}% floor (admin §5.4); a super admin can override with a note.`,
-        );
-    if (removed.length) {
-      const bought = await adminDb.purchase.groupBy({
-        by: ['packId'],
-        where: {
-          packId: { in: removed },
-          status: 'paid',
-          updatedAt: { gte: new Date(Date.now() - 365 * DAY_MS) },
-        },
-        _count: { _all: true },
-      });
-      for (const b of bought)
-        blockers.push(
-          `Pack "${b.packId}" was bought ${b._count._all} time(s) in the last 12 months and cannot be removed — deactivate it instead (admin §5.4).`,
-        );
-    }
     if (!costs)
       warnings.push(
         'No Retell cost inputs are set (PUT /admin/retell-costs); the margin check cannot run.',
@@ -199,6 +193,58 @@ export class AdminPricingService {
     };
   }
 
+  /**
+   * The admin §5.4 checks for putting `next` in effect in place of `current`: a tier under
+   * the margin floor (overridable by a super admin with a note), and a pack bought in the
+   * last 12 months that `next` would remove (never overridable). One function for the
+   * preview, the publish and the rollback (QA-040) — a rollback is a publish of an old
+   * config, and removing a pack someone bought is no safer for being one.
+   */
+  private async blockersFor(
+    next: PricingConfig,
+    current: PricingConfig,
+    costs: RetellCostInputs | null,
+  ): Promise<{ margins: ReturnType<typeof marginsFor>; blockers: string[] }> {
+    const margins = marginsFor(next, costs);
+    const blockers: string[] = [];
+    for (const m of margins)
+      if (m.below_floor)
+        blockers.push(
+          `${m.tier} margin ${m.margin_pct}% is under the ${m.floor_pct}% floor (admin §5.4); a super admin can override with a note.`,
+        );
+    const nextIds = new Set(next.packs.filter((p) => p.active).map((p) => p.id));
+    const removed = current.packs.filter((p) => p.active && !nextIds.has(p.id)).map((p) => p.id);
+    if (removed.length) {
+      const bought = await adminDb.purchase.groupBy({
+        by: ['packId'],
+        where: {
+          packId: { in: removed },
+          status: 'paid',
+          updatedAt: { gte: new Date(Date.now() - 365 * DAY_MS) },
+        },
+        _count: { _all: true },
+      });
+      for (const b of bought)
+        blockers.push(
+          `Pack "${b.packId}" was bought ${b._count._all} time(s) in the last 12 months and cannot be removed — deactivate it instead (admin §5.4).`,
+        );
+    }
+    return { margins, blockers };
+  }
+
+  /** Refuses on the hard blockers; the margin floor only with `override_margin` and a note. */
+  private assertPublishable(blockers: string[], body: { override_margin: boolean; note?: string }): void {
+    const hardBlockers = blockers.filter((b) => !b.includes('margin'));
+    if (hardBlockers.length) throw new AppError('CONFLICT', hardBlockers.join(' '));
+    const marginBlockers = blockers.filter((b) => b.includes('margin'));
+    if (marginBlockers.length && !body.override_margin)
+      throw new AppError('MARGIN_FLOOR', marginBlockers.join(' '));
+    if (marginBlockers.length && body.override_margin && !body.note)
+      throw new AppError('VALIDATION_FAILED', 'Overriding the margin floor needs a note.', [
+        { field: 'note', message: 'Required with override_margin' },
+      ]);
+  }
+
   // ------------------------------------------------------------------ publish
 
   async publish(
@@ -212,15 +258,7 @@ export class AdminPricingService {
       throw new AppError('CONFLICT', 'There is no pricing draft to publish. Save one first.');
     const config = pricingConfig.parse(draftRow.configJson);
     const preview = await this.preview();
-    const hardBlockers = preview.blockers.filter((b) => !b.includes('margin'));
-    if (hardBlockers.length) throw new AppError('CONFLICT', hardBlockers.join(' '));
-    const marginBlockers = preview.blockers.filter((b) => b.includes('margin'));
-    if (marginBlockers.length && !body.override_margin)
-      throw new AppError('MARGIN_FLOOR', marginBlockers.join(' '));
-    if (marginBlockers.length && body.override_margin && !body.note)
-      throw new AppError('VALIDATION_FAILED', 'Overriding the margin floor needs a note.', [
-        { field: 'note', message: 'Required with override_margin' },
-      ]);
+    this.assertPublishable(preview.blockers, body);
     if (body.effective_at && new Date(body.effective_at).getTime() < Date.now() - 60_000)
       throw new AppError('VALIDATION_FAILED', 'effective_at is in the past.', [
         { field: 'effective_at', message: 'Must be now or later' },
@@ -261,7 +299,7 @@ export class AdminPricingService {
         action: 'pricing.publish_failed',
         targetType: 'pricing_config',
         targetId: String(version),
-        reasonCode: null,
+        reasonCode: body.reason_code,
         note: body.note ?? null,
         after: { version, stripe: sync.status, error: sync.error },
         request,
@@ -292,6 +330,7 @@ export class AdminPricingService {
           action: 'pricing.published',
           targetType: 'pricing_config',
           targetId: String(version),
+          reasonCode: body.reason_code,
           note: body.note ?? null,
           before: { version: current.version },
           after: {
@@ -404,23 +443,14 @@ export class AdminPricingService {
     if (current.version === version)
       throw new AppError('CONFLICT', `Version ${version} is already in effect.`);
     const config = pricingConfig.parse(target.configJson);
+    // Publish's checks (QA-040): rolling back to a version without a pack bought since is
+    // removing that pack, and an old price may now sit under the margin floor.
+    const { blockers } = await this.blockersFor(config, current.config, (await this.costInputs())?.costs ?? null);
+    this.assertPublishable(blockers, body);
 
-    const next = await adminDb.$transaction(async (tx) => {
-      const latest = await tx.pricingConfig.aggregate({ _max: { version: true } });
-      const n = (latest._max.version ?? 0) + 1;
-      await tx.pricingConfig.create({
-        data: {
-          version: n,
-          configJson: target.configJson as Prisma.InputJsonValue,
-          publishedBy: staff.staffId,
-          effectiveAt: null,
-          stripeSyncJson: PENDING as unknown as Prisma.InputJsonValue,
-          changeSummary: `Rollback to v${version}`,
-          grandfatherMode: 'keep_until_next_purchase',
-        },
-      });
-      return n;
-    });
+    // A rollback whose Stripe sync failed left its version unpublished; the retry resumes
+    // that version instead of stacking another orphan (QA-040).
+    const next = await this.pendingOrNewVersion(config, staff.staffId);
     await this.prices.archiveSuperseded(current.version);
     const sync = await this.prices.sync({
       version: next,
@@ -438,6 +468,7 @@ export class AdminPricingService {
         action: 'pricing.rollback_failed',
         targetType: 'pricing_config',
         targetId: String(next),
+        reasonCode: body.reason_code,
         note: body.note ?? null,
         after: { to: version, stripe: sync.status, error: sync.error },
         request,
@@ -450,7 +481,13 @@ export class AdminPricingService {
     await adminDb.$transaction(async (tx) => {
       await tx.pricingConfig.update({
         where: { version: next },
-        data: { publishedAt: new Date(), effectiveAt: new Date() },
+        data: {
+          publishedAt: new Date(),
+          publishedBy: staff.staffId,
+          effectiveAt: new Date(),
+          changeSummary: `Rollback to v${version}`,
+          grandfatherMode: 'keep_until_next_purchase',
+        },
       });
       await tx.pricingDraft.deleteMany({});
       await this.audit.record(
@@ -459,6 +496,7 @@ export class AdminPricingService {
           action: 'pricing.rolled_back',
           targetType: 'pricing_config',
           targetId: String(next),
+          reasonCode: body.reason_code,
           note: body.note ?? null,
           before: { version: current.version },
           after: { version: next, restored: version, stripe: sync.status },
@@ -500,21 +538,26 @@ export class AdminPricingService {
     await this.limits.assertCan(staff, 'can_edit_pricing_draft');
     const costs = retellCostInputs.parse(body);
     const before = await this.costInputs();
-    const latest = await adminDb.retellCostInput.aggregate({ _max: { version: true } });
-    await adminDb.retellCostInput.create({
-      data: {
-        version: (latest._max.version ?? 0) + 1,
-        costsJson: costs as unknown as Prisma.InputJsonValue,
-        updatedBy: staff.staffId,
-      },
-    });
-    await this.audit.record({
-      staff,
-      action: 'pricing.costs_updated',
-      targetType: 'retell_cost_inputs',
-      before: before?.costs ?? null,
-      after: costs,
-      request,
+    await adminDb.$transaction(async (tx) => {
+      const latest = await tx.retellCostInput.aggregate({ _max: { version: true } });
+      await tx.retellCostInput.create({
+        data: {
+          version: (latest._max.version ?? 0) + 1,
+          costsJson: costs as unknown as Prisma.InputJsonValue,
+          updatedBy: staff.staffId,
+        },
+      });
+      await this.audit.record(
+        {
+          staff,
+          action: 'pricing.costs_updated',
+          targetType: 'retell_cost_inputs',
+          before: before?.costs ?? null,
+          after: costs,
+          request,
+        },
+        tx,
+      );
     });
     return this.costs();
   }

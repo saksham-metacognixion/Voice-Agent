@@ -122,11 +122,17 @@ export class AdminUsersService {
     const user = await this.load(idRaw);
     const provider = await this.provider(() => this.auth0.setBlocked(user.authProviderId, true));
     // Sessions too: a lock that leaves a refresh token alive is a lock that ends in an hour.
-    await this.auth0
-      .revokeSessions(user.authProviderId)
-      .catch((error: unknown) =>
-        this.log.warn(`revoke sessions after lock failed: ${String(error)}`),
-      );
+    // Our `sessions_revoked_at` below refuses every token already issued either way; the
+    // provider's half is recorded, not swallowed (QA-042), so staff can see it and retry.
+    let sessions: 'applied' | 'skipped' | 'failed';
+    let providerError: string | null = null;
+    try {
+      sessions = await this.auth0.revokeSessions(user.authProviderId);
+    } catch (error) {
+      sessions = 'failed';
+      providerError = 'The account is locked, but the identity provider did not revoke its sessions. Tokens already issued are refused by the API; force logout to retry the revoke.';
+      this.log.error(`lock ${user.id}: provider session revoke failed (${String(error)})`);
+    }
     const reason = body.note ? `${body.reason_code}: ${body.note}` : body.reason_code;
     await this.commit(
       user,
@@ -137,13 +143,23 @@ export class AdminUsersService {
         reasonCode: body.reason_code,
         note: body.note,
         before: { locked: user.lockedAt !== null },
-        after: { locked: true, provider },
+        after: { locked: true, provider, sessions },
         request,
       },
       { reason_code: body.reason_code },
     );
+    if (sessions === 'failed')
+      await this.audit.record({
+        staff,
+        action: 'user.lock_provider_failed',
+        targetType: 'user',
+        targetId: user.id,
+        reasonCode: body.reason_code,
+        after: { sessions, provider_error: providerError },
+        request,
+      });
     this.log.warn(`user ${user.email} locked by ${staff.email} (${body.reason_code})`);
-    return { user: await this.get(user.id), provider };
+    return { user: await this.get(user.id), provider, provider_error: providerError };
   }
 
   async unlock(

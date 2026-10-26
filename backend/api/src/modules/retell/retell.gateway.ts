@@ -3,7 +3,7 @@ import Retell, { toFile } from 'retell-sdk';
 import WebSocket from 'ws';
 import { RetellConfig } from './retell.config';
 import { type RetellCallFacts, retellCallFacts } from './retell-webhook';
-import type { AgentSpec, AllowOptions, InboundAllow, InboundDecline, KnowledgeSourcesInput, LlmSpec } from './retell.types';
+import type { AgentSpec, AllowOptions, InboundAllow, InboundDecline, KnowledgeSourcesInput, LlmSpec, TransferTarget } from './retell.types';
 
 /**
  * The version tag every phone number is bound to (§9.9, ADR 0003 §7). Retell resolves it
@@ -82,14 +82,14 @@ export class RetellGateway {
       knowledge_base_ids: spec.knowledgeBaseIds,
       default_dynamic_variables: spec.defaultDynamicVariables,
       general_tools: [
-        { type: 'end_call', name: 'end_call', description: 'End the call when the conversation is over.' },
-        ...(spec.transferNumbers ?? []).map<Retell.LlmCreateParams.TransferCallTool>((number, i) => ({
-          type: 'transfer_call',
-          name: `transfer_${i + 1}`,
-          description: `Transfer the caller to ${number} when they ask for a person.`,
-          transfer_destination: { type: 'predefined', number },
-          transfer_option: { type: 'cold_transfer' },
-        })),
+        {
+          type: 'end_call',
+          name: 'end_call',
+          // Not "when the conversation is over": a model read the end of a task as the end
+          // of the call and said goodbye after a read-back (26 Oct, ADR 0012).
+          description: 'End the call once the caller has said they need nothing else: say goodbye and end the call in the same turn. Never end it after an ordinary answer or a read-back.',
+        },
+        ...transferCallTools(spec.transfers ?? []),
       ],
     };
   }
@@ -569,4 +569,30 @@ export function isRetellNotFound(error: unknown): boolean {
 /** Retell rejects values outside [60 s, 2 h]; clamping keeps a tiny balance callable. */
 export function clampDuration(ms: number): number {
   return Math.min(7_200_000, Math.max(60_000, Math.round(ms)));
+}
+
+/**
+ * One `transfer_call` tool per staff number. The number is the destination the platform
+ * dials and nothing else: the description is what the model reads, so it names the
+ * conditions and says how to offer the transfer, never the digits — a description of
+ * "Transfer the caller to +1…" was read aloud on the call (BUG-005, 26 Oct).
+ */
+export function transferCallTools(transfers: readonly TransferTarget[]): Retell.LlmCreateParams.TransferCallTool[] {
+  return transfers.map((target, i) => {
+    const when = target.conditions.length ? target.conditions.join('; ') : 'the caller asks for a person';
+    return {
+      type: 'transfer_call',
+      name: `transfer_${i + 1}`,
+      description: clip(
+        `Transfer the caller to a member of staff. Use when: ${when}. First ask "Would you like me to transfer you to our staff?" and transfer only once the caller agrees. Never say the number you transfer to. If the transfer does not go through, tell the caller the team cannot take the call right now and offer to take a message.`,
+        1_000,
+      ),
+      transfer_destination: { type: 'predefined', number: target.number },
+      transfer_option: { type: 'cold_transfer' },
+    };
+  });
+}
+
+function clip(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }

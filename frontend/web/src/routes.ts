@@ -76,16 +76,70 @@ export function stepPath(step: number): string {
   return found.path;
 }
 
+/**
+ * `onboarding_step` as the wizard reads it: a step with no page of its own counts as the
+ * next one that has one (4 → 5), so the page `stepPath` sends a workspace to is one its
+ * guard lets in (QA-004: a workspace left on 4 was sent to W5, which needs 5, and waited
+ * there for ever). Past the last page it is left as it is — that is the dashboard's.
+ */
+export function effectiveStep(step: number): number {
+  return ONBOARDING_STEPS.find((s) => s.step >= step)?.step ?? step;
+}
+
+/** Whether wizard page W-`page` may be shown to a workspace on `onboarding_step`. No skipping ahead. */
+export function stepAllowed(page: number, onboardingStep: number): boolean {
+  return page <= effectiveStep(onboardingStep);
+}
+
+/** Same page, whether or not either path carries the export's trailing slash. */
+export function samePath(a: string, b: string): boolean {
+  const trim = (p: string) => (p.length > 1 && p.endsWith('/') ? p.slice(0, -1) : p);
+  return trim(a) === trim(b);
+}
+
 export function withNext(path: string, next: string | null | undefined): string {
   if (!next || next === '/' || !next.startsWith('/')) return path;
   return `${path}?next=${encodeURIComponent(next)}`;
 }
 
-/** Only ever send people to a path on this origin; `//evil` and `https://` are refused. */
+/** A stand-in origin to resolve `next` against; only "did it stay on it" is ever read. */
+const SAME_ORIGIN = 'https://portal.invalid';
+
+/**
+ * Only ever send people to a path on this origin (QA-001). Refused, for the fallback:
+ * anything not starting with one `/` (`https://evil`, `//evil`, `javascript:`), a
+ * backslash (`/\evil` is `//evil` to a browser), control characters or whitespace, a
+ * value that does not parse or resolves off the origin, and the sign-in pages themselves
+ * — a signed-in person sent to /login with `next=/login/` would bounce for ever.
+ * What comes back is the normalised path, query and fragment, so `?token=` survives.
+ */
 export function safeNext(value: string | null | undefined, fallback: string): string {
-  if (!value) return fallback;
-  if (!value.startsWith('/') || value.startsWith('//') || value.includes('://')) return fallback;
-  return value;
+  if (!value || value.length > 2048) return fallback;
+  if (!value.startsWith('/') || value.startsWith('//')) return fallback;
+  // eslint-disable-next-line no-control-regex
+  if (/[\\\s\u0000-\u001f\u007f]/.test(value)) return fallback;
+  let url: URL;
+  try {
+    url = new URL(value, SAME_ORIGIN);
+  } catch {
+    return fallback;
+  }
+  if (url.origin !== SAME_ORIGIN) return fallback;
+  const path = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`;
+  if (path === routes.login || path === routes.signup) return fallback;
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+/**
+ * Where a signed-in person goes from `/` after the Auth0 callback, or from /login and
+ * /signup: the validated return path when there is one, else where the §6.4 gate says
+ * they belong (`/app/` once onboarded). The return page's own guards still decide — a
+ * wizard step, verification, a missing workspace — so a deep link never skips the gate.
+ */
+export function signedInDestination(returnTo: string | null | undefined, gateDestination: string | null): string | null {
+  const next = safeNext(returnTo, '');
+  if (next && next !== routes.root) return next;
+  return gateDestination;
 }
 
 /** D3 agent tabs, in the order the spec lists them (p. 36). */

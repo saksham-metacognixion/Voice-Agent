@@ -15,6 +15,7 @@ import { OnboardingStepGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
 import { readQuery } from '@/src/lib/query-string';
 import { routes } from '@/src/routes';
+import type { CheckoutSince } from '@/src/wizard/activation-follow';
 import { checkoutMarker } from '@/src/wizard/checkout-marker';
 import { useActivation } from '@/src/wizard/use-activation';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -61,7 +62,11 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
     return { sessionId: q.get('session_id'), cancelled: q.get('checkout') === 'cancelled', marker: checkoutMarker.get(agent.id), at: Date.now() };
   });
   const returned = Boolean(ret.sessionId);
-  const activation = useActivation(agent.id, { since: returned ? (ret.marker?.startedAt ?? null) : null });
+  // Which activation is this checkout's: one created after the purchase, both on the
+  // server's clock (QA-020). Held ('pending') until the confirm says when the purchase was
+  // made; if it cannot say, the latest activation is shown, whatever its age.
+  const [since, setSince] = React.useState<CheckoutSince>(returned ? 'pending' : null);
+  const activation = useActivation(agent.id, { since });
   const view = activation.view;
 
   const [choosing, setChoosing] = React.useState(false);
@@ -69,7 +74,7 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
   const [retryError, setRetryError] = React.useState<string | null>(null);
   const [patienceOver, setPatienceOver] = React.useState(false);
   /** What the API said about the checkout after asking Stripe; null until it has answered. */
-  const [confirmed, setConfirmed] = React.useState<'pending' | 'paid' | 'abandoned' | null>(null);
+  const [confirmed, setConfirmed] = React.useState<'pending' | 'paid' | 'abandoned' | 'refunded' | null>(null);
   const [confirmError, setConfirmError] = React.useState<string | null>(null);
   const confirming = React.useRef(false);
   const refetchActivation = React.useRef(activation.refetch);
@@ -84,12 +89,16 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
     setConfirmError(null);
     try {
       const res = await confirmCheckout(api, { session_id: ret.sessionId });
-      setConfirmed(res.status === 'paid' || res.status === 'refunded' ? 'paid' : res.status);
+      setSince(res.purchase_created_at);
+      // A refunded purchase is not a payment that is about to go live (QA-019).
+      setConfirmed(res.status);
       if (res.credited) track('checkout_confirmed', { agent_id: agent.id, purchase_id: res.purchase_id });
       if (res.status === 'paid') refetchActivation.current();
     } catch (e) {
       // NOT_FOUND: a link for a purchase that is not this workspace's. The webhook path still stands.
       if (!isApiError(e, 'NOT_FOUND')) setConfirmError(errorMessage(e, t));
+      // No purchase time to compare with: show the latest activation rather than none.
+      setSince((s) => (s === 'pending' ? null : s));
     } finally {
       confirming.current = false;
     }
@@ -138,15 +147,33 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
     }
   }
 
+  // Stripe says this checkout was not paid, or the payment was refunded: nothing is coming,
+  // so the packs are offered straight away instead of after the 90 s wait (QA-019).
+  const unpaid = !view && (confirmed === 'abandoned' || confirmed === 'refunded');
+
   // An activation in flight, finished, or failed after a payment is this page's subject;
   // so is the wait right after Stripe hands the customer back. Otherwise: pick a pack.
-  const showProgress = !choosing && (returned || (view !== null && view.status !== 'failed') || (view?.status === 'failed' && !ret.cancelled));
+  const showProgress = !choosing && !unpaid && (returned || (view !== null && view.status !== 'failed') || (view?.status === 'failed' && !ret.cancelled));
 
   return (
     <>
       <WizardHeading title={showProgress ? tw('progressTitle') : tw('title')} subtitle={showProgress ? tw('progressSubtitle') : tw('subtitle')} />
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
         {ret.cancelled && !showProgress ? <Alert variant="warning" title={tw('cancelledTitle')}>{tw('cancelledBody')}</Alert> : null}
+        {unpaid && !showProgress ? (
+          <Alert
+            variant="warning"
+            actions={
+              confirmed === 'abandoned' ? (
+                <Button size="sm" variant="outline" onClick={() => void confirm()}>
+                  {tw('confirm.check')}
+                </Button>
+              ) : undefined
+            }
+          >
+            {confirmed === 'refunded' ? tw('confirm.refunded') : tw('confirm.notPaid')}
+          </Alert>
+        ) : null}
         {activation.error ? (
           <Alert variant="danger" title={t('errors.loadFailed')} actions={<Button size="sm" variant="outline" onClick={activation.refetch}>{t('common.retry')}</Button>}>
             {errorMessage(activation.error, t)}
@@ -184,7 +211,6 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
                 ) : undefined,
               }}
             />
-            {confirmed === 'abandoned' && !view ? <Alert variant="warning">{tw('confirm.notPaid')}</Alert> : null}
             {confirmError && !view ? <Alert variant="warning">{confirmError}</Alert> : null}
             {retryError && !view ? <Alert variant="danger">{retryError}</Alert> : null}
             {view?.status === 'failed' || (patienceOver && !view) ? (

@@ -8,7 +8,7 @@ import { useAuth } from '@/src/auth/auth-provider';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RedirectIfSignedIn } from '@/src/guards/guards';
 import { readQuery } from '@/src/lib/query-string';
-import { routes, safeNext } from '@/src/routes';
+import { routes, safeNext, withNext } from '@/src/routes';
 
 /** A1 — Sign up. `screen_hint=signup` opens Universal Login on its registration tab. */
 export default function SignupPage() {
@@ -23,6 +23,12 @@ function SignupInner() {
   const t = useTranslations();
   const auth = useAuth();
   const [busy, setBusy] = React.useState(false);
+  // "Sign in" keeps the return path as well (BUG-008, QA-003).
+  const [next, setNext] = React.useState('');
+
+  React.useEffect(() => {
+    setNext(safeNext(readQuery().get('next'), ''));
+  }, []);
 
   async function go() {
     setBusy(true);
@@ -40,7 +46,7 @@ function SignupInner() {
       footer={
         <>
           {t('auth.signup.haveAccount')}{' '}
-          <Link href={routes.login} className="font-medium text-primary hover:underline">
+          <Link href={withNext(routes.login, next)} className="font-medium text-primary hover:underline">
             {t('auth.signup.signIn')}
           </Link>
         </>

@@ -11,7 +11,9 @@ import { useStaff } from '@/src/staff/staff-provider';
 
 /**
  * SA9 refund (admin §4 SA9): the reason dialog with an amount on top. The amount defaults
- * to what is still refundable and is capped by the role's `refund_max_cents`; the credits
+ * to what is still refundable and is capped by the role's `refund_max_cents` — a ceiling per
+ * purchase, as the server checks it: this refund plus what the purchase has already
+ * refunded or has in flight, whoever issued them (QA-044); the credits
  * that will be drawn back are computed live from the purchase's own rate; a refund of
  * everything asks for the amount to be typed. One idempotency key per opened dialog, so
  * a double click or a retry after a timeout is the same refund (never a second Stripe call).
@@ -37,14 +39,17 @@ function RefundDialogInner({ purchaseId, onClose, onDone }: { purchaseId: string
 
   const p = detail.data;
   const refundable = p?.refundable_cents ?? 0;
-  const max = cap === null ? refundable : Math.min(refundable, cap);
+  // What the role cap still allows on this purchase (`StaffLimitsService.assertRefund`).
+  const inFlight = p?.refunds.filter((r) => r.status === 'pending').reduce((sum, r) => sum + r.amount_cents, 0) ?? 0;
+  const capLeft = cap === null ? null : Math.max(0, cap - (p?.refunded_cents ?? 0) - inFlight);
+  const max = capLeft === null ? refundable : Math.min(refundable, capLeft);
   const value = amount ?? (p ? (max / 100).toFixed(2) : '');
   const parsed = Number(value);
   const cents = value.trim() !== '' && Number.isFinite(parsed) ? Math.round(parsed * 100) : NaN;
-  const valid = Boolean(p) && Number.isFinite(cents) && cents >= 1 && cents <= refundable && (cap === null || cents <= cap);
+  const valid = Boolean(p) && Number.isFinite(cents) && cents >= 1 && cents <= refundable && (capLeft === null || cents <= capLeft);
   const credits = p && valid ? Math.round(((p.credits * cents) / p.amount_cents) * 100) / 100 : null;
   const full = Boolean(p) && valid && cents === refundable;
-  const amountError = !p || value.trim() === '' ? undefined : !Number.isFinite(cents) || cents < 1 ? 'Enter an amount.' : cents > refundable ? `At most ${formatCents(refundable, p.currency)} is left to refund.` : cap !== null && cents > cap ? `Over your per-refund cap of ${formatCents(cap, p.currency)}.` : undefined;
+  const amountError = !p || value.trim() === '' ? undefined : !Number.isFinite(cents) || cents < 1 ? 'Enter an amount.' : cents > refundable ? `At most ${formatCents(refundable, p.currency)} is left to refund.` : cap !== null && capLeft !== null && cents > capLeft ? `Over your cap of ${formatCents(cap, p.currency)} per purchase; ${formatCents(capLeft, p.currency)} of it is left on this one.` : undefined;
 
   async function confirm(body: StaffActionRequest) {
     if (!p || !valid) return;
@@ -74,7 +79,6 @@ function RefundDialogInner({ purchaseId, onClose, onDone }: { purchaseId: string
       destructive
       typeToConfirm={p && full ? (cents / 100).toFixed(2) : undefined}
       typeLabel={<>Type the amount <span className="font-mono">{(cents / 100).toFixed(2)}</span> to confirm a full refund</>}
-      defaultReason="customer_request"
       extraValid={valid && !refund.isPending}
       onConfirm={confirm}
     >
@@ -84,6 +88,8 @@ function RefundDialogInner({ purchaseId, onClose, onDone }: { purchaseId: string
         <Alert variant="danger">Could not load the purchase.</Alert>
       ) : refundable <= 0 ? (
         <Alert variant="danger">Nothing is left to refund on this purchase.</Alert>
+      ) : capLeft === 0 ? (
+        <Alert variant="danger">Your cap of {formatCents(cap ?? 0, p.currency)} per purchase is used up on this one. A role with a higher cap can refund the rest.</Alert>
       ) : (
         <Field
           id="refund-amount"
@@ -93,7 +99,7 @@ function RefundDialogInner({ purchaseId, onClose, onDone }: { purchaseId: string
           description={
             <>
               Refundable {formatCents(refundable, p.currency)} of {formatCents(p.amount_cents, p.currency)}
-              {cap !== null ? ` · your cap per refund ${formatCents(cap, p.currency)}` : ''}
+              {cap !== null && capLeft !== null ? ` · your cap ${formatCents(cap, p.currency)} per purchase, ${formatCents(capLeft, p.currency)} left` : ''}
               {credits !== null ? ` · reverses ${formatCredits(credits)} of ${formatCredits(p.credits)} credits` : ''}
             </>
           }

@@ -1,5 +1,6 @@
 import type { Brief, BriefDocument } from '@portal/schemas';
 import { applyGuardrails } from './guardrails';
+import { redactTransferNumbers, transferRoutes } from './staff-transfer';
 
 /**
  * W2 documents in the prompt the platform runs (ADR 0023).
@@ -34,16 +35,22 @@ export function documentsBlock(documents: readonly BriefDocument[]): string {
   return lines.join('\n');
 }
 
-/** The prompt exactly as the platform runs it: script, documents, then the fixed rules. */
+/**
+ * The prompt exactly as the platform runs it: script, documents, then the fixed rules.
+ * The script never carries a staff transfer number to the platform, whatever the stored
+ * text says (BUG-005, `staff-transfer.ts`); the documents are the business's own words
+ * and are left as written.
+ */
 export function runtimePrompt(
   promptText: string,
-  brief: Pick<Brief, 'documents'>,
+  brief: Pick<Brief, 'documents'> & Partial<Pick<Brief, 'handoff_rules'>>,
   guardrails?: string | readonly string[] | null,
 ): string {
+  const script = redactTransferNumbers(promptText, transferRoutes({ handoff_rules: brief.handoff_rules ?? [] }).map((route) => route.number));
   const block = documentsBlock(brief.documents ?? []);
   return block
-    ? applyGuardrails(`${stripDocuments(promptText)}\n\n${block}`, guardrails)
-    : applyGuardrails(promptText, guardrails);
+    ? applyGuardrails(`${stripDocuments(script)}\n\n${block}`, guardrails)
+    : applyGuardrails(script, guardrails);
 }
 
 /** Everything but a documents block — idempotency for a prompt that came back through here. */

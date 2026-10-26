@@ -3,6 +3,7 @@
 import { Auth0Client, type User } from '@auth0/auth0-spa-js';
 import { AuthRequiredError } from '@portal/api-client';
 import { CLAIM_MFA_ENROLLED } from '@portal/schemas';
+import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import { authConfigured, config } from '../config';
 import { routes, safeNext } from '../routes';
@@ -16,7 +17,11 @@ import { type StoredImpersonation, impersonationStore } from './impersonation';
  *
  *  - The callback is the app origin itself (`callbacks: [PORTAL_URL]` in
  *    infra/auth0/tenant.customer.yaml), so `/` handles `?code=&state=` and then goes to
- *    `appState.returnTo`.
+ *    `appState.returnTo`. The address bar is only cleaned here (back to `/`, so a
+ *    refresh cannot replay the code); the validated destination is handed to `/` as
+ *    `returnTo`, which navigates there with the router. Rewriting the URL to the
+ *    destination with `history.replaceState` left `/` mounted under it, and its gate
+ *    then sent everybody to /app/ (QA-001).
  *  - Tokens are cached in localStorage with rotating refresh tokens, so a page refresh
  *    does not bounce through Auth0 and the session survives the access token's lifetime.
  *  - `emailVerified` is the ID token's `email_verified`. A3 calls `refresh()` after the
@@ -66,6 +71,11 @@ interface AuthContextValue {
    * the banner and the API refuses every write.
    */
   impersonating: StoredImpersonation | null;
+  /**
+   * Where the sign-in that just completed asked to return to (`appState.returnTo`,
+   * validated by `safeNext`), until the person has left `/`. Null for an ordinary visit.
+   */
+  returnTo: string | null;
 }
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -101,6 +111,8 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
   const [user, setUser] = React.useState<AuthUser | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [impersonating, setImpersonating] = React.useState<StoredImpersonation | null>(null);
+  const [returnTo, setReturnTo] = React.useState<string | null>(null);
+  const pathname = usePathname();
   const onSignedInRef = React.useRef(onSignedIn);
   onSignedInRef.current = onSignedIn;
 
@@ -145,9 +157,11 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
       try {
         if (params.has('code') && params.has('state')) {
           const result = await c.handleRedirectCallback<{ returnTo?: string }>();
-          const returnTo = safeNext(result.appState?.returnTo, routes.root);
-          // Strip code/state so a refresh does not replay the callback (Auth0 rejects a reused code).
-          window.history.replaceState({}, '', returnTo);
+          // Strip code/state so a refresh does not replay the callback (Auth0 rejects a
+          // reused code). The page stays `/`; RootPage takes it from here with the router.
+          window.history.replaceState({}, '', routes.root);
+          const next = safeNext(result.appState?.returnTo, routes.root);
+          if (!cancelled && next !== routes.root) setReturnTo(next);
         } else if (params.has('error')) {
           // Auth0 sends `?error=…&error_description=…` when Universal Login could not finish.
           setError(params.get('error_description') ?? params.get('error') ?? 'login_failed');
@@ -173,6 +187,12 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
       cancelled = true;
     };
   }, []);
+
+  // Single use: once the person is anywhere but `/`, a later visit to `/` (the invite's
+  // "Open", a logo link) goes where the gate says, not back to an old deep link.
+  React.useEffect(() => {
+    if (pathname && pathname !== routes.root) setReturnTo(null);
+  }, [pathname]);
 
   const login = React.useCallback(async (opts: LoginOptions = {}) => {
     if (!authConfigured) throw new Error('Auth0 is not configured');
@@ -241,8 +261,8 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
   }, [user, impersonating]);
 
   const value = React.useMemo<AuthContextValue>(
-    () => ({ status, user, error, login, logout, getToken, refresh, configured: authConfigured || Boolean(impersonating), impersonating }),
-    [status, user, error, login, logout, getToken, refresh, impersonating],
+    () => ({ status, user, error, login, logout, getToken, refresh, configured: authConfigured || Boolean(impersonating), impersonating, returnTo }),
+    [status, user, error, login, logout, getToken, refresh, impersonating, returnTo],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

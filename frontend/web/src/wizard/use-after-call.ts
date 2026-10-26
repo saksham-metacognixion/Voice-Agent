@@ -1,6 +1,8 @@
 'use client';
 
-import { isApiError, useApi, useGetCall, useWorkspaceEvents } from '@portal/api-client';
+import { isApiError, useApi, useGetCall } from '@portal/api-client';
+// The shell's stream under /app (ADR 0019 §1), a stream of its own in the wizard.
+import { useLiveEvents } from '../dashboard/use-live-events';
 import type { CallDetail } from '@portal/schemas';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
@@ -85,7 +87,7 @@ export function useAfterCall(callId: string | null, enabled: boolean) {
     };
   }, [waiting, endedAt]);
 
-  useWorkspaceEvents(
+  useLiveEvents(
     callId ? [`call:${callId}`] : undefined,
     (event) => {
       if (event.type === 'ended' || event.type === 'analyzed') {

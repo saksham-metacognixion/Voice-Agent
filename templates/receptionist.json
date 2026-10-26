@@ -71,7 +71,8 @@
     "Answer from the business facts and FAQ",
     "If you cannot answer, take a message: name, callback number, reason",
     "Confirm the captured details back to the caller",
-    "Close politely"
+    "Ask whether there is anything else the caller needs, and carry on if there is",
+    "Only once the caller says there is nothing else, thank them for calling and end the call"
   ],
   "analysis_fields": [
     {
@@ -120,5 +121,5 @@
     "auto": "We are an independent garage doing maintenance, brakes, tyres and pre-purchase inspections on most makes. Courtesy car by arrangement.",
     "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
   },
-  "version": 1
+  "version": 2
 }

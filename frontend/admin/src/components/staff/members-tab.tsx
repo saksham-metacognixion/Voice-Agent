@@ -219,6 +219,7 @@ function ChangeRoleDialog({ member, onClose }: { member: StaffMemberResponse | n
       description={member ? `Currently ${ROLE_LABELS[member.role]}. The new limits apply on their next request.` : undefined}
       confirmLabel="Change role"
       destructive={role === 'super_admin'}
+      confirmDisabled={!changed}
       onConfirm={async () => {
         if (!member || !changed) return;
         await update(member.id, { role, note: note.trim() || undefined });

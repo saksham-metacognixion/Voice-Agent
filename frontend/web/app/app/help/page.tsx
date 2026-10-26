@@ -16,6 +16,7 @@ import { formatDateTime, formatNumber, formatPhone, formatTime } from '@/src/lib
 import { callPath, routes } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
 /**
  * D7 Help (spec p. 39): the forwarding, SIP and billing guides — each built from what
@@ -103,7 +104,7 @@ function SipGuideCard() {
 function BillingGuideCard() {
   const t = useTranslations('dashboard.help');
   const api = useApi();
-  const pricing = useGetPricing(api, undefined, { staleTime: 5 * 60_000 });
+  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
   const p = pricing.data;
   return (
     <Card id="billing">

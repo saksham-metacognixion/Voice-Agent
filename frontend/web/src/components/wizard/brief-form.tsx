@@ -1,6 +1,6 @@
 'use client';
 
-import { brief as briefSchema, faqPair, handoffRule, type Brief } from '@portal/schemas';
+import type { Brief } from '@portal/schemas';
 import { Alert, Badge, Button, Field, Input, RadioCard, RadioGroup, TagInput, Textarea, cn } from '@portal/ui';
 import { AlertCircle, Check, Cloud, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -161,24 +161,5 @@ export function SaveIndicator({ state, error, onRetry }: { state: SaveState; err
   );
 }
 
-/**
- * What the autosave may send. A row the person just added (an empty FAQ, a handoff rule
- * without its number or its message) is not storable yet, so it stays on the screen and out of the
- * PATCH until it is complete; any other field the at-rest schema refuses (a one-letter
- * agent name) is left out the same way. The form's own resolver shows the errors.
- */
-export function storableBrief(value: unknown): Brief | null {
-  const v = { ...(value as Record<string, unknown>) };
-  if (Array.isArray(v.faqs)) v.faqs = v.faqs.filter((row) => faqPair.safeParse(row).success);
-  if (Array.isArray(v.handoff_rules)) v.handoff_rules = v.handoff_rules.filter((row) => handoffRule.safeParse(row).success);
-  const first = briefSchema.safeParse(v);
-  if (first.success) return first.data;
-  const refused = new Set(first.error.issues.map((issue) => String(issue.path[0])));
-  for (const key of refused) delete v[key];
-  const second = briefSchema.safeParse(v);
-  if (!second.success) return null;
-  // Drop them again after the parse, or a defaulted field (`faqs: []`) would be sent as a wipe.
-  const out = second.data as Record<string, unknown>;
-  for (const key of refused) delete out[key];
-  return out as Brief;
-}
+/** Kept here for the pages that import it with the form body; the logic is `src/wizard/brief-patch.ts`. */
+export { storableBrief } from '@/src/wizard/brief-patch';

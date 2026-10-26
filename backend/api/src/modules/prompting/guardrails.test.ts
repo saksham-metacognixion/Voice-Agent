@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CLOSING_RULE,
+  LIST_RULE,
+  TRANSFER_RULE,
   DEFAULT_PLATFORM_GUARDRAILS,
+  FIXED_PLATFORM_GUARDRAILS,
   GUARDRAIL_HEADING,
   applyGuardrails,
   guardrailBlock,
@@ -164,22 +168,91 @@ describe('hasGuardrails', () => {
 
 describe('guardrailLines', () => {
   it('accepts the stack row’s newline-separated string and strips bullet characters', () => {
-    expect(guardrailLines('- One\n* Two\n• Three')).toEqual(['One', 'Two', 'Three']);
+    expect(guardrailLines('- One\n* Two\n• Three')).toEqual(['One', 'Two', 'Three', ...FIXED_PLATFORM_GUARDRAILS]);
   });
 
   it('never returns nothing', () => {
-    expect(guardrailLines(undefined)).toEqual([...DEFAULT_PLATFORM_GUARDRAILS]);
-    expect(guardrailLines('\n\n  \n')).toEqual([...DEFAULT_PLATFORM_GUARDRAILS]);
+    const all = [...DEFAULT_PLATFORM_GUARDRAILS, ...FIXED_PLATFORM_GUARDRAILS];
+    expect(guardrailLines(undefined)).toEqual(all);
+    expect(guardrailLines('\n\n  \n')).toEqual(all);
   });
 });
 
 describe('guardrailBlock', () => {
-  it('is a heading and one bullet per rule', () => {
+  it('is a heading and one bullet per rule, the fixed ones last', () => {
     const block = guardrailBlock(['A', 'B']);
-    expect(block).toBe(`${GUARDRAIL_HEADING}\n- A\n- B`);
+    const fixed = FIXED_PLATFORM_GUARDRAILS.map((rule) => `\n- ${rule}`).join('');
+    expect(block).toBe(`${GUARDRAIL_HEADING}\n- A\n- B${fixed}`);
   });
 });
 
 function occurrences(haystack: string, needle: string): number {
   return haystack.split(needle).length - 1;
 }
+
+/*
+ * 26 Oct: "Thank you for calling …" after an ordinary answer. The rule is fixed, so it
+ * reaches a live agent whose stored script still has the old ending — at its next sync,
+ * on a stack row (staging's v1) that never heard of it.
+ */
+describe('the closing rule', () => {
+  const V1_ROW = DEFAULT_PLATFORM_GUARDRAILS.map((rule) => `- ${rule}`).join('\n');
+
+  it('is appended to a stack row that does not carry it, once', () => {
+    expect(V1_ROW).not.toContain(CLOSING_RULE);
+    const prompt = applyGuardrails(BODY, V1_ROW);
+    expect(occurrences(prompt, CLOSING_RULE)).toBe(1);
+    expect(occurrences(applyGuardrails(prompt, V1_ROW), CLOSING_RULE)).toBe(1);
+  });
+
+  it('is not doubled when a row already words it the same', () => {
+    expect(occurrences(applyGuardrails(BODY, `${V1_ROW}\n- ${CLOSING_RULE}`), CLOSING_RULE)).toBe(1);
+  });
+
+  it('survives a customer deleting it from the Advanced editor', () => {
+    const edited = applyGuardrails(BODY).replace(`- ${CLOSING_RULE}\n`, '');
+    expect(applyGuardrails(edited)).toContain(CLOSING_RULE);
+  });
+
+  it('asks for anything else and holds the goodbye until the caller is done', () => {
+    expect(CLOSING_RULE).toMatch(/ask whether there is anything else/);
+    expect(CLOSING_RULE).toMatch(/is not a goodbye/);
+    expect(CLOSING_RULE).toMatch(/end the call in the same turn/);
+    // Naming the tool made agents on old scripts hang up mid-booking (ADR 0012).
+    expect(CLOSING_RULE).not.toMatch(/end_call/);
+  });
+});
+
+/*
+ * BUG-005 / BUG-007 (26 Oct): fixed like the closing rule, so a live agent gets them at its
+ * next sync on a stack row that never heard of them, and no customer edit removes them.
+ */
+describe('the transfer and list rules', () => {
+  const V1_ROW = DEFAULT_PLATFORM_GUARDRAILS.map((rule) => `- ${rule}`).join('\n');
+
+  it.each([
+    ['transfer', TRANSFER_RULE],
+    ['list', LIST_RULE],
+  ])('the %s rule is appended once to a v1 row and survives being deleted', (_name, rule) => {
+    const prompt = applyGuardrails(BODY, V1_ROW);
+    expect(occurrences(prompt, rule)).toBe(1);
+    expect(occurrences(applyGuardrails(prompt, V1_ROW), rule)).toBe(1);
+    expect(applyGuardrails(applyGuardrails(BODY).replace(`- ${rule}\n`, ''))).toContain(rule);
+  });
+
+  it('never lets a transfer number be said, offers the transfer, and covers a failed one', () => {
+    expect(TRANSFER_RULE).toMatch(/Never say a phone number you would transfer a caller to/);
+    expect(TRANSFER_RULE).toContain('Would you like me to transfer you to our staff?');
+    expect(TRANSFER_RULE).toMatch(/does not go through.*offer to take a message/);
+    // Only where a hand-off rule says so: an agent without one must not offer transfers.
+    expect(TRANSFER_RULE).toMatch(/When a hand-off rule says to transfer/);
+  });
+
+  it('caps a category answer at three or four items with an offer of more', () => {
+    expect(LIST_RULE).toMatch(/at most three or four items/);
+    expect(LIST_RULE).toMatch(/ask whether they would like to hear more/);
+    expect(LIST_RULE).toMatch(/full list only when the caller asks for all of it/);
+    expect(LIST_RULE).toMatch(/such as drinks with food/);
+    expect(LIST_RULE).toMatch(/price only when the caller asks/);
+  });
+});

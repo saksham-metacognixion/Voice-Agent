@@ -117,7 +117,8 @@ export const adminKpisResponse = z.object({
     outstanding_credits: z.number(),
     expired_in_range: z.number(),
   }),
-  concurrency: z.object({ live: z.number().int().nullable(), allowance: z.number().int() }),
+  /** `allowance` is null when no platform limit is set (`CONCURRENCY_PLATFORM_LIMIT`) — never a 0 to divide by. */
+  concurrency: z.object({ live: z.number().int().nullable(), allowance: z.number().int().nullable() }),
   knowledge: z.object({ bases: z.number().int() }),
   /** SA1 "needs attention" — links into SA12 / SA2. */
   attention: z.object({
@@ -323,6 +324,8 @@ export const adminNumbersQuery = paginationQuery.extend({
   q: z.string().trim().min(1).max(60).optional(),
   status: phoneNumberStatus.optional(),
   tenant_id: uuid.optional(),
+  /** `true`: only numbers with an unpaid rental (SA1 "Overdue number rentals" links here). */
+  rental_overdue: z.enum(['true', 'false']).optional(),
 });
 export type AdminNumbersQuery = z.infer<typeof adminNumbersQuery>;
 
@@ -350,10 +353,15 @@ export const adminCallResponse = callSummary.extend({
 export type AdminCallResponse = z.infer<typeof adminCallResponse>;
 
 /** Every customer-affecting staff write carries a reason (admin §10, Appendix B). */
+/** The longest note a staff reason accepts; the console's textarea reads the same number (QA-050). */
+export const STAFF_NOTE_MAX = 1000;
+/** View-as notes are shorter: they are shown on the customer-side banner record. */
+export const IMPERSONATE_NOTE_MAX = 500;
+
 export const staffActionRequest = z
   .object({
     reason_code: reasonCode,
-    note: z.string().trim().min(1).max(1000).optional(),
+    note: z.string().trim().min(1).max(STAFF_NOTE_MAX).optional(),
     ticket_id: z.number().int().positive().optional(),
   })
   .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {
@@ -432,6 +440,7 @@ export const adminUserActionResponse = z.object({
   /** `applied` = the identity provider was updated; `skipped` = no Management API configured (dev), local state only. */
   /** `failed` only on force logout: our own revocation held, the identity provider refused (see `provider_error`). */
   provider: z.enum(['applied', 'skipped', 'failed']),
+  /** Force logout's failure, or a lock whose session revoke the provider refused (QA-042). */
   provider_error: z.string().nullable().optional(),
 });
 export type AdminUserActionResponse = z.infer<typeof adminUserActionResponse>;
@@ -509,8 +518,14 @@ export const adminWebhookEventResponse = z.object({
 export type AdminWebhookEventResponse = z.infer<typeof adminWebhookEventResponse>;
 
 export const adminWebhookEventDetail = adminWebhookEventResponse.extend({
-  /** The stored body. Staff-only; a Stripe event carries no card data and a Retell one no key. */
+  /**
+   * The stored body. Staff-only; a Stripe event carries no card data and a Retell one no key.
+   * Recording links, transcripts and the call summary are blanked unless the viewer's role
+   * has `can_listen_recordings` (QA-033), and every view is audited (`webhook.payload_viewed`).
+   */
   payload: z.unknown(),
+  /** True when this viewer's copy had recording or transcript fields blanked. */
+  payload_redacted: z.boolean(),
 });
 export type AdminWebhookEventDetail = z.infer<typeof adminWebhookEventDetail>;
 
@@ -532,14 +547,29 @@ export const adminFeatureFlag = z.object({
 });
 export type AdminFeatureFlag = z.infer<typeof adminFeatureFlag>;
 
-export const adminUpsertFlagRequest = z.object({
-  description: z.string().trim().max(300).nullable().optional(),
-  default_on: z.boolean().optional(),
-  rollout_pct: z.number().int().min(0).max(100).optional(),
-  tenant_overrides: z.record(z.boolean()).optional(),
-  reason_code: reasonCode.optional(),
-  note: z.string().trim().max(500).optional(),
-});
+/**
+ * A feature-flag key: lower-case letters, digits and underscores, 2–64 characters. The
+ * API refuses anything else and the console validates with the same pattern (QA-046).
+ */
+export const FLAG_KEY_PATTERN = /^[a-z][a-z0-9_]{1,63}$/;
+
+/**
+ * A flag change moves what customers see, so it carries a reason like every other staff
+ * write (admin Appendix B, QA-035): required, and a note required with `other`.
+ */
+export const adminUpsertFlagRequest = z
+  .object({
+    description: z.string().trim().max(300).nullable().optional(),
+    default_on: z.boolean().optional(),
+    rollout_pct: z.number().int().min(0).max(100).optional(),
+    tenant_overrides: z.record(z.boolean()).optional(),
+    reason_code: reasonCode,
+    note: z.string().trim().min(1).max(500).optional(),
+  })
+  .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {
+    message: 'A note is required with reason "other".',
+    path: ['note'],
+  });
 export type AdminUpsertFlagRequest = z.infer<typeof adminUpsertFlagRequest>;
 
 export const adminKillSwitch = z.object({
@@ -680,21 +710,41 @@ export const adminPricingPreviewResponse = z.object({
 });
 export type AdminPricingPreviewResponse = z.infer<typeof adminPricingPreviewResponse>;
 
-export const adminPricingPublishRequest = z.object({
-  effective_at: isoDateTime.optional(),
-  grandfather_mode: z
-    .enum(['keep_until_next_purchase', 'apply_now'])
-    .default('keep_until_next_purchase'),
-  change_summary: z.string().trim().min(1).max(500).optional(),
-  /** Publish past a margin-floor blocker (super admin, with a note). */
-  override_margin: z.boolean().default(false),
-  note: z.string().trim().max(500).optional(),
-});
+/**
+ * Publishing or rolling back pricing changes what every customer pays, so it carries a
+ * reason like every other customer-affecting staff write (admin Appendix B, QA-039).
+ */
+export const adminPricingPublishRequest = z
+  .object({
+    effective_at: isoDateTime.optional(),
+    grandfather_mode: z
+      .enum(['keep_until_next_purchase', 'apply_now'])
+      .default('keep_until_next_purchase'),
+    change_summary: z.string().trim().min(1).max(500).optional(),
+    /** Publish past a margin-floor blocker (super admin, with a note). */
+    override_margin: z.boolean().default(false),
+    reason_code: reasonCode,
+    note: z.string().trim().min(1).max(500).optional(),
+    ticket_id: z.number().int().positive().optional(),
+  })
+  .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {
+    message: 'A note is required with reason "other".',
+    path: ['note'],
+  });
 export type AdminPricingPublishRequest = z.infer<typeof adminPricingPublishRequest>;
 
-export const adminPricingRollbackRequest = z.object({
-  note: z.string().trim().max(500).optional(),
-});
+/** Rollback takes publish's checks too (QA-040): the margin floor can be overridden the same way. */
+export const adminPricingRollbackRequest = z
+  .object({
+    override_margin: z.boolean().default(false),
+    reason_code: reasonCode,
+    note: z.string().trim().min(1).max(500).optional(),
+    ticket_id: z.number().int().positive().optional(),
+  })
+  .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {
+    message: 'A note is required with reason "other".',
+    path: ['note'],
+  });
 export type AdminPricingRollbackRequest = z.infer<typeof adminPricingRollbackRequest>;
 
 /** `PUT /admin/retell-costs` — what a minute costs us, for the margin check. */
@@ -723,7 +773,7 @@ export const adminImpersonateRequest = z
   .object({
     mode: impersonationMode.default('view'),
     reason_code: reasonCode,
-    note: z.string().trim().min(1).max(500).optional(),
+    note: z.string().trim().min(1).max(IMPERSONATE_NOTE_MAX).optional(),
     ticket_id: z.number().int().positive().optional(),
   })
   .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {
@@ -828,7 +878,8 @@ export const adminSystemHealthResponse = z.object({
   jobs: adminHealthCheck.extend({ failed_24h: z.number().int(), queued: z.number().int() }),
   concurrency: adminHealthCheck.extend({
     live: z.number().int().nullable(),
-    allowance: z.number().int(),
+    /** Null when no platform limit is set. */
+    allowance: z.number().int().nullable(),
   }),
   kill_switches_on: z.array(z.string()),
 });
@@ -890,3 +941,26 @@ export const adminCustomerAuditQuery = paginationQuery.extend({
   source: z.enum(['customer', 'staff']).default('customer'),
 });
 export type AdminCustomerAuditQuery = z.infer<typeof adminCustomerAuditQuery>;
+
+/**
+ * The admin §2.2 matrix as the routes apply it (`@StaffRoles`): one list per group, read by
+ * the controllers and by the console's permission checks, so a button the API would answer
+ * 403 FORBIDDEN_ROLE to is never enabled because a limit was ticked in SA13 (QA-048).
+ * The finer `staff_role_limits` are checked on top, in both places.
+ */
+export const STAFF_ROUTE_ROLES = {
+  /** Agent, number, user and workspace pause/resume, the support desk's writes. */
+  mutate: ['super_admin', 'ops', 'support'],
+  /** Credit adjustments, refunds and top-up actions. */
+  money: ['super_admin', 'ops', 'finance', 'support'],
+  /** Jobs, webhook replays, flags and kill switches. */
+  system: ['super_admin', 'ops'],
+  /** The pricing draft and the cost inputs. */
+  pricingEdit: ['super_admin', 'finance'],
+  /** Pricing publish and rollback. */
+  pricingPublish: ['super_admin'],
+  /** Starting a read-only view-as session. */
+  viewAs: ['super_admin', 'ops', 'finance', 'support'],
+  /** A stored webhook body (QA-033); its contents are narrowed again by `can_listen_recordings`. */
+  payloadView: ['super_admin', 'ops', 'finance', 'support'],
+} as const satisfies Record<string, ReadonlyArray<z.infer<typeof staffRole>>>;

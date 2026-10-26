@@ -44,6 +44,14 @@ describe('mergeBrief — the W2 autosave', () => {
   it('keeps the disclosure default rather than dropping it', () => {
     expect(mergeBrief(briefSchema.parse({}), { goal: 'Answer calls.' }).ai_disclosure).toBe('if_asked');
   });
+
+  it('null clears an optional field and leaves the rest alone (QA-006)', () => {
+    const merged = mergeBrief(FULL, { agent_name: null, never_do: null });
+    expect(merged).not.toHaveProperty('agent_name');
+    expect(merged).not.toHaveProperty('never_do');
+    expect(merged.goal).toBe(FULL.goal);
+    expect(merged.services).toEqual(FULL.services);
+  });
 });
 
 describe('mergeBriefPatch — the §9.6 model patch', () => {

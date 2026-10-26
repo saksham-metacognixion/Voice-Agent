@@ -22,7 +22,7 @@ export function AgentsTable({ rows, showCustomer = true, onOpen }: { rows: Admin
   const pause = useAdminPauseAgent(api);
   const resume = useAdminResumeAgent(api);
   const [target, setTarget] = React.useState<{ agent: AdminAgentResponse; action: 'pause' | 'resume' } | null>(null);
-  const denied = can.supportActions();
+  const denied = can.pauseAgentOrNumber();
 
   async function run(body: StaffActionRequest) {
     if (!target) return;
@@ -100,7 +100,6 @@ export function AgentsTable({ rows, showCustomer = true, onOpen }: { rows: Admin
         consequences={target?.action === 'pause' ? ['Every number bound to the agent declines inbound calls.', 'The customer sees the agent as paused and can resume it themselves.', 'The voice platform is not called; drafts and versions are untouched.'] : ['The published version answers calls again on its numbers.']}
         confirmLabel={target?.action === 'pause' ? 'Pause agent' : 'Resume agent'}
         destructive={target?.action === 'pause'}
-        defaultReason={target?.action === 'pause' ? 'abuse_policy' : 'customer_request'}
         onConfirm={run}
       />
     </>

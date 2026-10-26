@@ -16,6 +16,8 @@ import { JobQueues, QUEUES } from '../jobs';
 import { WebhookProcessingService } from '../webhooks';
 import { iso, record, uuidParam, idMatch } from './admin.helpers';
 import { StaffAuditService } from './staff-audit.service';
+import { StaffLimitsService } from './staff-limits.service';
+import { redactWebhookPayload } from './webhook-payload';
 
 /**
  * SA12 "Webhook events" (D12 §11). The rows are `webhook_events` as the receivers store
@@ -23,6 +25,12 @@ import { StaffAuditService } from './staff-audit.service';
  * none — Stripe puts ours in `metadata.workspace_id`, Retell in `call.metadata.tenant_id`.
  * Replay runs the stored body through the same handler the queue runs
  * (`WebhookProcessingService.replay`), inline, so the staff member sees the outcome.
+ *
+ * The stored body is a whole call for the voice platform — recordings and transcript
+ * included — so opening one is a logged read (QA-033): the sensitive fields are blanked
+ * unless the role has `can_listen_recordings`, and every view writes `webhook.payload_viewed`
+ * (which fields were sensitive and whether they were shown, never their values). The list
+ * and the replay answer carry no payload at all.
  */
 @Injectable()
 export class AdminWebhooksService {
@@ -32,6 +40,7 @@ export class AdminWebhooksService {
     private readonly processing: WebhookProcessingService,
     private readonly queues: JobQueues,
     private readonly audit: StaffAuditService,
+    private readonly limits: StaffLimitsService,
   ) {}
 
   async list(query: AdminWebhookEventsQuery): Promise<Page<AdminWebhookEventResponse>> {
@@ -78,12 +87,37 @@ export class AdminWebhooksService {
     return { ...page, items };
   }
 
-  async get(idRaw: string): Promise<AdminWebhookEventDetail> {
+  async get(
+    staff: StaffContext,
+    idRaw: string,
+    request: FastifyRequest,
+  ): Promise<AdminWebhookEventDetail> {
     const id = uuidParam(idRaw, 'Webhook event');
     const row = await adminDb.webhookEvent.findUnique({ where: { id } });
     if (!row) throw AppError.notFound('Webhook event');
     const [item] = await this.decorate([row]);
-    return { ...item!, payload: row.payloadJson };
+    const { can_listen_recordings: full } = await this.limits.limitsFor(staff.role);
+    const blanked = redactWebhookPayload(row.payloadJson);
+    // Audited before it is answered: no audit row, no payload.
+    await this.audit.record({
+      staff,
+      action: 'webhook.payload_viewed',
+      targetType: 'webhook_event',
+      targetId: id,
+      tenantId: item!.tenant_id,
+      after: {
+        provider: row.provider,
+        event_type: row.eventType,
+        access: blanked.redacted.length === 0 ? 'no_sensitive_fields' : full ? 'full' : 'redacted',
+        sensitive_fields: blanked.redacted,
+      },
+      request,
+    });
+    return {
+      ...item!,
+      payload: full ? row.payloadJson : blanked.payload,
+      payload_redacted: !full && blanked.redacted.length > 0,
+    };
   }
 
   async replay(
@@ -135,7 +169,10 @@ export class AdminWebhooksService {
     this.log.warn(
       `webhook ${id} (${row.provider} ${row.eventType}) replayed by ${staff.email}: ${result.outcome}`,
     );
-    return { event: await this.get(id), outcome: result.outcome, reason: result.reason ?? null };
+    // The row as it is now, without its body: a replay is not a payload view.
+    const fresh = await adminDb.webhookEvent.findUniqueOrThrow({ where: { id } });
+    const [event] = await this.decorate([fresh]);
+    return { event: event!, outcome: result.outcome, reason: result.reason ?? null };
   }
 
   private async decorate(

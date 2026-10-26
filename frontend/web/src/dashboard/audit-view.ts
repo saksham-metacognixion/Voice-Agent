@@ -1,3 +1,5 @@
+import { memberRole, planTier, reasonCode } from '@portal/schemas';
+
 /**
  * `audit_log.action` is `<area>.<verb>` written by whichever service did the thing
  * (`agent.published`, `number.release_requested`, `member.role_changed`…). The list is
@@ -7,7 +9,7 @@
  */
 
 /** The D6 area filter, in the order it lists them (`GET /audit-log?area=`). */
-export const AUDIT_AREAS = ['agent', 'number', 'knowledge', 'member', 'invite', 'workspace', 'phone_plan', 'billing', 'auto_topup'] as const;
+export const AUDIT_AREAS = ['agent', 'number', 'knowledge', 'member', 'invite', 'workspace', 'phone_plan', 'billing', 'auto_topup', 'credits', 'purchase', 'user', 'support'] as const;
 export type AuditArea = (typeof AUDIT_AREAS)[number];
 
 /** Actions the message file names, as `dashboard.settings.audit.actions.<area>_<verb>`. */
@@ -41,6 +43,19 @@ export const KNOWN_AUDIT_ACTIONS = new Set([
   'billing.portal_session',
   'auto_topup.enabled',
   'auto_topup.disabled',
+  // Written by the support team from the admin console (`meta.by = 'staff'`, ADR 0021).
+  'workspace.paused',
+  'workspace.resumed',
+  'number.paused',
+  'number.resumed',
+  'credits.adjusted',
+  'purchase.refunded',
+  'user.email_verified',
+  'user.mfa_reset',
+  'user.locked',
+  'user.unlocked',
+  'user.force_logout',
+  'support.ticket_opened',
 ]);
 
 export function auditActionKey(action: string): string | null {
@@ -96,13 +111,52 @@ export const KNOWN_AUDIT_META = new Set([
   'trial_credits',
   'lint_warnings',
   'existing_agents',
+  // A role change (`member.role_changed`).
+  'from',
+  'to',
+  // Auto top-up settings.
+  'pack_id',
+  'threshold',
+  'card_last4',
+  // Staff writes: the Appendix B reason, the credits moved and the line for the customer.
+  'reason_code',
+  'delta',
+  'credits_reversed',
+  'text',
+  'subject',
 ]);
+
+/** Who did it, as the Who column words it: a member, the support team, or the platform. */
+export type AuditActorKind = 'member' | 'staff' | 'system';
+
+/**
+ * A staff write has no `actor_user_id` — staff are not workspace members — and marks
+ * itself `meta.by = 'staff'`; without that mark a null actor is a schedule or a webhook.
+ */
+export function auditActorKind(entry: { actor: unknown; meta: Record<string, unknown> | null | undefined }): AuditActorKind {
+  if (entry.actor) return 'member';
+  return entry.meta?.by === 'staff' ? 'staff' : 'system';
+}
+
+const ROLES = new Set<string>(memberRole.options);
+const TIERS = new Set<string>(planTier.options);
+const REASONS = new Set<string>(reasonCode.options);
+
+/** The message key that words an id-valued fact (a role, a pack, a reason code), else null. */
+function valueKey(key: string, value: string): string | null {
+  if ((key === 'role' || key === 'from' || key === 'to') && ROLES.has(value)) return `common.role.${value}`;
+  if (key === 'pack_id' && TIERS.has(value)) return `common.tier.${value}`;
+  if (key === 'reason_code' && REASONS.has(value)) return `dashboard.settings.audit.reasons.${value}`;
+  return null;
+}
 
 export interface AuditMetaPair {
   /** The raw key; the table labels it through the message file. */
   key: string;
   /** A boolean is left for the table to word (yes/no is copy); everything else is data. */
   value: string | boolean;
+  /** Set when the value is an id the message file words (`common.role.admin`); the table shows that instead. */
+  valueKey?: string;
 }
 
 /**
@@ -123,7 +177,8 @@ export function auditMetaPairs(meta: Record<string, unknown> | null | undefined,
     else if (typeof value === 'string') text = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(value) ? `${value.slice(0, 8)}…` : value.slice(0, 80);
     else if (Array.isArray(value) && value.every((v) => typeof v === 'string')) text = value.join(', ').slice(0, 80);
     else continue;
-    out.push({ key, value: text });
+    const wordedBy = typeof text === 'string' ? valueKey(key, text) : null;
+    out.push(wordedBy ? { key, value: text, valueKey: wordedBy } : { key, value: text });
   }
   return out;
 }

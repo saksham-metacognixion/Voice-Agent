@@ -71,7 +71,7 @@ export function HealthCards({ h }: { h: AdminSystemHealthResponse }) {
         </HealthCard>
         <HealthCard title="Concurrency" check={h.concurrency}>
           <p className="text-xs text-muted-foreground">
-            {h.concurrency.live ?? '?'} live / {h.concurrency.allowance} allowance
+            {h.concurrency.live ?? '?'} live{h.concurrency.allowance ? ` / ${h.concurrency.allowance} allowance` : ' · no allowance set'}
           </p>
         </HealthCard>
       </div>

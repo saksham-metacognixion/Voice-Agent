@@ -72,6 +72,8 @@ function UserDetail() {
     await queryClient.invalidateQueries({ queryKey: ['adminCustomerMembers'] });
     if (res.provider === 'skipped') toast.warning('Applied locally only — identity provider not configured');
     else if (res.provider === 'failed') toast.error('Sessions ended in the API, but the identity provider refused', { description: res.provider_error ?? 'Retry to revoke its sessions too.' });
+    // A lock whose session revoke the provider refused (QA-042): locked, but say so.
+    else if (res.provider_error) toast.warning(ACTIONS[a].done, { description: res.provider_error });
     else toast.success(ACTIONS[a].done);
   }
 
@@ -171,7 +173,6 @@ function UserDetail() {
           destructive={ACTIONS[action].destructive}
           typeToConfirm={ACTIONS[action].destructive ? (u?.email ?? undefined) : undefined}
           typeLabel="Type the email address to confirm"
-          defaultReason={action === 'lock' ? 'fraud_suspected' : 'customer_request'}
           onConfirm={(body) => run(action, body)}
         />
       ) : null}

@@ -142,6 +142,19 @@ export class WorkspacesService {
     return toResponse(tenant, ctx.role);
   }
 
+  /**
+   * POST /workspace/onboarding-step — moves the §6.4 resume pointer forward, never back:
+   * the conditional update is the rule, so two tabs or a stale page cannot rewind it.
+   * Not audited — it is a wizard bookmark, not a setting.
+   */
+  async advanceOnboarding(ctx: WorkspaceContext, step: number): Promise<WorkspaceResponse> {
+    const tenant = await withWorkspace(ctx, async (db) => {
+      await db.tenant.updateMany({ where: { id: ctx.workspaceId, onboardingStep: { lt: step } }, data: { onboardingStep: step } });
+      return db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId } });
+    });
+    return toResponse(tenant, ctx.role);
+  }
+
   /** PATCH /workspace — D6 Settings. Owner or admin (§6.1 "change workspace settings"). */
   async update(ctx: WorkspaceContext, input: UpdateWorkspaceRequest, ip?: string): Promise<WorkspaceResponse> {
     if (input.timezone) assertTimezone(input.timezone);

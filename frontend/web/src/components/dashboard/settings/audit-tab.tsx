@@ -9,7 +9,7 @@ import * as React from 'react';
 import { DataTable, type DataColumn } from '@/src/components/dashboard/data-table';
 import { Pager } from '@/src/components/dashboard/pager';
 import { LoadError } from '@/src/components/dashboard/query-states';
-import { AUDIT_AREAS, auditActionKey, auditMetaPairs, humaniseAction, type AuditArea } from '@/src/dashboard/audit-view';
+import { AUDIT_AREAS, auditActionKey, auditActorKind, auditMetaPairs, humaniseAction, type AuditArea } from '@/src/dashboard/audit-view';
 import { formatDateTime } from '@/src/lib/format';
 import { useCursorPager } from '@/src/lib/use-cursor-pager';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -46,7 +46,7 @@ export function AuditTab() {
             {e.actor.name ? <span className="break-all text-xs text-muted-foreground">{e.actor.email}</span> : null}
           </span>
         ) : (
-          <span className="text-muted-foreground">{t('system')}</span>
+          <span className="text-muted-foreground">{auditActorKind(e) === 'staff' ? t('staff') : t('system')}</span>
         ),
     },
     {
@@ -57,9 +57,9 @@ export function AuditTab() {
         if (!pairs.length) return <span className="text-muted-foreground">–</span>;
         return (
           <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
-            {pairs.map(({ key, value }) => (
+            {pairs.map(({ key, value, valueKey }) => (
               <li key={key} className="break-words">
-                <span className="text-foreground">{t(`meta.${key}` as never)}:</span> {typeof value === 'boolean' ? tc(value ? 'common.yes' : 'common.no') : value}
+                <span className="text-foreground">{t(`meta.${key}` as never)}:</span> {typeof value === 'boolean' ? tc(value ? 'common.yes' : 'common.no') : valueKey ? tc(valueKey as never) : value}
               </li>
             ))}
           </ul>
