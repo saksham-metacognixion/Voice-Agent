@@ -110,7 +110,7 @@ export function VersionsTab({ agent, canEdit }: { agent: AgentDetail; canEdit: b
         ))}
       </ul>
       <div className="hidden overflow-x-auto rounded-lg border border-border bg-card sm:block">
-        <table className="w-full min-w-0 text-left text-sm md:min-w-[40rem]">
+        <table className="w-full min-w-0 text-start text-sm md:min-w-[40rem]">
           <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
               <th className="w-10 px-3 py-2.5 font-medium">{t('pick')}</th>
@@ -118,7 +118,7 @@ export function VersionsTab({ agent, canEdit }: { agent: AgentDetail; canEdit: b
               <th className="hidden px-3 py-2.5 font-medium sm:table-cell">{t('source')}</th>
               <th className="hidden px-3 py-2.5 font-medium sm:table-cell">{t('created')}</th>
               <th className="hidden px-3 py-2.5 font-medium md:table-cell">{t('changes')}</th>
-              <th className="px-3 py-2.5 text-right font-medium">{t('actions')}</th>
+              <th className="px-3 py-2.5 text-end font-medium">{t('actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -170,7 +170,7 @@ function VersionCard({ version: v, timeZone, picked, onPick, onView, onRestore, 
       </div>
       {v.published_at ? <p className="text-xs text-muted-foreground">{t('publishedAt', { when: formatDateTime(v.published_at, timeZone) })}</p> : null}
       {v.changes?.length ? (
-        <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+        <ul className="list-disc space-y-0.5 ps-5 text-xs text-muted-foreground">
           {v.changes.slice(0, 3).map((c, i) => (
             <li key={i} className="break-words">
               {c}
@@ -220,7 +220,7 @@ function VersionRow({ version: v, timeZone, picked, onPick, onView, onRestore, o
       </td>
       <td className="hidden max-w-[18rem] px-3 py-2.5 text-xs text-muted-foreground md:table-cell">
         {v.changes?.length ? (
-          <ul className="list-disc pl-4">
+          <ul className="list-disc ps-4">
             {v.changes.slice(0, 3).map((c, i) => (
               <li key={i} className="truncate">
                 {c}
@@ -293,7 +293,7 @@ function VersionBody({ version }: { version: AgentVersionDetail }) {
       ) : null}
       <div>
         <p className="text-xs font-medium text-muted-foreground">{t('prompt')}</p>
-        <pre className="mt-1 max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 font-mono text-xs leading-relaxed">{version.editable_prompt ?? t('noPrompt')}</pre>
+        <pre dir="auto" className="mt-1 max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/40 p-3 font-mono text-xs leading-relaxed">{version.editable_prompt ?? t('noPrompt')}</pre>
       </div>
       {version.feedback_text ? (
         <div>
@@ -338,10 +338,10 @@ function DiffDialog({ agentId, a, b, onClose }: { agentId: string; a: number; b:
         ) : state.status === 'error' ? (
           <p className="text-sm text-danger">{errorMessage(state.error, tc)}</p>
         ) : (
-          <pre className="max-h-[65vh] overflow-auto rounded-md border border-border font-mono text-xs leading-relaxed">
+          <pre dir="auto" className="max-h-[65vh] overflow-auto rounded-md border border-border font-mono text-xs leading-relaxed">
             {state.ops.map((op, i) => (
               <div key={i} className={cn('whitespace-pre-wrap px-3', op.kind === 'add' && 'bg-success/15 text-foreground', op.kind === 'del' && 'bg-danger/10 text-muted-foreground line-through decoration-danger/50')}>
-                <span className="mr-2 inline-block w-3 select-none text-muted-foreground">{op.kind === 'add' ? '+' : op.kind === 'del' ? '−' : ' '}</span>
+                <span className="me-2 inline-block w-3 select-none text-muted-foreground">{op.kind === 'add' ? '+' : op.kind === 'del' ? '−' : ' '}</span>
                 {op.text || ' '}
               </div>
             ))}

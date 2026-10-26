@@ -1,3 +1,4 @@
+import { activeIntlLocale, activeLocale, localeDirection } from '../i18n';
 import type { PricingResponse } from '@portal/schemas';
 
 type Pack = PricingResponse['packs'][number];
@@ -10,9 +11,12 @@ export function cheapestPackWith(pricing: PricingResponse | undefined, gate: Gat
 }
 
 export function formatMoney(cents: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency, minimumFractionDigits: cents % 100 === 0 ? 0 : 2 }).format(cents / 100);
+  const text = new Intl.NumberFormat(activeIntlLocale(), { style: 'currency', currency, minimumFractionDigits: cents % 100 === 0 ? 0 : 2 }).format(cents / 100);
+  // Arabic gives `‏149 US$`; inside a right-to-left line the trailing `$` is pulled to the
+  // other side ("$US 149"). Isolated left to right it reads `149 US$` wherever it lands.
+  return localeDirection(activeLocale()) === 'rtl' ? `\u2066${text.replace(/[\u200e\u200f]/g, '')}\u2069` : text;
 }
 
 export function formatCredits(credits: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(credits);
+  return new Intl.NumberFormat(activeIntlLocale(), { maximumFractionDigits: 2 }).format(credits);
 }

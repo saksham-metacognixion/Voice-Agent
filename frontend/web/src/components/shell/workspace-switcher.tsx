@@ -29,7 +29,7 @@ export function WorkspaceSwitcher({ className }: { className?: string }) {
             <span className="max-w-full truncate text-sm font-medium leading-tight sm:max-w-[10rem]">{active?.name ?? t('nav.workspace')}</span>
             {active ? <span className="text-[11px] leading-tight text-muted-foreground">{t(`shell.role.${active.role}` as never)}</span> : null}
           </span>
-          <ChevronsUpDown className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
+          <ChevronsUpDown className="ms-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">

@@ -1,15 +1,18 @@
 /**
  * One place for the numbers and dates the dashboard shows. Everything takes the
  * workspace timezone where a date is involved: "today" is the customer's day (§13.11,
- * `tenants.timezone`), never the browser's or UTC.
+ * `tenants.timezone`), never the browser's or UTC. The language is the portal's
+ * (`activeIntlLocale()`), never the browser's.
  */
+
+import { activeIntlLocale, activeLocale, localeDirection } from '../i18n';
 
 export function formatDateTime(iso: string | null | undefined, timeZone?: string, opts: { seconds?: boolean } = {}): string {
   if (!iso) return '–';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '–';
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat(activeIntlLocale(), {
       timeZone,
       month: 'short',
       day: 'numeric',
@@ -28,7 +31,7 @@ export function formatDate(iso: string | null | undefined, timeZone?: string): s
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '–';
   try {
-    return new Intl.DateTimeFormat(undefined, { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat(activeIntlLocale(), { timeZone, year: 'numeric', month: 'short', day: 'numeric' }).format(date);
   } catch {
     return date.toISOString().slice(0, 10);
   }
@@ -39,7 +42,7 @@ export function formatTime(iso: string | null | undefined, timeZone?: string): s
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '–';
   try {
-    return new Intl.DateTimeFormat(undefined, { timeZone, hour: 'numeric', minute: '2-digit' }).format(date);
+    return new Intl.DateTimeFormat(activeIntlLocale(), { timeZone, hour: 'numeric', minute: '2-digit' }).format(date);
   } catch {
     return date.toISOString();
   }
@@ -51,7 +54,7 @@ export function formatDayLabel(ymd: string, style: 'short' | 'weekday' = 'short'
   if (!y || !m || !d) return ymd;
   const date = new Date(Date.UTC(y, m - 1, d));
   try {
-    return new Intl.DateTimeFormat(undefined, style === 'weekday' ? { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' } : { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat(activeIntlLocale(), style === 'weekday' ? { timeZone: 'UTC', weekday: 'short', month: 'short', day: 'numeric' } : { timeZone: 'UTC', month: 'short', day: 'numeric' }).format(date);
   } catch {
     return ymd;
   }
@@ -70,20 +73,25 @@ export function formatDuration(seconds: number | null | undefined): string {
 
 export function formatNumber(value: number | null | undefined, maxFractionDigits = 2): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '–';
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: maxFractionDigits }).format(value);
+  return new Intl.NumberFormat(activeIntlLocale(), { maximumFractionDigits: maxFractionDigits }).format(value);
 }
 
 /** Credits to two decimals, the way the balance pill and the wallet show them (§5.1). */
 export function formatCreditsValue(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '–';
-  return new Intl.NumberFormat(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
+  return new Intl.NumberFormat(activeIntlLocale(), { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(value);
 }
 
-/** `+14165550100` → `+1 416 555 0100` for a NANP number; other numbers are left alone. */
+/**
+ * `+14165550100` → `+1 416 555 0100` for a NANP number; other numbers are left alone. On a
+ * right-to-left page the number is wrapped in a left-to-right isolate (U+2066…U+2069), so
+ * the `+` stays in front wherever the string lands — a table cell, a toast, a sentence.
+ */
 export function formatPhone(e164: string | null | undefined): string {
   if (!e164) return '–';
   const m = /^\+1(\d{3})(\d{3})(\d{4})$/.exec(e164);
-  return m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164;
+  const text = m ? `+1 ${m[1]} ${m[2]} ${m[3]}` : e164;
+  return localeDirection(activeLocale()) === 'rtl' ? `\u2066${text}\u2069` : text;
 }
 
 /** The local calendar date (`YYYY-MM-DD`) of an instant in a timezone. */

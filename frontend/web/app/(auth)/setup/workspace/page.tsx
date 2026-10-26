@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { track } from '@/src/analytics/posthog';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RequireVerified } from '@/src/guards/guards';
-import { COUNTRIES, browserTimezone, timezones } from '@/src/lib/countries';
+import { COUNTRIES, browserTimezone, countryName, timezoneLabel, timezones } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -101,7 +101,7 @@ function SetupInner() {
                   <SelectContent>
                     {COUNTRIES.map((c) => (
                       <SelectItem key={c.code} value={c.code}>
-                        {c.name}
+                        {countryName(c.code)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -121,7 +121,7 @@ function SetupInner() {
                   <SelectContent>
                     {zones.map((z) => (
                       <SelectItem key={z} value={z}>
-                        {z.replace(/_/g, ' ')}
+                        {timezoneLabel(z)}
                       </SelectItem>
                     ))}
                   </SelectContent>

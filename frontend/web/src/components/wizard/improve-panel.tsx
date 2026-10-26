@@ -90,7 +90,7 @@ export function ImprovePanel({ agent }: { agent: AgentDetail }) {
         {applied ? (
           <Alert variant="success" title={ti('doneTitle', { version: draft.version_no })} actions={<Button size="sm" variant="outline" onClick={reset}>{t('common.close')}</Button>}>
             {draft.changes?.length ? (
-              <ul className="list-disc pl-4">
+              <ul className="list-disc ps-4">
                 {draft.changes.map((c) => (
                   <li key={c}>{c}</li>
                 ))}

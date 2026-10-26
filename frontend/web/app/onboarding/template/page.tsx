@@ -6,6 +6,7 @@ import { Alert, Button, EmptyState, ErrorState, Field, Select, SelectContent, Se
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { track } from '@/src/analytics/posthog';
@@ -33,6 +34,7 @@ export default function TemplatePage() {
 
 function TemplateInner() {
   const t = useTranslations();
+  const copy = useServerCopy();
   const api = useApi();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -69,8 +71,8 @@ function TemplateInner() {
   const conflict = industryConflicts(selectedTemplate, industry);
   const fitting = React.useMemo(() => {
     if (!conflict || !industry) return [];
-    return (templates.data ?? []).filter((tpl) => tpl.id !== selected && tpl.industry_tags.includes(industry)).map((tpl) => tpl.name);
-  }, [conflict, industry, templates.data, selected]);
+    return (templates.data ?? []).filter((tpl) => tpl.id !== selected && tpl.industry_tags.includes(industry)).map((tpl) => copy.templateName(tpl));
+  }, [conflict, industry, templates.data, selected, copy]);
 
   async function next() {
     if (!selected) return;
@@ -115,8 +117,8 @@ function TemplateInner() {
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {conflict && selectedTemplate ? (
           <Alert variant="warning" title={t('wizard.w1.conflictTitle')} data-testid="template-conflict">
-            {t('wizard.w1.conflictBody', { template: selectedTemplate.name, industries: industriesOf(selectedTemplate).join(', '), industry })}
-            {fitting.length ? ` ${t('wizard.w1.conflictSuggest', { industry, templates: fitting.join(', ') })}` : ''}
+            {t('wizard.w1.conflictBody', { template: copy.templateName(selectedTemplate), industries: industriesOf(selectedTemplate).map(copy.industry).join(t('common.listSeparator')), industry: copy.industry(industry) })}
+            {fitting.length ? ` ${t('wizard.w1.conflictSuggest', { industry: copy.industry(industry), templates: fitting.join(t('common.listSeparator')) })}` : ''}
           </Alert>
         ) : null}
 
@@ -130,7 +132,7 @@ function TemplateInner() {
                 <SelectItem value="__none">{t('wizard.w1.industryOther')}</SelectItem>
                 {industries.map((i) => (
                   <SelectItem key={i} value={i} className="capitalize">
-                    {i}
+                    {copy.industry(i)}
                   </SelectItem>
                 ))}
               </SelectContent>

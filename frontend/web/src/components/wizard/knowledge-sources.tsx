@@ -20,6 +20,7 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { PHOTO_TYPES, isPhoto, photoToText, toBase64 } from '@/src/wizard/photo-text';
+import { formatNumber } from '@/src/lib/format';
 
 const POLL_MS = 3_000;
 /** Statuses the sync job has not finished with. The list is polled while any source has one. */
@@ -264,7 +265,7 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
           </Field>
 
           {type === 'text' ? (
-            <Field id="w4-text" label={tk('fields.text')} addon={`${text.length.toLocaleString()} / ${KNOWLEDGE_MAX_TEXT_CHARS.toLocaleString()}`} required>
+            <Field id="w4-text" label={tk('fields.text')} addon={`${formatNumber(text.length, 0)} / ${formatNumber(KNOWLEDGE_MAX_TEXT_CHARS, 0)}`} required>
               <Textarea id="w4-text" rows={6} maxLength={KNOWLEDGE_MAX_TEXT_CHARS} placeholder={tk('fields.textPlaceholder')} value={text} onChange={(e) => setText(e.target.value)} disabled={disabled || submitting} />
             </Field>
           ) : null}

@@ -5,7 +5,8 @@ import type { AgentSummary, TemplateSummary } from '@portal/schemas';
 import { Badge, cn } from '@portal/ui';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
-import { exampleTextFor } from '@/src/wizard/template-fit';
+import { useServerCopy } from '@/src/i18n/server-copy';
+import { exampleKeyFor, exampleTextFor } from '@/src/wizard/template-fit';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /**
@@ -16,11 +17,12 @@ import { useWorkspace } from '@/src/workspace/workspace-provider';
  */
 export function TemplateBadge({ agent, className }: { agent: Pick<AgentSummary, 'template_id' | 'industry'>; className?: string }) {
   const ta = useTranslations('dashboard.agents');
+  const copy = useServerCopy();
   const label = agent.template_id ? ta(`templates.${agent.template_id}`) : ta('templates.custom');
   return (
     <Badge variant="primary" className={cn('capitalize', className)} data-testid="template-badge">
       {label}
-      {agent.industry ? ` · ${agent.industry}` : ''}
+      {agent.industry ? ` · ${copy.industry(agent.industry)}` : ''}
     </Badge>
   );
 }
@@ -52,9 +54,10 @@ export function useAgentTemplate(agent: Pick<AgentSummary, 'template_id'> | null
 export function useBriefPlaceholders(agent: Pick<AgentSummary, 'template_id' | 'industry'> | null | undefined): BriefPlaceholders {
   const template = useAgentTemplate(agent);
   const tt = useTranslations('wizard.w2.templateCopy');
+  const copy = useServerCopy();
   return React.useMemo(() => {
     const out: BriefPlaceholders = {};
-    const about = exampleTextFor(template, agent?.industry);
+    const about = copy.example(exampleKeyFor(template, agent?.industry)) ?? exampleTextFor(template, agent?.industry);
     if (about) out.about_business = about;
     if (agent?.template_id === 'restaurant') {
       out.goal = tt('restaurant.goal');
@@ -62,7 +65,7 @@ export function useBriefPlaceholders(agent: Pick<AgentSummary, 'template_id' | '
       out.pricing = tt('restaurant.pricing');
     }
     return out;
-  }, [template, agent?.industry, agent?.template_id, tt]);
+  }, [template, agent?.industry, agent?.template_id, tt, copy]);
 }
 
 export type BriefPlaceholders = Partial<Record<'about_business' | 'goal' | 'services' | 'pricing', string>>;

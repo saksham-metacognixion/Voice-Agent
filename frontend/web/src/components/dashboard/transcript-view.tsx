@@ -27,7 +27,7 @@ export function TranscriptView({ json, text, agentName }: { json: unknown; text:
           <li key={i} className={cn('flex', turn.role === 'agent' ? 'justify-start' : 'justify-end')}>
             <div className={cn('max-w-[85%] rounded-lg px-3 py-2 text-sm leading-relaxed', turn.role === 'agent' ? 'bg-muted text-foreground' : 'bg-primary/10 text-foreground')}>
               <p className="mb-0.5 text-[11px] font-medium text-muted-foreground">{turn.role === 'agent' ? (agentName?.trim() || t('agent')) : t('caller')}</p>
-              <p className="whitespace-pre-wrap">{turn.content}</p>
+              <p dir="auto" className="whitespace-pre-wrap">{turn.content}</p>
             </div>
           </li>
         ))}

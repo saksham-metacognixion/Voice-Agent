@@ -33,6 +33,7 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0023](0023-brief-documents.md)                        | Business documents in the brief: a menu or price list on W2, verbatim in the prompt        | accepted                      |
 | [0024](0024-knowledge-after-payment.md)                | What the agent knows comes after payment: W4 after go-live, auto-republish of a new base   | accepted                      |
 | [0025](0025-production-hardening.md)                   | D14 hardening: disposable email ×2, origin check + API budget, OTel traces + Sentry errors, RDS PITR drill | accepted                      |
+| [0026](0026-arabic-and-rtl.md)                          | Arabic + RTL in the portal: next-intl without routing, per-browser choice, pre-paint `dir`, logical CSS, API copy translated by id | accepted                      |
 
 Template:
 

@@ -38,7 +38,7 @@ export const DropdownMenuItem = React.forwardRef<
     className={cn(
       'relative flex cursor-default select-none items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground',
       destructive && 'text-danger data-[highlighted]:bg-danger/10 [&_svg]:text-danger',
-      inset && 'pl-8',
+      inset && 'ps-8',
       className,
     )}
     {...props}
@@ -53,12 +53,12 @@ export const DropdownMenuCheckboxItem = React.forwardRef<
   <Primitive.CheckboxItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-8 pr-2 text-sm outline-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted',
+      'relative flex cursor-default select-none items-center gap-2 rounded-md py-1.5 ps-8 pe-2 text-sm outline-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted',
       className,
     )}
     {...props}
   >
-    <span className="absolute left-2 flex size-4 items-center justify-center">
+    <span className="absolute start-2 flex size-4 items-center justify-center">
       <Primitive.ItemIndicator>
         <Check className="size-4" />
       </Primitive.ItemIndicator>
@@ -75,12 +75,12 @@ export const DropdownMenuRadioItem = React.forwardRef<
   <Primitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center gap-2 rounded-md py-1.5 pl-8 pr-2 text-sm outline-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted',
+      'relative flex cursor-default select-none items-center gap-2 rounded-md py-1.5 ps-8 pe-2 text-sm outline-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted',
       className,
     )}
     {...props}
   >
-    <span className="absolute left-2 flex size-4 items-center justify-center">
+    <span className="absolute start-2 flex size-4 items-center justify-center">
       <Primitive.ItemIndicator>
         <Check className="size-4" />
       </Primitive.ItemIndicator>
@@ -97,7 +97,7 @@ export function DropdownMenuSeparator({ className, ...props }: React.ComponentPr
   return <Primitive.Separator className={cn('-mx-1 my-1 h-px bg-border', className)} {...props} />;
 }
 export function DropdownMenuShortcut({ className, ...props }: React.HTMLAttributes<HTMLSpanElement>) {
-  return <span className={cn('ml-auto text-xs tracking-widest text-muted-foreground', className)} {...props} />;
+  return <span className={cn('ms-auto text-xs tracking-widest text-muted-foreground', className)} {...props} />;
 }
 export const DropdownMenuSubTrigger = React.forwardRef<
   React.ComponentRef<typeof Primitive.SubTrigger>,
@@ -109,7 +109,7 @@ export const DropdownMenuSubTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    <ChevronRight className="ml-auto size-4" />
+    <ChevronRight className="ms-auto size-4" />
   </Primitive.SubTrigger>
 ));
 DropdownMenuSubTrigger.displayName = 'DropdownMenuSubTrigger';

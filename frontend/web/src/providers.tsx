@@ -2,7 +2,6 @@
 
 import { ApiProvider, createApiClient, createQueryClient } from '@portal/api-client';
 import { ThemeProvider, Toaster, TooltipProvider } from '@portal/ui';
-import { NextIntlClientProvider } from 'next-intl';
 import { initErrorReporting } from '@portal/ui/error-reporting';
 import * as React from 'react';
 import { AnalyticsProvider, identify, resetAnalytics, track } from './analytics/posthog';
@@ -11,7 +10,7 @@ import { ImpersonationBanner } from './components/shell/impersonation-banner';
 import { impersonationStore } from './auth/impersonation';
 import { routes } from './routes';
 import { config } from './config';
-import { DEFAULT_LOCALE, messages } from './i18n';
+import { LocaleProvider } from './i18n/locale-provider';
 import { storage } from './lib/storage';
 import { workspaceStore } from './workspace/store';
 import { WorkspaceProvider } from './workspace/workspace-provider';
@@ -27,7 +26,7 @@ initErrorReporting({ dsn: config.sentry.dsn, app: 'portal', environment: config.
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <NextIntlClientProvider locale={DEFAULT_LOCALE} messages={messages[DEFAULT_LOCALE]} timeZone="UTC">
+      <LocaleProvider>
         <TooltipProvider delayDuration={300}>
           <AuthProvider onSignedIn={onSignedIn}>
             <ApiBridge>
@@ -42,7 +41,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </AuthProvider>
           <Toaster />
         </TooltipProvider>
-      </NextIntlClientProvider>
+      </LocaleProvider>
     </ThemeProvider>
   );
 }

@@ -2,14 +2,18 @@
 
 import { useTheme } from 'next-themes';
 import { Toaster as Sonner, toast } from 'sonner';
+import { useUiDirection } from './locale';
 
 /** sonner, themed from the tokens so it matches whichever theme is active. */
 export function Toaster(props: React.ComponentProps<typeof Sonner>) {
   const { resolvedTheme } = useTheme();
+  const dir = useUiDirection();
   return (
     <Sonner
       theme={(resolvedTheme as 'light' | 'dark' | undefined) ?? 'system'}
-      position="bottom-right"
+      dir={dir}
+      // The end corner of the page in either direction.
+      position={dir === 'rtl' ? 'bottom-left' : 'bottom-right'}
       closeButton
       toastOptions={{
         classNames: {

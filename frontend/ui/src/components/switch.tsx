@@ -16,7 +16,7 @@ export const Switch = React.forwardRef<
     )}
     {...props}
   >
-    <Primitive.Thumb className="pointer-events-none block size-5 rounded-full bg-card shadow-card transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0 dark:bg-foreground" />
+    <Primitive.Thumb className="pointer-events-none block size-5 rounded-full bg-card shadow-card transition-transform data-[state=checked]:translate-x-5 data-[state=unchecked]:translate-x-0 rtl:data-[state=checked]:-translate-x-5 dark:bg-foreground" />
   </Primitive.Root>
 ));
 Switch.displayName = 'Switch';

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/src/auth/auth-provider';
 import { routes } from '@/src/routes';
+import { LanguageSegment } from './language-switcher';
 
 export function UserMenu() {
   const t = useTranslations();
@@ -36,6 +37,10 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5">
           <ThemeSegment labels={themeLabels} className="w-full [&>button]:flex-1 [&>button]:justify-center" />
+        </div>
+        {/* Below `sm` the header has no room for the language menu; this is where a phone finds it. */}
+        <div className="px-2 py-1.5">
+          <LanguageSegment className="w-full [&>button]:flex-1 [&>button]:justify-center" />
         </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => router.push(routes.app.settings)}>

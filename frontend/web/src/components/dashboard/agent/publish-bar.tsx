@@ -6,6 +6,7 @@ import { Alert, Button, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Rocket } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
@@ -19,6 +20,7 @@ import { errorMessage } from '@/src/lib/errors';
 export function PublishBar({ agent, canEdit }: { agent: AgentDetail; canEdit: boolean }) {
   const t = useTranslations('dashboard.agents.publish');
   const tc = useTranslations();
+  const copy = useServerCopy();
   const api = useApi();
   const queryClient = useQueryClient();
   const publish = usePublishAgent(api);
@@ -54,9 +56,9 @@ export function PublishBar({ agent, canEdit }: { agent: AgentDetail; canEdit: bo
     <div className="sticky bottom-3 z-20 flex flex-col gap-2">
       {findings?.length ? (
         <Alert variant={findings.some((f) => f.severity === 'error') ? 'danger' : 'warning'} title={findings.some((f) => f.severity === 'error') ? t('blocked') : t('warnings')}>
-          <ul className="list-disc pl-4">
+          <ul className="list-disc ps-4">
             {findings.map((f, i) => (
-              <li key={i}>{f.message}</li>
+              <li key={i}>{copy.finding(f)}</li>
             ))}
           </ul>
         </Alert>

@@ -175,10 +175,10 @@ function TicketRow({ ticket, open, onToggle }: { ticket: SupportTicketResponse; 
 
   return (
     <li className="py-2.5 first:pt-0 last:pb-0">
-      <button type="button" className="flex w-full items-center justify-between gap-3 text-left" onClick={onToggle} aria-expanded={open} aria-controls={`ticket-${ticket.id}`}>
+      <button type="button" className="flex w-full items-center justify-between gap-3 text-start" onClick={onToggle} aria-expanded={open} aria-controls={`ticket-${ticket.id}`}>
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-medium">
-            <span className="mr-1.5 font-mono text-xs text-muted-foreground">#{ticket.id}</span>
+            <span className="me-1.5 font-mono text-xs text-muted-foreground">#{ticket.id}</span>
             {ticket.subject}
           </span>
           <span className="text-xs text-muted-foreground">{t('updated', { when: formatDateTime(ticket.last_message_at ?? ticket.created_at, tz), who: ticket.assignee_name })}</span>
@@ -197,7 +197,7 @@ function TicketRow({ ticket, open, onToggle }: { ticket: SupportTicketResponse; 
                   <span className="font-medium text-foreground">{m.author_type === 'system' ? t('system') : m.author_type === 'staff' ? m.author_name ?? t('support') : (m.author_name ?? t('you'))}</span>
                   <span>{formatDateTime(m.created_at, tz)}</span>
                 </div>
-                <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                <p dir="auto" className="whitespace-pre-wrap break-words">{m.body}</p>
               </li>
             ))}
           </ol>

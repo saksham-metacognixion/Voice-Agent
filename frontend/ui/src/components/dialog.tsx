@@ -4,6 +4,7 @@ import { X } from 'lucide-react';
 import * as React from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { cn } from '../lib/utils';
+import { useUiLabels } from './locale';
 
 export const Dialog = DialogPrimitive.Root;
 export const DialogTrigger = DialogPrimitive.Trigger;
@@ -28,7 +29,9 @@ DialogOverlay.displayName = 'DialogOverlay';
 export const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean; closeLabel?: string }
->(({ className, children, hideClose, closeLabel = 'Close', ...props }, ref) => (
+>(({ className, children, hideClose, closeLabel, ...props }, ref) => {
+  const labels = useUiLabels();
+  return (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -42,19 +45,20 @@ export const DialogContent = React.forwardRef<
       {children}
       {hideClose ? null : (
         <DialogPrimitive.Close
-          className="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-          aria-label={closeLabel}
+          className="absolute end-3 top-3 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+          aria-label={closeLabel ?? labels.close}
         >
           <X className="size-4" aria-hidden />
         </DialogPrimitive.Close>
       )}
     </DialogPrimitive.Content>
   </DialogPortal>
-));
+  );
+});
 DialogContent.displayName = 'DialogContent';
 
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col gap-1.5 pr-6', className)} {...props} />;
+  return <div className={cn('flex flex-col gap-1.5 pe-6', className)} {...props} />;
 }
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={cn('flex flex-col-reverse gap-2 sm:flex-row sm:justify-end', className)} {...props} />;

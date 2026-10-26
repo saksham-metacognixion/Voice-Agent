@@ -51,7 +51,7 @@ export function LanguagePicker({ primary, languages, onPrimaryChange, onLanguage
       <Field label={t('alsoSpeaks')} description={full ? t('alsoSpeaksMax') : t('alsoSpeaksHint')}>
         <div className="flex min-h-10 flex-wrap items-center gap-1.5">
           {extras.map((code) => (
-            <Badge key={code} variant="primary" className="h-7 gap-1 pl-2.5 pr-1 text-xs">
+            <Badge key={code} variant="primary" className="h-7 gap-1 ps-2.5 pe-1 text-xs">
               {languageName(code)}
               <button
                 type="button"

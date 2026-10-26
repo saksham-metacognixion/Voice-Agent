@@ -4,21 +4,26 @@ import { X } from 'lucide-react';
 import * as React from 'react';
 import { Dialog as SheetPrimitive } from 'radix-ui';
 import { cn } from '../lib/utils';
+import { useUiLabels } from './locale';
 
 export const Sheet = SheetPrimitive.Root;
 export const SheetTrigger = SheetPrimitive.Trigger;
 export const SheetClose = SheetPrimitive.Close;
 
 const sides = {
-  left: 'inset-y-0 left-0 h-full w-80 max-w-[85vw] border-r',
-  right: 'inset-y-0 right-0 h-full w-full max-w-md border-l sm:w-[28rem]',
+  // `left`/`right` are the reading-order sides: the start and end edges, so a right-to-left
+  // page opens the navigation sheet from the right and a detail sheet from the left.
+  left: 'inset-y-0 start-0 h-full w-80 max-w-[85vw] border-e',
+  right: 'inset-y-0 end-0 h-full w-full max-w-md border-s sm:w-[28rem]',
   bottom: 'inset-x-0 bottom-0 max-h-[85vh] rounded-t-xl border-t',
 } as const;
 
 export const SheetContent = React.forwardRef<
   React.ComponentRef<typeof SheetPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> & { side?: keyof typeof sides; closeLabel?: string }
->(({ className, children, side = 'right', closeLabel = 'Close', ...props }, ref) => (
+>(({ className, children, side = 'right', closeLabel, ...props }, ref) => {
+  const labels = useUiLabels();
+  return (
   <SheetPrimitive.Portal>
     <SheetPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] data-[state=open]:animate-in-fade dark:bg-black/70" />
     <SheetPrimitive.Content
@@ -32,14 +37,15 @@ export const SheetContent = React.forwardRef<
     >
       {children}
       <SheetPrimitive.Close
-        className="absolute right-3 top-3 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
-        aria-label={closeLabel}
+        className="absolute end-3 top-3 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/60"
+        aria-label={closeLabel ?? labels.close}
       >
         <X className="size-4" aria-hidden />
       </SheetPrimitive.Close>
     </SheetPrimitive.Content>
   </SheetPrimitive.Portal>
-));
+  );
+});
 SheetContent.displayName = 'SheetContent';
 
 export const SheetTitle = React.forwardRef<

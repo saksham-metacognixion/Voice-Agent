@@ -1,6 +1,7 @@
 'use client';
 
 import { Logo, ThemeToggle } from '@portal/ui';
+import { LanguageMenu } from '@/src/components/shell/language-switcher';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import * as React from 'react';
@@ -16,8 +17,8 @@ export function AuthLayout({ children, title, subtitle, footer }: { children: Re
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-10 lg:flex" aria-hidden>
-        <div className="pointer-events-none absolute -left-32 -top-32 size-[28rem] rounded-full bg-primary/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-40 right-0 size-[24rem] rounded-full bg-accent blur-3xl" />
+        <div className="pointer-events-none absolute -start-32 -top-32 size-[28rem] rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-40 end-0 size-[24rem] rounded-full bg-accent blur-3xl" />
         <Logo variant="full" size="xl" className="relative" />
         <div className="relative max-w-md">
           <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">{t('auth.brandKicker')}</p>
@@ -39,7 +40,10 @@ export function AuthLayout({ children, title, subtitle, footer }: { children: Re
           <Link href={routes.root} className="lg:hidden">
             <Logo />
           </Link>
-          <ThemeToggle labels={{ light: t('common.theme.light'), dark: t('common.theme.dark'), system: t('common.theme.system'), toggle: t('common.theme.toggle') }} />
+          <div className="flex items-center gap-1">
+            <LanguageMenu />
+            <ThemeToggle labels={{ light: t('common.theme.light'), dark: t('common.theme.dark'), system: t('common.theme.system'), toggle: t('common.theme.toggle') }} />
+          </div>
         </div>
         <div className="flex flex-1 items-center justify-center px-4 pb-12">
           <div className="w-full max-w-md">

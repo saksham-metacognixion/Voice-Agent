@@ -45,9 +45,9 @@ export function OverviewTab({ agent }: { agent: AgentDetail }) {
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground">
                   <tr>
-                    <th className="py-1.5 text-left font-medium">{t('setting')}</th>
-                    <th className="py-1.5 text-left font-medium">{ta('live')} {live ? `v${live.version_no}` : ''}</th>
-                    <th className="py-1.5 text-left font-medium">{ta('draft')} {draft ? `v${draft.version_no}` : ''}</th>
+                    <th className="py-1.5 text-start font-medium">{t('setting')}</th>
+                    <th className="py-1.5 text-start font-medium">{ta('live')} {live ? `v${live.version_no}` : ''}</th>
+                    <th className="py-1.5 text-start font-medium">{ta('draft')} {draft ? `v${draft.version_no}` : ''}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -139,8 +139,8 @@ export function OverviewTab({ agent }: { agent: AgentDetail }) {
 function Row({ label, live, draft, changed }: { label: string; live: React.ReactNode; draft: React.ReactNode; changed: boolean }) {
   return (
     <tr>
-      <td className="py-2 pr-3 text-muted-foreground">{label}</td>
-      <td className="py-2 pr-3">{live}</td>
+      <td className="py-2 pe-3 text-muted-foreground">{label}</td>
+      <td className="py-2 pe-3">{live}</td>
       <td className={`py-2 ${changed ? 'font-medium text-warning-emphasis' : ''}`}>{draft}</td>
     </tr>
   );

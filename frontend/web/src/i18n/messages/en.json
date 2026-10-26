@@ -48,7 +48,12 @@
     "none": "None",
     "actions": "Actions",
     "open": "Open",
-    "unsavedChanges": "You have unsaved changes."
+    "unsavedChanges": "You have unsaved changes.",
+    "progress": "Progress",
+    "language": "Language",
+    "changeLanguage": "Change language",
+    "listSeparator": ", ",
+    "photo": "Photo"
   },
   "nav": {
     "home": "Home",
@@ -214,7 +219,11 @@
       "alreadyMember": "You are already a member of this workspace.",
       "wrongAccount": "Signed in as {email}. If the invitation went to another address, sign out and sign in with that one."
     },
-    "brandKicker": "Human conversations. Real outcomes."
+    "brandKicker": "Human conversations. Real outcomes.",
+    "configMissing": {
+      "title": "Sign-in is not configured on this build",
+      "body": "{vars} must be set at build time."
+    }
   },
   "errors": {
     "NETWORK": "We could not reach the server. Check your connection and try again.",
@@ -257,7 +266,13 @@
     "IMPERSONATION_READ_ONLY": "This is a read-only staff view. Nothing can be changed here.",
     "ACCOUNT_LOCKED": "This account has been locked. Contact support.",
     "EMAIL_DISPOSABLE": "Temporary email addresses cannot be used. Sign up with your work or personal email instead.",
-    "ORIGIN_NOT_ALLOWED": "That request came from a page we do not recognise. Reload the portal and try again."
+    "ORIGIN_NOT_ALLOWED": "That request came from a page we do not recognise. Reload the portal and try again.",
+    "WORKSPACE_REQUIRED": "Choose a workspace and try again.",
+    "INVALID_CURSOR": "This page of results is out of date. Go back to the first page.",
+    "MFA_REQUIRED": "Sign in again with two-factor authentication to continue.",
+    "AGENT_IN_USE": "A phone number still answers with this agent. Move or release the number first.",
+    "PUBLISH_IN_PROGRESS": "This agent is being published. Try again in a moment.",
+    "VERSION_IMMUTABLE": "This version is published and can no longer be changed. Your edit starts a new draft."
   },
   "validation": {
     "required": "Required",
@@ -303,7 +318,56 @@
       "premiumHint": "Uses the Premium voice stack (1.5 credits per minute).",
       "conflictTitle": "Check the template",
       "conflictBody": "The {template} template is written for {industries}, and you chose {industry}. You can continue — the agent will still use what you write about your business — but a closer template gives a better first script.",
-      "conflictSuggest": "For {industry}, try: {templates}."
+      "conflictSuggest": "For {industry}, try: {templates}.",
+      "catalog": {
+        "names": {
+          "receptionist": "AI Receptionist",
+          "appointment": "Appointment Request",
+          "afterhours": "After-hours Answering",
+          "lead_qual": "Lead Qualification",
+          "faq_support": "FAQ / Support",
+          "restaurant": "Restaurant Reservations",
+          "custom": "Custom"
+        },
+        "taglines": {
+          "receptionist": "Answers calls, takes messages",
+          "appointment": "Books slots",
+          "afterhours": "Answers when you are closed",
+          "lead_qual": "Scores leads",
+          "faq_support": "Answers from your documents",
+          "restaurant": "Tables and hours",
+          "custom": "Start blank"
+        },
+        "bestFor": {
+          "receptionist": "Any service business",
+          "appointment": "Clinics, salons, trades",
+          "afterhours": "Any business with a forwarded line",
+          "lead_qual": "Real estate, agencies, B2B services",
+          "faq_support": "Product and support lines",
+          "restaurant": "Restaurants and cafés",
+          "custom": "Anything"
+        },
+        "industries": {
+          "dental": "Dental",
+          "plumbing": "Plumbing",
+          "auto": "Auto repair",
+          "legal": "Legal",
+          "salon": "Salon",
+          "real_estate": "Real estate",
+          "restaurant": "Restaurant",
+          "generic": "General"
+        },
+        "examples": {
+          "plumbing": "We are a residential plumbing company covering the West Island. Drain cleaning, burst pipes, water heaters and bathroom renovations. We run a 24-hour emergency line.",
+          "dental": "We are a family dental clinic in Laval. We do check-ups, cleanings, fillings, crowns and emergency toothache appointments. Two dentists, one hygienist, open six days a week.",
+          "auto": "We are an independent garage doing maintenance, brakes, tyres and pre-purchase inspections on most makes. Courtesy car by arrangement.",
+          "legal": "We are a two-lawyer family law practice downtown. Divorce, custody and mediation. First consultation is thirty minutes and is paid.",
+          "salon": "We are a hair salon with four stylists. Cuts, colour, balayage and blowouts. Walk-ins when we can, but almost everything is by appointment.",
+          "real_estate": "We are a residential real estate team covering the South Shore. Listings, buyer representation and free home evaluations.",
+          "restaurant": "We are a forty-seat bistro. Lunch and dinner, closed Mondays. Reservations for parties up to eight; larger groups are arranged with the manager.",
+          "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
+        }
+      }
     },
     "w2": {
       "title": "Tell us about your business",
@@ -350,7 +414,23 @@
         "empty": "Fill in the brief and this summary writes itself.",
         "defaultName": "Your agent",
         "preview": "Preview",
-        "fromGeneration": "From your generated agent"
+        "fromGeneration": "From your generated agent",
+        "derived": {
+          "services": "Answer questions about {services}",
+          "servicesMore": "Answer questions about {services} and more",
+          "faqs": "{n, plural, one {Answer # common question} other {Answer # common questions}}",
+          "quoteListed": "Quote the prices you listed",
+          "quotePrices": "Quote prices",
+          "notHuman": "Claim to be human",
+          "listSeparator": ", ",
+          "handoff": "{condition} → {action}",
+          "handoffMessage": "{condition} → {action}: “{message}”",
+          "actions": {
+            "transfer": "transfer the call",
+            "take_message": "take a message",
+            "read_message": "read a message"
+          }
+        }
       },
       "fields": {
         "about_business": {
@@ -556,7 +636,36 @@
         "alsoSpeaks": "Also speaks {language}, with its own accent"
       },
       "sampleHint": "Speed changes the clip too. Your agent says your own greeting on the test call.",
-      "temperatureHint": "Heard on calls, not in the clip."
+      "temperatureHint": "Heard on calls, not in the clip.",
+      "accents": {
+        "american": "American",
+        "british": "British",
+        "australian": "Australian",
+        "canadian": "Canadian",
+        "indian": "Indian",
+        "irish": "Irish",
+        "scottish": "Scottish",
+        "south_african": "South African",
+        "new_zealand": "New Zealand",
+        "french": "French",
+        "german": "German",
+        "spanish": "Spanish",
+        "mexican": "Mexican",
+        "latin_american": "Latin American",
+        "italian": "Italian",
+        "portuguese": "Portuguese",
+        "brazilian": "Brazilian",
+        "japanese": "Japanese",
+        "chinese": "Chinese",
+        "korean": "Korean",
+        "arabic": "Arabic",
+        "russian": "Russian",
+        "dutch": "Dutch",
+        "swedish": "Swedish",
+        "polish": "Polish",
+        "turkish": "Turkish",
+        "neutral": "Neutral"
+      }
     },
     "placeholder": {
       "title": "{step} is next",
@@ -846,7 +955,114 @@
         },
         "turnOn": "To turn forwarding on",
         "turnOff": "To turn it off",
-        "whenLive": "Do this once your agent is live — we show your new number on the next screens."
+        "whenLive": "Do this once your agent is live — we show your new number on the next screens.",
+        "content": {
+          "bell": {
+            "steps": [
+              "Lift the handset and dial *72.",
+              "Dial {destination}.",
+              "Wait for the confirmation tone, then hang up."
+            ],
+            "disable_steps": [
+              "Dial *73 and wait for the confirmation tone."
+            ],
+            "notes": [
+              "Call Forwarding must be on your Bell plan. Conditional forwarding (busy / no answer) uses *90 and *92."
+            ]
+          },
+          "rogers": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination} and wait for the confirmation.",
+              "Hang up."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "On Rogers wireless, forwarding can also be set under Settings → Calls → Call forwarding."
+            ]
+          },
+          "telus": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination}.",
+              "Hang up after the confirmation tone."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "TELUS charges airtime for forwarded calls on some wireless plans."
+            ]
+          },
+          "videotron": {
+            "steps": [
+              "Composez *72.",
+              "Composez {destination}.",
+              "Raccrochez après la tonalité de confirmation."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Le renvoi conditionnel (occupé / sans réponse) utilise *90 et *92."
+            ]
+          },
+          "att": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination}.",
+              "Hang up when you hear the confirmation tone."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "Wireless: dial *21*{destination}# to forward all calls, ##21# to cancel."
+            ]
+          },
+          "verizon": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination}.",
+              "Wait for the confirmation tone and hang up."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "Busy / no-answer forwarding: *71 + {destination}; cancel with *73."
+            ]
+          },
+          "tmobile": {
+            "steps": [
+              "Dial **21*{destination}# and press call.",
+              "Wait for the confirmation message."
+            ],
+            "disable_steps": [
+              "Dial ##21# and press call."
+            ],
+            "notes": [
+              "Conditional forwarding: **61* (no answer), **67* (busy), **62* (unreachable)."
+            ]
+          },
+          "other": {
+            "steps": [
+              "Dial *72 (most North American carriers).",
+              "Dial {destination}.",
+              "Wait for the confirmation tone and hang up."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "Codes vary by carrier and plan. If *72 does not work, search \"call forwarding\" with your carrier name or ask their support to forward to {destination}.",
+              "Test by calling your business line from another phone: your agent should answer."
+            ]
+          }
+        },
+        "yourNewNumber": "your new number"
       }
     },
     "w7": {
@@ -919,6 +1135,10 @@
         "failedDefault": "Something went wrong while going live.",
         "changeNumber": "Change phone number",
         "polling": "Live updates paused — checking every few seconds."
+      },
+      "packCopy": {
+        "mostPopular": "Most popular",
+        "starterNote": "One agent on one number. FAQ text goes in the brief."
       }
     },
     "live": {
@@ -1153,6 +1373,48 @@
         "notePlaceholder": "What happened next?",
         "noteViewer": "No note.",
         "noteSaved": "Note saved"
+      },
+      "fields": {
+        "is_emergency": "Is emergency",
+        "caller_name": "Caller name",
+        "callback_number": "Callback number",
+        "message": "Message",
+        "service": "Service",
+        "preferred_slots": "Preferred slots",
+        "is_new_client": "Is new client",
+        "reason": "Reason",
+        "topic": "Topic",
+        "resolved": "Resolved",
+        "follow_up_required": "Follow up required",
+        "email": "Email",
+        "need": "Need",
+        "budget": "Budget",
+        "timeline": "Timeline",
+        "qualified": "Qualified",
+        "score": "Score",
+        "urgency": "Urgency",
+        "message_taken": "Message taken",
+        "party_size": "Party size",
+        "date_time": "Date time",
+        "special_requests": "Special requests"
+      },
+      "disconnect": {
+        "user_hangup": "Caller hung up",
+        "agent_hangup": "Agent ended the call",
+        "call_transfer": "Transferred",
+        "voicemail_reached": "Reached voicemail",
+        "inactivity": "No one spoke",
+        "max_duration_reached": "Reached the time limit",
+        "concurrency_limit_reached": "Too many calls at once",
+        "no_valid_payment": "No credits",
+        "dial_busy": "Line busy",
+        "dial_failed": "Could not connect",
+        "dial_no_answer": "No answer",
+        "registered_call_timeout": "Never connected",
+        "not_connected": "Not connected",
+        "error_user_not_joined": "Caller never joined",
+        "sip_routing_error": "Phone routing error",
+        "error": "Technical error"
       }
     },
     "agents": {
@@ -1291,7 +1553,21 @@
           "handoff_message_missing": "Hand-off message not in the script",
           "absolute_language": "Absolute language",
           "language_mismatch": "Language mismatch",
-          "guardrails_missing": "Platform rules missing"
+          "guardrails_missing": "Platform rules missing",
+          "platform_named": "Platform named"
+        },
+        "findings": {
+          "prompt_empty": "This version has no script yet. Generate one before publishing.",
+          "prompt_too_long": "The script is long enough to slow down every call. Shorten it.",
+          "no_greeting": "There is no greeting, so the caller hears silence when the call connects.",
+          "greeting_too_long": "The greeting is long. Shorten it so the caller can speak sooner.",
+          "handoff_rule_missing": "A transfer number is set but the script never says when to transfer, so the agent will not use it.",
+          "transfer_tool_missing": "The brief asks for a transfer but no transfer number reached the agent, so the transfer would fail on the call.",
+          "handoff_message_missing": "The script does not contain one of your hand-off messages, so the agent may say something else. Regenerate, or paste the message into the script.",
+          "absolute_language": "The script makes a promise about prices or availability. Soften it — the business, not the agent, guarantees things.",
+          "language_mismatch": "The script is written in a different language from the agent’s main language.",
+          "guardrails_missing": "The platform rules are missing from this script.",
+          "platform_named": "The script names the voice platform behind your agent. Your agent should only ever speak for your business; regenerate it or remove the name under Advanced."
         }
       },
       "voice": {
@@ -1932,7 +2208,9 @@
           "lint_warnings": "Warnings",
           "existing_agents": "Agents before"
         }
-      }
+      },
+      "language": "Language",
+      "languageHint": "The language the portal is shown in on this browser. Your agent keeps its own languages, set on its Voice tab."
     },
     "help": {
       "title": "Help",

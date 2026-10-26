@@ -5,10 +5,11 @@ import { updateWorkspaceRequest, type BusinessHours, type UpdateWorkspaceRequest
 import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, ThemeSegment, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
+import { LanguageSegment } from '@/src/components/shell/language-switcher';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
-import { COUNTRIES, timezones } from '@/src/lib/countries';
+import { countryName as nameOfCountry, timezoneLabel, timezones } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { useRole } from '@/src/workspace/use-role';
 
@@ -87,7 +88,7 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
   }
 
   const disabled = !canAdmin || busy;
-  const countryName = COUNTRIES.find((c) => c.code === workspace.country)?.name ?? workspace.country;
+  const countryName = workspace.country ? nameOfCountry(workspace.country) : '';
   const themeLabels = { light: tc('common.theme.light'), dark: tc('common.theme.dark'), system: tc('common.theme.system'), toggle: tc('common.theme.toggle') };
 
   return (
@@ -113,7 +114,7 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
               <SelectContent className="max-h-72">
                 {zones.map((z) => (
                   <SelectItem key={z} value={z}>
-                    {z.replace(/_/g, ' ')}
+                    {timezoneLabel(z)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -154,6 +155,16 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
         </CardHeader>
         <CardContent>
           <ThemeSegment labels={themeLabels} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t('language')}</CardTitle>
+          <CardDescription>{t('languageHint')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <LanguageSegment />
         </CardContent>
       </Card>
     </div>

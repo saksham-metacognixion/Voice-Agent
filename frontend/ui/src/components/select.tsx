@@ -19,7 +19,7 @@ export const SelectTrigger = React.forwardRef<
     className={cn(
       'flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-card outline-none transition-[border-color,box-shadow]',
       'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:cursor-not-allowed disabled:opacity-60',
-      'data-[placeholder]:text-muted-foreground aria-invalid:border-danger [&>span]:line-clamp-1 [&>span]:text-left',
+      'data-[placeholder]:text-muted-foreground aria-invalid:border-danger [&>span]:line-clamp-1 [&>span]:text-start',
       className,
     )}
     {...props}
@@ -72,12 +72,12 @@ export const SelectItem = React.forwardRef<
   <Primitive.Item
     ref={ref}
     className={cn(
-      'relative flex w-full cursor-default select-none items-center rounded-md py-1.5 pl-8 pr-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted',
+      'relative flex w-full cursor-default select-none items-center rounded-md py-1.5 ps-8 pe-2 text-sm outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[highlighted]:bg-muted',
       className,
     )}
     {...props}
   >
-    <span className="absolute left-2 flex size-4 items-center justify-center">
+    <span className="absolute start-2 flex size-4 items-center justify-center">
       <Primitive.ItemIndicator>
         <Check className="size-4 text-primary" />
       </Primitive.ItemIndicator>

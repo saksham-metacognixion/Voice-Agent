@@ -3,6 +3,7 @@
 import { Check } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/utils';
+import { useUiLabels } from './locale';
 
 export interface StepperStep {
   key: string;
@@ -23,6 +24,7 @@ export interface StepperProps {
 
 /** The wizard header (§8): numbered dots, done ticks, current highlighted, later ones muted. */
 export function Stepper({ steps, current, renderLink, className, stepLabel }: StepperProps) {
+  const labels = useUiLabels();
   const list = React.useRef<HTMLOListElement>(null);
   // The row scrolls sideways when the header is narrower than the steps; keep the current
   // one (and, past the last, the last) in view instead of whichever end the row starts at.
@@ -30,15 +32,19 @@ export function Stepper({ steps, current, renderLink, className, stepLabel }: St
     const ol = list.current;
     const item = ol?.children[Math.min(current, steps.length - 1)] as HTMLElement | undefined;
     if (!ol || !item || ol.scrollWidth <= ol.clientWidth) return;
-    const left = item.offsetLeft - ol.offsetLeft;
-    const right = left + item.offsetWidth;
-    if (left < ol.scrollLeft) ol.scrollLeft = left;
-    else if (right > ol.scrollLeft + ol.clientWidth) ol.scrollLeft = right - ol.clientWidth;
+    // Measured on screen rather than from offsetLeft/scrollLeft, which mean different things
+    // in a right-to-left row (scrollLeft runs negative there).
+    const box = ol.getBoundingClientRect();
+    const at = item.getBoundingClientRect();
+    if (at.left < box.left) ol.scrollLeft -= box.left - at.left;
+    else if (at.right > box.right) ol.scrollLeft += at.right - box.right;
   }, [current, steps.length]);
 
   return (
-    <nav aria-label="Progress" className={cn('w-full', className)}>
-      <ol ref={list} className="flex items-center gap-1 overflow-x-auto scrollbar-thin sm:gap-2">
+    <nav aria-label={labels.progress} className={cn('w-full', className)}>
+      {/* `relative`: each step's `sr-only` label is absolutely positioned, and without a
+          positioned scroll container it escaped the row's clip and widened a phone's page. */}
+      <ol ref={list} className="relative flex items-center gap-1 overflow-x-auto scrollbar-thin sm:gap-2">
         {steps.map((step, i) => {
           const done = i < current;
           const active = i === current;
@@ -68,7 +74,7 @@ export function Stepper({ steps, current, renderLink, className, stepLabel }: St
               ) : (
                 <span className={cls}>{content}</span>
               )}
-              <span className="sr-only">{stepLabel ? stepLabel(i + 1, steps.length) : `Step ${i + 1} of ${steps.length}`}</span>
+              <span className="sr-only">{(stepLabel ?? labels.step)(i + 1, steps.length)}</span>
               {i < steps.length - 1 ? <span className={cn('h-px w-4 sm:w-8', done ? 'bg-primary' : 'bg-border')} aria-hidden /> : null}
             </li>
           );

@@ -64,24 +64,24 @@ export function ActivityChart() {
             <details className="text-xs">
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground">{t('table')}</summary>
               <div className="mt-2 max-h-56 overflow-auto rounded-md border border-border">
-                <table className="w-full text-left tabular-nums">
+                <table className="w-full text-start tabular-nums">
                   <thead className="sticky top-0 bg-muted text-muted-foreground">
                     <tr>
                       <th className="px-2 py-1 font-medium">{t('day')}</th>
-                      <th className="px-2 py-1 text-right font-medium">{t('metric.calls')}</th>
-                      <th className="px-2 py-1 text-right font-medium">{t('missed')}</th>
-                      <th className="px-2 py-1 text-right font-medium">{t('metric.minutes')}</th>
-                      <th className="px-2 py-1 text-right font-medium">{t('metric.credits')}</th>
+                      <th className="px-2 py-1 text-end font-medium">{t('metric.calls')}</th>
+                      <th className="px-2 py-1 text-end font-medium">{t('missed')}</th>
+                      <th className="px-2 py-1 text-end font-medium">{t('metric.minutes')}</th>
+                      <th className="px-2 py-1 text-end font-medium">{t('metric.credits')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {series.map((p) => (
                       <tr key={p.date} className="border-t border-border">
                         <td className="px-2 py-1">{formatDayLabel(p.date, 'weekday')}</td>
-                        <td className="px-2 py-1 text-right">{p.calls}</td>
-                        <td className="px-2 py-1 text-right">{p.missed}</td>
-                        <td className="px-2 py-1 text-right">{formatNumber(p.minutes, 1)}</td>
-                        <td className="px-2 py-1 text-right">{formatCreditsValue(p.credits)}</td>
+                        <td className="px-2 py-1 text-end">{p.calls}</td>
+                        <td className="px-2 py-1 text-end">{p.missed}</td>
+                        <td className="px-2 py-1 text-end">{formatNumber(p.minutes, 1)}</td>
+                        <td className="px-2 py-1 text-end">{formatCreditsValue(p.credits)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -117,7 +117,9 @@ export function ActivityBars({ series, metric, label }: { series: ActivityPoint[
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full" role="img" aria-label={label ?? t('title')} onMouseLeave={() => setHover(null)}>
+      {/* Chart geometry is physical: the time axis runs left to right in either language, and
+          an inherited right-to-left `direction` would turn `textAnchor="end"` round. */}
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-48 w-full [direction:ltr]" role="img" aria-label={label ?? t('title')} onMouseLeave={() => setHover(null)}>
         {ticks.map((v) => (
           <g key={v}>
             <line x1={PAD.left} x2={W - PAD.right} y1={y(v)} y2={y(v)} className="stroke-border" strokeWidth={1} />

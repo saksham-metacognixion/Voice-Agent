@@ -6,6 +6,7 @@ import { Alert, Button, Dialog, DialogContent, DialogDescription, DialogFooter, 
 import { useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
@@ -19,6 +20,7 @@ import { agentPath } from '@/src/routes';
 export function NewAgentDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const t = useTranslations('dashboard.agents.new');
   const tc = useTranslations();
+  const copy = useServerCopy();
   const api = useApi();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -69,7 +71,7 @@ export function NewAgentDialog({ open, onOpenChange }: { open: boolean; onOpenCh
             ) : (
               <RadioGroup value={templateId} onValueChange={(v) => setTemplateId(v as TemplateId)} className="sm:grid-cols-2">
                 {templates.data.map((tpl) => (
-                  <RadioCard key={tpl.id} value={tpl.id} title={tpl.name} description={tpl.tagline} />
+                  <RadioCard key={tpl.id} value={tpl.id} title={copy.templateName(tpl)} description={copy.templateTagline(tpl)} />
                 ))}
               </RadioGroup>
             )}

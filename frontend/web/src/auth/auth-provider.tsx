@@ -6,6 +6,7 @@ import { CLAIM_MFA_ENROLLED } from '@portal/schemas';
 import * as React from 'react';
 import { authConfigured, config } from '../config';
 import { routes, safeNext } from '../routes';
+import { currentLocale } from '../i18n/locale-provider';
 import { type StoredImpersonation, impersonationStore } from './impersonation';
 
 /**
@@ -180,6 +181,8 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
       appState: { returnTo },
       authorizationParams: {
         redirect_uri: origin(),
+        // Universal Login in the portal's language (the tenant's `enabled_locales`).
+        ui_locales: currentLocale(),
         ...(opts.screenHint ? { screen_hint: opts.screenHint } : {}),
         ...(opts.requireMfa ? { acr_values: MFA_ACR } : {}),
         ...(opts.loginHint ? { login_hint: opts.loginHint } : {}),

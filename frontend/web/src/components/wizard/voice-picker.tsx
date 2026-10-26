@@ -4,6 +4,7 @@ import type { VoiceResponse } from '@portal/schemas';
 import { AudioButton, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, cn } from '@portal/ui';
 import { Check, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { languageName } from '@/src/wizard/languages';
 
@@ -35,6 +36,7 @@ export interface VoicePickerProps {
 export function VoicePicker({ voices, loading, selectedId, filters, onFiltersChange, onSelect, language, rate, onPreview, onPreviewError, disabled }: VoicePickerProps) {
   const t = useTranslations('wizard.w3');
   const tc = useTranslations('common');
+  const copy = useServerCopy();
   const audioLabels = { play: tc('play'), pause: tc('pause'), unavailable: tc('sampleUnavailable'), loading: tc('loading') };
   const hasFilters = filters.gender || filters.tier || filters.native || filters.q;
   // The catalogue is a few hundred rows: show a page at a time, the chosen voice always first.
@@ -59,8 +61,8 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="relative sm:w-56">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-          <Input aria-label={t('search')} placeholder={t('search')} value={filters.q} className="pl-9" onChange={(e) => onFiltersChange({ ...filters, q: e.target.value })} />
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+          <Input aria-label={t('search')} placeholder={t('search')} value={filters.q} className="ps-9" onChange={(e) => onFiltersChange({ ...filters, q: e.target.value })} />
         </div>
         <Select value={filters.gender || 'all'} onValueChange={(v) => onFiltersChange({ ...filters, gender: v === 'all' ? '' : (v as VoiceFilters['gender']) })}>
           <SelectTrigger className="sm:w-36" aria-label={t('filters.gender')}>
@@ -132,7 +134,7 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
                     disabled={disabled}
                     aria-pressed={active}
                     onClick={() => onSelect(voice)}
-                    className="flex min-w-0 flex-1 items-center gap-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
                   >
                     <span
                       className={cn(
@@ -149,7 +151,7 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
                         {voice.tier === 'premium' ? <Badge variant="premium">{tc('premium')} · {tc('premiumRate')}</Badge> : <Badge variant="outline">{tc('standard')}</Badge>}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
-                        {[voice.gender ? t(`filters.${voice.gender}` as never) : null, voice.accent ? t('accent', { accent: voice.accent }) : null]
+                        {[voice.gender ? t(`filters.${voice.gender}` as never) : null, voice.accent ? t('accent', { accent: copy.accent(voice.accent) }) : null]
                           .filter(Boolean)
                           .join(' · ')}
                       </span>

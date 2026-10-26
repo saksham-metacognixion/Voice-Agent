@@ -10,6 +10,8 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { useDebouncedCallback } from '@/src/lib/use-debounced';
+import { formatNumber } from '@/src/lib/format';
+import { useServerCopy } from '@/src/i18n/server-copy';
 
 const MIN_PROMPT = 50;
 const MAX_PROMPT = 20_000;
@@ -156,11 +158,13 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
           id="prompt-body"
           label={t('prompt')}
           description={t('promptHint')}
-          addon={<span className={cn('tabular-nums', (tooShort || tooLong) && 'text-danger')}>{prompt.length.toLocaleString()} / {MAX_PROMPT.toLocaleString()}</span>}
+          addon={<span className={cn('tabular-nums', (tooShort || tooLong) && 'text-danger')}>{formatNumber(prompt.length, 0)} / {formatNumber(MAX_PROMPT, 0)}</span>}
           error={tooShort ? t('tooShort', { min: MIN_PROMPT }) : tooLong ? t('tooLong') : undefined}
         >
           <Textarea
             id="prompt-body"
+            // The script is in the agent's language, not necessarily the portal's.
+            dir="auto"
             value={prompt}
             rows={22}
             disabled={!canEdit}
@@ -178,7 +182,7 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
         <details className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm">
           <summary className="cursor-pointer font-medium">{t('guardrails')}</summary>
           <p className="mt-1 text-xs text-muted-foreground">{t('guardrailsHint')}</p>
-          <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-relaxed text-muted-foreground">{guardrailBlock(base.prompt_text, base.editable_prompt)}</pre>
+          <pre dir="auto" className="mt-3 whitespace-pre-wrap font-mono text-xs leading-relaxed text-muted-foreground">{guardrailBlock(base.prompt_text, base.editable_prompt)}</pre>
         </details>
       </div>
 
@@ -223,13 +227,14 @@ export function PromptTab({ agent, canEdit, onDirtyChange }: { agent: AgentDetai
 
 function Finding({ finding }: { finding: LintFinding }) {
   const t = useTranslations('dashboard.agents.prompt');
+  const copy = useServerCopy();
   const isError = finding.severity === 'error';
   const Icon = isError ? XCircle : AlertTriangle;
   return (
     <li className={cn('flex items-start gap-2 rounded-md border px-2.5 py-2 text-sm', isError ? 'border-danger/30 bg-danger/5' : 'border-warning/40 bg-warning/10')}>
       <Icon className={cn('mt-0.5 size-4 shrink-0', isError ? 'text-danger' : 'text-warning-emphasis')} aria-hidden />
       <div className="min-w-0">
-        <p className="leading-snug">{finding.message}</p>
+        <p className="leading-snug">{copy.finding(finding)}</p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
           {t(`rules.${finding.rule}`)}
           {finding.field ? ` · ${t('field', { field: finding.field })}` : ''}

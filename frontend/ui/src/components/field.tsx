@@ -1,6 +1,9 @@
+'use client';
+
 import * as React from 'react';
 import { cn } from '../lib/utils';
 import { Label } from './label';
+import { useUiLabels } from './locale';
 
 export interface FieldProps {
   id?: string;
@@ -22,7 +25,8 @@ export interface FieldProps {
  * Label + control + description + error, in a consistent 8-px rhythm. Pass `id` and give
  * the control the same id so the label is clickable and screen readers pair them.
  */
-export function Field({ id, label, description, error, addon, required, optional, optionalLabel = 'Optional', className, children }: FieldProps) {
+export function Field({ id, label, description, error, addon, required, optional, optionalLabel, className, children }: FieldProps) {
+  const labels = useUiLabels();
   const errorId = id ? `${id}-error` : undefined;
   const descId = id ? `${id}-desc` : undefined;
   return (
@@ -32,7 +36,7 @@ export function Field({ id, label, description, error, addon, required, optional
           <Label htmlFor={id} className="flex items-center gap-1.5">
             {label}
             {required ? <span className="text-danger" aria-hidden>*</span> : null}
-            {optional ? <span className="text-xs font-normal text-muted-foreground">{optionalLabel}</span> : null}
+            {optional ? <span className="text-xs font-normal text-muted-foreground">{optionalLabel ?? labels.optional}</span> : null}
           </Label>
           {addon ? <span className="text-xs text-muted-foreground">{addon}</span> : null}
         </div>

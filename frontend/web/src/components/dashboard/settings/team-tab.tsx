@@ -73,7 +73,7 @@ export function TeamTab() {
           </Avatar>
           <span className="min-w-0 break-words font-medium">
             {nameOf(m)}
-            {m.email.toLowerCase() === me ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">({t('you')})</span> : null}
+            {m.email.toLowerCase() === me ? <span className="ms-1.5 text-xs font-normal text-muted-foreground">({t('you')})</span> : null}
           </span>
         </span>
       ),

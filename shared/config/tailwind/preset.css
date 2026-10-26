@@ -8,7 +8,8 @@
  * so that `bg-primary` follows the active theme. This file keeps what is theme-neutral.
  */
 @theme {
-  --font-sans: var(--font-inter, 'Inter'), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Inter carries no Arabic glyphs; the browser falls through to the Arabic face glyph by glyph. */
+  --font-sans: var(--font-inter, 'Inter'), var(--font-arabic, 'IBM Plex Sans Arabic'), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   --radius-sm: 0.375rem;

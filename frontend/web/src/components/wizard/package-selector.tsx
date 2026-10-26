@@ -5,6 +5,7 @@ import type { PricingResponse } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Field, RadioCard, RadioGroup, Skeleton, Switch } from '@portal/ui';
 import { CreditCard, Lock } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
@@ -125,16 +126,18 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
 }
 
 function PackTitle({ pack }: { pack: Pack }) {
+  const copy = useServerCopy();
   return (
     <span className="flex flex-wrap items-center gap-2">
       {pack.name}
-      {pack.badge ? <Badge variant="primary">{pack.badge}</Badge> : null}
+      {pack.badge ? <Badge variant="primary">{copy.packText(pack.badge)}</Badge> : null}
     </span>
   );
 }
 
 function PackBody({ pack }: { pack: Pack }) {
   const tp = useTranslations('wizard.w7.packs');
+  const copy = useServerCopy();
   return (
     <span className="mt-1 flex flex-col gap-1.5">
       <span className="text-xl font-semibold text-foreground">{formatMoney(pack.price_cents, pack.currency)}</span>
@@ -144,7 +147,7 @@ function PackBody({ pack }: { pack: Pack }) {
       </span>
       <span>{tp('concurrency', { n: pack.concurrency_cap })}</span>
       <span>{pack.kb_allowance ? tp('knowledge', { n: pack.kb_allowance }) : tp('noKnowledge')}</span>
-      {pack.description ? <span>{pack.description}</span> : null}
+      {pack.description ? <span>{copy.packText(pack.description)}</span> : null}
     </span>
   );
 }

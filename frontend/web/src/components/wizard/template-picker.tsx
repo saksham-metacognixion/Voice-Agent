@@ -4,6 +4,7 @@ import type { TemplateSummary } from '@portal/schemas';
 import { AudioButton, Badge, Skeleton, cn } from '@portal/ui';
 import { Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import { track } from '@/src/analytics/posthog';
 
 export interface TemplatePickerProps {
@@ -22,6 +23,7 @@ export interface TemplatePickerProps {
  */
 export function TemplatePicker({ templates, selected, onSelect, disabled }: TemplatePickerProps) {
   const t = useTranslations();
+  const copy = useServerCopy();
   return (
     <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" role="list">
       {templates.map((tpl) => {
@@ -30,7 +32,7 @@ export function TemplatePicker({ templates, selected, onSelect, disabled }: Temp
           <li key={tpl.id} className="h-full">
             <div
               className={cn(
-                'group relative flex h-full w-full flex-col gap-3 rounded-lg border bg-card p-5 text-left shadow-card transition-[border-color,box-shadow,transform]',
+                'group relative flex h-full w-full flex-col gap-3 rounded-lg border bg-card p-5 text-start shadow-card transition-[border-color,box-shadow,transform]',
                 'hover:border-primary/40 hover:shadow-popover has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50',
                 disabled && 'opacity-60',
                 active ? 'border-primary ring-2 ring-primary/20' : 'border-border',
@@ -40,14 +42,14 @@ export function TemplatePicker({ templates, selected, onSelect, disabled }: Temp
                 type="button"
                 disabled={disabled}
                 aria-pressed={active}
-                aria-label={tpl.name}
+                aria-label={copy.templateName(tpl)}
                 onClick={() => onSelect(tpl.id)}
                 className="absolute inset-0 z-0 rounded-lg outline-none disabled:cursor-not-allowed"
               />
               <div className="pointer-events-none relative z-10 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h3 className="text-base font-semibold leading-tight">{tpl.name}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{tpl.tagline}</p>
+                  <h3 className="text-base font-semibold leading-tight">{copy.templateName(tpl)}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{copy.templateTagline(tpl)}</p>
                 </div>
                 <span
                   className={cn(
@@ -60,14 +62,14 @@ export function TemplatePicker({ templates, selected, onSelect, disabled }: Temp
                 </span>
               </div>
               <p className="pointer-events-none relative z-10 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground/80">{t('wizard.w1.bestFor')}:</span> {tpl.best_for}
+                <span className="font-medium text-foreground/80">{t('wizard.w1.bestFor')}:</span> {copy.templateBestFor(tpl)}
               </p>
               <div className="pointer-events-none relative z-10 mt-auto flex items-center justify-between gap-2 pt-1">
                 <div className="flex flex-wrap gap-1.5">
                   {tpl.default_tier === 'premium' ? <Badge variant="premium">{t('common.premium')}</Badge> : <Badge variant="outline">{t('common.standard')}</Badge>}
                   {tpl.industry_tags.slice(0, 2).map((tag) => (
                     <Badge key={tag} variant="default" className="capitalize">
-                      {tag}
+                      {copy.industry(tag)}
                     </Badge>
                   ))}
                 </div>

@@ -10,6 +10,7 @@ import { track } from '@/src/analytics/posthog';
 import { toBase64 } from '@/src/components/wizard/knowledge-sources';
 import { errorMessage } from '@/src/lib/errors';
 import { shrinkPhoto } from '@/src/wizard/photo-text';
+import { formatNumber } from '@/src/lib/format';
 
 /**
  * W2 documents (ADR 0023) — a menu, a price list, a services sheet — read into text by
@@ -91,7 +92,7 @@ export function BriefDocuments({ agentId, value, onChange, disabled }: { agentId
               {isImageDocumentType(doc.content_type) ? <ImageIcon className="size-4 shrink-0 text-primary" aria-hidden /> : <FileText className="size-4 shrink-0 text-primary" aria-hidden />}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{doc.name}</p>
-                <p className="text-xs text-muted-foreground">{td('chars', { n: doc.text.length.toLocaleString() })}</p>
+                <p className="text-xs text-muted-foreground">{td('chars', { n: formatNumber(doc.text.length, 0) })}</p>
               </div>
               {doc.truncated ? <Badge variant="outline" className="text-warning-emphasis">{td('truncated')}</Badge> : null}
               <Button type="button" variant="ghost" size="icon" className="text-muted-foreground" disabled={disabled} aria-label={`${td('remove')} ${doc.name}`} onClick={() => remove(i)}>
@@ -128,7 +129,7 @@ export function BriefDocuments({ agentId, value, onChange, disabled }: { agentId
           <Upload /> {td('add')}
         </Button>
         <span className={cn('text-xs tabular-nums text-muted-foreground', full && 'text-warning-emphasis')}>
-          {full ? td('full') : td('budget', { used: used.toLocaleString(), max: BRIEF_DOCUMENTS_MAX_CHARS.toLocaleString() })}
+          {full ? td('full') : td('budget', { used: formatNumber(used, 0), max: formatNumber(BRIEF_DOCUMENTS_MAX_CHARS, 0) })}
         </span>
       </div>
       <p className="text-xs text-muted-foreground">{td('accepts', { mb: BRIEF_DOCUMENT_MAX_FILE_BYTES / 1024 / 1024, n: BRIEF_MAX_DOCUMENTS })}</p>

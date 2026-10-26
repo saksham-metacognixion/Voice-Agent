@@ -69,11 +69,11 @@ export function DataTable<T>({
   return (
     <div className={className}>
       <div className="hidden overflow-x-auto rounded-lg border border-border bg-card sm:block">
-        <table className="w-full text-left text-sm" aria-label={label}>
+        <table className="w-full text-start text-sm" aria-label={label}>
           <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
               {columns.map((c) => (
-                <th key={c.key} scope="col" className={cn('px-3 py-2.5 font-medium', c.align === 'right' && 'text-right', c.align === 'center' && 'text-center', c.className)}>
+                <th key={c.key} scope="col" className={cn('px-3 py-2.5 font-medium', c.align === 'right' && 'text-end', c.align === 'center' && 'text-center', c.className)}>
                   {c.header}
                 </th>
               ))}
@@ -89,7 +89,7 @@ export function DataTable<T>({
                 tabIndex={onRowClick ? 0 : undefined}
               >
                 {columns.map((c) => (
-                  <td key={c.key} className={cn('px-3 py-2.5 align-middle', c.align === 'right' && 'text-right tabular-nums', c.align === 'center' && 'text-center', c.className)}>
+                  <td key={c.key} className={cn('px-3 py-2.5 align-middle', c.align === 'right' && 'text-end tabular-nums', c.align === 'center' && 'text-center', c.className)}>
                     {c.cell(row)}
                   </td>
                 ))}

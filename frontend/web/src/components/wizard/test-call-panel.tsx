@@ -93,9 +93,9 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
             ) : (
               <ol className="flex flex-col gap-2">
                 {state.transcript.map((line, i) => (
-                  <li key={i} className={cn('flex flex-col gap-0.5', line.role === 'user' && 'items-end text-right')}>
+                  <li key={i} className={cn('flex flex-col gap-0.5', line.role === 'user' && 'items-end text-end')}>
                     <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{line.role === 'agent' ? tt('agent') : tt('you')}</span>
-                    <span className={cn('max-w-[85%] rounded-lg px-3 py-2', line.role === 'agent' ? 'bg-muted' : 'bg-primary/12')}>{line.content}</span>
+                    <span dir="auto" className={cn('max-w-[85%] rounded-lg px-3 py-2', line.role === 'agent' ? 'bg-muted' : 'bg-primary/12')}>{line.content}</span>
                   </li>
                 ))}
               </ol>

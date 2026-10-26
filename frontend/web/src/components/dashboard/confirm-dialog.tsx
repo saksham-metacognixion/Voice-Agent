@@ -73,7 +73,7 @@ export function ConfirmDialog({
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         {consequences?.length ? (
-          <ul className="list-disc space-y-1 pl-5 text-sm">
+          <ul className="list-disc space-y-1 ps-5 text-sm">
             {consequences.map((c, i) => (
               <li key={i}>{c}</li>
             ))}

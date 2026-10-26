@@ -1,4 +1,5 @@
 import { Alert, Button, Logo, Separator, Sheet, SheetContent, SheetDescription, SheetTitle, ThemeToggle, cn } from '@portal/ui';
+import { LanguageMenu } from './language-switcher';
 import { MoreHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -33,7 +34,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
   return (
     <DashboardLiveProvider enabled={Boolean(ws.active)}>
       <div className="flex min-h-dvh">
-        <aside className="sticky top-0 hidden h-dvh w-sidebar shrink-0 flex-col border-r border-sidebar-border bg-sidebar lg:flex">
+        <aside className="sticky top-0 hidden h-dvh w-sidebar shrink-0 flex-col border-e border-sidebar-border bg-sidebar lg:flex">
           <div className="flex h-16 items-center px-5">
             <Link href={routes.app.home} aria-label={t('common.appName')}>
               <Logo />
@@ -54,8 +55,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
               <Logo variant="mark" size="sm" />
             </Link>
             <WorkspaceSwitcher className="min-w-0 shrink" />
-            <div className="ml-auto flex items-center gap-1 sm:gap-2">
+            <div className="ms-auto flex items-center gap-1 sm:gap-2">
               <BalancePill className="lg:hidden" compact />
+              <LanguageMenu className="hidden sm:inline-flex" />
               <ThemeToggle labels={themeLabels} className="hidden sm:inline-flex" />
               <UserMenu />
             </div>

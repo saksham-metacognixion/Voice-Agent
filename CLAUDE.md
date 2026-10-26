@@ -49,7 +49,7 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 | Layer          | Choice                                                                                                                                                                                                                                                                          |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                                                                                     |
-| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, fr-CA), PostHog, `retell-client-js-sdk`                                                                                          |
+| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, ar; fr-CA planned), PostHog, `retell-client-js-sdk`                                                                                          |
 | SSE client     | `@microsoft/fetch-event-source` — `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                                                                                                                 |
 | API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                                                                                                               |
 | Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                                                                                                                     |
@@ -107,7 +107,10 @@ the live version itself (29 Sep), 0025 the D14 hardening — disposable email re
 by a pre-registration Action and again by `UsersService.upsert`, Auth0 attack protection as the
 §6.2 login/sign-up limits, one `onRequest` hook for the origin check and the per-IP API budget,
 OpenTelemetry for traces and Sentry (errors only, nine integrations) with measured inbound
-cost, the console diagnostics routes, the RDS PITR drill and the console's CI deploy (29 Sep). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+cost, the console diagnostics routes, the RDS PITR drill and the console's CI deploy (29 Sep), 0026
+Arabic and right-to-left in the portal — next-intl without routing, the language a per-browser
+choice applied before first paint, `UiLocaleProvider` in `@portal/ui`, logical CSS only, API copy
+translated by id through `useServerCopy` (26 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -693,7 +696,19 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Data goes through `useApi()` and the generated hooks; SSE through `useWorkspaceEvents`;
   a `202 {job_id}` through `useJobWatch` **and** the topic's frames at the same time.
   Errors become copy through `errorMessage(error, t)` (branch on `code`, never on text).
-- Every user-facing string is a key in `src/i18n/messages/en.json` (`useTranslations`).
+- Every user-facing string is a key in `src/i18n/messages/en.json` **and** `ar.json`
+  (`useTranslations`); `src/i18n/messages.test.ts` fails on a key, placeholder or tag in one
+  and not the other, or a line that does not format under Arabic plural rules (ADR 0026).
+  The language is per browser (`portal:locale`, `LocaleProvider`), applied to `<html lang
+  dir>` before paint by `localeBootScript`; no locale in the URL. `lib/format` and every
+  `Intl` call use `activeIntlLocale()` (`ar-u-nu-latn`: Western digits), never the browser's.
+  Text the API sends in English (template names, lint findings, analysis fields,
+  disconnection reasons) goes through `useServerCopy()`, by id, never translated in place.
+- **Right to left is logical CSS.** `ms-/me-/ps-/pe-/start-/end-/text-start/text-end`, never
+  `ml-/mr-/pl-/pr-/left-/right-/text-left/text-right`; `@portal/ui` labels and direction come
+  from `UiLocaleProvider` (Radix `Direction.Provider` inside). Directional lucide icons are
+  mirrored by one rule in `globals.css`; phone/email/URL inputs stay LTR; free text is
+  `dir="auto"`. The console has no provider and is English, left to right.
 - Analytics: `track()` from `src/analytics/posthog.tsx` only; ids, step names and counts,
   never brief text, emails or phone numbers.
 - Retell is never named; say "voice", "what your agent knows".

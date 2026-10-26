@@ -20,7 +20,7 @@ import { CallStatusBadge } from '@/src/components/dashboard/status-badges';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
 import { TransferTargetsEditor, toDrafts, toTargets, validateTargets, type TransferTargetDraft } from '@/src/components/wizard/transfer-targets-editor';
-import { COUNTRIES } from '@/src/lib/countries';
+import { COUNTRIES, countryName } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { formatDateTime, formatDuration, formatPhone } from '@/src/lib/format';
 import { useCursorPager } from '@/src/lib/use-cursor-pager';
@@ -259,7 +259,6 @@ export function CallersSection({ number, disabled }: { number: PhoneNumberRespon
 
   const parsed = parseBlocklist(blocked);
   const dirty = JSON.stringify(countries) !== JSON.stringify(number.allowed_countries) || JSON.stringify(parsed.valid) !== JSON.stringify(number.blocklist) || parsed.invalid.length > 0;
-  const countryName = (code: string) => COUNTRIES.find((c) => c.code === code)?.name ?? code;
 
   async function submit() {
     if (parsed.invalid.length) return;
@@ -281,7 +280,7 @@ export function CallersSection({ number, disabled }: { number: PhoneNumberRespon
           <ul className="flex flex-wrap gap-2">
             {countries.map((code) => (
               <li key={code}>
-                <Badge variant="outline" className="gap-1 py-1 pl-2.5 pr-1 text-sm">
+                <Badge variant="outline" className="gap-1 py-1 ps-2.5 pe-1 text-sm">
                   {countryName(code)}
                   {!disabled ? (
                     <button type="button" className="rounded p-0.5 hover:bg-muted" aria-label={t('removeCountry', { country: countryName(code) })} onClick={() => setCountries((list) => list.filter((c) => c !== code))}>
@@ -309,7 +308,7 @@ export function CallersSection({ number, disabled }: { number: PhoneNumberRespon
                 <SelectContent>
                   {COUNTRIES.filter((c) => !countries.includes(c.code)).map((c) => (
                     <SelectItem key={c.code} value={c.code}>
-                      {c.name}
+                      {countryName(c.code)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -485,11 +484,11 @@ export function SipSection({ number }: { number: PhoneNumberResponse }) {
               <span className="tabular-nums">{number.e164 ? formatPhone(number.e164) : '–'}</span>
             </Fact>
             <Fact label={t('host')} wrap>
-              <span className="break-all font-mono text-xs">{sip.host}</span>
+              <span dir="ltr" className="break-all font-mono text-xs">{sip.host}</span>
             </Fact>
             <Fact label={t('username')} wrap>
               <span className="inline-flex items-center gap-2">
-                <span className="break-all font-mono text-xs">{reveal ? (sip.username ?? '–') : maskSecretish(sip.username)}</span>
+                <span dir="ltr" className="break-all font-mono text-xs">{reveal ? (sip.username ?? '–') : maskSecretish(sip.username)}</span>
                 {sip.username ? (
                   <Button variant="ghost" size="icon-sm" onClick={() => setReveal((v) => !v)} aria-label={reveal ? t('hideUsername') : t('showUsername')} aria-pressed={reveal}>
                     {reveal ? <EyeOff /> : <Eye />}
@@ -530,7 +529,7 @@ export function DangerSection({ number }: { number: PhoneNumberResponse }) {
         <CardDescription>{t('body')}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <ul className="list-disc space-y-1 pl-5 text-sm">
+        <ul className="list-disc space-y-1 ps-5 text-sm">
           {consequences.map((c) => (
             <li key={c}>{c}</li>
           ))}

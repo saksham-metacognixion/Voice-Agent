@@ -23,7 +23,7 @@ export const RadioCard = React.forwardRef<React.ComponentRef<typeof Primitive.It
     <Primitive.Item
       ref={ref}
       className={cn(
-        'group relative flex w-full items-start gap-3 rounded-lg border border-border bg-card p-4 text-left shadow-card outline-none transition-[border-color,box-shadow,background-color]',
+        'group relative flex w-full items-start gap-3 rounded-lg border border-border bg-card p-4 text-start shadow-card outline-none transition-[border-color,box-shadow,background-color]',
         'hover:border-primary/40 focus-visible:ring-2 focus-visible:ring-ring/50 data-[state=checked]:border-primary data-[state=checked]:bg-accent/60 disabled:cursor-not-allowed disabled:opacity-60',
         className,
       )}

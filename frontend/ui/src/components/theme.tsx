@@ -4,6 +4,7 @@ import { Monitor, Moon, Sun } from 'lucide-react';
 import { ThemeProvider as NextThemesProvider, useTheme } from 'next-themes';
 import * as React from 'react';
 import { cn } from '../lib/utils';
+import { useUiLabels } from './locale';
 import { Button } from './button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from './dropdown-menu';
 
@@ -29,9 +30,9 @@ export interface ThemeToggleProps {
   variant?: 'menu' | 'button';
 }
 
-const defaultLabels = { light: 'Light', dark: 'Dark', system: 'System', toggle: 'Change theme' };
-
-export function ThemeToggle({ className, labels = defaultLabels, variant = 'menu' }: ThemeToggleProps) {
+export function ThemeToggle({ className, labels: labelsProp, variant = 'menu' }: ThemeToggleProps) {
+  const fallback = useUiLabels().theme;
+  const labels = labelsProp ?? fallback;
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
@@ -76,12 +77,13 @@ export function ThemeToggle({ className, labels = defaultLabels, variant = 'menu
 }
 
 /** Inline segmented control for a settings page or the theme menu in the user dropdown. */
-export function ThemeSegment({ className, labels = defaultLabels }: { className?: string; labels?: ThemeToggleProps['labels'] }) {
+export function ThemeSegment({ className, labels }: { className?: string; labels?: ThemeToggleProps['labels'] }) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
   const current = mounted ? (theme ?? 'system') : 'system';
-  const l = labels ?? defaultLabels;
+  const fallback = useUiLabels().theme;
+  const l = labels ?? fallback;
   const options = [
     { value: 'light', label: l.light, Icon: Sun },
     { value: 'dark', label: l.dark, Icon: Moon },

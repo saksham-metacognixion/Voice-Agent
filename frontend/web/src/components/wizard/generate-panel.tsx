@@ -4,6 +4,7 @@ import type { AgentDetail } from '@portal/schemas';
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Progress, cn } from '@portal/ui';
 import { ArrowRight, FileText, RefreshCw, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import type { GenerationState } from '@/src/wizard/use-generation';
 
 export interface GeneratePanelProps {
@@ -27,6 +28,7 @@ const STAGE_PCT: Record<GenerationState['stage'], number> = { idle: 0, queued: 8
 /** The right-hand column of W2: the Generate button, the progress, the result. */
 export function GeneratePanel({ agent, generation, slow, ready, saving, onGenerate, onContinue, onEditScript, scriptDirty = false, error }: GeneratePanelProps) {
   const t = useTranslations('wizard.w2');
+  const copy = useServerCopy();
   const active = generation.stage === 'queued' || generation.stage === 'started' || generation.stage === 'writing';
   const hasPrompt = Boolean(agent?.draft?.has_prompt);
   const generatedNow = generation.stage === 'done';
@@ -60,7 +62,7 @@ export function GeneratePanel({ agent, generation, slow, ready, saving, onGenera
 
         {generation.stage === 'failed' ? (
           <Alert variant="danger" title={t('failedTitle')}>
-            {generation.reason ?? t('failedBody')}
+            {copy.sentence(generation.reason) ?? t('failedBody')}
           </Alert>
         ) : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
@@ -123,7 +125,7 @@ export function GeneratePanel({ agent, generation, slow, ready, saving, onGenera
           <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
             {draft.lint.findings.slice(0, 5).map((f, i) => (
               <li key={i} className={cn(f.severity === 'error' && 'text-danger')}>
-                • {f.message}
+                • {copy.finding(f)}
               </li>
             ))}
           </ul>

@@ -5,6 +5,7 @@ import type { ActivationStepStatus, ActivationView } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Progress, Spinner, cn } from '@portal/ui';
 import { Check, Circle, Minus, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 
 /**
  * W7 ProvisioningProgress (§13.8): the activation job's own state — status, the step in
@@ -35,6 +36,7 @@ export function ProvisioningProgress({
   onChangeNumber?: () => void;
 }) {
   const tp = useTranslations('wizard.w7.progress');
+  const copy = useServerCopy();
   const t = useTranslations();
 
   if (!view) {
@@ -109,7 +111,7 @@ export function ProvisioningProgress({
               ) : undefined
             }
           >
-            {view.error ?? tp('failedDefault')}
+            {copy.sentence(view.error) ?? tp('failedDefault')}
           </Alert>
         ) : null}
         {retryError ? <Alert variant="danger">{retryError}</Alert> : null}

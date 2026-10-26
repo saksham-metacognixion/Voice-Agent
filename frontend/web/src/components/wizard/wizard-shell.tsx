@@ -1,6 +1,7 @@
 'use client';
 
 import { Button, Logo, Stepper, ThemeToggle } from '@portal/ui';
+import { LanguageMenu } from '@/src/components/shell/language-switcher';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -61,6 +62,7 @@ export function WizardShell({ children }: { children: React.ReactNode }) {
                 <Link href={routes.app.home}>{t('wizard.exit')}</Link>
               </Button>
             ) : null}
+            <LanguageMenu />
             <ThemeToggle labels={themeLabels} />
             <UserMenu />
           </div>

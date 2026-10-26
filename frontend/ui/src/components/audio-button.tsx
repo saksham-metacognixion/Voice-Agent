@@ -3,6 +3,7 @@
 import { Loader2, Pause, Play, VolumeX } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/utils';
+import { useUiLabels } from './locale';
 
 export type AudioState = 'idle' | 'loading' | 'playing' | 'error';
 
@@ -28,8 +29,6 @@ export interface AudioButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLBu
   size?: 'sm' | 'md';
 }
 
-const defaultLabels = { play: 'Play', pause: 'Pause', unavailable: 'Sample unavailable', loading: 'Loading' };
-
 /** The browser throws on a rate outside its range, and a silent 0 would look like a bug. */
 function clampRate(rate: number | undefined): number {
   if (!rate || !Number.isFinite(rate)) return 1;
@@ -42,7 +41,9 @@ function clampRate(rate: number | undefined): number {
  */
 let current: { el: HTMLAudioElement; stop: () => void } | null = null;
 
-export function AudioButton({ src, resolve, rate, onStateChange, onPlay, onError, labels = defaultLabels, size = 'md', className, disabled, ...props }: AudioButtonProps) {
+export function AudioButton({ src, resolve, rate, onStateChange, onPlay, onError, labels: labelsProp, size = 'md', className, disabled, ...props }: AudioButtonProps) {
+  const fallback = useUiLabels().audio;
+  const labels = labelsProp ?? fallback;
   const [state, setState] = React.useState<AudioState>('idle');
   const elRef = React.useRef<HTMLAudioElement | null>(null);
 

@@ -174,12 +174,10 @@ export function RedirectIfSignedIn({ children }: { children: React.ReactNode }) 
 }
 
 function ConfigMissing() {
+  const t = useTranslations('auth.configMissing');
   return (
     <div className="p-6">
-      <ErrorState
-        title="Sign-in is not configured on this build"
-        description="NEXT_PUBLIC_AUTH0_DOMAIN, NEXT_PUBLIC_AUTH0_CLIENT_ID and NEXT_PUBLIC_AUTH0_AUDIENCE must be set at build time."
-      />
+      <ErrorState title={t('title')} description={t('body', { vars: 'NEXT_PUBLIC_AUTH0_DOMAIN, NEXT_PUBLIC_AUTH0_CLIENT_ID, NEXT_PUBLIC_AUTH0_AUDIENCE' })} />
     </div>
   );
 }

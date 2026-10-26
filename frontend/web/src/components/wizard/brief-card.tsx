@@ -13,7 +13,8 @@ import * as React from 'react';
 export function BriefCard({ brief, generated, agentName }: { brief: Brief; generated: BriefCardShape | null | undefined; agentName?: string | null }) {
   const t = useTranslations('wizard.w2.card');
   const name = agentName?.trim() || brief.agent_name?.trim() || t('defaultName');
-  const card = generated ?? derive(brief);
+  const td = useTranslations('wizard.w2.card.derived');
+  const card = generated ?? derive(brief, td);
   const empty = card.does.length + card.doesnt.length + card.handoff.length === 0;
 
   return (
@@ -65,18 +66,25 @@ function sentences(text: string | undefined, max: number): string[] {
     .slice(0, max);
 }
 
-function derive(brief: Brief): BriefCardShape {
-  const does = [...sentences(brief.goal, 2)];
-  if (brief.services.length > 0) does.push(`Answer questions about ${brief.services.slice(0, 4).join(', ')}${brief.services.length > 4 ? ' and more' : ''}`);
-  if (brief.faqs.length > 0) does.push(`Answer ${brief.faqs.length} common question${brief.faqs.length === 1 ? '' : 's'}`);
-  if (brief.pricing?.trim()) does.push('Quote the prices you listed');
-  const doesnt = sentences(brief.never_do, 4);
-  if (!brief.pricing?.trim()) doesnt.push('Quote prices');
-  doesnt.push('Claim to be human');
-  const handoff = brief.handoff_rules.filter((r) => r.condition.trim()).map((r) => `${r.condition.trim()} → ${label(r.action)}${r.action === 'read_message' && r.message?.trim() ? `: “${r.message.trim()}”` : ''}`);
-  return { does: does.slice(0, 6), doesnt: doesnt.slice(0, 6), handoff: handoff.slice(0, 5) };
-}
+type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-function label(action: 'transfer' | 'take_message' | 'read_message'): string {
-  return action === 'transfer' ? 'transfer the call' : action === 'take_message' ? 'take a message' : 'read a message';
+/** The preview's own sentences are ours (catalogue); the goal, rules and services quoted in them are the customer's. */
+function derive(brief: Brief, t: Translate): BriefCardShape {
+  const does = [...sentences(brief.goal, 2)];
+  if (brief.services.length > 0) {
+    const services = brief.services.slice(0, 4).join(t('listSeparator'));
+    does.push(brief.services.length > 4 ? t('servicesMore', { services }) : t('services', { services }));
+  }
+  if (brief.faqs.length > 0) does.push(t('faqs', { n: brief.faqs.length }));
+  if (brief.pricing?.trim()) does.push(t('quoteListed'));
+  const doesnt = sentences(brief.never_do, 4);
+  if (!brief.pricing?.trim()) doesnt.push(t('quotePrices'));
+  doesnt.push(t('notHuman'));
+  const handoff = brief.handoff_rules
+    .filter((r) => r.condition.trim())
+    .map((r) => {
+      const values = { condition: r.condition.trim(), action: t(`actions.${r.action}`) };
+      return r.action === 'read_message' && r.message?.trim() ? t('handoffMessage', { ...values, message: r.message.trim() }) : t('handoff', values);
+    });
+  return { does: does.slice(0, 6), doesnt: doesnt.slice(0, 6), handoff: handoff.slice(0, 5) };
 }

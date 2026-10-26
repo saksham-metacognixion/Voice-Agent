@@ -49,6 +49,8 @@ export type AnalyticsEvent =
   | 'script_editor_opened'
   | 'voice_selected'
   | 'language_selected'
+  // The portal's own language (en / ar), not the agent's.
+  | 'language_changed'
   | 'voice_preview_played'
   // W4–W7 (D9). §12 names test_call_started/ended, pack_selected, checkout_completed.
   | 'knowledge_added'

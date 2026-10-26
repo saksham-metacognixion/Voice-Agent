@@ -56,7 +56,7 @@ export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, se
         ))}
       </ul>
       <div className="hidden overflow-x-auto rounded-lg border border-border bg-card sm:block">
-        <table className="w-full min-w-0 text-left text-sm sm:min-w-[46rem]">
+        <table className="w-full min-w-0 text-start text-sm sm:min-w-[46rem]">
           <thead className="bg-muted/60 text-xs text-muted-foreground">
             <tr>
               {canSelect ? (
@@ -99,14 +99,14 @@ export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, se
                   <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatDateTime(call.started_at ?? call.created_at, timeZone)}</td>
                   <td className="px-3 py-2.5">
                     <span className="font-medium">{call.channel === 'web' ? tl('browserTest') : formatPhone(call.from_number) === '–' ? tl('unknownCaller') : formatPhone(call.from_number)}</span>
-                    {call.is_test && call.channel !== 'web' ? <span className="ml-1 text-xs text-muted-foreground">({tl('test')})</span> : null}
+                    {call.is_test && call.channel !== 'web' ? <span className="ms-1 text-xs text-muted-foreground">({tl('test')})</span> : null}
                   </td>
                   <td className="hidden max-w-[10rem] truncate px-3 py-2.5 text-muted-foreground md:table-cell">{agentName(call.agent_id) ?? (call.agent_id ? '…' : '–')}</td>
-                  <td className="hidden px-3 py-2.5 text-right tabular-nums sm:table-cell">{formatDuration(call.duration_s)}</td>
+                  <td className="hidden px-3 py-2.5 text-end tabular-nums sm:table-cell">{formatDuration(call.duration_s)}</td>
                   <td className="hidden px-3 py-2.5 sm:table-cell">
                     <SentimentBadge value={call.sentiment} compact />
                   </td>
-                  <td className="hidden px-3 py-2.5 text-right tabular-nums sm:table-cell">{call.credits_charged !== null ? formatCreditsValue(call.credits_charged) : '–'}</td>
+                  <td className="hidden px-3 py-2.5 text-end tabular-nums sm:table-cell">{call.credits_charged !== null ? formatCreditsValue(call.credits_charged) : '–'}</td>
                   <td className="px-3 py-2.5">
                     <CallStatusBadge status={call.status} />
                   </td>
@@ -148,7 +148,7 @@ function CallCard({ call, agentName, timeZone, selected, canSelect, active, onSe
           <div className="flex min-w-0 flex-col">
             <span className="break-words font-semibold tabular-nums">
               {caller}
-              {call.is_test && call.channel !== 'web' ? <span className="ml-1 text-xs font-normal text-muted-foreground">({tl('test')})</span> : null}
+              {call.is_test && call.channel !== 'web' ? <span className="ms-1 text-xs font-normal text-muted-foreground">({tl('test')})</span> : null}
             </span>
             <span className="text-xs text-muted-foreground tabular-nums">{formatDateTime(call.started_at ?? call.created_at, timeZone)}</span>
           </div>
@@ -187,7 +187,7 @@ function SortHeader({ label, column, sort, order, onSort, align, className }: { 
   const active = sort === column;
   const Icon = !active ? ArrowUpDown : order === 'asc' ? ArrowUp : ArrowDown;
   return (
-    <th className={cn('px-3 py-2.5 font-medium', align === 'right' && 'text-right', className)} aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
+    <th className={cn('px-3 py-2.5 font-medium', align === 'right' && 'text-end', className)} aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
       <button type="button" className={cn('inline-flex items-center gap-1 hover:text-foreground', active && 'text-foreground')} onClick={() => onSort(column)}>
         {label}
         <Icon className="size-3.5" aria-hidden />

@@ -205,6 +205,49 @@
   input[type='range'] {
     accent-color: var(--primary);
   }
+
+  /* Right to left (the portal in Arabic; nothing sets `dir="rtl"` in the console).
+     Icons that point along the reading direction turn round with it. Media controls
+     (play, pause) and clocks do not, by convention. `transform`, not `scale`, so a Tailwind
+     `scale-*`/`rotate-*` on the same icon still composes instead of cancelling the flip. */
+  [dir='rtl'] :is(
+      .lucide-arrow-left,
+      .lucide-arrow-right,
+      .lucide-chevron-left,
+      .lucide-chevron-right,
+      .lucide-chevrons-left,
+      .lucide-chevrons-right,
+      .lucide-log-out,
+      .lucide-log-in,
+      .lucide-send,
+      .lucide-external-link,
+      .lucide-undo-2,
+      .lucide-redo-2
+    ) {
+    transform: scaleX(-1);
+  }
+  /* Phone numbers, emails and URLs are left-to-right text in any language: typed in
+     right-to-left, `+1 416…` would show its `+` at the end. Kept on the reading side. */
+  [dir='rtl'] :is(input[type='tel'], input[type='email'], input[type='url'], input[inputmode='tel'], input[inputmode='email'], input[inputmode='url']) {
+    direction: ltr;
+    text-align: right;
+  }
+  [dir='rtl'] :is(input[type='tel'], input[type='email'], input[type='url'], input[inputmode='tel'], input[inputmode='email'], input[inputmode='url'])::placeholder {
+    text-align: right;
+  }
+  /* `dir="auto"` on an empty field means left to right, which would put an Arabic
+     placeholder on the wrong side; until something is typed it follows the page. */
+  [dir='rtl'] textarea[dir='auto']:placeholder-shown {
+    direction: rtl;
+  }
+  /* Radix's switch, checkbox and radio render a hidden native input (`aria-hidden`, no
+     pointer events, transparent) moved one width to the left with an inline style. Left
+     is the scrollable side of a right-to-left page, so on a phone every such input
+     widened the document — a 390 px W2 scrolled sideways by 342 px. On the control itself
+     it is just as invisible. */
+  [dir='rtl'] input[aria-hidden='true'][style*='translateX(-100%)'] {
+    transform: none !important;
+  }
 }
 
 @layer utilities {

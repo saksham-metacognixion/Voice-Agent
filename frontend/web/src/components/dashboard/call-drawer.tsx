@@ -8,7 +8,8 @@ import { ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
-import { capturedFields, humanise, parseAnalysis } from '@/src/dashboard/analysis';
+import { capturedFields, parseAnalysis } from '@/src/dashboard/analysis';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { RecordingPlayer } from '@/src/components/dashboard/recording-player';
 import { CallStatusBadge, SentimentBadge, TierBadge } from '@/src/components/dashboard/status-badges';
@@ -58,6 +59,7 @@ function CallBody({ call }: { call: CallDetail }) {
   const t = useTranslations('dashboard.calls.detail');
   const tl = useTranslations('dashboard.calls');
   const tc = useTranslations();
+  const copy = useServerCopy();
   const api = useApi();
   const ws = useWorkspace();
   const timeZone = ws.workspace?.timezone;
@@ -74,7 +76,7 @@ function CallBody({ call }: { call: CallDetail }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1 pr-8">
+      <div className="flex flex-col gap-1 pe-8">
         <div className="flex flex-wrap items-center gap-2">
           <SheetTitle className="text-lg">{caller}</SheetTitle>
           <CallStatusBadge status={call.status} />
@@ -124,9 +126,9 @@ function CallBody({ call }: { call: CallDetail }) {
             {captured.map(([name, value]) => (
               <div key={name} className="flex items-start justify-between gap-4 px-3 py-2">
                 <dt className="text-muted-foreground" title={fieldDefs.get(name)}>
-                  {humanise(name)}
+                  {copy.analysisField(name)}
                 </dt>
-                <dd className="text-right font-medium">{displayValue(value, tc)}</dd>
+                <dd className="text-end font-medium">{displayValue(value, tc)}</dd>
               </div>
             ))}
           </dl>
@@ -160,10 +162,10 @@ function CallBody({ call }: { call: CallDetail }) {
           <Fact label={t('agentVersion')}>{call.agent_version !== null ? `v${call.agent_version}` : '–'}</Fact>
           <Fact label={t('started')}>{formatDateTime(call.started_at, timeZone, { seconds: true })}</Fact>
           <Fact label={t('ended')}>{formatDateTime(call.ended_at, timeZone, { seconds: true })}</Fact>
-          <Fact label={t('disconnection')}>{call.disconnection_reason ? humanise(call.disconnection_reason) : '–'}</Fact>
+          <Fact label={t('disconnection')}>{call.disconnection_reason ? copy.disconnection(call.disconnection_reason) : '–'}</Fact>
         </dl>
         <p className="mt-3 break-all font-mono text-[11px] text-muted-foreground">
-          {t('callId')}: {call.id}
+          {t('callId')}: <span dir="ltr">{call.id}</span>
         </p>
       </Section>
     </div>

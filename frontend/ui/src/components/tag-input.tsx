@@ -3,6 +3,7 @@
 import { X } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../lib/utils';
+import { useUiLabels } from './locale';
 
 export interface TagInputProps {
   id?: string;
@@ -24,7 +25,9 @@ export interface TagInputProps {
  * on an empty input removes the last tag, which is the behaviour people expect from a
  * chip field and the one that does not need a mouse.
  */
-export function TagInput({ id, value, onChange, placeholder, maxLength = 60, max, disabled, removeLabel = 'Remove', className, ...rest }: TagInputProps) {
+export function TagInput({ id, value, onChange, placeholder, maxLength = 60, max, disabled, removeLabel, className, ...rest }: TagInputProps) {
+  const labels = useUiLabels();
+  const remove = removeLabel ?? labels.remove;
   const [draft, setDraft] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
   const full = max !== undefined && value.length >= max;
@@ -59,7 +62,7 @@ export function TagInput({ id, value, onChange, placeholder, maxLength = 60, max
           {disabled ? null : (
             <button
               type="button"
-              aria-label={`${removeLabel} ${tag}`}
+              aria-label={`${remove} ${tag}`}
               className="rounded-full p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation();

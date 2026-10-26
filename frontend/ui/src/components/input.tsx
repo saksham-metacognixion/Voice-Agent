@@ -25,10 +25,16 @@ Input.displayName = 'Input';
 
 export type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & { invalid?: boolean };
 
+/**
+ * Free text follows its own writing direction (`dir="auto"`): an English goal typed into the
+ * Arabic portal reads left to right with its full stop at the end, and Arabic typed into the
+ * English console reads right to left. An empty one keeps the page's direction (globals.css).
+ */
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ className, invalid, ...props }, ref) => (
     <textarea
       ref={ref}
+      dir="auto"
       aria-invalid={invalid || props['aria-invalid'] || undefined}
       className={cn(
         'flex min-h-24 w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground shadow-card transition-[border-color,box-shadow] outline-none',

@@ -33,10 +33,16 @@ export function industryConflicts(template: Pick<TemplateSummary, 'industry_tags
  * falls back to its generic copy).
  */
 export function exampleTextFor(template: Pick<TemplateSummary, 'industry_tags' | 'example_texts'> | null | undefined, industry: string | null | undefined): string | null {
+  const key = exampleKeyFor(template, industry);
+  return key ? (template?.example_texts?.[key] ?? null) : null;
+}
+
+/** Which of the template's examples `exampleTextFor` reads — the key a translation is looked up by. */
+export function exampleKeyFor(template: Pick<TemplateSummary, 'industry_tags' | 'example_texts'> | null | undefined, industry: string | null | undefined): string | null {
   if (!template) return null;
   const wanted = (industry ?? '').trim().toLowerCase();
   const texts = template.example_texts ?? {};
-  if (wanted && texts[wanted]) return texts[wanted];
-  for (const tag of template.industry_tags) if (texts[tag]) return texts[tag];
-  return texts.generic ?? null;
+  if (wanted && texts[wanted]) return wanted;
+  for (const tag of template.industry_tags) if (texts[tag]) return tag;
+  return texts.generic ? 'generic' : null;
 }

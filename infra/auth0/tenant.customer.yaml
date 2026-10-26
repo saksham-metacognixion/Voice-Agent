@@ -24,9 +24,11 @@
 
 tenant:
   friendly_name: Voice Agent Portal
+  # `ar` since the portal speaks Arabic: the SPA sends `ui_locales` with the portal's language.
   enabled_locales:
     - en
     - fr-CA
+    - ar
   # Auth0 defaults, stated rather than inherited: 7-day absolute, 3-day idle.
   session_lifetime: 168
   idle_session_lifetime: 72

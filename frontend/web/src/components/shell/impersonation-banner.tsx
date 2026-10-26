@@ -8,6 +8,7 @@ import * as React from 'react';
 import { useAuth } from '@/src/auth/auth-provider';
 import { impersonationStore } from '@/src/auth/impersonation';
 import { routes } from '@/src/routes';
+import { activeIntlLocale } from '@/src/i18n';
 
 /**
  * Admin §7.4 (D12): the bar a staff member sees above every portal screen while viewing
@@ -43,8 +44,8 @@ export function ImpersonationBanner({ className }: { className?: string }) {
       <span className="font-semibold">{tenant ? t('impersonation.banner', { tenant }) : t('impersonation.bannerNoName')}</span>
       <span className="opacity-90">{t('impersonation.hint')}</span>
       {context.data?.staff_email ? <span className="opacity-90">{t('impersonation.staff', { email: context.data.staff_email })}</span> : null}
-      <span className="opacity-90">{t('impersonation.expires', { time: new Date(expires).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) })}</span>
-      <Button size="sm" variant="outline" className="ml-auto" onClick={() => void exit()} loading={busy} disabled={busy}>
+      <span className="opacity-90">{t('impersonation.expires', { time: new Date(expires).toLocaleTimeString(activeIntlLocale(), { hour: '2-digit', minute: '2-digit' }) })}</span>
+      <Button size="sm" variant="outline" className="ms-auto" onClick={() => void exit()} loading={busy} disabled={busy}>
         <LogOut className="size-4" aria-hidden />
         {busy ? t('impersonation.exiting') : t('impersonation.exit')}
       </Button>

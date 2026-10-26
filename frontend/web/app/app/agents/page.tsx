@@ -13,6 +13,7 @@ import { AgentStatusBadge, TierBadge } from '@/src/components/dashboard/status-b
 import { PageHeader } from '@/src/components/shell/portal-shell';
 import { formatDateTime, formatDuration } from '@/src/lib/format';
 import { agentPath } from '@/src/routes';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /** D3 Agents (spec p. 35): every agent in the workspace, its status, and the way in. */
@@ -61,6 +62,7 @@ export default function AgentsPage() {
 
 function AgentCard({ agent, timeZone }: { agent: AgentSummary; timeZone: string | undefined }) {
   const t = useTranslations('dashboard.agents');
+  const copy = useServerCopy();
   return (
     <Card className="transition-colors hover:border-primary/40">
       <CardContent className="p-0">
@@ -70,7 +72,7 @@ function AgentCard({ agent, timeZone }: { agent: AgentSummary; timeZone: string 
               <p className="truncate text-base font-semibold">{agent.name}</p>
               <p className="truncate text-xs text-muted-foreground">
                 {agent.template_id ? t(`templates.${agent.template_id}`) : t('templates.custom')}
-                {agent.industry ? ` · ${agent.industry}` : ''}
+                {agent.industry ? ` · ${copy.industry(agent.industry)}` : ''}
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -87,7 +89,7 @@ function AgentCard({ agent, timeZone }: { agent: AgentSummary; timeZone: string 
               <dt className="text-muted-foreground">{t('draft')}</dt>
               <dd className="font-medium">
                 {agent.draft_version ? `v${agent.draft_version}` : '–'}
-                {agent.has_unpublished_changes ? <span className="ml-1 text-warning-emphasis">•</span> : null}
+                {agent.has_unpublished_changes ? <span className="ms-1 text-warning-emphasis">•</span> : null}
               </dd>
             </div>
             <div>

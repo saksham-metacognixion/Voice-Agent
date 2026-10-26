@@ -55,7 +55,7 @@ function SelectInner() {
               <button
                 type="button"
                 onClick={() => choose(m.id)}
-                className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left shadow-card transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
+                className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-start shadow-card transition-colors hover:border-primary/40 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring/50"
               >
                 <span className="flex size-9 items-center justify-center rounded-md bg-primary/12 text-sm font-semibold uppercase text-accent-foreground">{m.name.slice(0, 1)}</span>
                 <span className="flex min-w-0 flex-1 flex-col">

@@ -82,7 +82,7 @@ function SipGuideCard() {
         <CardDescription>{t('body')}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <ol className="list-decimal space-y-1.5 pl-5 text-sm">
+        <ol className="list-decimal space-y-1.5 ps-5 text-sm">
           {steps.map((s) => (
             <li key={s}>{s}</li>
           ))}
@@ -119,7 +119,7 @@ function BillingGuideCard() {
         ) : !p ? (
           <p className="text-sm text-muted-foreground">{t('faqUnavailable')}</p>
         ) : (
-          <ul className="list-disc space-y-1.5 pl-5 text-sm">
+          <ul className="list-disc space-y-1.5 ps-5 text-sm">
             <li>{t('faq.rate', { standard: formatNumber(p.rates.standard_per_min), premium: formatNumber(p.rates.premium_per_min) })}</li>
             <li>{t('faq.missed')}</li>
             <li>{t('faq.expiry', { months: p.wallet_policy.credit_expiry_months })}</li>

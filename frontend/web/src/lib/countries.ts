@@ -1,4 +1,6 @@
-/** Launch countries first (§20 item 4), then the rest of the common list. */
+import { activeIntlLocale, activeLocale } from '../i18n';
+
+/** Launch countries first (§20 item 4), then the rest of the common list. `name` is the English fallback; show `countryName()`. */
 export const COUNTRIES: Array<{ code: string; name: string }> = [
   { code: 'CA', name: 'Canada' },
   { code: 'US', name: 'United States' },
@@ -27,6 +29,22 @@ export const COUNTRIES: Array<{ code: string; name: string }> = [
   { code: 'JP', name: 'Japan' },
 ];
 
+const regions = new Map<string, Intl.DisplayNames | null>();
+
+/** The country's name in the portal's language ("Canada", "كندا"), the English name when the runtime has none. */
+export function countryName(code: string): string {
+  const locale = activeIntlLocale();
+  if (!regions.has(locale)) {
+    try {
+      regions.set(locale, new Intl.DisplayNames([locale, 'en'], { type: 'region' }));
+    } catch {
+      regions.set(locale, null);
+    }
+  }
+  const name = regions.get(locale)?.of(code);
+  return name && name !== code ? name : (COUNTRIES.find((c) => c.code === code)?.name ?? code);
+}
+
 /** The browser's zone first, then the IANA list when the runtime has it. */
 export function timezones(): string[] {
   let all: string[] = [];
@@ -40,6 +58,30 @@ export function timezones(): string[] {
     all = ['America/Toronto', 'America/Vancouver', 'America/Edmonton', 'America/Winnipeg', 'America/Halifax', 'America/St_Johns', 'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles', 'America/Phoenix', 'America/Anchorage', 'Pacific/Honolulu', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Asia/Kolkata', 'Australia/Sydney', 'UTC'];
   }
   return all;
+}
+
+const zoneNames = new Map<string, string>();
+
+/**
+ * An IANA zone for a picker. English shows the id as it always has (`America/Toronto`);
+ * another language puts the zone's own name first ("توقيت شرق أمريكا الشمالية · America/Toronto"),
+ * since the ids themselves have no translation. The stored value is always the id.
+ */
+export function timezoneLabel(zone: string): string {
+  const id = zone.replace(/_/g, ' ');
+  if (activeLocale() === 'en') return id;
+  const key = `${activeIntlLocale()}|${zone}`;
+  if (!zoneNames.has(key)) {
+    let name = '';
+    try {
+      name = new Intl.DateTimeFormat(activeIntlLocale(), { timeZone: zone, timeZoneName: 'longGeneric' }).formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value ?? '';
+    } catch {
+      name = '';
+    }
+    zoneNames.set(key, name);
+  }
+  const name = zoneNames.get(key);
+  return name ? `${name} · ${id}` : id;
 }
 
 export function browserTimezone(): string {

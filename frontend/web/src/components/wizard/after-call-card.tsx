@@ -3,6 +3,7 @@
 import type { AgentDetail, CallDetail } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton, Spinner } from '@portal/ui';
 import { useTranslations } from 'next-intl';
+import { useServerCopy } from '@/src/i18n/server-copy';
 import { z } from 'zod';
 import { errorMessage } from '@/src/lib/errors';
 import { formatCredits } from '@/src/wizard/plan-gates';
@@ -69,6 +70,7 @@ export function AfterCallCard({ callId, agent }: { callId: string; agent: AgentD
 
 function CallFacts({ call, agent, stage, late }: { call: CallDetail; agent: AgentDetail; stage: string; late: boolean }) {
   const ta = useTranslations('wizard.w5.after');
+  const copy = useServerCopy();
   const parsed = analysis.safeParse(call.analysis_json ?? {});
   const a = parsed.success ? parsed.data : null;
   const fieldDefs = new Map((agent.draft?.analysis_fields ?? []).map((f) => [f.name, f.description]));
@@ -101,9 +103,9 @@ function CallFacts({ call, agent, stage, late }: { call: CallDetail; agent: Agen
             {custom.map(([name, value]) => (
               <div key={name} className="flex items-start justify-between gap-4 px-3 py-2">
                 <dt className="text-muted-foreground" title={fieldDefs.get(name)}>
-                  {humanise(name)}
+                  {copy.analysisField(name)}
                 </dt>
-                <dd className="text-right font-medium">{display(value, ta)}</dd>
+                <dd className="text-end font-medium">{display(value, ta)}</dd>
               </div>
             ))}
           </dl>
@@ -127,11 +129,6 @@ function Fact({ label, value }: { label: string; value: string }) {
       <dd className="font-medium">{value}</dd>
     </div>
   );
-}
-
-function humanise(name: string): string {
-  const s = name.replace(/[_-]+/g, ' ').trim();
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 function display(value: unknown, ta: (key: string) => string): string {

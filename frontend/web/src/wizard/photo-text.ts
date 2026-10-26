@@ -1,5 +1,6 @@
 import { extractAgentDocument } from '@portal/api-client';
 import { BRIEF_DOCUMENT_IMAGE_TYPES, type BriefDocumentImageType, isImageDocumentType } from '@portal/schemas';
+import { activeLocale, messages } from '../i18n';
 
 /**
  * A photo — a menu on the table, a price board — read into text. The platform's knowledge
@@ -19,7 +20,7 @@ type Api = Parameters<typeof extractAgentDocument>[0];
 /** The photo's text and a name for it (the file name without its extension). */
 export async function photoToText(api: Api, agentId: string, file: File): Promise<{ name: string; text: string; truncated: boolean }> {
   const upload = await shrinkPhoto(file);
-  const name = file.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 120) || 'Photo';
+  const name = file.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 120) || messages[activeLocale()].common.photo;
   const result = await extractAgentDocument(api, { id: agentId }, { name, content_type: (upload.type || file.type) as BriefDocumentImageType, content_base64: await toBase64(upload) });
   return { name: result.name, text: result.text, truncated: result.truncated };
 }
