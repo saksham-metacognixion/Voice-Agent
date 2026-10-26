@@ -12,7 +12,9 @@ import { VoicePicker, type VoiceFilters } from '@/src/components/wizard/voice-pi
 import { errorMessage } from '@/src/lib/errors';
 import { useBeforeUnload } from '@/src/lib/use-before-unload';
 import { useDebouncedCallback } from '@/src/lib/use-debounced';
-import type { LanguageChoice } from '@/src/wizard/languages';
+import { languageName, type LanguageChoice } from '@/src/wizard/languages';
+import { scriptNeedsRewrite } from '@/src/wizard/script-language';
+import { useGeneration } from '@/src/wizard/use-generation';
 
 export interface VoiceSettingsState {
   voiceId: string | null;
@@ -37,6 +39,11 @@ export interface VoiceSettingsState {
  * The dials save 600 ms after the last move. That pending save counts as saving (Continue
  * waits for it), is sent rather than dropped if the page goes away, and closing the tab
  * with it pending asks first (QA-007).
+ *
+ * The script is written on W2, before the language is chosen here. When the draft's
+ * greeting is not in the main language (`scriptNeedsRewrite`, ADR 0027) the screen offers
+ * to rewrite it from the brief in that language — the same regenerate W2 runs, which
+ * reads the draft's settings. A rewrite in flight counts as saving too.
  */
 export function VoiceSettings({ agent, disabled, onStateChange }: { agent: AgentDetail; disabled?: boolean; onStateChange?: (state: VoiceSettingsState) => void }) {
   const t = useTranslations();
@@ -58,10 +65,11 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
   const [tuningPending, setTuningPending] = React.useState(false);
   const inFlight = React.useRef(0);
   const debouncedQ = useDebouncedCallback((v: string) => setQ(v), 250);
+  const generation = useGeneration(agent);
 
   const report = React.useRef(onStateChange);
   report.current = onStateChange;
-  const busy = saving || tuningPending;
+  const busy = saving || tuningPending || generation.active;
   React.useEffect(() => {
     report.current?.({ voiceId, saving: busy });
   }, [voiceId, busy]);
@@ -79,7 +87,18 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
     },
     { staleTime: 5 * 60_000 },
   );
-  const selectedVoice = React.useMemo(() => voices.data?.items.find((v) => v.id === voiceId) ?? null, [voices.data, voiceId]);
+  // The picker's filters can hide the selected voice ("Native accents only" on an agent
+  // whose voice has another accent), so the name never comes from the filtered list alone:
+  // the voice last seen in any list is remembered, and failing that the unfiltered
+  // catalogue (cached, fetched only when needed) is asked. The raw id is never shown.
+  const listed = React.useMemo(() => voices.data?.items.find((v) => v.id === voiceId) ?? null, [voices.data, voiceId]);
+  const [remembered, setRemembered] = React.useState<VoiceResponse | null>(null);
+  React.useEffect(() => {
+    if (listed) setRemembered(listed);
+  }, [listed]);
+  const known = listed ?? (remembered?.id === voiceId ? remembered : null);
+  const catalogue = useListVoices(api, {}, { staleTime: 5 * 60_000, enabled: Boolean(voiceId) && !known && !voices.isPending });
+  const selectedVoice = known ?? catalogue.data?.items.find((v) => v.id === voiceId) ?? null;
 
   async function save(body: Parameters<typeof patch.mutateAsync>[0]['body']) {
     setError(null);
@@ -111,6 +130,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
   function onSelect(voice: VoiceResponse) {
     const previous = voiceId;
     setVoiceId(voice.id);
+    setRemembered(voice);
     track('voice_selected', { agent_id: agent.id, voice_id: voice.id, tier: voice.tier });
     if (settings && voice.tier !== settings.tier) toast.info(tw('tierChange', { tier: t(`common.${voice.tier}`) }));
     void save({ voice_id: voice.id, tier: voice.tier }).catch(() => setVoiceId(previous));
@@ -128,13 +148,42 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
     saveTuning.call(s, temp);
   };
   useBeforeUnload(busy, saveTuning.flush);
-  const locked = Boolean(disabled) || saving;
+  const locked = Boolean(disabled) || saving || generation.active;
+  // The draft's own language, not the picker's: the rewrite reads what was saved.
+  const draftLanguage = agent.draft?.settings.primary_language ?? primary;
+  const rewrite =
+    Boolean(agent.draft?.has_prompt) && !disabled && (generation.active || scriptNeedsRewrite(agent.draft?.greeting, draftLanguage));
+  const rewriteLanguage = languageName(draftLanguage);
+  function onRewrite() {
+    track('script_rewrite_clicked', { agent_id: agent.id, primary: draftLanguage });
+    generation.start('regenerate').catch((e: unknown) => toast.error(errorMessage(e, t)));
+  }
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="flex flex-col gap-8">
         {error ? <Alert variant="danger">{error}</Alert> : null}
         <LanguagePicker primary={primary} languages={languages} onChange={onLanguageChange} disabled={locked} />
+        {rewrite ? (
+          <Alert
+            variant={generation.state.stage === 'failed' ? 'danger' : 'warning'}
+            title={tw('rewrite.title', { language: rewriteLanguage })}
+            aria-live="polite"
+            actions={
+              generation.active ? null : (
+                <Button size="sm" onClick={onRewrite} disabled={saving}>
+                  {tw('rewrite.action', { language: rewriteLanguage })}
+                </Button>
+              )
+            }
+          >
+            {generation.active
+              ? tw('rewrite.running', { language: rewriteLanguage })
+              : generation.state.stage === 'failed'
+                ? tw('rewrite.failed')
+                : tw('rewrite.body', { language: rewriteLanguage })}
+          </Alert>
+        ) : null}
         {voices.data?.stale ? <Alert variant="warning">{tw('stale')}</Alert> : null}
         {voices.isError ? (
           <ErrorState title={t('errors.loadFailed')} description={errorMessage(voices.error, t)} action={<Button onClick={() => void voices.refetch()}>{t('common.retry')}</Button>} />
@@ -162,7 +211,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
         <Card>
           <CardHeader>
             <CardTitle>{tw('selected')}</CardTitle>
-            <CardDescription>{selectedVoice ? `${selectedVoice.name} · ${t(`common.${selectedVoice.tier}`)}` : voiceId ? voiceId : tw('noneSelected')}</CardDescription>
+            <CardDescription>{selectedVoice ? `${selectedVoice.name} · ${t(`common.${selectedVoice.tier}`)}` : voiceId ? tw('currentVoice') : tw('noneSelected')}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             <p className="text-xs text-muted-foreground">{tw('advancedHint')}</p>

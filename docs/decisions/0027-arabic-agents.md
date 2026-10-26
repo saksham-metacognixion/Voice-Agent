@@ -64,8 +64,16 @@ these numbers are an upper bound.
    voices, so the existing rule makes them **Premium**.
 5. **W3** offers `ar-SA` and `ar-AE`, first in the list when the portal is in Arabic and
    after the launch set otherwise. A Saudi voice ranks as "also speaks Arabic, with its own
-   accent" for an Emirati agent.
-6. **Captured phone numbers** (`captured-phones.ts`) read Eastern Arabic numerals and
+   accent" for an Emirati agent. **The script is written on W2, before the language is
+   chosen**, so an agent switched to Arabic still greeted callers in English (staging, the
+   same evening). W3 and the D3 Voice tab now compare the draft's greeting with its main
+   language (`scriptNeedsRewrite`: Arabic script or not — two Latin-script languages are
+   not guessed at) and offer "Rewrite in <language>", W2's regenerate on the draft's
+   settings. Nothing rewrites without the click: a regenerate replaces hand edits.
+6. **The worker refreshes the voice catalogue on boot while a curated voice is missing
+   from it** (`catalogueNeedsRefresh`), not only when it is empty or 48 h old — otherwise a
+   deploy adding a curated voice waits for the 05:00 UTC tick.
+7. **Captured phone numbers** (`captured-phones.ts`) read Eastern Arabic numerals and
    Arabic digit words («صفر، خمسة، وخمسة، ثنين…»), so the read-time check works on an Arabic
    call; the captured value is shown as written.
 

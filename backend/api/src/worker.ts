@@ -57,7 +57,7 @@ async function bootstrap() {
     .catch(() => false);
   if (voicesStale) {
     const queued = await app.get(JobQueues).enqueueVoiceCacheNow();
-    Logger.log(`voice catalogue empty or stale: voice-cache ${queued}`, 'Worker');
+    Logger.log(`voice catalogue empty, stale or missing a curated voice: voice-cache ${queued}`, 'Worker');
   }
 
   Logger.log(`Worker started (${resolveAppEnv()})`, 'Worker');

@@ -653,6 +653,7 @@
       "previewLimited": "Too many previews. Give it a moment.",
       "selected": "Selected voice",
       "noneSelected": "Pick a voice to continue.",
+      "currentVoice": "Your current voice",
       "empty": "No voices match those filters.",
       "emptyAll": "The voice catalogue is being refreshed. Check back in a few minutes.",
       "stale": "The voice list may be out of date. New voices appear after the next refresh.",
@@ -672,6 +673,13 @@
       },
       "sampleHint": "Speed changes the clip too. Your agent says your own greeting on the test call.",
       "temperatureHint": "Heard on calls, not in the clip.",
+      "rewrite": {
+        "title": "Your script is not in {language} yet",
+        "body": "It was written before you chose the language, so your agent would still greet callers in another one. Rewrite it from your answers in {language}. Changes you made to the script by hand are replaced.",
+        "action": "Rewrite in {language}",
+        "running": "Rewriting your script in {language}…",
+        "failed": "We could not rewrite the script. Try again in a moment."
+      },
       "accents": {
         "american": "American",
         "british": "British",

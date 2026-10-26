@@ -770,7 +770,11 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   the logo is `Logo` in `@portal/ui`, rendering the supplied artwork from
   `public/brand/` — never redrawn, recoloured or rebuilt inline.
 - **W3 offers `agentLanguage`** (ADR 0027): the Gulf Arabics first when the portal is in
-  Arabic, after the launch set otherwise (`sortedLanguages(locale)`).
+  Arabic, after the launch set otherwise (`sortedLanguages(locale)`). The script is written
+  on W2, before the language exists, so `VoiceSettings` (W3 + the D3 Voice tab) offers
+  "Rewrite in <language>" — W2's regenerate — when the draft's greeting is not in the main
+  language (`scriptNeedsRewrite`, `src/wizard/script-language.ts`); never automatically. The
+  worker refreshes `voices` on boot while a curated voice is missing from it.
 - **W3's language ranks the voice list, it does not cut it.** `list-voices` carries no
   language at all, so the native language is derived from the accent
   (`modules/voices/voice-languages.ts`), matched on the base subtag (`fr-FR` answers

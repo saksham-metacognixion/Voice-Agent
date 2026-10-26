@@ -6,7 +6,7 @@ import { isDevEnv } from '../../common/env';
 import type { WorkspaceContext } from '../auth';
 import { RedisCache } from '../redis';
 import { RetellGateway } from '../retell';
-import { curatedVoiceFor, sampleKeyOf } from './curated-voices';
+import { CURATED_VOICES, curatedVoiceFor, sampleKeyOf } from './curated-voices';
 import { isMultilingualFrom, languageRank, nativeLanguages } from './voice-languages';
 import { ourVoiceSample } from './voice-samples';
 
@@ -229,11 +229,19 @@ export class VoicesService {
    * `voices` is empty or older than `VOICE_STALE_AFTER_MS` — the same condition W3 shows
    * the stale banner for. A fresh environment otherwise serves an empty picker for up to
    * a day (found on staging, 23 Sep 2026). Read on worker boot.
+   *
+   * Also true while a curated voice (ADR 0027) is missing from the cache: the deploy that
+   * adds one to `CURATED_VOICES`, or a `voices:import` followed by a restart, should not
+   * wait a day for W3 to show it (26 Oct: Arabic picked, no Arabic voice offered). If the
+   * platform workspace lacks the voice this costs one `list-voices` per boot, nothing more.
    */
   async catalogueNeedsRefresh(now = Date.now()): Promise<boolean> {
     const newest = await adminDb.voice.aggregate({ _max: { updatedAt: true } });
     const refreshedAt = newest._max.updatedAt;
-    return !refreshedAt || now - refreshedAt.getTime() > VOICE_STALE_AFTER_MS;
+    if (!refreshedAt || now - refreshedAt.getTime() > VOICE_STALE_AFTER_MS) return true;
+    const names = CURATED_VOICES.map((voice) => voice.platformName);
+    const cached = await adminDb.voice.count({ where: { name: { in: names } } });
+    return cached < names.length;
   }
 
   /**

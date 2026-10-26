@@ -62,6 +62,7 @@ export type AnalyticsEvent =
   | 'script_editor_opened'
   | 'voice_selected'
   | 'language_selected'
+  | 'script_rewrite_clicked'
   // The portal's own language (en / ar), not the agent's.
   | 'language_changed'
   | 'voice_preview_played'

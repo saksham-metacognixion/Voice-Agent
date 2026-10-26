@@ -29,7 +29,9 @@ export function OverviewTab({ agent }: { agent: AgentDetail }) {
   const draft = agent.draft;
   const shown = draft ?? live;
   const voices = useListVoices(api, { lang: shown?.settings.primary_language ?? agent.primary_language }, { staleTime: 5 * 60_000 });
-  const voiceName = (id: string | null) => (id ? voices.data?.items.find((v) => v.id === id)?.name ?? id : '–');
+  const tw = useTranslations('wizard.w3');
+  // Never the raw id: a voice missing from the catalogue is still the agent's voice.
+  const voiceName = (id: string | null) => (id ? voices.data?.items.find((v) => v.id === id)?.name ?? tw('currentVoice') : '–');
   const calls = useListCalls(api, { agent_id: agent.id, limit: 5 }, { staleTime: 15_000 });
 
   return (
