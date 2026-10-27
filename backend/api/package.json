@@ -29,6 +29,7 @@
     "verify:d6": "tsc -p tsconfig.scripts.json && dotenv -e ../../.env -- node dist-scripts/scripts/d6-staging-verify.js",
     "dev:link-user": "dotenv -e ../../.env -- tsx scripts/dev-link-user.ts",
     "dev:seed-workspace": "dotenv -e ../../.env -- tsx scripts/dev-seed-workspace.ts",
+    "agents:republish": "tsx scripts/republish-live-agents.ts",
     "openapi:generate": "tsx scripts/openapi.ts",
     "openapi:check": "tsx scripts/openapi.ts --check"
   },

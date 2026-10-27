@@ -10,3 +10,6 @@ export { toNumberResponse, toPlanResponse, parseTargets } from './number-respons
 export { NumbersController, PhonePlanController } from './numbers.controller';
 export { NumberRentalService, decideRental, daysBetween } from './number-rental.service';
 export type { RentalOutcome, ReleaseOutcome } from './number-rental.service';
+export { SipProbe, probeSip, parseSipHost, sameSipHost } from './sip-probe';
+export type { SipProbeResult, SipProbeOutcome } from './sip-probe';
+export { SipVerificationService, SIP_VERIFY_PER_HOUR } from './sip-verification.service';

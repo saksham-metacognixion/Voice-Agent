@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { isEnvelope } from '../src/modules/crypto';
-import { numberNickname } from '../src/modules/numbers';
+import { SipProbe, type SipProbeResult, numberNickname } from '../src/modules/numbers';
 import { RedisCache, redisKeys } from '../src/modules/redis';
-import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness } from './d5-fixtures';
+import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness, waitFor } from './d5-fixtures';
 import { authFor, caller, paidWorkspace, publishedAgent, waitForNumber } from './d6-fixtures';
 
 /*
@@ -201,11 +201,193 @@ describe('POST /numbers/import (Option C)', () => {
 
     // D4 SIP section: host and username come back, the password only as a flag.
     const read = await call('GET', `/numbers/${row.id}`, headers);
-    expect(read.body.sip).toEqual({ host: 'sip:pbx.example.com:5060', username: 'trunk', has_password: true });
+    expect(read.body.sip).toEqual({ host: 'sip:pbx.example.com:5060', username: 'trunk', has_password: true, verification: null });
     const listed = await call('GET', '/numbers', headers);
     expect(JSON.stringify(listed.body)).not.toContain('Imp0rt-pa55');
     expect(JSON.stringify(read.body)).not.toContain('Imp0rt-pa55');
   }, 30_000);
+});
+
+describe('POST /numbers/:id/sip/verify (D16)', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  const trunkSays = (outcome: SipProbeResult['outcome'], status: number | null = null) =>
+    vi.spyOn(app.get(SipProbe), 'probe').mockResolvedValue({ outcome, status, transport: 'tcp', port: 5060 });
+
+  async function importedSip(label: string, sip: { username?: string; password?: string } = { username: 'trunk', password: 'Imp0rt-pa55' }) {
+    const ws = await paidWorkspace(app, label, 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { number: e164, host: 'sip:pbx.example.com:5060', ...sip } });
+    expect(accepted.status).toBe(202);
+    const row = await waitForNumber((accepted.body.number as { id: string }).id);
+    expect(row.status).toBe('active');
+    return { ws, headers, row, e164, agentId };
+  }
+
+  const envelopeOf = async (planId: string) => (await adminDb.phonePlan.findUniqueOrThrow({ where: { id: planId } })).sipJson;
+
+  it('re-checks the stored credentials, re-syncs the platform copy, and stores the outcome — never the password', async () => {
+    const { ws, headers, row, e164 } = await importedSip('sipv-ok');
+    const probe = trunkSays('auth_accepted', 200);
+    const updatesBefore = retell.countOf('updateSipTrunk');
+
+    const res = await call('POST', `/numbers/${row.id}/sip/verify`, headers, {});
+    expect(res.status).toBe(200);
+    expect((res.body.sip as Record<string, unknown>).verification).toMatchObject({
+      status: 'verified',
+      reason: null,
+      checks: { trunk: 'auth_accepted', platform: 'synced' },
+      credentials_updated: false,
+    });
+    // The trunk was asked with the stored, decrypted credentials…
+    expect(probe).toHaveBeenCalledWith('sip:pbx.example.com:5060', { username: 'trunk', password: 'Imp0rt-pa55' }, expect.any(Number));
+    // …and the platform was given them again.
+    expect(retell.countOf('updateSipTrunk') - updatesBefore).toBe(1);
+    expect(retell.phoneNumbers.get(e164)!.sip).toMatchObject({ termination_uri: 'sip:pbx.example.com:5060', username: 'trunk', password_seen: true });
+
+    const audit = await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'number.sip_verified' } });
+    expect(audit.metaJson).toMatchObject({ status: 'verified', trunk: 'auth_accepted', platform: 'synced', credentials_updated: false });
+    const everything = JSON.stringify([res.body, audit, await adminDb.phoneNumber.findUnique({ where: { id: row.id } }), retell.calls.filter((c) => c.method === 'updateSipTrunk')]);
+    expect(everything).not.toContain('Imp0rt-pa55');
+    expect((await call('GET', `/numbers/${row.id}`, headers)).body.sip).toMatchObject({ verification: { status: 'verified' } });
+  }, 30_000);
+
+  it('keeps working credentials when new ones are refused by the trunk, and the platform is not touched', async () => {
+    const { headers, row } = await importedSip('sipv-bad');
+    const before = await envelopeOf(row.planId!);
+    trunkSays('auth_rejected', 403);
+    const updatesBefore = retell.countOf('updateSipTrunk');
+    const res = await call('POST', `/numbers/${row.id}/sip/verify`, headers, { password: 'Typo-pa55' });
+    expect(res.status).toBe(200);
+    expect((res.body.sip as Record<string, unknown>).verification).toMatchObject({ status: 'failed', reason: 'auth_rejected', checks: { platform: 'skipped' }, credentials_updated: false });
+    expect(await envelopeOf(row.planId!)).toEqual(before);
+    expect(retell.countOf('updateSipTrunk') - updatesBefore).toBe(0);
+    expect(JSON.stringify(res.body)).not.toContain('Typo-pa55');
+  }, 30_000);
+
+  it('stores new credentials the trunk accepts, and the next check uses them', async () => {
+    const { headers, row, e164 } = await importedSip('sipv-rotate');
+    const before = await envelopeOf(row.planId!);
+    trunkSays('auth_accepted', 200);
+    const res = await call('POST', `/numbers/${row.id}/sip/verify`, headers, { host: 'pbx2.example.com:5080', username: 'trunk2', password: 'N3w-pa55' });
+    expect((res.body.sip as Record<string, unknown>)).toMatchObject({ host: 'pbx2.example.com:5080', username: 'trunk2', has_password: true, verification: { status: 'verified', credentials_updated: true } });
+    const after = await envelopeOf(row.planId!);
+    expect(after).not.toEqual(before);
+    expect(JSON.stringify(after)).not.toContain('N3w-pa55');
+    expect(isEnvelope((after as { password: unknown }).password)).toBe(true);
+    expect(retell.phoneNumbers.get(e164)!.sip_outbound_trunk_config).toMatchObject({ termination_uri: 'pbx2.example.com:5080', auth_username: 'trunk2' });
+
+    vi.restoreAllMocks();
+    const probe = trunkSays('auth_accepted', 200);
+    await call('POST', `/numbers/${row.id}/sip/verify`, headers, {});
+    expect(probe).toHaveBeenCalledWith('pbx2.example.com:5080', { username: 'trunk2', password: 'N3w-pa55' }, expect.any(Number));
+  }, 30_000);
+
+  it('reports a reachable trunk that would not confirm the password as a warning', async () => {
+    const { headers, row } = await importedSip('sipv-warn');
+    trunkSays('forbidden', 403);
+    const res = await call('POST', `/numbers/${row.id}/sip/verify`, headers, {});
+    expect((res.body.sip as Record<string, unknown>).verification).toMatchObject({ status: 'warning', reason: 'forbidden', checks: { platform: 'synced' } });
+  }, 30_000);
+
+  it('fails on an unreachable or silent trunk, on a number gone from the platform, and on a platform error', async () => {
+    const { headers, row, e164 } = await importedSip('sipv-fail');
+    for (const outcome of ['timeout', 'unreachable', 'dns_failed', 'non_public'] as const) {
+      vi.restoreAllMocks();
+      trunkSays(outcome);
+      const res = await call('POST', `/numbers/${row.id}/sip/verify`, headers, {});
+      expect((res.body.sip as Record<string, unknown>).verification).toMatchObject({ status: 'failed', reason: outcome, checks: { platform: 'skipped' } });
+    }
+    vi.restoreAllMocks();
+    trunkSays('auth_accepted', 200);
+    retell.failNext('getPhoneNumber', 1, new Error('platform 500'));
+    expect(((await call('POST', `/numbers/${row.id}/sip/verify`, headers, {})).body.sip as Record<string, unknown>).verification).toMatchObject({ status: 'failed', reason: 'provider_error', checks: { platform: 'error' } });
+    const kept = retell.phoneNumbers.get(e164)!;
+    retell.phoneNumbers.delete(e164);
+    try {
+      expect(((await call('POST', `/numbers/${row.id}/sip/verify`, headers, {})).body.sip as Record<string, unknown>).verification).toMatchObject({ status: 'failed', reason: 'not_on_platform', checks: { platform: 'missing' } });
+    } finally {
+      retell.phoneNumbers.set(e164, kept);
+    }
+  }, 60_000);
+
+  it('runs one check at a time per number, and shows it pending while it runs', async () => {
+    const { headers, row } = await importedSip('sipv-race');
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    vi.spyOn(app.get(SipProbe), 'probe').mockImplementation(async () => {
+      await gate;
+      return { outcome: 'auth_accepted', status: 200, transport: 'tcp', port: 5060 };
+    });
+    const first = call('POST', `/numbers/${row.id}/sip/verify`, headers, {});
+    await waitFor('the lease', async () => (await adminDb.phoneNumber.findUnique({ where: { id: row.id } }))?.sipVerifyStartedAt);
+    const second = await call('POST', `/numbers/${row.id}/sip/verify`, headers, {});
+    expect(second.status).toBe(409);
+    expect(second.body.code).toBe('SIP_VERIFY_IN_PROGRESS');
+    expect(((await call('GET', `/numbers/${row.id}`, headers)).body.sip as Record<string, unknown>).verification).toMatchObject({ status: 'pending' });
+    release();
+    expect(((await first).body.sip as Record<string, unknown>).verification).toMatchObject({ status: 'verified' });
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id } })).sipVerifyStartedAt).toBeNull();
+  }, 30_000);
+
+  it('is owner/admin only, SIP numbers only, this workspace only, budgeted, and needs a username for a password', async () => {
+    const { ws, headers, row } = await importedSip('sipv-guard', { password: 'NoUser-pa55' });
+    trunkSays('auth_accepted', 200);
+    const editor = await addMember(ws.workspaceId, 'sipv-editor', 'editor');
+    expect((await call('POST', `/numbers/${row.id}/sip/verify`, await auth(editor.sub, ws.workspaceId), {})).status).toBe(403);
+
+    const other = await paidWorkspace(app, 'sipv-other', 'scale');
+    expect((await call('POST', `/numbers/${row.id}/sip/verify`, await auth(other.sub, other.workspaceId), {})).status).toBe(404);
+
+    const bought = await adminDb.phoneNumber.create({ data: { tenantId: ws.workspaceId, type: 'retell_twilio', status: 'active', e164: `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`, inboundToken: `tok_${randomUUID().replace(/-/g, '')}` } });
+    const notSip = await call('POST', `/numbers/${bought.id}/sip/verify`, headers, {});
+    expect([notSip.status, notSip.body.code]).toEqual([400, 'NOT_SIP_NUMBER']);
+
+    const noUser = await call('POST', `/numbers/${row.id}/sip/verify`, headers, {});
+    expect([noUser.status, noUser.body.code]).toEqual([422, 'VALIDATION_FAILED']);
+    expect((await call('POST', `/numbers/${row.id}/sip/verify`, headers, { surprise: true })).status).toBe(422);
+
+    await app.get(RedisCache).client.set(redisKeys.sipVerifyWindow(ws.workspaceId), '10', 'EX', 3600);
+    const limited = await call('POST', `/numbers/${row.id}/sip/verify`, headers, { username: 'trunk' });
+    expect([limited.status, limited.body.code]).toEqual([429, 'RATE_LIMITED']);
+    // A refused check leaves no lease behind.
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id } })).sipVerifyStartedAt).toBeNull();
+  }, 30_000);
+});
+
+describe('per-number business hours (D16)', () => {
+  it('stores a schedule with date overrides and its own zone, and refuses one the inbound check could not read', async () => {
+    const ws = await paidWorkspace(app, 'hours', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const number = await adminDb.phoneNumber.create({ data: { tenantId: ws.workspaceId, agentId, type: 'retell_twilio', status: 'active', e164: `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`, inboundToken: `tok_${randomUUID().replace(/-/g, '')}` } });
+    const hours = {
+      timezone: 'Asia/Riyadh',
+      days: { sun: [{ open: '09:00', close: '13:00' }, { open: '16:00', close: '22:00' }], thu: [{ open: '20:00', close: '02:00' }] },
+      closed_dates: ['2026-12-02'],
+      date_overrides: [{ date: '2026-09-23', intervals: [{ open: '10:00', close: '14:00' }] }],
+    };
+    const saved = await call('PATCH', `/numbers/${number.id}`, headers, { hours_mode: 'custom', hours_override: hours });
+    expect(saved.status).toBe(200);
+    expect(saved.body).toMatchObject({ hours_mode: 'custom', hours_override: hours });
+    // The hot path's copy carries it too.
+    const cached = await app.get(RedisCache).getJson<{ hours_mode: string; hours: unknown }>(redisKeys.number(number.e164!));
+    expect(cached).toMatchObject({ hours_mode: 'custom', hours });
+
+    const bad = await call('PATCH', `/numbers/${number.id}`, headers, {
+      hours_mode: 'custom',
+      hours_override: { timezone: 'Riyadh', days: { mon: [{ open: '09:00', close: '13:00' }, { open: '12:00', close: '17:00' }] }, date_overrides: [{ date: '2026-02-30', intervals: [] }] },
+    });
+    expect(bad.status).toBe(422);
+    expect((bad.body.fields as Array<{ field: string }>).map((f) => f.field).sort()).toEqual(['hours_override.date_overrides.0.date', 'hours_override.days.mon', 'hours_override.timezone']);
+    expect((await call('GET', `/numbers/${number.id}`, headers)).body.hours_override).toEqual(hours);
+
+    // A viewer reads it and cannot change it.
+    const viewer = await addMember(ws.workspaceId, 'hours-viewer', 'viewer');
+    expect((await call('PATCH', `/numbers/${number.id}`, await auth(viewer.sub, ws.workspaceId), { hours_mode: 'always' })).status).toBe(403);
+  });
 });
 
 describe('PATCH and DELETE /numbers/:id', () => {

@@ -54,15 +54,29 @@ function useReplay() {
   return { setTarget, dialog };
 }
 
+// The table must fit beside the sidebar at 1366 px with Replay in view, so provider and
+// queue ride under the type and status instead of taking columns, and the error column
+// shows only when the table itself (`@container`, not the window) has room; the sheet
+// shows all of it.
+const ERROR_COLUMN = 'hidden @min-[75rem]:table-cell';
+
 export function WebhooksTable({ rows, showCustomer = true, onOpen }: { rows: AdminWebhookEventResponse[]; showCustomer?: boolean; onOpen: (id: string) => void }) {
   const { can } = useStaff();
   const denied = can.operateQueues();
   const { setTarget, dialog } = useReplay();
 
   const columns: Array<DataColumn<AdminWebhookEventResponse>> = [
-    { key: 'received', header: 'Received', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.received_at, { seconds: true })}</span> },
-    { key: 'provider', header: 'Provider', cell: (r) => <Badge variant="outline">{providerLabel(r.provider)}</Badge> },
-    { key: 'type', header: 'Type', cell: (r) => <code className="text-xs">{r.event_type}</code> },
+    { key: 'received', header: 'Received', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.received_at)}</span> },
+    {
+      key: 'type',
+      header: 'Type',
+      cell: (r) => (
+        <>
+          <code className="block text-xs">{r.event_type}</code>
+          <span className="text-xs text-muted-foreground">{providerLabel(r.provider)}</span>
+        </>
+      ),
+    },
     { key: 'external', header: 'External id', cell: (r) => <Copyable value={r.external_id} /> },
     ...(showCustomer
       ? [
@@ -80,9 +94,22 @@ export function WebhooksTable({ rows, showCustomer = true, onOpen }: { rows: Adm
           },
         ]
       : []),
-    { key: 'status', header: 'Status', cell: (r) => <WebhookStatusBadge status={r.status} /> },
-    { key: 'error', header: 'Error', cell: (r) => (r.error ? <span className="block max-w-56 truncate text-xs text-danger" title={r.error}>{r.error}</span> : <span className="text-muted-foreground">–</span>) },
-    { key: 'queue', header: 'Queue', cell: (r) => (r.queue_state ? <Badge variant="outline">{r.queue_state}{r.attempts !== null ? ` · ${r.attempts}` : ''}</Badge> : <span className="text-muted-foreground">–</span>) },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (r) => (
+        <div className="flex flex-col items-start gap-0.5">
+          <WebhookStatusBadge status={r.status} />
+          {r.queue_state ? (
+            <span className="whitespace-nowrap text-xs text-muted-foreground">
+              queue: {r.queue_state}
+              {r.attempts !== null ? ` · ${r.attempts}` : ''}
+            </span>
+          ) : null}
+        </div>
+      ),
+    },
+    { key: 'error', header: 'Error', className: ERROR_COLUMN, cell: (r) => (r.error ? <span className="block max-w-56 truncate text-xs text-danger" title={r.error}>{r.error}</span> : <span className="text-muted-foreground">–</span>) },
     {
       key: 'actions',
       header: '',
@@ -98,7 +125,7 @@ export function WebhooksTable({ rows, showCustomer = true, onOpen }: { rows: Adm
   ];
   return (
     <>
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} label="Webhook events" onRowClick={(r) => onOpen(r.id)} dense />
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} label="Webhook events" onRowClick={(r) => onOpen(r.id)} className="@container" dense />
       {dialog}
     </>
   );

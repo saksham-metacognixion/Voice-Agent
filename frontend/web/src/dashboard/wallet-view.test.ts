@@ -36,6 +36,7 @@ describe('usageSummary', () => {
 describe('ledgerLink', () => {
   it('links a call debit to its D2 detail and nothing else', () => {
     expect(ledgerLink({ reason: 'call', ref_id: 'call_abc' })).toBe('/app/calls/?call=call_abc');
+    expect(ledgerLink({ reason: 'transfer', ref_id: 'call_abc' })).toBe('/app/calls/?call=call_abc');
     expect(ledgerLink({ reason: 'rental', ref_id: 'n1:2026-09-01' })).toBeNull();
     expect(ledgerLink({ reason: 'call', ref_id: null })).toBeNull();
   });

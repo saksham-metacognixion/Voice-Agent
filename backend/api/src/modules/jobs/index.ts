@@ -20,6 +20,7 @@ export type {
   InboundDecisionJob,
   WarmWorkspaceJob,
   RecoverCallJob,
+  CallKnowledgeJob,
   RefreshNumberJob,
   PromptingJob,
   KnowledgeSyncJob,

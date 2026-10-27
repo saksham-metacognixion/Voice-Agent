@@ -13,6 +13,7 @@ import {
   QUEUES,
   type QueueName,
   type RecoverCallJob,
+  type CallKnowledgeJob,
   type RefreshNumberJob,
   SCHEDULED_JOBS,
   type WarmWorkspaceJob,
@@ -319,6 +320,15 @@ export class JobQueues implements OnApplicationShutdown {
       { ...REPAIR_JOB_OPTIONS, attempts: 1, delay: RECOVER_CALL_DELAY_MS, jobId: `recover-${safeId(callId)}` },
       250,
     );
+  }
+
+  /**
+   * D16 knowledge use for one call. A short delay lets `call_analyzed` land after
+   * `call_ended` and the one job read both; the id dedupes the two enqueues, and is freed
+   * when the job settles so a replay can recompute.
+   */
+  enqueueCallKnowledge(callId: string): Promise<EnqueueResult> {
+    return this.add<CallKnowledgeJob>(QUEUES.calls, JOBS.callKnowledge, { callId }, { ...REPAIR_JOB_OPTIONS, delay: 5_000, jobId: `kb-${safeId(callId)}` }, 250);
   }
 
   enqueueWarmWorkspace(workspaceId: string): Promise<EnqueueResult> {

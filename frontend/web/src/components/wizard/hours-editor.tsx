@@ -77,6 +77,7 @@ export function HoursEditor({ value, onChange, disabled }: HoursEditorProps) {
                       className="h-9 w-[7.5rem]"
                       onChange={(e) => setDay(day, intervals.map((x, j) => (j === i ? { ...x, close: e.target.value } : x)))}
                     />
+                    {interval.close <= interval.open ? <span className="text-xs text-muted-foreground">{t('nextDay')}</span> : null}
                     {intervals.length > 1 ? (
                       <Button type="button" variant="ghost" size="icon-sm" disabled={disabled} aria-label={t('closed')} onClick={() => setDay(day, intervals.filter((_, j) => j !== i))}>
                         <X />

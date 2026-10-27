@@ -1,6 +1,6 @@
 export { CallsModule } from './calls.module';
 export { CallsService } from './calls.service';
-export type { LifecycleOutcome } from './calls.service';
+export type { LifecycleOutcome, TransferOutcome } from './calls.service';
 export { CallsQueryService } from './calls.query.service';
 export { resolveWindow, startOfLocalDay } from './stats-window';
 export { CallsController, StatsController } from './calls.controller';
@@ -10,6 +10,8 @@ export { decide, encodeActive, parseActiveHash, ACTIVE_SLACK_MS, RETELL_MAX_CALL
 export type { Decision, DecisionInput, DecisionWarning, ActiveCall, OpenReason } from './inbound.decide';
 export { computeCharge, NOT_CONNECTED_REASONS } from './metering';
 export type { Charge, CallEndedFacts, ZeroChargeReason } from './metering';
+export { foldTransfer, computeTransferCharge } from './transfer';
+export type { TransferFacts, TransferEventFact, TransferCharge, TransferStatus } from './transfer';
 export { RecordingSigner, RECORDING_URL_TTL_S } from './recording';
 export type { RecordingClaims } from './recording';
 export { CallReconciliationService } from './call-reconciliation.service';

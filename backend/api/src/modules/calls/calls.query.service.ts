@@ -17,6 +17,7 @@ import {
   type SortOrder,
   type StatsQuery,
   type StatsResponse,
+  type TransferStatus,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { decodeCursor, toPage } from '../../common/pagination';
@@ -28,6 +29,7 @@ import { resolveWindow } from './stats-window';
 import { phoneRegions } from '../../common/phone-regions';
 import { callerUtterances, checkCapturedPhones } from './captured-phones';
 import { csvHeader, csvRow } from './csv';
+import { knowledgeUseOf, storedSourceIds } from './kb-usage';
 import { RecordingSigner } from './recording';
 
 /** A call row as the customer reads it, before it becomes a response. */
@@ -51,6 +53,7 @@ const CALL_SELECT = {
   rate: true,
   configVersion: true,
   creditsCharged: true,
+  transferCreditsCharged: true,
   status: true,
   declineReason: true,
   outcome: true,
@@ -71,6 +74,14 @@ const DETAIL_SELECT = {
   transcriptText: true,
   transcriptJson: true,
   recoveryChecks: true,
+  transferStatus: true,
+  transferBridgedAt: true,
+  transferEndedAt: true,
+  transferDurationS: true,
+  transferRate: true,
+  kbRetrievals: true,
+  kbHits: true,
+  kbUsageJson: true,
   tenant: { select: { country: true } },
   agent: { select: { primaryLanguage: true, languages: true } },
 } satisfies Prisma.CallSelect;
@@ -181,17 +192,19 @@ export class CallsQueryService {
   }
 
   async get(ctx: WorkspaceContext, callId: string): Promise<CallDetail> {
-    const row = await withWorkspace(ctx, (db) =>
-      db.call.findFirst({ where: { id: callId, tenantId: ctx.workspaceId }, select: DETAIL_SELECT }),
-    );
-    if (!row) throw AppError.notFound('Call');
+    const found = await withWorkspace(ctx, async (db) => {
+      const row = await db.call.findFirst({ where: { id: callId, tenantId: ctx.workspaceId }, select: DETAIL_SELECT });
+      return row ? { row, names: await sourceNames(db, row, ctx.workspaceId) } : null;
+    });
+    if (!found) throw AppError.notFound('Call');
+    const { row, names } = found;
     if (unsettledCallKind(row)) {
       // Someone is waiting on this call. If the platform dropped its call_ended /
       // call_analyzed, settle it now rather than at the next 5-minute call-recovery tick
       // (ADR 0011 §7). Not awaited; JobQueues bounds, dedupes and logs the enqueue.
       void this.queues.enqueueRecoverCall(row.id);
     }
-    return toDetail(row);
+    return toDetail(row, names);
   }
 
   /** D2 detail actions: mark handled, leave a note. */
@@ -199,7 +212,7 @@ export class CallsQueryService {
     const updated = await withWorkspace(ctx, async (db) => {
       const exists = await db.call.findFirst({ where: { id: callId, tenantId: ctx.workspaceId }, select: { id: true, handledAt: true } });
       if (!exists) return null;
-      return db.call.update({
+      const row = await db.call.update({
         where: { id: callId },
         data: {
           ...(body.handled === undefined ? {} : { handledAt: body.handled ? (exists.handledAt ?? new Date()) : null }),
@@ -207,9 +220,10 @@ export class CallsQueryService {
         },
         select: DETAIL_SELECT,
       });
+      return { row, names: await sourceNames(db, row, ctx.workspaceId) };
     });
     if (!updated) throw AppError.notFound('Call');
-    return toDetail(updated);
+    return toDetail(updated.row, updated.names);
   }
 
   /**
@@ -269,7 +283,7 @@ export class CallsQueryService {
     const rows = await withWorkspace(ctx, async (db) => {
       const where: Prisma.CallWhereInput = { tenantId: ctx.workspaceId, startedAt: { gte: from, lt: to } };
       const [totals, missedByReason, daily] = await Promise.all([
-        db.call.aggregate({ where, _count: { _all: true }, _sum: { durationS: true, creditsCharged: true } }),
+        db.call.aggregate({ where, _count: { _all: true }, _sum: { durationS: true, creditsCharged: true, transferCreditsCharged: true } }),
         db.call.groupBy({ by: ['declineReason'], where: { ...where, status: 'declined' }, _count: { _all: true } }),
         db.$queryRaw<Array<{ day: string; calls: bigint; missed: bigint; seconds: number | null; credits: Prisma.Decimal | null }>>`
           -- started_at is a UTC wall time without a zone: pin it to UTC first, then read it in
@@ -279,7 +293,8 @@ export class CallsQueryService {
                  count(*)                                                        AS calls,
                  count(*) FILTER (WHERE status = 'declined')                     AS missed,
                  coalesce(sum(duration_s), 0)                                    AS seconds,
-                 coalesce(sum(credits_charged), 0)                               AS credits
+                 -- D16: both legs of a transferred call are credits used.
+                 coalesce(sum(credits_charged), 0) + coalesce(sum(transfer_credits_charged), 0) AS credits
             FROM calls
            WHERE tenant_id = ${ctx.workspaceId}::uuid
              AND started_at >= ${from} AND started_at < ${to}
@@ -311,7 +326,7 @@ export class CallsQueryService {
       timezone: tenant.timezone,
       calls: { total, answered: rows.answered, missed, test: rows.test },
       minutes: round2(seconds / 60),
-      credits_used: round2(rows.totals._sum.creditsCharged?.toNumber() ?? 0),
+      credits_used: round2((rows.totals._sum.creditsCharged?.toNumber() ?? 0) + (rows.totals._sum.transferCreditsCharged?.toNumber() ?? 0)),
       avg_duration_s: rows.completed > 0 ? round2(seconds / rows.completed) : null,
       missed_by_reason: missedBy,
       by_day: rows.daily.map((d) => ({
@@ -382,14 +397,36 @@ function invalidCursor(): AppError {
   return new AppError('INVALID_CURSOR', 'That page link is no longer valid. Start from the first page.');
 }
 
-function toDetail(row: DetailRow): CallDetail {
+function toDetail(row: DetailRow, names: ReadonlyMap<string, string>): CallDetail {
   return {
     ...toSummary(row),
     transcript_text: row.transcriptText,
     transcript_json: row.transcriptJson ?? null,
     analysis_json: row.analysisJson ?? null,
     captured_checks: capturedChecks(row),
+    transfer: row.transferStatus
+      ? {
+          status: row.transferStatus as TransferStatus,
+          bridged_at: row.transferBridgedAt?.toISOString() ?? null,
+          ended_at: row.transferEndedAt?.toISOString() ?? null,
+          duration_s: row.transferDurationS,
+          rate: row.transferRate?.toNumber() ?? null,
+          credits_charged: row.transferCreditsCharged?.toNumber() ?? null,
+        }
+      : null,
+    knowledge: knowledgeUseOf(row.kbRetrievals, row.kbHits, row.kbUsageJson, names),
   };
+}
+
+/**
+ * The names of the sources a call's look-ups came from, read now: a source renamed since
+ * the call shows its current name, and one deleted since shows no name (and no link).
+ */
+async function sourceNames(db: Prisma.TransactionClient, row: DetailRow, workspaceId: string): Promise<Map<string, string>> {
+  const ids = storedSourceIds(row.kbUsageJson);
+  if (!ids.length) return new Map();
+  const rows = await db.knowledgeSource.findMany({ where: { id: { in: ids }, tenantId: workspaceId }, select: { id: true, name: true } });
+  return new Map(rows.map((r) => [r.id, r.name]));
 }
 
 /** Every captured phone number, checked against the caller's own words (`captured-phones.ts`). */
@@ -431,6 +468,7 @@ function toSummary(row: CallRow): CallSummary {
     rate: row.rate.toNumber(),
     config_version: row.configVersion,
     credits_charged: row.creditsCharged?.toNumber() ?? null,
+    transfer_credits_charged: row.transferCreditsCharged?.toNumber() ?? null,
     // §13.9: a declined call is "Missed" to the customer; `declined` is a storage word.
     status: (row.status === 'declined' ? 'missed' : row.status) as CallDisplayStatus,
     decline_reason: row.declineReason,

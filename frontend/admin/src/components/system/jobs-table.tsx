@@ -58,6 +58,10 @@ function useJobActions() {
   return { setTarget, dialog };
 }
 
+// As on the webhooks table: the queue state rides under the status, the error column
+// shows only when the table itself has room, and the customer reason is the sheet's.
+const ERROR_COLUMN = 'hidden @min-[75rem]:table-cell';
+
 export function JobsTable({ rows, showCustomer = true, onOpen }: { rows: AdminJobResponse[]; showCustomer?: boolean; onOpen: (id: string) => void }) {
   const { can } = useStaff();
   const denied = can.operateQueues();
@@ -66,7 +70,16 @@ export function JobsTable({ rows, showCustomer = true, onOpen }: { rows: AdminJo
   const columns: Array<DataColumn<AdminJobResponse>> = [
     { key: 'id', header: 'Job', cell: (r) => <Copyable value={r.id} /> },
     { key: 'type', header: 'Type', cell: (r) => <code className="text-xs">{r.type}</code> },
-    { key: 'status', header: 'Status', cell: (r) => <JobStatusBadge status={r.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (r) => (
+        <div className="flex flex-col items-start gap-0.5">
+          <JobStatusBadge status={r.status} />
+          {r.queue_state ? <span className="whitespace-nowrap text-xs text-muted-foreground">queue: {r.queue_state}</span> : null}
+        </div>
+      ),
+    },
     ...(showCustomer
       ? [
           {
@@ -86,9 +99,7 @@ export function JobsTable({ rows, showCustomer = true, onOpen }: { rows: AdminJo
     { key: 'created', header: 'Created', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.created_at)}</span> },
     { key: 'updated', header: 'Updated', cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{relativeTime(r.updated_at)}</span> },
     { key: 'attempts', header: 'Attempts', align: 'right', cell: (r) => r.attempts },
-    { key: 'queue', header: 'Queue', cell: (r) => (r.queue_state ? <Badge variant="outline">{r.queue_state}</Badge> : <span className="text-muted-foreground">–</span>) },
-    { key: 'error', header: 'Error', cell: (r) => (r.error ? <span className="block max-w-56 truncate text-xs text-danger" title={r.error}>{r.error}</span> : <span className="text-muted-foreground">–</span>) },
-    { key: 'reason', header: 'Customer reason', cell: (r) => (r.customer_reason ? <span className="block max-w-56 truncate text-xs" title={r.customer_reason}>{r.customer_reason}</span> : <span className="text-muted-foreground">–</span>) },
+    { key: 'error', header: 'Error', className: ERROR_COLUMN, cell: (r) => (r.error ? <span className="block max-w-56 truncate text-xs text-danger" title={r.error}>{r.error}</span> : <span className="text-muted-foreground">–</span>) },
     {
       key: 'actions',
       header: '',
@@ -111,7 +122,7 @@ export function JobsTable({ rows, showCustomer = true, onOpen }: { rows: AdminJo
   ];
   return (
     <>
-      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} label="Jobs" onRowClick={(r) => onOpen(r.id)} dense />
+      <DataTable rows={rows} columns={columns} rowKey={(r) => r.id} label="Jobs" onRowClick={(r) => onOpen(r.id)} className="@container" dense />
       {dialog}
     </>
   );

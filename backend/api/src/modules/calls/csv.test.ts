@@ -20,6 +20,7 @@ const call: CallSummary = {
   rate: 1,
   config_version: 1,
   credits_charged: 2.5,
+  transfer_credits_charged: null,
   status: 'analyzed',
   decline_reason: null,
   outcome: 'successful',

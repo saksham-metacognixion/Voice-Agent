@@ -316,3 +316,51 @@ describe('knowledge sources', () => {
     expect(await adminDb.knowledgeSource.findUnique({ where: { id: pending.id } })).toBeNull();
   }, 30_000);
 });
+
+describe('knowledge use statistics (D16)', () => {
+  it('aggregates hits per source over the window, real callers only, and is scoped to the workspace', async () => {
+    const ws = await paidWorkspace(app, 'kb-stats', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const faq = await adminDb.knowledgeSource.create({ data: { tenantId: ws.workspaceId, agentId, type: 'file', name: 'Patient FAQ', status: 'ready' } });
+    const unused = await adminDb.knowledgeSource.create({ data: { tenantId: ws.workspaceId, agentId, type: 'text', name: 'Parking', status: 'ready' } });
+    const gone = '99999999-0000-4000-8000-000000000000';
+    const at = (daysAgo: number) => new Date(Date.now() - daysAgo * 86_400_000);
+    let n = 0;
+    const seed = (data: Record<string, unknown>) =>
+      adminDb.call.create({ data: { id: `call_kbstats_${ws.workspaceId.slice(0, 8)}_${n++}`, tenantId: ws.workspaceId, agentId, channel: 'phone', status: 'ended', startedAt: at(1), ...data } });
+    await seed({ kbRetrievals: 4, kbHits: 3, kbUsageJson: { detail: 'complete', sources: [{ source_id: faq.id, kind: 'file', hits: 2 }, { source_id: null, kind: 'url', hits: 1 }] } });
+    await seed({ kbRetrievals: 2, kbHits: 1, kbUsageJson: { detail: 'complete', sources: [{ source_id: gone, kind: 'file', hits: 1 }] } });
+    await seed({ kbRetrievals: 3, kbHits: 0, kbUsageJson: { detail: 'complete', sources: [] } });
+    await seed({}); // never looked anything up
+    await seed({ kbRetrievals: 9, kbHits: 9, isTest: true, kbUsageJson: { detail: 'complete', sources: [{ source_id: faq.id, kind: 'file', hits: 9 }] } });
+    await seed({ kbRetrievals: 9, kbHits: 9, startedAt: at(40), kbUsageJson: { detail: 'complete', sources: [{ source_id: faq.id, kind: 'file', hits: 9 }] } });
+
+    const res = await call('GET', `/agents/${agentId}/knowledge/stats?days=30`, headers);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      days: 30,
+      calls: 4,
+      calls_with_lookups: 3,
+      calls_with_hits: 2,
+      lookups: 9,
+      hits: 4,
+      sources: [
+        { source_id: faq.id, name: 'Patient FAQ', type: 'file', hits: 2, calls: 1 },
+        { source_id: unused.id, name: 'Parking', type: 'text', hits: 0, calls: 0 },
+      ],
+      other_hits: 2,
+    });
+    expect((await call('GET', `/agents/${agentId}/knowledge/stats?days=90`, headers)).body).toMatchObject({ calls: 5, hits: 13 });
+    expect((await call('GET', `/agents/${agentId}/knowledge/stats`, headers)).body).toMatchObject({ days: 30 });
+    expect((await call('GET', `/agents/${agentId}/knowledge/stats?days=12`, headers)).status).toBe(422);
+
+    // An agent with no calls reads as zeros, not an error.
+    const quiet = await publishedAgent(call, headers, { name: 'Quiet' });
+    expect((await call('GET', `/agents/${quiet}/knowledge/stats`, headers)).body).toMatchObject({ calls: 0, lookups: 0, hits: 0, sources: [], other_hits: 0 });
+
+    // Another workspace's agent is not found, not empty.
+    const other = await paidWorkspace(app, 'kb-stats-other', 'growth');
+    expect((await call('GET', `/agents/${agentId}/knowledge/stats`, await auth(other.sub, other.workspaceId))).status).toBe(404);
+  });
+});

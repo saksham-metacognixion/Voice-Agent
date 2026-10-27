@@ -64,9 +64,19 @@ describe('parseRetellWebhook against the D2 fixtures', () => {
     expect(parsed.event.call.call_cost?.combined_cost).toBeCloseTo(17.0266692, 6);
   });
 
-  it('classifies transfer_* and unknown types as unsupported, with the call id', () => {
-    const parsed = parseRetellWebhook({ event: 'transfer_started', call: { call_id: 'call_x' } });
-    expect(parsed).toEqual({ kind: 'unsupported', eventType: 'transfer_started', callId: 'call_x' });
+  it('reads the transfer events from the bare shape the platform posts (26 Oct)', () => {
+    for (const event of ['transfer_started', 'transfer_bridged', 'transfer_cancelled', 'transfer_ended'] as const) {
+      const parsed = parseRetellWebhook({ call: { call_id: 'call_x' }, event, event_timestamp: 1792996890768 });
+      expect(parsed).toMatchObject({ kind: 'transfer', event: { event, call: { call_id: 'call_x' }, event_timestamp: 1792996890768 } });
+    }
+    const ended = parseRetellWebhook({ event: 'transfer_ended', call: { call_id: 'call_x', transfer_end_timestamp: 1792996990000 } });
+    expect(ended.kind === 'transfer' && ended.event.call.transfer_end_timestamp).toBe(1792996990000);
+    // No call id: there is no call to put the leg on.
+    expect(parseRetellWebhook({ event: 'transfer_bridged', call: {} })).toMatchObject({ kind: 'malformed' });
+  });
+
+  it('classifies unknown types as unsupported, with the call id', () => {
+    expect(parseRetellWebhook({ event: 'transcript_updated', call: { call_id: 'call_x' } })).toEqual({ kind: 'unsupported', eventType: 'transcript_updated', callId: 'call_x' });
     expect(parseRetellWebhook({ event: 'something_new_2027', call_id: 'call_y' })).toMatchObject({ kind: 'unsupported', callId: 'call_y' });
   });
 

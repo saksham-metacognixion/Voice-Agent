@@ -2,14 +2,16 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma, adminDb, type DeclineReason } from '@portal/db';
 import type { AgentTier } from '@portal/schemas';
 import { EventsService } from '../events';
-import type { InboundDecisionJob } from '../jobs';
+import { type InboundDecisionJob, JobQueues } from '../jobs';
 import { PlatformConfigService } from '../config';
 import { REDIS, type RedisLike, redisKeys } from '../redis';
-import { channelOf, clampDuration, directionOf, type RetellCallFacts, type RetellLifecycleEvent } from '../retell';
-import { DuplicateCallDebit, WalletService } from '../wallet';
+import { RETELL_TRANSFER_EVENTS, channelOf, clampDuration, directionOf, type RetellCallFacts, type RetellLifecycleEvent, type RetellTransferEvent } from '../retell';
+import { DuplicateCallDebit, DuplicateTransferDebit, WalletService } from '../wallet';
 import { roundCredits } from '../wallet/fifo';
 import { ACTIVE_SLACK_MS, RETELL_MAX_CALL_MS, encodeActive, parseActiveHash } from './inbound.decide';
+import { usedKnowledge } from './call-knowledge.service';
 import { type Charge, computeCharge } from './metering';
+import { type TransferEventFact, type TransferFacts, computeTransferCharge, foldTransfer } from './transfer';
 
 export type LifecycleOutcome =
   | { outcome: 'ignored'; reason: string }
@@ -19,6 +21,12 @@ export type LifecycleOutcome =
   | { outcome: 'ended'; callId: string; credits: number; billable: boolean; duplicate: boolean }
   | { outcome: 'already_ended'; callId: string; credits: number }
   | { outcome: 'analyzed'; callId: string; retellCostCents: number | null };
+
+export type TransferOutcome =
+  /** No row for the call yet: the stored event is folded in when the call is recorded. */
+  | { outcome: 'transfer_deferred'; callId: string }
+  | { outcome: 'transfer_recorded'; callId: string; status: TransferFacts['status'] }
+  | { outcome: 'transfer_billed'; callId: string; credits: number; duplicate: boolean; billable: boolean };
 
 /**
  * §14 metering and the `calls` lifecycle. Everything here runs from a BullMQ job, never
@@ -33,6 +41,9 @@ export type LifecycleOutcome =
  *   3. The debit is idempotent on `call_id`; the guarantee is the partial unique index on
  *      `credit_ledger (ref_id) WHERE reason = 'call'`, not the `if` in front of it.
  *   4. `call_analyzed` stores analysis and `retell_cost_cents` for COGS and never bills.
+ *   5. (D16) The transferred leg is the one other thing that moves credits, on its own
+ *      `transfer` ledger row, once it has both a bridge and an end — never from
+ *      `call_ended`'s duration, which is the agent leg only.
  *
  * Connection: `adminDb`. The workspace is only known after the payload is parsed, which
  * is exactly the ADR 0006 case for the admin connection.
@@ -46,6 +57,7 @@ export class CallsService {
     private readonly wallet: WalletService,
     private readonly config: PlatformConfigService,
     private readonly events: EventsService,
+    private readonly queues: JobQueues,
   ) {}
 
   // ---------------------------------------------------------------- write-behind (§13.9)
@@ -109,14 +121,141 @@ export class CallsService {
   // ---------------------------------------------------------------- lifecycle (§13.10)
 
   async handleLifecycle(event: RetellLifecycleEvent): Promise<LifecycleOutcome> {
-    switch (event.event) {
-      case 'call_started':
-        return this.handleStarted(event.call);
-      case 'call_ended':
-        return this.handleEnded(event.call);
-      case 'call_analyzed':
-        return this.handleAnalyzed(event.call);
+    const outcome = await (async () => {
+      switch (event.event) {
+        case 'call_started':
+          return this.handleStarted(event.call);
+        case 'call_ended':
+          return this.handleEnded(event.call);
+        case 'call_analyzed':
+          return this.handleAnalyzed(event.call);
+      }
+    })();
+    // A transfer event that arrived before the row existed was stored and deferred; the
+    // row exists now, so its leg is settled here. A no-op for the (nearly all) calls that
+    // were never transferred: one indexed read of this call's stored events.
+    if (outcome.outcome !== 'ignored') await this.settleTransfer(event.call.call_id);
+    // D16: what the agent looked up. Its own job — a slow CDN must not hold this webhook.
+    if (outcome.outcome !== 'ignored' && event.event !== 'call_started' && usedKnowledge(event.call)) {
+      await this.queues.enqueueCallKnowledge(event.call.call_id);
     }
+    return outcome;
+  }
+
+  // ---------------------------------------------------------------- transfer leg (D16)
+
+  /**
+   * `transfer_started` / `_bridged` / `_cancelled` / `_ended`. The event itself is already
+   * in `webhook_events`; this re-derives the leg from every stored event for the call and
+   * bills it once it is complete. With no row yet (the platform dropped `call_started`,
+   * or the call is not ours) the event is settled as deferred rather than retried — it is
+   * folded in by `handleLifecycle` when the call is recorded, and a call that never is
+   * was never ours to bill.
+   */
+  async handleTransfer(event: RetellTransferEvent): Promise<TransferOutcome> {
+    const callId = event.call.call_id;
+    const existing = await adminDb.call.findUnique({ where: { id: callId }, select: { id: true } });
+    if (!existing) {
+      this.log.warn(`${event.event} ${callId}: no call row yet; folded in when the call is recorded`);
+      return { outcome: 'transfer_deferred', callId };
+    }
+    return this.settleTransfer(callId);
+  }
+
+  /**
+   * Folds the call's stored events into the transfer columns and, once the leg has a
+   * bridge and an end, debits it. Safe to run any number of times in any order: the
+   * columns are a deterministic function of the stored events, the rate is captured once,
+   * and the debit is idempotent on the call id (`credit_ledger_transfer_debit_once_idx`).
+   */
+  async settleTransfer(callId: string): Promise<TransferOutcome> {
+    const row = await adminDb.call.findUnique({
+      where: { id: callId },
+      select: { id: true, tenantId: true, status: true, configVersion: true, transferRate: true, transferStatus: true },
+    });
+    if (!row) return { outcome: 'transfer_deferred', callId };
+
+    const facts = foldTransfer(await this.storedTransferFacts(callId));
+    if (facts.status === null) return { outcome: 'transfer_recorded', callId, status: null };
+    if (row.status === 'declined') {
+      // A declined call never reached the platform, so it cannot have transferred.
+      this.log.warn(`transfer events for ${callId}, a declined (missed) call; not billed`);
+      return { outcome: 'transfer_recorded', callId, status: facts.status };
+    }
+
+    // Captured once, like `calls.rate`: the version the call was rated under prices the leg.
+    let rate = row.transferRate?.toNumber() ?? null;
+    if (rate === null && facts.bridgedAt !== null) {
+      rate = (await this.config.transferRate(row.configVersion)).rate;
+      await adminDb.call.updateMany({ where: { id: callId, transferRate: null }, data: { transferRate: new Prisma.Decimal(rate) } });
+      // Another settlement may have captured it first; the stored value is the one that bills.
+      rate = (await adminDb.call.findUnique({ where: { id: callId }, select: { transferRate: true } }))?.transferRate?.toNumber() ?? rate;
+    }
+
+    const charge = computeTransferCharge(facts, rate ?? 0);
+    await adminDb.call.update({
+      where: { id: callId },
+      data: {
+        transferStatus: facts.status,
+        transferStartedAt: date(facts.startedAt),
+        transferBridgedAt: date(facts.bridgedAt),
+        transferEndedAt: date(facts.endedAt),
+        transferDurationS: charge.settled ? Math.round(charge.duration_s) : null,
+      },
+    });
+    if (!charge.settled) {
+      if (row.transferStatus !== facts.status) await this.publishCall(row.tenantId, callId, 'transfer', { transfer_status: facts.status });
+      return { outcome: 'transfer_recorded', callId, status: facts.status };
+    }
+
+    let credits = 0;
+    let duplicate = false;
+    if (charge.billable) {
+      try {
+        const write = await this.wallet.debitTransfer(row.tenantId, callId, charge.credits);
+        credits = Math.abs(write.delta);
+        duplicate = write.duplicate;
+      } catch (error) {
+        if (!(error instanceof DuplicateTransferDebit)) throw error;
+        credits = await this.chargedCredits(row.tenantId, callId, 'transfer');
+        duplicate = true;
+      }
+    }
+    // A projection of the ledger row, written after it — a crash in between is repaired
+    // by the next settlement reading the same row.
+    await adminDb.call.update({ where: { id: callId }, data: { transferCreditsCharged: new Prisma.Decimal(credits) } });
+
+    if (!duplicate) {
+      await this.publishCall(row.tenantId, callId, 'transfer', {
+        transfer_status: facts.status,
+        transfer_duration_s: charge.duration_s,
+        transfer_credits_charged: credits,
+      });
+      this.log.log(
+        `transfer leg ${callId}: ${charge.duration_s.toFixed(3)}s × ${rate ?? 0}/min → ${credits} credits${charge.billable ? '' : ` (${charge.zero_reason})`}`,
+      );
+    }
+    return { outcome: 'transfer_billed', callId, credits, duplicate, billable: charge.billable };
+  }
+
+  /** Every stored Retell event for the call, reduced to what `foldTransfer` reads. */
+  private async storedTransferFacts(callId: string): Promise<TransferEventFact[]> {
+    const rows = await adminDb.webhookEvent.findMany({
+      where: { provider: 'retell', externalId: callId, eventType: { in: [...RETELL_TRANSFER_EVENTS, 'call_ended', 'call_analyzed'] } },
+      select: { eventType: true, payloadJson: true, receivedAt: true },
+    });
+    return rows.map((r) => {
+      const payload = (r.payloadJson ?? {}) as Record<string, unknown>;
+      const call = (typeof payload.call === 'object' && payload.call !== null ? payload.call : {}) as Record<string, unknown>;
+      const eventTs = numberOrNull(payload.event_timestamp as number | null | undefined);
+      return {
+        type: r.eventType,
+        at: eventTs ?? r.receivedAt.getTime(),
+        transferEndTimestamp: numberOrNull(call.transfer_end_timestamp as number | null | undefined),
+        disconnectionReason: typeof call.disconnection_reason === 'string' ? call.disconnection_reason : null,
+        endTimestamp: numberOrNull(call.end_timestamp as number | null | undefined),
+      };
+    });
   }
 
   /**
@@ -508,8 +647,8 @@ export class CallsService {
     return { rate, configVersion, tier };
   }
 
-  private async chargedCredits(workspaceId: string, callId: string): Promise<number> {
-    const row = await adminDb.creditLedger.findFirst({ where: { tenantId: workspaceId, reason: 'call', refId: callId }, select: { delta: true } });
+  private async chargedCredits(workspaceId: string, callId: string, reason: 'call' | 'transfer' = 'call'): Promise<number> {
+    const row = await adminDb.creditLedger.findFirst({ where: { tenantId: workspaceId, reason, refId: callId }, select: { delta: true } });
     return row ? Math.abs(row.delta.toNumber()) : 0;
   }
 
@@ -638,6 +777,10 @@ function tierFromMetadata(call: RetellCallFacts): AgentTier | null {
 
 function timestamp(value: number | null | undefined): Date | null {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? new Date(value) : null;
+}
+
+function date(ms: number | null): Date | null {
+  return ms === null ? null : new Date(ms);
 }
 
 function numberOrNull(value: number | null | undefined): number | null {

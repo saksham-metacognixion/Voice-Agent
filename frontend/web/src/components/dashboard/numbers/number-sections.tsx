@@ -1,7 +1,7 @@
 'use client';
 
 import { releaseNumber, updateNumber, useApi, useListCalls } from '@portal/api-client';
-import type { BusinessHours, CallSummary, Carrier, HoursMode, PhoneNumberResponse, UpdateNumberRequest } from '@portal/schemas';
+import { hoursProblems, type BusinessHours, type CallSummary, type Carrier, type HoursMode, type PhoneNumberResponse, type UpdateNumberRequest } from '@portal/schemas';
 import {
   Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch,
   TagInput, toast,
@@ -18,6 +18,7 @@ import { Pager } from '@/src/components/dashboard/pager';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { CallStatusBadge } from '@/src/components/dashboard/status-badges';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
+import { HoursOverridesEditor, HoursStatusLine } from '@/src/components/dashboard/hours-overrides';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
 import { TransferTargetsEditor, toDrafts, toTargets, validateTargets, type TransferTargetDraft } from '@/src/components/wizard/transfer-targets-editor';
 import { COUNTRIES, countryName } from '@/src/lib/countries';
@@ -29,6 +30,7 @@ import { callPath, settingsPath } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { useAgentsForNumbers, useNumbersNav } from './number-bits';
+import { SipVerifyPanel } from './sip-verify';
 
 const MAX_COUNTRIES = 20;
 
@@ -81,6 +83,9 @@ function SaveRow({ label, busy, disabled, dirty, onSave }: { label: string; busy
 
 // ------------------------------------------------------------------ Routing
 
+const NINE_TO_FIVE = [{ open: '09:00', close: '17:00' }];
+const STARTER_HOURS: BusinessHours = { days: { mon: NINE_TO_FIVE, tue: NINE_TO_FIVE, wed: NINE_TO_FIVE, thu: NINE_TO_FIVE, fri: NINE_TO_FIVE }, closed_dates: [] };
+
 /**
  * Attached agent (published only), whether the number answers at all (`paused`), and
  * when: around the clock, the workspace's business hours, or this number's own
@@ -95,13 +100,15 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
   const [agentId, setAgentId] = React.useState(number.agent_id ?? '');
   const [active, setActive] = React.useState(!number.paused);
   const [mode, setMode] = React.useState<HoursMode>(number.hours_mode);
-  const [hours, setHours] = React.useState<BusinessHours | undefined>(number.hours_override ?? ws.workspace?.business_hours ?? undefined);
+  // A number without a schedule of its own starts from the workspace's, else 9–5 weekdays —
+  // never from nothing, which would save "custom" with no hours at all.
+  const [hours, setHours] = React.useState<BusinessHours>(number.hours_override ?? ws.workspace?.business_hours ?? STARTER_HOURS);
 
   React.useEffect(() => {
     setAgentId(number.agent_id ?? '');
     setActive(!number.paused);
     setMode(number.hours_mode);
-    setHours(number.hours_override ?? ws.workspace?.business_hours ?? undefined);
+    setHours(number.hours_override ?? ws.workspace?.business_hours ?? STARTER_HOURS);
   }, [number, ws.workspace?.business_hours]);
 
   const options = agents.published;
@@ -110,9 +117,11 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
   if (agentId && agentId !== number.agent_id) patch.agent_id = agentId;
   if (active === number.paused) patch.paused = !active;
   if (mode !== number.hours_mode) patch.hours_mode = mode;
-  if (mode === 'custom' && JSON.stringify(hours ?? null) !== JSON.stringify(number.hours_override)) patch.hours_override = hours ?? null;
+  if (mode === 'custom' && JSON.stringify(hours) !== JSON.stringify(number.hours_override)) patch.hours_override = hours;
   const dirty = Object.keys(patch).length > 0;
-  const customEmpty = mode === 'custom' && Object.values(hours?.days ?? {}).every((d) => !d?.length);
+  const invalid = mode === 'custom' && hoursProblems(hours).length > 0;
+  const customEmpty = mode === 'custom' && Object.values(hours.days ?? {}).every((d) => !d?.length) && !(hours.date_overrides ?? []).some((o) => o.intervals.length);
+  const workspaceZone = ws.workspace?.timezone ?? 'UTC';
   const noWorkspaceHours = mode === 'business' && !Object.values(ws.workspace?.business_hours?.days ?? {}).some((d) => d?.length);
 
   return (
@@ -176,10 +185,12 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
           <>
             <HoursEditor value={hours} onChange={setHours} disabled={disabled || busy} />
             {customEmpty ? <Alert variant="warning">{t('customEmpty')}</Alert> : null}
+            <HoursOverridesEditor value={hours} onChange={setHours} disabled={disabled || busy} workspaceTimeZone={workspaceZone} allowTimeZone />
           </>
         ) : null}
+        {mode !== 'always' ? <HoursStatusLine hours={mode === 'custom' ? hours : (ws.workspace?.business_hours ?? null)} workspaceTimeZone={workspaceZone} /> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
-        {!disabled ? <SaveRow label={t('save')} busy={busy} dirty={dirty} onSave={() => void save(patch)} /> : null}
+        {!disabled ? <SaveRow label={t('save')} busy={busy} dirty={dirty && !invalid} onSave={() => void save(patch)} /> : null}
       </CardContent>
     </Card>
   );
@@ -469,6 +480,7 @@ export function ForwardingSection({ number, disabled }: { number: PhoneNumberRes
  */
 export function SipSection({ number }: { number: PhoneNumberResponse }) {
   const t = useTranslations('dashboard.numbers.sip');
+  const { canAdmin } = useRole();
   const [reveal, setReveal] = React.useState(false);
   const sip = number.sip;
   return (
@@ -501,6 +513,7 @@ export function SipSection({ number }: { number: PhoneNumberResponse }) {
         ) : (
           <Alert variant="warning">{t('missing')}</Alert>
         )}
+        {sip && (number.status === 'active' || number.status === 'paused') ? <SipVerifyPanel number={number} canAdmin={canAdmin} /> : null}
         <Alert variant="info">{t('inbound')}</Alert>
         <p className="text-xs text-muted-foreground">{t('change')}</p>
       </CardContent>

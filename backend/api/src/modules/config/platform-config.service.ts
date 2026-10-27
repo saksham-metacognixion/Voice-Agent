@@ -113,6 +113,23 @@ export class PlatformConfigService {
     return { rate: rateForTier(current.config.rates, tier), configVersion: current.version };
   }
 
+  /**
+   * D16: credits per minute for a transferred leg (admin §5 "Transferred-leg credits/min").
+   * Read from the version the call was rated under when it is known — the leg belongs to
+   * that call, and a publish between the call's start and its transfer must not re-price
+   * it (§14.2, the same rule as `calls.rate`). An unknown or unreadable version falls back
+   * to the version in effect now.
+   */
+  async transferRate(configVersion: number | null): Promise<{ rate: number; configVersion: number }> {
+    if (configVersion !== null) {
+      const row = await adminDb.pricingConfig.findUnique({ where: { version: configVersion }, select: { version: true, configJson: true } }).catch(() => null);
+      const parsed = row ? pricingConfig.safeParse(row.configJson) : null;
+      if (row && parsed?.success) return { rate: parsed.data.rates.transferred_leg_per_min, configVersion: row.version };
+    }
+    const current = await this.currentPricing();
+    return { rate: current.config.rates.transferred_leg_per_min, configVersion: current.version };
+  }
+
   async walletPolicy(): Promise<{ policy: WalletPolicy; configVersion: number }> {
     const current = await this.currentPricing();
     return { policy: current.config.wallet_policy, configVersion: current.version };

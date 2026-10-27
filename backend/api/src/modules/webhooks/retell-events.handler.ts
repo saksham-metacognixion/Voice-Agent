@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CallsService, type LifecycleOutcome } from '../calls';
+import { CallsService, type LifecycleOutcome, type TransferOutcome } from '../calls';
 import { parseRetellWebhook } from '../retell';
 
-export type RetellHandlerOutcome = LifecycleOutcome | { outcome: 'ignored'; reason: string };
+export type RetellHandlerOutcome = LifecycleOutcome | TransferOutcome | { outcome: 'ignored'; reason: string };
 
 /**
  * Routes one stored Retell webhook to the metering service (§13.10, §14.1).
@@ -12,8 +12,9 @@ export type RetellHandlerOutcome = LifecycleOutcome | { outcome: 'ignored'; reas
  * re-delivery (all three inbound retries carry the same `call_id`, ADR 0003 §1) and the
  * SA12 "Replay" button are the same operation run again.
  *
- * `transfer_*` and anything Retell adds later are stored and acknowledged, never dropped:
- * the payload is in `webhook_events` and can be replayed once a handler exists.
+ * `transfer_*` (D16) bill the transferred leg through the same service. Anything Retell
+ * adds later is stored and acknowledged, never dropped: the payload is in
+ * `webhook_events` and can be replayed once a handler exists.
  */
 @Injectable()
 export class RetellEventHandler {
@@ -26,6 +27,8 @@ export class RetellEventHandler {
     switch (parsed.kind) {
       case 'lifecycle':
         return this.calls.handleLifecycle(parsed.event);
+      case 'transfer':
+        return this.calls.handleTransfer(parsed.event);
       case 'unsupported':
         this.log.log(`retell ${parsed.eventType} (${parsed.callId ?? 'no call id'}): stored, no handler`);
         return { outcome: 'ignored', reason: `unsupported event type ${parsed.eventType}` };

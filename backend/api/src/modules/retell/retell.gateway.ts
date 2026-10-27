@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Retell, { toFile } from 'retell-sdk';
 import WebSocket from 'ws';
+import { resolvePublicAddress } from '../../common/http/public-address';
 import { RetellConfig } from './retell.config';
 import { type RetellCallFacts, retellCallFacts } from './retell-webhook';
 import type { AgentSpec, AllowOptions, InboundAllow, InboundDecline, KnowledgeSourcesInput, LlmSpec, TransferTarget } from './retell.types';
@@ -178,7 +179,7 @@ export class RetellGateway {
       timezone: spec.timezone,
       // Ours, always. The account-level webhook is ignored once this is set.
       webhook_url: this.config.agentWebhookUrl,
-      webhook_events: ['call_started', 'call_ended', 'call_analyzed', 'transfer_started', 'transfer_ended'],
+      webhook_events: ['call_started', 'call_ended', 'call_analyzed', 'transfer_started', 'transfer_bridged', 'transfer_cancelled', 'transfer_ended'],
       webhook_timeout_ms: 10_000,
       // Keep transcripts and recordings on Retell; §17 retention is enforced by our
       // own delete job, not by Retell's defaults.
@@ -271,6 +272,25 @@ export class RetellGateway {
       if (isRetellNotFound(error)) return null;
       throw error;
     }
+  }
+
+  /**
+   * D16: the platform's file of what each knowledge look-up returned during a call
+   * (`knowledge_base_retrieved_contents_url`, a signed CDN link). Read here because it is
+   * the platform's object; the URL came in a signed webhook, and is still only followed
+   * over https, to a public address, within `timeoutMs` and `maxBytes`.
+   */
+  async fetchKnowledgeRetrievals(url: string, { timeoutMs = 5_000, maxBytes = 2 * 1024 * 1024 } = {}): Promise<unknown> {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') throw new Error('knowledge retrievals: not an https URL');
+    await resolvePublicAddress(parsed.hostname);
+    const response = await fetch(parsed, { signal: AbortSignal.timeout(timeoutMs), redirect: 'error' });
+    if (!response.ok) throw new Error(`knowledge retrievals: HTTP ${response.status}`);
+    const declared = Number(response.headers.get('content-length') ?? '0');
+    if (declared > maxBytes) throw new Error(`knowledge retrievals: ${declared} bytes is over the ${maxBytes} cap`);
+    const body = await response.arrayBuffer();
+    if (body.byteLength > maxBytes) throw new Error(`knowledge retrievals: ${body.byteLength} bytes is over the ${maxBytes} cap`);
+    return JSON.parse(Buffer.from(body).toString('utf8')) as unknown;
   }
 
   /** Nightly reconciliation (§14.2): everything Retell saw in a window, vs `calls`. One page. */
@@ -368,8 +388,31 @@ export class RetellGateway {
     });
   }
 
+  /**
+   * D16 SIP re-verify: puts the trunk's termination URI and credentials on an imported
+   * number. Only what is given is sent; the password travels in this one request and is
+   * not kept by anything on our side (the caller opened it on its stack).
+   */
+  updateSipTrunk(e164: string, input: { terminationUri: string; username?: string | null; password?: string | null }) {
+    return this.client.phoneNumber.update(e164, {
+      termination_uri: input.terminationUri,
+      ...(input.username !== undefined && input.username !== null ? { auth_username: input.username } : {}),
+      ...(input.password !== undefined && input.password !== null ? { auth_password: input.password } : {}),
+    });
+  }
+
   getPhoneNumber(e164: string) {
     return this.client.phoneNumber.retrieve(e164);
+  }
+
+  /** What the platform holds for an imported number's trunk: URI and username — never a password (the platform does not return one). */
+  sipTrunkOf(number: { sip_outbound_trunk_config?: { termination_uri?: string | null; auth_username?: string | null; transport?: string | null } | null }): {
+    terminationUri: string | null;
+    username: string | null;
+    transport: string | null;
+  } {
+    const trunk = number.sip_outbound_trunk_config ?? null;
+    return { terminationUri: trunk?.termination_uri ?? null, username: trunk?.auth_username ?? null, transport: trunk?.transport ?? null };
   }
 
   listPhoneNumbers() {

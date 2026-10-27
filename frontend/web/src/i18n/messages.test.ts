@@ -19,6 +19,16 @@ const tagNames = (s: string) => [...new Set([...s.matchAll(/<\/?([A-Za-z0-9_]+)>
 
 const en = leaves(messages.en as unknown as Tree);
 
+describe.each(LOCALES)('the %s catalogue, ICU quoting', (locale) => {
+  // In ICU MessageFormat a straight apostrophe before `{` or `}` opens a quoted literal, so
+  // "l'{name}" prints "{name}" — no error, no missing placeholder, just a wrong sentence.
+  // Write the typographic ’ instead (or '' for a literal apostrophe).
+  it('has no apostrophe that would quote a placeholder', () => {
+    const lines = leaves(messages[locale] as unknown as Tree);
+    expect([...lines].filter(([, s]) => /(^|[^'])'[{}]/.test(s)).map(([k]) => k)).toEqual([]);
+  });
+});
+
 describe.each(LOCALES.filter((l) => l !== 'en'))('the %s catalogue', (locale) => {
   const other = leaves(messages[locale] as unknown as Tree);
 

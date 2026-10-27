@@ -49,7 +49,7 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 | Layer          | Choice                                                                                                                                                                                                                                                                          |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                                                                                     |
-| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, ar; fr-CA planned), PostHog, `retell-client-js-sdk`                                                                                          |
+| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, ar — fr-CA dropped 27 Oct for the Arabic market, ADR 0028), PostHog, `retell-client-js-sdk`                                                                                          |
 | SSE client     | `@microsoft/fetch-event-source` — `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                                                                                                                 |
 | API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                                                                                                               |
 | Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                                                                                                                     |
@@ -114,7 +114,10 @@ translated by id through `useServerCopy` (26 Oct), 0027 Arabic agents for KSA an
 `agentLanguage` = the platform's locales + `ar-AE` (sent as `ar-SA`), Arabic always transcribes
 `accurate`, the dialect / speaker gender / digit-by-digit numbers as a `## Language (fixed)`
 runtime block, curated Gulf voices recognised by platform name, Arabic digits in the phone
-check; UAE not sold until Emirati numbers transcribe (26 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+check; UAE not sold until Emirati numbers transcribe (26 Oct), 0028 D16 — the transferred
+leg as its own `transfer` ledger row folded from the stored events, per-number date
+overrides and strict hours writes, knowledge use per call, SIP re-verify by OPTIONS +
+digest, and Arabic instead of fr-CA (27 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -242,14 +245,29 @@ job settles.
   returns `retry` (not `duplicate`) for a stored but unprocessed event, and the `webhook-sweeper` job
   re-enqueues anything stored that never reached the queue.
 - Retell's `external_id` is the `call_id`; a payload without one is deduped on a digest of its bytes.
-  `transfer_*` and unknown types are stored, acknowledged and left for a later handler.
+  `transfer_started|bridged|cancelled|ended` settle the transferred leg (D16); unknown types are
+  stored, acknowledged and left for a later handler.
 - Handle Stripe `checkout.session.completed` (credit only when `payment_status = paid`),
   `async_payment_succeeded`, `async_payment_failed` and `expired` (→ `abandoned`).
 
 **Metering (§14) — the money rules**
 
-- `call_ended` is the **only** event that moves credits. `call_analyzed` stores analysis and
-  `retell_cost_cents` for COGS and **never bills**.
+- `call_ended` is the **only** event that moves credits for the agent leg. `call_analyzed` stores
+  analysis and `retell_cost_cents` for COGS and **never bills**.
+- **A transferred call is two legs** (D16, ADR 0028). The agent leg is `call_ended` as above; the
+  transferred leg (`bridge → end`, `rates.transferred_leg_per_min`, 0.25) is its own ledger row,
+  `reason = transfer`, `ref_id = call_id`, under `credit_ledger_transfer_debit_once_idx`. Its facts
+  are **folded from every stored `webhook_events` row for the call** (`foldTransfer` in
+  `modules/calls/transfer.ts`, pure, order-independent): earliest `transfer_bridged`, the
+  platform's `transfer_end_timestamp` else `transfer_ended`'s time; no bridge = `cancelled`, never
+  billed. `CallsService.settleTransfer` runs on every transfer event and after every lifecycle
+  event; a transfer event before the row exists settles as `transfer_deferred` (never retried —
+  the sweeper would loop on a call that is not ours) and is folded in when the row appears. The
+  rate comes from the pricing version the call was rated under, captured once into
+  `calls.transfer_rate`. `transfer_credits_charged` is the second projection; anything summing
+  call usage counts `reason IN ('call', 'transfer')`. A live agent subscribes to
+  `transfer_bridged` at its next publish — `pnpm --filter @portal/api agents:republish --apply`
+  once per environment after the deploy.
 - `duration_s = (end_timestamp − start_timestamp)/1000`. If `disconnection_reason` indicates not
   connected (dial failed, no answer, busy) the charge is 0.
 - `credits = duration_s/60 × rate(tier)` rounded to 0.01. Ledger debit is idempotent on `call_id`.
@@ -285,7 +303,12 @@ job settles.
 - `POST /webhooks/retell/inbound/:number_token`. Redis-only path; Retell times out at 10 s and retries 3×.
   Four keys, two round trips, one 150 ms budget. Measured p95 8.4 ms at 6 319 req/s (`test/load/inbound.k6.js`).
 - Six ordered checks: workspace not paused → number not paused (or no live agent) → caller not in
-  blocklist → balance > −grace → active calls < plan cap → hours rule. The SA12 `reject_inbound`
+  blocklist → balance > −grace → active calls < plan cap → hours rule. Hours: `custom` = the
+  number's own schedule and zone, `business` = the workspace's (none set = open, `no_schedule`),
+  `always` = none. On a date: closed date → `date_overrides` entry (no intervals = closed) →
+  weekday; a closed date also shuts the previous evening's overnight spill (D16). `isOpen` lives
+  in `@portal/schemas` so D4's "open now" is the same decision; writes go through
+  `businessHoursInput` (known IANA zone, ≤ 4 non-overlapping intervals a day, real unique dates). The SA12 `reject_inbound`
   kill switch declines before all of them. The checks are a pure function, `decide()` in
   `modules/calls/inbound.decide.ts`; the service only fetches and answers.
 - `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`, clamped to Retell's
@@ -580,9 +603,16 @@ job settles.
   (porting) is refused (P3).
 - **SIP passwords are envelope-encrypted** (`modules/crypto`): fresh AES-256-GCM data key per
   secret, wrapped by KMS (`SIP_CREDENTIALS_KMS_KEY_ID`) in staging/prod or a local key
-  (`SIP_CREDENTIALS_LOCAL_KEY`, refused in prod) in dev/test; the plan id is the AAD. Two call
-  sites only: `PhonePlansService`/`NumbersService.import` seal, `importSip` opens on the stack
-  immediately before `import-phone-number`. Nothing returns, logs or audits the plaintext;
+  (`SIP_CREDENTIALS_LOCAL_KEY`, refused in prod) in dev/test; the plan id is the AAD. Three call
+  sites: `PhonePlansService`/`NumbersService.import` seal, `importSip` opens on the stack
+  immediately before `import-phone-number`, and D16's `SipVerificationService` opens (and seals
+  new credentials only when the check did not fail).
+- **SIP re-verify** (D16, `POST /numbers/:id/sip/verify`, owner/admin) is synchronous so a typed
+  password never sits in a job payload: a lease on `phone_numbers.sip_verify_started_at` (90 s,
+  `409 SIP_VERIFY_IN_PROGRESS`), 10 checks/h per workspace, one SIP OPTIONS digest-answered by
+  `SipProbe` to the trunk's **public address only** (ports < 1024 refused), then — unless the
+  trunk failed — `get-phone-number` + `updateSipTrunk` with the details. `answered`/`forbidden`
+  = warning (reachable, password unconfirmed). The outcome is `sip_verification_json`, no secret. Nothing returns, logs or audits the plaintext;
   responses carry `has_password`.
 - **The restaurant menu is a knowledge source with `role = menu`** (ADR 0020): the same
   row, body, validation, sync job and platform KB as any source, plus
@@ -628,6 +658,15 @@ job settles.
   fallback exists for dev, ci and tests only, and `assertPortalUrl()` refuses to boot the
   API or the worker in staging/prod without a public origin. No `process.env.PORTAL_URL ??`
   anywhere else.
+
+**Knowledge use (D16, ADR 0028)**
+
+- `calls.kb_retrievals` / `kb_hits` / `kb_usage_json` come from the `call-knowledge` job (`calls`
+  queue, `kb-<call_id>`), queued by `call_ended`/`call_analyzed` when the payload shows a knowledge
+  look-up. It re-reads the signed retrieval-file URL from the stored webhook (never a job
+  payload), writes the count first, then attributes passages by the 8-hex row id our sync puts in
+  file names and text titles (`kb-usage.ts`). SET, never incremented; a complete row is never
+  downgraded. It owns no credits. `GET /agents/:id/knowledge/stats` aggregates real callers only.
 
 **Recurring operations and notifications (§5.3, §5.4, §13.11, §14.2, §14.3 — ADR 0014)**
 
@@ -787,7 +826,10 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   Errors become copy through `errorMessage(error, t)` (branch on `code`, never on text).
 - Every user-facing string is a key in `src/i18n/messages/en.json` **and** `ar.json`
   (`useTranslations`); `src/i18n/messages.test.ts` fails on a key, placeholder or tag in one
-  and not the other, or a line that does not format under Arabic plural rules (ADR 0026).
+  and not the other, a line that does not format under Arabic plural rules (ADR 0026), or a
+  straight apostrophe before `{`/`}` (ICU quotes the placeholder). Write a one-word plural
+  branch as `# time`, never `{once}`: the placeholder check reads it as an argument. There is
+  no fr-CA: the market is Arabic-speaking (ADR 0028).
   The language is per browser (`portal:locale`, `LocaleProvider`), applied to `<html lang
   dir>` before paint by `localeBootScript`; no locale in the URL. `lib/format` and every
   `Intl` call use `activeIntlLocale()` (`ar-u-nu-latn`: Western digits), never the browser's.
@@ -1197,6 +1239,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `alert:platform_concurrency` | the open platform-wide concurrency incident, so ops is paged once per incident; held a day at most (D7)                 |
 | `admin:health:{provider}`    | the health strip's cached Retell / Stripe probe, 60 s (D12)                                                            |
 | `ratelimit:api:{ip}:{min}`   | API requests from one client IP in one epoch minute, TTL 2 min (D14, ADR 0025)                                          |
+| `ratelimit:sip-verify:{ws}`  | SIP re-verify checks this hour, per workspace (D16, ADR 0028)                                                           |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
 throws and never waits past its budget (ADR 0010 §6).
@@ -1303,6 +1346,10 @@ throws and never waits past its budget (ADR 0010 §6).
   `BAD_REQUEST`, `DOCUMENT_UNREADABLE`, `VALIDATION_FAILED`, and for a photo
   `GENERATION_PAUSED`, `UPSTREAM_UNAVAILABLE`, `NOT_CONFIGURED`). Stateless — the text
   goes into the brief.
+- D16 routes: `POST /numbers/:id/sip/verify` (owner/admin, `sipVerifyRequest` → the number, with
+  `sip.verification`; `NOT_SIP_NUMBER`, `SIP_VERIFY_IN_PROGRESS`, `RATE_LIMITED`),
+  `GET /agents/:id/knowledge/stats?days=7|30|90` (any role). `callDetail` gained `transfer` and
+  `knowledge`, `callSummary` `transfer_credits_charged`; `ledgerReason` gained `transfer`.
 - D13 routes: `GET|POST /admin/staff`, `PATCH /admin/staff/:id`, `GET|PUT /admin/staff/limits`
   (writes: super admin), `GET /admin/provisioning` (`?status=&tenant_id=`, §16 page with
   `total`), `GET /admin/concurrency` (any staff).
@@ -1425,7 +1472,7 @@ One developer, AI-assisted. Day 0 is Fri 11 Sep 2026.
 | **P2 complete, full scope**                              | **Fri 9 Oct** |
 
 Day-by-day tasks: `docs/plan/tasks.csv`. One buffer day (1 Oct). If a day overruns, give back in this
-order: fr-CA content → admin SA4/SA7/SA8/SA9 actions (keep read-only tables) → SIP option C →
+order: admin SA4/SA7/SA8/SA9 actions (keep read-only tables) → SIP option C →
 knowledge W4 → auto top-up → team and invites.
 
 ## Working agreements

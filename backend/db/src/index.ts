@@ -66,6 +66,7 @@ export {
   APPEND_ONLY_VIOLATION,
   CALL_DEBIT_ONCE_CONSTRAINT,
   RENTAL_DEBIT_ONCE_CONSTRAINT,
+  TRANSFER_DEBIT_ONCE_CONSTRAINT,
   WEBHOOK_DEDUPE_CONSTRAINT,
   isAppendOnlyViolation,
   isRlsViolation,
@@ -73,5 +74,6 @@ export {
   uniqueTargetUnknown,
   isDuplicateCallDebit,
   isDuplicateRentalDebit,
+  isDuplicateTransferDebit,
   isDuplicateWebhook,
 } from './errors.js';

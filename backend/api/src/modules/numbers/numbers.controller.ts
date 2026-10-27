@@ -8,6 +8,7 @@ import {
   forwardingGuideQuery,
   importNumberRequest,
   phonePlanRequest,
+  sipVerifyRequest,
   updateNumberRequest,
   uuid,
 } from '@portal/schemas';
@@ -16,6 +17,7 @@ import { Ctx, RequireEmailVerified, Roles } from '../auth';
 import type { WorkspaceContext } from '../auth';
 import { NumbersService } from './numbers.service';
 import { PhonePlansService } from './phone-plans.service';
+import { SipVerificationService } from './sip-verification.service';
 
 /**
  * W6 — the agent's number choice (§16 `PUT /agents/:id/phone-plan`). Editor and above;
@@ -43,7 +45,10 @@ export class PhonePlanController {
  */
 @Controller('numbers')
 export class NumbersController {
-  constructor(private readonly numbers: NumbersService) {}
+  constructor(
+    private readonly numbers: NumbersService,
+    private readonly sip: SipVerificationService,
+  ) {}
 
   @Get()
   list(@Ctx() ctx: WorkspaceContext): Promise<PhoneNumberResponse[]> {
@@ -83,6 +88,21 @@ export class NumbersController {
   @Roles('owner', 'admin', 'editor')
   update(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<PhoneNumberResponse> {
     return this.numbers.update(ctx, idOf(id, 'Phone number'), updateNumberRequest.parse(body));
+  }
+
+  /**
+   * D16: re-check an imported number's SIP trunk, optionally with new credentials. Owner
+   * and admin, like importing one: it can replace the stored password. Answers the number,
+   * whose `sip.verification` carries the outcome.
+   */
+  @Post(':id/sip/verify')
+  @HttpCode(200)
+  @Roles('owner', 'admin')
+  @RequireEmailVerified()
+  async verifySip(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<PhoneNumberResponse> {
+    const numberId = idOf(id, 'Phone number');
+    await this.sip.verify(ctx, numberId, sipVerifyRequest.parse(body ?? {}));
+    return this.numbers.get(ctx, numberId);
   }
 
   @Delete(':id')

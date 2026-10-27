@@ -64,8 +64,12 @@ export const ErrorCode = {
   ORIGIN_NOT_ALLOWED: 'ORIGIN_NOT_ALLOWED',
   // 404
   NOT_FOUND: 'NOT_FOUND',
+  /** D16: re-verify is for a number imported from the customer's own SIP trunk. */
+  NOT_SIP_NUMBER: 'NOT_SIP_NUMBER',
   // 409
   CONFLICT: 'CONFLICT',
+  /** D16: a SIP re-verify is already running for this number. */
+  SIP_VERIFY_IN_PROGRESS: 'SIP_VERIFY_IN_PROGRESS',
   PURCHASES_PAUSED: 'PURCHASES_PAUSED',
   GENERATION_PAUSED: 'GENERATION_PAUSED',
   /** The SA12 `pause_web_tests` kill switch is on (§13.4). */
@@ -122,6 +126,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   NO_PAYMENT_METHOD: 400,
   PLAN_LIMIT: 400,
   DOCUMENT_UNREADABLE: 400,
+  NOT_SIP_NUMBER: 400,
   UNAUTHENTICATED: 401,
   INVALID_TOKEN: 401,
   INVALID_SIGNATURE: 401,
@@ -140,6 +145,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   ORIGIN_NOT_ALLOWED: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  SIP_VERIFY_IN_PROGRESS: 409,
   PURCHASES_PAUSED: 409,
   GENERATION_PAUSED: 409,
   TESTS_PAUSED: 409,

@@ -13,6 +13,8 @@ export const ledgerReason = z.enum([
   'expiry',
   'refund',
   'topup',
+  /** D16: the transferred leg of a call, billed after `transfer_bridged`; `ref_id` is the call id. */
+  'transfer',
 ]);
 export type LedgerReason = z.infer<typeof ledgerReason>;
 

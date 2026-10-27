@@ -291,7 +291,7 @@ export class AdminKpisService {
     >(Prisma.sql`
       SELECT c.tier::text AS tier, c.is_test, coalesce(sum(-l.delta), 0) AS used
       FROM credit_ledger l JOIN calls c ON c.id = l.ref_id
-      WHERE l.reason = 'call' AND l.created_at >= ${from}
+      WHERE l.reason IN ('call', 'transfer') AND l.created_at >= ${from}
       GROUP BY 1, 2`);
     let total = 0;
     let standard = 0;
@@ -319,7 +319,7 @@ export class AdminKpisService {
         Prisma.sql`SELECT to_char(date_trunc('day', started_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, count(*)::bigint AS n FROM calls WHERE started_at >= ${from} AND started_at <= ${to} AND status IN ('ended','analyzed') GROUP BY 1`,
       ),
       adminDb.$queryRaw<Array<{ day: string; n: Prisma.Decimal | null }>>(
-        Prisma.sql`SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, coalesce(sum(-delta), 0) AS n FROM credit_ledger WHERE reason = 'call' AND created_at >= ${from} AND created_at <= ${to} GROUP BY 1`,
+        Prisma.sql`SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, coalesce(sum(-delta), 0) AS n FROM credit_ledger WHERE reason IN ('call', 'transfer') AND created_at >= ${from} AND created_at <= ${to} GROUP BY 1`,
       ),
       adminDb.$queryRaw<Array<{ day: string; n: bigint }>>(
         Prisma.sql`SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, count(*)::bigint AS n FROM tenants WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY 1`,

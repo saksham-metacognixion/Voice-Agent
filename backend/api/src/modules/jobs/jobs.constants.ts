@@ -53,6 +53,8 @@ export const JOBS = {
    * recover-<call_id>`, delayed, freed when it settles — at most one per call per delay.
    */
   recoverCall: 'recover-call',
+  /** D16: what the agent looked up during one call (`CallKnowledgeService`). `jobId = kb-<call_id>`, freed when it settles. */
+  callKnowledge: 'call-knowledge',
 } as const;
 
 /** §13.11 Job Schedulers. Registered idempotently on worker boot (architecture §12). */
@@ -152,6 +154,10 @@ export interface InboundDecisionJob {
 }
 
 export interface RecoverCallJob {
+  callId: string;
+}
+
+export interface CallKnowledgeJob {
   callId: string;
 }
 

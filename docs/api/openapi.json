@@ -923,6 +923,11 @@
           "to_number": {
             "nullable": true,
             "type": "string"
+          },
+          "transfer_credits_charged": {
+            "default": null,
+            "nullable": true,
+            "type": "number"
           }
         },
         "required": [
@@ -1682,7 +1687,8 @@
                     "adjustment",
                     "expiry",
                     "refund",
-                    "topup"
+                    "topup",
+                    "transfer"
                   ],
                   "type": "string"
                 },
@@ -4627,7 +4633,8 @@
                     "adjustment",
                     "expiry",
                     "refund",
-                    "topup"
+                    "topup",
+                    "transfer"
                   ],
                   "type": "string"
                 },
@@ -8093,6 +8100,42 @@
                         },
                         "type": "array"
                       },
+                      "date_overrides": {
+                        "items": {
+                          "properties": {
+                            "date": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "intervals": {
+                              "default": [],
+                              "items": {
+                                "properties": {
+                                  "close": {
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "type": "string"
+                                  },
+                                  "open": {
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "open",
+                                  "close"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "date"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "days": {
                         "additionalProperties": {
                           "items": {
@@ -8837,6 +8880,42 @@
                         "items": {
                           "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                           "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "date_overrides": {
+                        "items": {
+                          "properties": {
+                            "date": {
+                              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                              "type": "string"
+                            },
+                            "intervals": {
+                              "default": [],
+                              "items": {
+                                "properties": {
+                                  "close": {
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "type": "string"
+                                  },
+                                  "open": {
+                                    "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "open",
+                                  "close"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "date"
+                          ],
+                          "type": "object"
                         },
                         "type": "array"
                       },
@@ -9619,6 +9698,42 @@
                     },
                     "type": "array"
                   },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
                   "days": {
                     "additionalProperties": {
                       "items": {
@@ -10218,6 +10333,42 @@
                     "items": {
                       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                       "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
                     },
                     "type": "array"
                   },
@@ -11057,6 +11208,42 @@
                 },
                 "type": "array"
               },
+              "date_overrides": {
+                "items": {
+                  "properties": {
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "intervals": {
+                      "default": [],
+                      "items": {
+                        "properties": {
+                          "close": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "open": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "open",
+                          "close"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "date"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "days": {
                 "additionalProperties": {
                   "items": {
@@ -11248,6 +11435,68 @@
           "is_test": {
             "type": "boolean"
           },
+          "knowledge": {
+            "default": null,
+            "nullable": true,
+            "properties": {
+              "detail": {
+                "enum": [
+                  "complete",
+                  "count_only"
+                ],
+                "type": "string"
+              },
+              "hits": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "lookups": {
+                "type": "integer"
+              },
+              "sources": {
+                "items": {
+                  "properties": {
+                    "hits": {
+                      "type": "integer"
+                    },
+                    "kind": {
+                      "enum": [
+                        "file",
+                        "text",
+                        "url",
+                        "unknown"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "source_id": {
+                      "format": "uuid",
+                      "nullable": true,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "source_id",
+                    "name",
+                    "kind",
+                    "hits"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "lookups",
+              "hits",
+              "detail",
+              "sources"
+            ],
+            "type": "object"
+          },
           "note": {
             "nullable": true,
             "type": "string"
@@ -11300,6 +11549,57 @@
           "transcript_text": {
             "nullable": true,
             "type": "string"
+          },
+          "transfer": {
+            "default": null,
+            "nullable": true,
+            "properties": {
+              "bridged_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "credits_charged": {
+                "nullable": true,
+                "type": "number"
+              },
+              "duration_s": {
+                "nullable": true,
+                "type": "integer"
+              },
+              "ended_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "rate": {
+                "nullable": true,
+                "type": "number"
+              },
+              "status": {
+                "enum": [
+                  "started",
+                  "bridged",
+                  "cancelled",
+                  "ended"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "bridged_at",
+              "ended_at",
+              "duration_s",
+              "rate",
+              "credits_charged"
+            ],
+            "type": "object"
+          },
+          "transfer_credits_charged": {
+            "default": null,
+            "nullable": true,
+            "type": "number"
           }
         },
         "required": [
@@ -11471,6 +11771,11 @@
           "to_number": {
             "nullable": true,
             "type": "string"
+          },
+          "transfer_credits_charged": {
+            "default": null,
+            "nullable": true,
+            "type": "number"
           }
         },
         "required": [
@@ -12571,6 +12876,42 @@
                 },
                 "type": "array"
               },
+              "date_overrides": {
+                "items": {
+                  "properties": {
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "intervals": {
+                      "default": [],
+                      "items": {
+                        "properties": {
+                          "close": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "open": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "open",
+                          "close"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "date"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "days": {
                 "additionalProperties": {
                   "items": {
@@ -13088,6 +13429,83 @@
         ],
         "type": "object"
       },
+      "knowledgeStatsResponse": {
+        "properties": {
+          "calls": {
+            "type": "integer"
+          },
+          "calls_with_hits": {
+            "type": "integer"
+          },
+          "calls_with_lookups": {
+            "type": "integer"
+          },
+          "days": {
+            "type": "integer"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hits": {
+            "type": "integer"
+          },
+          "lookups": {
+            "type": "integer"
+          },
+          "other_hits": {
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "properties": {
+                "calls": {
+                  "type": "integer"
+                },
+                "hits": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "source_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "url",
+                    "file",
+                    "text"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "source_id",
+                "name",
+                "type",
+                "hits",
+                "calls"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "days",
+          "from",
+          "calls",
+          "calls_with_lookups",
+          "calls_with_hits",
+          "lookups",
+          "hits",
+          "sources",
+          "other_hits"
+        ],
+        "type": "object"
+      },
       "ledgerEntryResponse": {
         "properties": {
           "balance_after": {
@@ -13113,7 +13531,8 @@
               "adjustment",
               "expiry",
               "refund",
-              "topup"
+              "topup",
+              "transfer"
             ],
             "type": "string"
           },
@@ -13399,6 +13818,42 @@
                     },
                     "type": "array"
                   },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
                   "days": {
                     "additionalProperties": {
                       "items": {
@@ -13468,6 +13923,80 @@
                   "username": {
                     "nullable": true,
                     "type": "string"
+                  },
+                  "verification": {
+                    "default": null,
+                    "nullable": true,
+                    "properties": {
+                      "checked_at": {
+                        "format": "date-time",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "checks": {
+                        "nullable": true,
+                        "properties": {
+                          "platform": {
+                            "enum": [
+                              "synced",
+                              "skipped",
+                              "missing",
+                              "error"
+                            ],
+                            "nullable": true,
+                            "type": "string"
+                          },
+                          "trunk": {
+                            "nullable": true,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "trunk",
+                          "platform"
+                        ],
+                        "type": "object"
+                      },
+                      "credentials_updated": {
+                        "type": "boolean"
+                      },
+                      "reason": {
+                        "enum": [
+                          "auth_rejected",
+                          "auth_required",
+                          "unreachable",
+                          "timeout",
+                          "dns_failed",
+                          "non_public",
+                          "port_not_allowed",
+                          "tls_failed",
+                          "not_sip",
+                          "answered",
+                          "forbidden",
+                          "not_on_platform",
+                          "provider_error"
+                        ],
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "status": {
+                        "enum": [
+                          "pending",
+                          "verified",
+                          "warning",
+                          "failed"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "checked_at",
+                      "reason",
+                      "checks",
+                      "credentials_updated"
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
@@ -13648,6 +14177,42 @@
                 },
                 "type": "array"
               },
+              "date_overrides": {
+                "items": {
+                  "properties": {
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "intervals": {
+                      "default": [],
+                      "items": {
+                        "properties": {
+                          "close": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "open": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "open",
+                          "close"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "date"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "days": {
                 "additionalProperties": {
                   "items": {
@@ -13717,6 +14282,80 @@
               "username": {
                 "nullable": true,
                 "type": "string"
+              },
+              "verification": {
+                "default": null,
+                "nullable": true,
+                "properties": {
+                  "checked_at": {
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "checks": {
+                    "nullable": true,
+                    "properties": {
+                      "platform": {
+                        "enum": [
+                          "synced",
+                          "skipped",
+                          "missing",
+                          "error"
+                        ],
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "trunk": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "trunk",
+                      "platform"
+                    ],
+                    "type": "object"
+                  },
+                  "credentials_updated": {
+                    "type": "boolean"
+                  },
+                  "reason": {
+                    "enum": [
+                      "auth_rejected",
+                      "auth_required",
+                      "unreachable",
+                      "timeout",
+                      "dns_failed",
+                      "non_public",
+                      "port_not_allowed",
+                      "tls_failed",
+                      "not_sip",
+                      "answered",
+                      "forbidden",
+                      "not_on_platform",
+                      "provider_error"
+                    ],
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "pending",
+                      "verified",
+                      "warning",
+                      "failed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "checked_at",
+                  "reason",
+                  "checks",
+                  "credentials_updated"
+                ],
+                "type": "object"
               }
             },
             "required": [
@@ -13834,6 +14473,42 @@
                     "items": {
                       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                       "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
                     },
                     "type": "array"
                   },
@@ -13973,6 +14648,42 @@
                     },
                     "type": "array"
                   },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
                   "days": {
                     "additionalProperties": {
                       "items": {
@@ -14074,6 +14785,42 @@
                     "items": {
                       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                       "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
                     },
                     "type": "array"
                   },
@@ -14206,6 +14953,42 @@
                     "items": {
                       "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                       "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
                     },
                     "type": "array"
                   },
@@ -15056,6 +15839,27 @@
         ],
         "type": "object"
       },
+      "sipVerifyRequest": {
+        "properties": {
+          "host": {
+            "maxLength": 253,
+            "minLength": 3,
+            "pattern": "^(sip:)?[A-Za-z0-9.-]+(:\\d{2,5})?$",
+            "type": "string"
+          },
+          "password": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "sseEvent": {
         "properties": {
           "data": {},
@@ -15839,6 +16643,42 @@
                 },
                 "type": "array"
               },
+              "date_overrides": {
+                "items": {
+                  "properties": {
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "intervals": {
+                      "default": [],
+                      "items": {
+                        "properties": {
+                          "close": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "open": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "open",
+                          "close"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "date"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
               "days": {
                 "additionalProperties": {
                   "items": {
@@ -15914,6 +16754,42 @@
                 "items": {
                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                   "type": "string"
+                },
+                "type": "array"
+              },
+              "date_overrides": {
+                "items": {
+                  "properties": {
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "intervals": {
+                      "default": [],
+                      "items": {
+                        "properties": {
+                          "close": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "open": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "open",
+                          "close"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "date"
+                  ],
+                  "type": "object"
                 },
                 "type": "array"
               },
@@ -16279,6 +17155,42 @@
                 "items": {
                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
                   "type": "string"
+                },
+                "type": "array"
+              },
+              "date_overrides": {
+                "items": {
+                  "properties": {
+                    "date": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "intervals": {
+                      "default": [],
+                      "items": {
+                        "properties": {
+                          "close": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "open": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "open",
+                          "close"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "date"
+                  ],
+                  "type": "object"
                 },
                 "type": "array"
               },
@@ -27217,6 +28129,122 @@
         ]
       }
     },
+    "/agents/{id}/knowledge/stats": {
+      "get": {
+        "operationId": "getAgentKnowledgeStats",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/knowledgeStatsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D16 — look-ups and hits over 7/30/90 days, per source (real callers only)",
+        "tags": [
+          "knowledge"
+        ],
+        "x-auth": "workspace"
+      }
+    },
     "/agents/{id}/knowledge/{sourceId}": {
       "delete": {
         "operationId": "deleteAgentKnowledge",
@@ -32078,6 +33106,171 @@
         ]
       }
     },
+    "/numbers/{id}/sip/verify": {
+      "post": {
+        "operationId": "verifyNumberSip",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/sipVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/phoneNumberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_SIP_NUMBER, WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "NOT_SIP_NUMBER",
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT, SIP_VERIFY_IN_PROGRESS}",
+            "x-error-codes": [
+              "CONFLICT",
+              "SIP_VERIFY_IN_PROGRESS"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {RATE_LIMITED}",
+            "x-error-codes": [
+              "RATE_LIMITED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED}",
+            "x-error-codes": [
+              "NOT_CONFIGURED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D16 — re-check an imported SIP trunk (optionally with new credentials) and re-sync the platform copy",
+        "tags": [
+          "numbers"
+        ],
+        "x-auth": "workspace",
+        "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
+      }
+    },
     "/pricing": {
       "get": {
         "description": "Spec §5, §13.12.",
@@ -33587,7 +34780,8 @@
                 "adjustment",
                 "expiry",
                 "refund",
-                "topup"
+                "topup",
+                "transfer"
               ],
               "type": "string"
             }

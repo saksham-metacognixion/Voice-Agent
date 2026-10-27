@@ -119,3 +119,42 @@ export type KnowledgeAccepted = z.infer<typeof knowledgeAccepted>;
 
 export const knowledgeQuery = z.object({ agent_id: uuid.optional() });
 export type KnowledgeQuery = z.infer<typeof knowledgeQuery>;
+
+/** D16 `GET /agents/:id/knowledge/stats?days=` — the window, in whole days back from now. */
+export const knowledgeStatsQuery = z.object({
+  days: z.coerce.number().int().refine((d) => d === 7 || d === 30 || d === 90, '7, 30 or 90').default(30),
+});
+export type KnowledgeStatsQuery = z.infer<typeof knowledgeStatsQuery>;
+
+/**
+ * D16: how often the agent used what it knows, over real callers' calls (browser test
+ * calls are left out, so testing does not inflate it). A look-up is one consultation; a
+ * hit is a look-up that found something. Every current source is listed, unused ones
+ * at zero; hits that cannot be tied to a current source (a website page among several,
+ * a source deleted since) are `other_hits`.
+ */
+export const knowledgeSourceStats = z.object({
+  source_id: uuid,
+  name: z.string(),
+  type: knowledgeType,
+  hits: z.number().int(),
+  /** Calls in which this source answered at least once. */
+  calls: z.number().int(),
+});
+export type KnowledgeSourceStats = z.infer<typeof knowledgeSourceStats>;
+
+export const knowledgeStatsResponse = z.object({
+  days: z.number().int(),
+  from: isoDateTime,
+  /** Answered calls of this agent in the window. */
+  calls: z.number().int(),
+  /** Of those, calls that consulted what the agent knows at least once. */
+  calls_with_lookups: z.number().int(),
+  /** Of those, calls where at least one look-up found something. */
+  calls_with_hits: z.number().int(),
+  lookups: z.number().int(),
+  hits: z.number().int(),
+  sources: z.array(knowledgeSourceStats),
+  other_hits: z.number().int(),
+});
+export type KnowledgeStatsResponse = z.infer<typeof knowledgeStatsResponse>;

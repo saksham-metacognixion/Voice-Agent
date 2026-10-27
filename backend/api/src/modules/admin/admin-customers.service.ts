@@ -241,7 +241,7 @@ export class AdminCustomersService {
         ),
         adminDb.creditLedger.groupBy({
           by: ['tenantId'],
-          where: { tenantId: { in: ids }, reason: 'call', createdAt: { gte: d30 } },
+          where: { tenantId: { in: ids }, reason: { in: ['call', 'transfer'] }, createdAt: { gte: d30 } },
           _sum: { delta: true },
         }),
         adminDb.agent.groupBy({

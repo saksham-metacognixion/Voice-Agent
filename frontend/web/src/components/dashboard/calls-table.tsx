@@ -150,7 +150,7 @@ export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, on
                   <td className="hidden px-3 py-2.5 sm:table-cell">
                     <SentimentBadge value={call.sentiment} compact />
                   </td>
-                  <td className="hidden px-3 py-2.5 text-end tabular-nums sm:table-cell">{call.credits_charged !== null ? formatCreditsValue(call.credits_charged) : '–'}</td>
+                  <td className="hidden px-3 py-2.5 text-end tabular-nums sm:table-cell">{callCredits(call)}</td>
                   <td className="px-3 py-2.5">
                     <CallStatusBadge status={call.status} />
                   </td>
@@ -216,7 +216,7 @@ function CallCard({ call, agentName, timeZone, selected, canSelect, active, onSe
         </div>
         <div className="flex min-w-0 flex-col gap-0.5">
           <dt className="text-xs text-muted-foreground">{t('credits')}</dt>
-          <dd className="tabular-nums">{call.credits_charged !== null ? formatCreditsValue(call.credits_charged) : '–'}</dd>
+          <dd className="tabular-nums">{callCredits(call)}</dd>
         </div>
         <div className="flex min-w-0 flex-col gap-0.5">
           <dt className="text-xs text-muted-foreground">{t('handled')}</dt>
@@ -238,4 +238,10 @@ function SortHeader({ label, column, sort, order, onSort, align, className }: { 
       </button>
     </th>
   );
+}
+
+/** Both legs of a transferred call (D16): the agent leg, plus the transferred leg once it is billed. */
+function callCredits(call: CallSummary): string {
+  if (call.credits_charged === null && call.transfer_credits_charged === null) return '–';
+  return formatCreditsValue((call.credits_charged ?? 0) + (call.transfer_credits_charged ?? 0));
 }

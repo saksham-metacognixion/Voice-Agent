@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { businessHours } from './business-hours.js';
+import { businessHours, businessHoursInput } from './business-hours.js';
 import { e164, isoDateTime, uuid } from './common.js';
 import { countryCode } from './workspaces.js';
 
@@ -65,9 +65,68 @@ export const sipCredentials = z.object({
 });
 export type SipCredentials = z.infer<typeof sipCredentials>;
 
+/**
+ * D16 `POST /numbers/:id/sip/verify` (owner/admin). Empty = check the stored trunk again.
+ * Any field given is a candidate: it is checked first and stored only if the check does not
+ * fail, so a typo cannot replace working credentials. There is no "remove the username":
+ * the platform's update cannot clear one, so the two sides would disagree — release and
+ * import again for that.
+ */
+export const sipVerifyRequest = z
+  .object({
+    host: sipHost.optional(),
+    username: z.string().trim().min(1).max(128).optional(),
+    password: z.string().min(1).max(256).optional(),
+  })
+  .strict();
+export type SipVerifyRequest = z.infer<typeof sipVerifyRequest>;
+
+export const sipVerificationStatus = z.enum(['pending', 'verified', 'warning', 'failed']);
+export type SipVerificationStatus = z.infer<typeof sipVerificationStatus>;
+
+/**
+ * Why a check ended `warning` or `failed`, as one code the portal turns into a sentence.
+ * The trunk's: auth_rejected, auth_required, unreachable, timeout, dns_failed, non_public,
+ * port_not_allowed, tls_failed, not_sip (failed); answered, forbidden (warning: reachable,
+ * password unconfirmed). The platform's: not_on_platform, provider_error (failed).
+ */
+export const sipVerifyReason = z.enum([
+  'auth_rejected',
+  'auth_required',
+  'unreachable',
+  'timeout',
+  'dns_failed',
+  'non_public',
+  'port_not_allowed',
+  'tls_failed',
+  'not_sip',
+  'answered',
+  'forbidden',
+  'not_on_platform',
+  'provider_error',
+]);
+export type SipVerifyReason = z.infer<typeof sipVerifyReason>;
+
+export const sipVerification = z.object({
+  status: sipVerificationStatus,
+  checked_at: isoDateTime.nullable(),
+  reason: sipVerifyReason.nullable(),
+  checks: z
+    .object({
+      /** What the trunk answered (`auth_accepted`, `open`, `auth_rejected`, …). */
+      trunk: z.string().nullable(),
+      /** Whether the stored trunk details were (re)written to the voice platform. */
+      platform: z.enum(['synced', 'skipped', 'missing', 'error']).nullable(),
+    })
+    .nullable(),
+  /** True when this check stored new credentials. */
+  credentials_updated: z.boolean(),
+});
+export type SipVerification = z.infer<typeof sipVerification>;
+
 const routing = {
   hours_mode: hoursMode.default('always'),
-  hours_override: businessHours.nullable().optional(),
+  hours_override: businessHoursInput.nullable().optional(),
   transfer_targets: z.array(transferTarget).max(5).default([]),
   /** ISO countries allowed to call in. Empty = the platform default. */
   allowed_countries: z.array(countryCode).max(20).default([]),
@@ -158,7 +217,7 @@ export const updateNumberRequest = z
     nickname: z.string().trim().min(1).max(60).nullable().optional(),
     agent_id: uuid.optional(),
     hours_mode: hoursMode.optional(),
-    hours_override: businessHours.nullable().optional(),
+    hours_override: businessHoursInput.nullable().optional(),
     transfer_targets: z.array(transferTarget).max(5).optional(),
     allowed_countries: z.array(countryCode).max(20).optional(),
     blocklist: z.array(e164).max(200).optional(),
@@ -191,7 +250,15 @@ export const phoneNumberResponse = z.object({
     .object({ from: z.string(), status: forwardingStatus, carrier: carrier.nullable() })
     .nullable(),
   /** Option C: the trunk's host and username. The password is never returned, only whether one is stored. */
-  sip: z.object({ host: z.string(), username: z.string().nullable(), has_password: z.boolean() }).nullable(),
+  sip: z
+    .object({
+      host: z.string(),
+      username: z.string().nullable(),
+      has_password: z.boolean(),
+      /** D16: the last re-verify, `pending` while one runs. Null before the first. */
+      verification: sipVerification.nullable().default(null),
+    })
+    .nullable(),
   /** Calls that reached this number in the last seven days (D4 list). */
   calls_7d: z.number().int(),
   rental_credits: z.number().int(),

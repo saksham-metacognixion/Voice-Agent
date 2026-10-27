@@ -13,6 +13,7 @@
  *   lock:schedule:{name} one worker per running schedule tick (D7)
  *   worker:heartbeat  the worker's liveness beacon (D7)
  *   ratelimit:test-web:{ws}  browser test calls this hour (§13.4, D9)
+ *   ratelimit:sip-verify:{ws}  SIP re-verify checks this hour (D16)
  *   alert:platform_concurrency  the open platform-wide concurrency incident (D7)
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
  *
@@ -57,6 +58,8 @@ export const redisKeys = {
   workerHeartbeat: 'worker:heartbeat',
   /** §13.4: browser test calls minted in the current hour, per workspace (fixed window). */
   testCallWindow: (workspaceId: string) => `ratelimit:test-web:{${workspaceId}}`,
+  /** D16: SIP re-verify checks in the current hour, per workspace — each one dials a host the customer named. */
+  sipVerifyWindow: (workspaceId: string) => `ratelimit:sip-verify:{${workspaceId}}`,
   /** §6.2 / D14: API requests from one client IP in one fixed minute (`window` = epoch minute). */
   apiRequestWindow: (ip: string, window: number) => `ratelimit:api:${ip}:${window}`,
   /**

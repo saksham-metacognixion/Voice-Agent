@@ -80,3 +80,10 @@ export const RENTAL_DEBIT_ONCE_CONSTRAINT = 'credit_ledger_rental_debit_once_idx
 export function isDuplicateRentalDebit(error: unknown): boolean {
   return isUniqueViolation(error, RENTAL_DEBIT_ONCE_CONSTRAINT) || isUniqueViolation(error, 'ref_id') || uniqueTargetUnknown(error);
 }
+
+/** D16: one transferred-leg debit per call. A replayed or late transfer_ended lands here. */
+export const TRANSFER_DEBIT_ONCE_CONSTRAINT = 'credit_ledger_transfer_debit_once_idx';
+
+export function isDuplicateTransferDebit(error: unknown): boolean {
+  return isUniqueViolation(error, TRANSFER_DEBIT_ONCE_CONSTRAINT) || isUniqueViolation(error, 'ref_id') || uniqueTargetUnknown(error);
+}

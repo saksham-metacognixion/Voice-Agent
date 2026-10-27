@@ -72,6 +72,7 @@ function toCall(r: Row): AdminCallResponse {
     rate: num(r.rate),
     config_version: r.configVersion,
     credits_charged: numOrNull(r.creditsCharged),
+    transfer_credits_charged: numOrNull(r.transferCreditsCharged),
     status: r.status === 'declined' ? 'missed' : r.status,
     decline_reason: r.declineReason,
     outcome: r.outcome,

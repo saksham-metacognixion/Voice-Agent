@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
-import { type KnowledgeSourceResponse, createKnowledgeRequest, createKnowledgeSourceRequest, knowledgeQuery, uuid } from '@portal/schemas';
+import { type KnowledgeSourceResponse, type KnowledgeStatsResponse, createKnowledgeRequest, createKnowledgeSourceRequest, knowledgeQuery, knowledgeStatsQuery, uuid } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { Ctx, Roles } from '../auth';
 import type { WorkspaceContext } from '../auth';
@@ -27,6 +27,12 @@ export class AgentKnowledgeController {
   @Get()
   list(@Ctx() ctx: WorkspaceContext, @Param('id') id: string): Promise<KnowledgeSourceResponse[]> {
     return this.knowledge.list(ctx, idOf(id, 'Agent'));
+  }
+
+  /** D16: how often the agent used what it knows (every role reads). */
+  @Get('stats')
+  stats(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Query() query: Record<string, unknown>): Promise<KnowledgeStatsResponse> {
+    return this.knowledge.stats(ctx, idOf(id, 'Agent'), knowledgeStatsQuery.parse(query).days);
   }
 
   @Delete(':sourceId')

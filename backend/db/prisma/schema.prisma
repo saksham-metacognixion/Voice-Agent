@@ -218,6 +218,9 @@ enum LedgerReason {
   expiry
   refund
   topup
+  /// P2 (D16): the transferred leg of a call, after `transfer_bridged` — billed apart from
+  /// the call's own `call` row, once per call (`credit_ledger_transfer_debit_once_idx`).
+  transfer
 
   @@map("ledger_reason")
 }
@@ -726,6 +729,12 @@ model PhoneNumber {
   error               String?
   releasedAt          DateTime?         @map("released_at")
   retellMetaJson      Json?             @map("retell_meta_json")
+  /// P2 (D16) SIP re-verify: the last check's outcome — status, time, per-check results.
+  /// Never a credential: no password, no digest, no platform payload.
+  sipVerificationJson Json?             @map("sip_verification_json")
+  /// The re-verify lease: claimed by a conditional UPDATE, cleared when the check ends,
+  /// expiring on its own so a dead request cannot lock the number for good.
+  sipVerifyStartedAt  DateTime?         @map("sip_verify_started_at")
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
 
@@ -777,6 +786,26 @@ model Call {
   /// A row is re-asked on `RECOVER_RECHECK_MS`, an unanalysed one at most `RECOVER_ANALYSIS_MAX_CHECKS` times.
   recoveryCheckedAt   DateTime?      @map("recovery_checked_at")
   recoveryChecks      Int            @default(0) @map("recovery_checks")
+  /// P2 (D16) transfer leg, billed apart from the agent leg at `pricing.rates.transferred_leg_per_min`.
+  /// `started` → `bridged` → `ended`, or `cancelled` (never bridged, never billed).
+  transferStatus         String?   @map("transfer_status")
+  transferStartedAt      DateTime? @map("transfer_started_at")
+  /// From the `transfer_bridged` event: the moment the destination answered. The leg is billed from here.
+  transferBridgedAt      DateTime? @map("transfer_bridged_at")
+  /// `transfer_end_timestamp`, else the `transfer_ended` event's time.
+  transferEndedAt        DateTime? @map("transfer_ended_at")
+  transferDurationS      Int?      @map("transfer_duration_s")
+  /// Captured once, from the pricing version the call was rated under (`config_version`).
+  transferRate           Decimal?  @map("transfer_rate") @db.Decimal(6, 3)
+  /// A projection of the `transfer` ledger row, like `credits_charged` is of the `call` row.
+  transferCreditsCharged Decimal?  @map("transfer_credits_charged") @db.Decimal(12, 2)
+  /// P2 (D16) knowledge use: look-ups the agent made (`latency.knowledge_base.num`), and how many
+  /// of them returned something. NULL = the call never consulted what the agent knows.
+  kbRetrievals           Int?      @map("kb_retrievals")
+  kbHits                 Int?      @map("kb_hits")
+  /// `{sources: [{source_id, kind, hits}], detail}` — per-source hits; `detail` says whether the
+  /// platform's retrieval file was read (`complete`) or only the count is known (`count_only`).
+  kbUsageJson            Json?     @map("kb_usage_json")
   createdAt           DateTime       @default(now()) @map("created_at")
 
   tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)

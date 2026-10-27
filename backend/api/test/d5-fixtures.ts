@@ -357,9 +357,37 @@ export class FakeRetellGateway {
         inbound_agents: [{ agent_id: input.agentId, agent_version: 'latest_published', weight: 1 }],
         inbound_webhook_url: this.config.inboundWebhookUrl(input.numberToken),
         sip: { termination_uri: input.terminationUri, username: input.sipUsername ?? null, password_seen: Boolean(input.sipPassword) },
+        sip_outbound_trunk_config: { termination_uri: input.terminationUri, auth_username: input.sipUsername ?? null, transport: 'TCP' },
       };
       this.phoneNumbers.set(input.e164, number);
       return { ...number };
+    });
+  }
+
+  /** D16 re-verify. The password is recorded as seen, never kept — like the platform, which never returns it. */
+  updateSipTrunk(e164: string, input: { terminationUri: string; username?: string | null; password?: string | null }) {
+    return this.record('updateSipTrunk', [e164, { terminationUri: input.terminationUri, username: input.username ?? null, password: input.password ? '[redacted]' : null }], () => {
+      const number = this.phoneNumbers.get(e164);
+      if (!number) throw notFoundLike(404, `phone number ${e164} not found`);
+      const username = input.username ?? number.sip_outbound_trunk_config?.auth_username ?? null;
+      number.sip = { termination_uri: input.terminationUri, username, password_seen: Boolean(input.password) || Boolean(number.sip?.password_seen) };
+      number.sip_outbound_trunk_config = { termination_uri: input.terminationUri, auth_username: username, transport: number.sip_outbound_trunk_config?.transport ?? 'TCP' };
+      return { ...number };
+    });
+  }
+
+  sipTrunkOf(number: { sip_outbound_trunk_config?: { termination_uri?: string | null; auth_username?: string | null; transport?: string | null } | null }) {
+    const trunk = number.sip_outbound_trunk_config ?? null;
+    return { terminationUri: trunk?.termination_uri ?? null, username: trunk?.auth_username ?? null, transport: trunk?.transport ?? null };
+  }
+
+  /** D16: the retrieval file behind a `knowledge_base_retrieved_contents_url`, seeded by a test. Absent → the CDN's 403. */
+  readonly knowledgeFiles = new Map<string, unknown>();
+
+  fetchKnowledgeRetrievals(url: string): Promise<unknown> {
+    return this.record('fetchKnowledgeRetrievals', [url.split('?')[0]], () => {
+      if (!this.knowledgeFiles.has(url)) throw new Error('knowledge retrievals: HTTP 403');
+      return structuredClone(this.knowledgeFiles.get(url));
     });
   }
 
@@ -513,6 +541,7 @@ interface FakePhoneNumber {
   inbound_agents: Array<{ agent_id: string; agent_version: string | number; weight: number }>;
   inbound_webhook_url: string;
   sip?: { termination_uri: string; username: string | null; password_seen: boolean };
+  sip_outbound_trunk_config?: { termination_uri: string; auth_username: string | null; transport: string };
 }
 
 type FakeKbSource =

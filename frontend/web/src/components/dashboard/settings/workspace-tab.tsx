@@ -1,13 +1,14 @@
 'use client';
 
 import { updateWorkspace, useApi } from '@portal/api-client';
-import { updateWorkspaceRequest, type BusinessHours, type UpdateWorkspaceRequest, type WorkspaceResponse } from '@portal/schemas';
+import { hoursProblems, updateWorkspaceRequest, type BusinessHours, type UpdateWorkspaceRequest, type WorkspaceResponse } from '@portal/schemas';
 import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, ThemeSegment, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import { LanguageSegment } from '@/src/components/shell/language-switcher';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
+import { HoursOverridesEditor, HoursStatusLine } from '@/src/components/dashboard/hours-overrides';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
 import { countryName as nameOfCountry, timezoneLabel, timezones } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
@@ -58,6 +59,7 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
   const nextHours = hasHours ? (hours ?? null) : null;
   if (JSON.stringify(nextHours) !== JSON.stringify(workspace.business_hours)) patch.business_hours = nextHours;
   const dirty = Object.keys(patch).length > 0;
+  const invalidHours = hasHours && hours ? hoursProblems(hours).length > 0 : false;
 
   async function save() {
     if (busy || !dirty) return;
@@ -135,12 +137,18 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
           <Field id="ws-hours-on" label={t('ws.hoursClear')}>
             <Switch id="ws-hours-on" checked={!hasHours} onCheckedChange={(v) => setHasHours(!v)} disabled={disabled} />
           </Field>
-          {hasHours ? <HoursEditor value={hours} onChange={setHours} disabled={disabled} /> : null}
+          {hasHours && hours ? (
+            <>
+              <HoursEditor value={hours} onChange={setHours} disabled={disabled} />
+              <HoursOverridesEditor value={hours} onChange={setHours} disabled={disabled} workspaceTimeZone={timezone} />
+              <HoursStatusLine hours={hours} workspaceTimeZone={timezone} />
+            </>
+          ) : null}
           {error ? <Alert variant="danger">{error}</Alert> : null}
           {canAdmin ? (
             <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-4">
               {dirty && !busy ? <span className="text-xs text-muted-foreground">{tc('common.unsavedChanges')}</span> : null}
-              <Button onClick={() => void save()} loading={busy} disabled={busy || !dirty}>
+              <Button onClick={() => void save()} loading={busy} disabled={busy || !dirty || invalidHours}>
                 {t('ws.save')}
               </Button>
             </div>

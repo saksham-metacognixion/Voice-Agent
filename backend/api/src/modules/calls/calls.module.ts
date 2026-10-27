@@ -4,6 +4,7 @@ import { AgentsModule } from '../agents';
 import { AlertsModule } from '../alerts';
 import { PlatformConfigModule } from '../config';
 import {
+  type CallKnowledgeJob,
   type InboundDecisionJob,
   JOBS,
   JobHandlerRegistry,
@@ -18,6 +19,7 @@ import { WalletModule } from '../wallet';
 import { CallsController, StatsController } from './calls.controller';
 import { CallsQueryService } from './calls.query.service';
 import { CallReconciliationService } from './call-reconciliation.service';
+import { CallKnowledgeService } from './call-knowledge.service';
 import { CallsService } from './calls.service';
 import { ConcurrencyMonitorService } from './concurrency-monitor.service';
 import { InboundAuthorizationService } from './inbound.service';
@@ -30,7 +32,7 @@ import { TestCallService } from './test-call.service';
  * Spec §13.1 `calls`: the §13.9 inbound authorisation, the §14 metering that the Retell
  * lifecycle webhooks drive, and the D1/D2 reads.
  *
- * The three `calls`-queue handlers are registered here, at module init, so the API and
+ * The four `calls`-queue handlers (D16 adds `call-knowledge`) are registered here, at module init, so the API and
  * the worker boot the same graph and only the worker actually runs them (CLAUDE.md: "The
  * API and the worker import the same services"). The Retell lifecycle handler itself is
  * registered by the webhooks module, which owns the `webhooks` queue. D7 adds the two
@@ -42,6 +44,7 @@ import { TestCallService } from './test-call.service';
   controllers: [CallsController, StatsController, TestCallController],
   providers: [
     CallsService,
+    CallKnowledgeService,
     CallsQueryService,
     InboundAuthorizationService,
     { provide: RecordingSigner, useFactory: () => new RecordingSigner() },
@@ -56,12 +59,16 @@ export class CallsModule implements OnModuleInit {
   constructor(
     private readonly registry: JobHandlerRegistry,
     private readonly calls: CallsService,
+    private readonly knowledge: CallKnowledgeService,
     private readonly runtimeCache: RuntimeCacheService,
   ) {}
 
   onModuleInit(): void {
     this.registry.register<InboundDecisionJob>(QUEUES.calls, JOBS.inboundDecision, (job: Job<InboundDecisionJob>) =>
       this.calls.recordInboundDecision(job.data),
+    );
+    this.registry.register<CallKnowledgeJob>(QUEUES.calls, JOBS.callKnowledge, (job: Job<CallKnowledgeJob>) =>
+      this.knowledge.record(job.data.callId),
     );
     this.registry.register<WarmWorkspaceJob>(QUEUES.calls, JOBS.warmWorkspace, (job: Job<WarmWorkspaceJob>) =>
       this.runtimeCache.refresh(job.data.workspaceId),

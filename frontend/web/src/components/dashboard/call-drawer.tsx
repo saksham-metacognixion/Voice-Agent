@@ -153,10 +153,19 @@ function CallBody({ call }: { call: CallDetail }) {
         </Section>
       ) : null}
 
+      {call.transfer ? <TransferSection transfer={call.transfer} /> : null}
+
+      {call.knowledge ? <KnowledgeSection knowledge={call.knowledge} agentId={call.agent_id} /> : null}
+
       <Section title={t('details')}>
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
           <Fact label={t('duration')}>{formatDuration(call.duration_s)}</Fact>
-          <Fact label={t('charged')}>{call.credits_charged !== null ? tl('creditsShort', { n: formatCreditsValue(call.credits_charged) }) : analysing ? tc('wizard.w5.after.pending') : '–'}</Fact>
+          <Fact label={call.transfer_credits_charged !== null ? t('chargedAgentLeg') : t('charged')}>
+            {call.credits_charged !== null ? tl('creditsShort', { n: formatCreditsValue(call.credits_charged) }) : analysing ? tc('wizard.w5.after.pending') : '–'}
+          </Fact>
+          {call.transfer_credits_charged !== null ? (
+            <Fact label={t('chargedTotal')}>{tl('creditsShort', { n: formatCreditsValue((call.credits_charged ?? 0) + call.transfer_credits_charged) })}</Fact>
+          ) : null}
           <Fact label={t('rate')}>{tl('perMin', { n: formatCreditsValue(call.rate) })}</Fact>
           <Fact label={t('tier')}>
             <TierBadge tier={call.tier} />
@@ -175,6 +184,79 @@ function CallBody({ call }: { call: CallDetail }) {
         </p>
       </Section>
     </div>
+  );
+}
+
+/**
+ * D16: the transferred leg — the part of the call after the agent handed the caller to a
+ * person. It is billed on its own, at its own rate, from the moment the person answered.
+ */
+function TransferSection({ transfer }: { transfer: NonNullable<CallDetail['transfer']> }) {
+  const t = useTranslations('dashboard.calls.detail.transfer');
+  const tl = useTranslations('dashboard.calls');
+  const timeZone = useWorkspace().workspace?.timezone;
+  return (
+    <Section title={t('title')}>
+      <p className="text-sm text-muted-foreground">
+        {transfer.status === 'cancelled'
+          ? t('cancelledBody')
+          : transfer.status === 'ended'
+            ? t('endedBody', { rate: formatCreditsValue(transfer.rate ?? 0) })
+            : t('liveBody')}
+      </p>
+      <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+        <Fact label={t('status')}>
+          <Badge variant={transfer.status === 'cancelled' ? 'outline' : 'default'}>{t(`statuses.${transfer.status}`)}</Badge>
+        </Fact>
+        {transfer.status !== 'cancelled' ? (
+          <>
+            <Fact label={t('duration')}>{transfer.duration_s !== null ? formatDuration(transfer.duration_s) : t('inProgress')}</Fact>
+            <Fact label={t('charged')}>{transfer.credits_charged !== null ? tl('creditsShort', { n: formatCreditsValue(transfer.credits_charged) }) : t('inProgress')}</Fact>
+            {transfer.rate !== null ? <Fact label={t('rate')}>{tl('perMin', { n: formatCreditsValue(transfer.rate) })}</Fact> : null}
+            <Fact label={t('answered')}>{formatDateTime(transfer.bridged_at, timeZone, { seconds: true })}</Fact>
+            <Fact label={t('ended')}>{transfer.ended_at ? formatDateTime(transfer.ended_at, timeZone, { seconds: true }) : t('inProgress')}</Fact>
+          </>
+        ) : null}
+      </dl>
+    </Section>
+  );
+}
+
+/**
+ * D16: what the agent looked up during the call. Look-ups are every time it consulted
+ * what it knows; hits are the ones that found something; each source says how often it
+ * answered. A call whose details could not be read still shows its count.
+ */
+function KnowledgeSection({ knowledge, agentId }: { knowledge: NonNullable<CallDetail['knowledge']>; agentId: string | null }) {
+  const t = useTranslations('dashboard.calls.detail.knowledge');
+  return (
+    <Section title={t('title')}>
+      <p className="text-sm">
+        {knowledge.hits === null
+          ? t('countOnly', { lookups: knowledge.lookups })
+          : knowledge.hits === 0
+            ? t('nothingFound', { lookups: knowledge.lookups })
+            : t('summary', { lookups: knowledge.lookups, hits: knowledge.hits })}
+      </p>
+      {knowledge.sources.length ? (
+        <ul className="mt-3 divide-y divide-border rounded-lg border border-border text-sm">
+          {knowledge.sources.map((s, i) => (
+            <li key={s.source_id ?? `${s.kind}-${i}`} className="flex items-center justify-between gap-4 px-3 py-2">
+              <span className="min-w-0 truncate" dir="auto">
+                {s.name && s.source_id && agentId ? (
+                  <Link href={agentPath(agentId, 'knowledge')} className="text-primary hover:underline">
+                    {s.name}
+                  </Link>
+                ) : (
+                  <span className="text-muted-foreground">{s.kind === 'url' ? t('website') : t('removed')}</span>
+                )}
+              </span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{t('sourceHits', { hits: s.hits })}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Section>
   );
 }
 

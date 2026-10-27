@@ -1,5 +1,5 @@
-import type { PhoneNumberResponse, PhonePlanResponse, TransferTarget } from '@portal/schemas';
-import { businessHours, transferTarget } from '@portal/schemas';
+import type { PhoneNumberResponse, PhonePlanResponse, SipVerification, TransferTarget } from '@portal/schemas';
+import { businessHours, sipVerification, transferTarget } from '@portal/schemas';
 import { SipCredentialsCipher } from '../crypto';
 
 type NumberRow = {
@@ -26,7 +26,12 @@ type NumberRow = {
   error: string | null;
   createdAt: Date;
   updatedAt: Date;
+  sipVerificationJson?: unknown;
+  sipVerifyStartedAt?: Date | null;
 };
+
+/** How long a re-verify may hold its lease (`phone_numbers.sip_verify_started_at`) before another may start. */
+export const SIP_VERIFY_LEASE_MS = 90_000;
 
 /** What the row alone cannot say: the plan's SIP credentials (redacted) and the D4 seven-day call count. */
 export interface NumberExtras {
@@ -60,7 +65,7 @@ export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.ca
           carrier: (row.carrier as NonNullable<PhoneNumberResponse['forwarding']>['carrier']) ?? null,
         }
       : null,
-    sip: sip ? { host: sip.host, username: sip.username, has_password: sip.has_password } : null,
+    sip: sip ? { host: sip.host, username: sip.username, has_password: sip.has_password, verification: verificationOf(row) } : null,
     calls_7d: calls7d,
     rental_credits: row.rentalCredits,
     next_rental_at: row.nextRentalAt?.toISOString() ?? null,
@@ -68,6 +73,15 @@ export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.ca
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
   };
+}
+
+/** The last re-verify as stored, `pending` while a live lease is held. Unreadable JSON reads as never checked. */
+export function verificationOf(row: { sipVerificationJson?: unknown; sipVerifyStartedAt?: Date | null }, now = Date.now()): SipVerification | null {
+  const held = row.sipVerifyStartedAt && now - row.sipVerifyStartedAt.getTime() < SIP_VERIFY_LEASE_MS;
+  const parsed = sipVerification.safeParse(row.sipVerificationJson);
+  const last = parsed.success ? parsed.data : null;
+  if (held) return { status: 'pending', checked_at: last?.checked_at ?? null, reason: null, checks: null, credentials_updated: false };
+  return last;
 }
 
 type PlanRow = {

@@ -14,6 +14,8 @@ import { NumbersController, PhonePlanController } from './numbers.controller';
 import { NumbersService } from './numbers.service';
 import { PhonePlansService } from './phone-plans.service';
 import { ProvisionNumberWorker } from './provision-number.worker';
+import { SipProbe } from './sip-probe';
+import { SipVerificationService } from './sip-verification.service';
 
 /**
  * Spec §13.1 `numbers` (§11, W6, D4). `NumberProvisioningService` is exported because
@@ -25,7 +27,7 @@ import { ProvisionNumberWorker } from './provision-number.worker';
   // The two global modules are imported explicitly for the same reason BillingModule does it.
   imports: [RetellModule, PlatformConfigModule, RuntimeCacheModule, WalletModule, AlertsModule, CryptoModule, NotificationsModule],
   controllers: [PhonePlanController, NumbersController],
-  providers: [PhonePlansService, NumberProvisioningService, NumbersService, ProvisionNumberWorker, NumberRentalService],
+  providers: [PhonePlansService, NumberProvisioningService, NumbersService, ProvisionNumberWorker, NumberRentalService, SipProbe, SipVerificationService],
   exports: [PhonePlansService, NumberProvisioningService, NumbersService, NumberRentalService],
 })
 export class NumbersModule implements OnModuleInit {

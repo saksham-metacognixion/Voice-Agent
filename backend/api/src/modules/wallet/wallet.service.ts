@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, adminDb, isDuplicateCallDebit, isDuplicateRentalDebit, withWorkspace, type LedgerReason } from '@portal/db';
+import { Prisma, adminDb, isDuplicateCallDebit, isDuplicateRentalDebit, isDuplicateTransferDebit, withWorkspace, type LedgerReason } from '@portal/db';
 import type {
   AutoTopup,
   CreditLotResponse,
@@ -49,7 +49,7 @@ export interface GrantInput {
 export interface DebitInput {
   credits: number;
   /** `refund` (D13, SA9): the credits a refunded purchase granted are drawn back, `ref_id` = the refund id. */
-  reason: Extract<LedgerReason, 'call' | 'rental' | 'kb' | 'adjustment' | 'refund'>;
+  reason: Extract<LedgerReason, 'call' | 'transfer' | 'rental' | 'kb' | 'adjustment' | 'refund'>;
   refType?: string;
   refId?: string;
 }
@@ -214,6 +214,15 @@ export class WalletService {
    */
   debitCall(workspaceId: string, callId: string, credits: number): Promise<LedgerWrite> {
     return this.debit(workspaceId, { credits, reason: 'call', refType: 'call', refId: callId });
+  }
+
+  /**
+   * D16: the transferred leg of a call, its own ledger row beside the call's. Idempotent
+   * on `call_id` the same way (`credit_ledger_transfer_debit_once_idx`), so a replayed or
+   * late `transfer_ended` returns the first row with `duplicate: true`.
+   */
+  debitTransfer(workspaceId: string, callId: string, credits: number): Promise<LedgerWrite> {
+    return this.debit(workspaceId, { credits, reason: 'transfer', refType: TRANSFER_REF_TYPE, refId: callId });
   }
 
   /**
@@ -432,9 +441,9 @@ export class WalletTx {
     const credits = roundCredits(input.credits);
     if (credits <= 0) throw new Error(`debit needs a positive amount, got ${input.credits}`);
 
-    if (input.reason === 'call') {
-      if (!input.refId) throw new Error('a call debit needs the call id as ref_id');
-      const existing = await this.tx.creditLedger.findFirst({ where: { tenantId: this.workspaceId, reason: 'call', refId: input.refId } });
+    if (input.reason === 'call' || input.reason === 'transfer') {
+      if (!input.refId) throw new Error(`a ${input.reason} debit needs the call id as ref_id`);
+      const existing = await this.tx.creditLedger.findFirst({ where: { tenantId: this.workspaceId, reason: input.reason, refId: input.refId } });
       if (existing) return this.record(existing, true);
     }
     // D7 §5.3: a rental period is debited once, keyed `<number id>:<period>`. Same shape as
@@ -498,6 +507,9 @@ export class WalletTx {
       // now aborted, so the lot decrements above roll back with it.
       if (input.reason === 'call' && isDuplicateCallDebit(error)) {
         throw new DuplicateCallDebit(input.refId ?? '');
+      }
+      if (input.reason === 'transfer' && isDuplicateTransferDebit(error)) {
+        throw new DuplicateTransferDebit(input.refId ?? '');
       }
       if (rentalPeriod && isDuplicateRentalDebit(error)) {
         throw new DuplicateRentalDebit(input.refId ?? '');
@@ -570,6 +582,16 @@ export class DuplicateCallDebit extends Error {
     super(`call ${callId} is already debited`);
   }
 }
+
+/** Two settlements of one transferred leg racing past the pre-check; the loser reads what the winner wrote. */
+export class DuplicateTransferDebit extends Error {
+  constructor(readonly callId: string) {
+    super(`transfer leg of ${callId} is already debited`);
+  }
+}
+
+/** `ref_type` of a D16 transferred-leg debit; `ref_id` is the call id. */
+export const TRANSFER_REF_TYPE = 'call_transfer';
 
 /** `ref_type` of a §5.3 monthly rental debit; `ref_id` is `<number id>:<period ISO>`. */
 export const RENTAL_REF_TYPE = 'number_rental';

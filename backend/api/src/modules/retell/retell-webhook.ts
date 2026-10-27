@@ -33,6 +33,12 @@ export const retellCallFacts = z
     public_log_url: optionalString,
     call_cost: z.object({ combined_cost: optionalNumber }).passthrough().nullish(),
     call_analysis: z.record(z.unknown()).nullish(),
+    /** When the transferred leg hung up. Present on call_ended / call_analyzed once it has. */
+    transfer_end_timestamp: optionalNumber,
+    /** Knowledge look-ups: `latency.knowledge_base.num` is how many the agent made. */
+    latency: z.object({ knowledge_base: z.object({ num: optionalNumber }).passthrough().nullish() }).passthrough().nullish(),
+    /** A signed file of what each look-up returned (one entry per agent response). */
+    knowledge_base_retrieved_contents_url: optionalString,
   })
   .passthrough();
 export type RetellCallFacts = z.infer<typeof retellCallFacts>;
@@ -46,6 +52,21 @@ export const retellLifecycleEvent = z.object({
   event_timestamp: optionalNumber,
 });
 export type RetellLifecycleEvent = z.infer<typeof retellLifecycleEvent>;
+
+/**
+ * The transfer events (D16). The platform posts them with a bare call object —
+ * `{event, event_timestamp, call: {call_id}}` as stored on 26 Oct — so everything but the
+ * id is optional, and the event's own time is what dates the bridge.
+ */
+export const RETELL_TRANSFER_EVENTS = ['transfer_started', 'transfer_bridged', 'transfer_cancelled', 'transfer_ended'] as const;
+export type RetellTransferEventType = (typeof RETELL_TRANSFER_EVENTS)[number];
+
+export const retellTransferEvent = z.object({
+  event: z.enum(RETELL_TRANSFER_EVENTS),
+  call: retellCallFacts,
+  event_timestamp: optionalNumber,
+});
+export type RetellTransferEvent = z.infer<typeof retellTransferEvent>;
 
 /** POST /webhooks/retell/inbound/:number_token body (fixture call_inbound-allow.json). */
 export const retellInboundEvent = z.object({
@@ -66,7 +87,9 @@ export type RetellInboundEvent = z.infer<typeof retellInboundEvent>;
 export type ParsedRetellWebhook =
   /** One of the three events the money path handles (§14.1). */
   | { kind: 'lifecycle'; event: RetellLifecycleEvent }
-  /** transfer_*, or a type added by Retell later: stored, acknowledged, not processed. */
+  /** transfer_started / _bridged / _cancelled / _ended: the transferred leg (D16). */
+  | { kind: 'transfer'; event: RetellTransferEvent }
+  /** A type added by Retell later (`transcript_updated`…): stored, acknowledged, not processed. */
   | { kind: 'unsupported'; eventType: string; callId: string | null }
   /** Not a Retell webhook we can identify at all. */
   | { kind: 'malformed'; reason: string };
@@ -93,6 +116,14 @@ export function parseRetellWebhook(body: unknown): ParsedRetellWebhook {
       return { kind: 'malformed', reason: `${eventType}: ${first?.path.join('.') || 'body'} ${first?.message ?? 'invalid'}` };
     }
     return { kind: 'lifecycle', event: parsed.data };
+  }
+  if ((RETELL_TRANSFER_EVENTS as readonly string[]).includes(eventType)) {
+    const parsed = retellTransferEvent.safeParse(body);
+    if (!parsed.success) {
+      const first = parsed.error.issues[0];
+      return { kind: 'malformed', reason: `${eventType}: ${first?.path.join('.') || 'body'} ${first?.message ?? 'invalid'}` };
+    }
+    return { kind: 'transfer', event: parsed.data };
   }
   return { kind: 'unsupported', eventType, callId };
 }

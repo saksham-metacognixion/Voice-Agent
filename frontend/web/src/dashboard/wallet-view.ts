@@ -33,11 +33,12 @@ export function usageSummary(points: ActivityPoint[]): { total: number; perDay: 
 }
 
 /** Ledger reasons in the order the D5 filter lists them. */
-export const LEDGER_REASONS: LedgerReason[] = ['call', 'purchase', 'topup', 'rental', 'kb', 'trial', 'adjustment', 'refund', 'expiry'];
+export const LEDGER_REASONS: LedgerReason[] = ['call', 'transfer', 'purchase', 'topup', 'rental', 'kb', 'trial', 'adjustment', 'refund', 'expiry'];
 
 /** A call row links to its D2 detail (spec p. 38); nothing else has a customer page. */
 export function ledgerLink(entry: Pick<LedgerEntryResponse, 'reason' | 'ref_id'>): string | null {
-  return entry.reason === 'call' && entry.ref_id ? callPath(entry.ref_id) : null;
+  // D16: a transferred leg is a call's second ledger row, keyed on the same call id.
+  return (entry.reason === 'call' || entry.reason === 'transfer') && entry.ref_id ? callPath(entry.ref_id) : null;
 }
 
 export interface AutoTopupDraft {

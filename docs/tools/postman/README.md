@@ -2,6 +2,7 @@
 
 - `voice-agent-portal.postman_collection.json` — every customer-facing route of the API (D1–D6), grouped by module, with Hinglish descriptions and test scripts that capture ids into the environment. 82 requests across 14 folders; every path is checked against the real Fastify router.
 - `voice-agent-portal.local.postman_environment.json` — variables for a local API (`http://localhost:4000`).
+- `d16-p2.postman_collection.json` + `d16-p2.postman_environment.json` — D16 (ADR 0028): transfer billing as two legs (signed `transfer_*` webhooks, duplicates, reverse order, an unanswered transfer), knowledge use per call and `GET /agents/:id/knowledge/stats`, per-number hours with special dates and the inbound `hours` decline, SIP re-verify, and the guards. 40 requests, Hinglish descriptions; folder A fills `workspace_id`, `agent_id`, `to_number` and the number ids itself; every webhook request signs its own body with `retell_api_key`. Setup is in the collection's description; run the folders in order with the worker running.
 
 ## Setup
 

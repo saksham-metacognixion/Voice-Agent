@@ -6,6 +6,7 @@ import {
   knowledgeRolesFor,
   type CreateKnowledgeSourceRequest,
   type KnowledgeSourceResponse,
+  type KnowledgeStatsResponse,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
@@ -130,6 +131,63 @@ export class KnowledgeService {
       });
     });
     return rows.map(toResponse);
+  }
+
+  /**
+   * D16 `GET /agents/:id/knowledge/stats`: look-ups and hits over the window, from the
+   * per-call numbers `call-knowledge` wrote (`calls.kb_*`). Real callers only — a test
+   * call is the customer checking, not the agent being useful.
+   */
+  async stats(ctx: WorkspaceContext, agentId: string, days: number): Promise<KnowledgeStatsResponse> {
+    const from = new Date(Date.now() - days * 86_400_000);
+    const { totals, perSource, sources } = await withWorkspace(ctx, async (db) => {
+      await this.loadAgent(db, ctx, agentId);
+      const [totals] = await db.$queryRaw<Array<{ calls: bigint; calls_with_lookups: bigint; calls_with_hits: bigint; lookups: bigint | null; hits: bigint | null }>>`
+        SELECT count(*) FILTER (WHERE status <> 'declined')        AS calls,
+               count(*) FILTER (WHERE kb_retrievals IS NOT NULL)   AS calls_with_lookups,
+               count(*) FILTER (WHERE kb_hits > 0)                 AS calls_with_hits,
+               sum(kb_retrievals)                                   AS lookups,
+               sum(kb_hits)                                         AS hits
+          FROM calls
+         WHERE tenant_id = ${ctx.workspaceId}::uuid AND agent_id = ${agentId}::uuid
+           AND is_test = false AND started_at >= ${from}`;
+      const perSource = await db.$queryRaw<Array<{ source_id: string | null; hits: bigint; calls: bigint }>>`
+        SELECT s.value->>'source_id'              AS source_id,
+               sum((s.value->>'hits')::int)       AS hits,
+               count(DISTINCT c.id)               AS calls
+          FROM calls c
+          CROSS JOIN LATERAL jsonb_array_elements(
+            CASE WHEN jsonb_typeof(c.kb_usage_json->'sources') = 'array' THEN c.kb_usage_json->'sources' ELSE '[]'::jsonb END
+          ) AS s(value)
+         WHERE c.tenant_id = ${ctx.workspaceId}::uuid AND c.agent_id = ${agentId}::uuid
+           AND c.is_test = false AND c.started_at >= ${from}
+         GROUP BY 1`;
+      const sources = await db.knowledgeSource.findMany({
+        where: { tenantId: ctx.workspaceId, agentId, status: { not: 'deleting' } },
+        orderBy: { createdAt: 'asc' },
+        select: { id: true, name: true, type: true },
+      });
+      return { totals, perSource, sources };
+    });
+
+    const byId = new Map(perSource.filter((r) => r.source_id).map((r) => [r.source_id!, r]));
+    const attributed = sources.reduce((sum, s) => sum + Number(byId.get(s.id)?.hits ?? 0), 0);
+    const hits = Number(totals?.hits ?? 0);
+    return {
+      days,
+      from: from.toISOString(),
+      calls: Number(totals?.calls ?? 0),
+      calls_with_lookups: Number(totals?.calls_with_lookups ?? 0),
+      calls_with_hits: Number(totals?.calls_with_hits ?? 0),
+      lookups: Number(totals?.lookups ?? 0),
+      hits,
+      sources: sources
+        .map((s) => ({ source_id: s.id, name: s.name, type: s.type, hits: Number(byId.get(s.id)?.hits ?? 0), calls: Number(byId.get(s.id)?.calls ?? 0) }))
+        .sort((a, b) => b.hits - a.hits),
+      // Per-source hits are per look-up per source, so they can exceed the call's hits when
+      // one look-up drew on two sources; "other" is what is left of the attributed total.
+      other_hits: Math.max(0, perSource.reduce((sum, r) => sum + Number(r.hits), 0) - attributed),
+    };
   }
 
   async get(ctx: WorkspaceContext, sourceId: string): Promise<KnowledgeSourceResponse> {

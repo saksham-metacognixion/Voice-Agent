@@ -4,6 +4,7 @@ import { useApi, useGetFlags, useGetPricing } from '@portal/api-client';
 import { knowledgeRolesFor, type AgentDetail } from '@portal/schemas';
 import { Alert, Skeleton } from '@portal/ui';
 import { useTranslations } from 'next-intl';
+import { KnowledgeUsage } from '@/src/components/dashboard/agent/knowledge-usage';
 import { KnowledgeSources } from '@/src/components/wizard/knowledge-sources';
 import { MenuUpload } from '@/src/components/wizard/menu-upload';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
@@ -34,6 +35,7 @@ export function KnowledgeTab({ agent, canEdit }: { agent: AgentDetail; canEdit: 
         ) : null}
         {knowledgeRolesFor(agent).includes('menu') ? <MenuUpload agentId={agent.id} locked={locked || !canEdit} published={Boolean(agent.published_version)} /> : null}
         <KnowledgeSources agentId={agent.id} locked={locked || !canEdit} />
+        {!locked && agent.published_version ? <KnowledgeUsage agentId={agent.id} /> : null}
       </div>
       <aside className="flex flex-col gap-3 text-sm text-muted-foreground lg:sticky lg:top-24 lg:self-start">
         <p className="font-medium text-foreground">{tk('asideTitle')}</p>

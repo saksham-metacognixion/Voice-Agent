@@ -34,6 +34,8 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0024](0024-knowledge-after-payment.md)                | What the agent knows comes after payment: W4 after go-live, auto-republish of a new base   | accepted                      |
 | [0025](0025-production-hardening.md)                   | D14 hardening: disposable email ×2, origin check + API budget, OTel traces + Sentry errors, RDS PITR drill | accepted                      |
 | [0026](0026-arabic-and-rtl.md)                          | Arabic + RTL in the portal: next-intl without routing, per-browser choice, pre-paint `dir`, logical CSS, API copy translated by id | accepted                      |
+| [0027](0027-arabic-agents.md)                           | Arabic agents for KSA and the UAE: `ar-AE` as ours, `accurate` STT, the language block, curated Gulf voices | accepted                      |
+| [0028](0028-p2-transfer-hours-knowledge-sip.md)         | D16: transfer leg as its own ledger row folded from stored events, per-number date overrides, knowledge use per call, SIP re-verify by OPTIONS + digest, Arabic over fr-CA | accepted                      |
 
 Template:
 

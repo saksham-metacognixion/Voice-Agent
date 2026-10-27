@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { businessHours } from './business-hours.js';
+import { businessHours, businessHoursInput, isTimeZone } from './business-hours.js';
 import { e164, isoDateTime, paginationQuery, uuid } from './common.js';
 import { memberRole, planTier } from './enums.js';
 
@@ -32,9 +32,10 @@ export type CreateWorkspaceRequest = z.infer<typeof createWorkspaceRequest>;
 /** PATCH /workspace — D6 Settings. Ownership, plan and credits are never editable here. */
 export const updateWorkspaceRequest = z.object({
   name: z.string().trim().min(2).max(80).optional(),
-  timezone: z.string().min(1).max(64).optional(),
+  /** D16: the fallback zone of every schedule, so it must be one the hours check can read. */
+  timezone: z.string().min(1).max(64).refine(isTimeZone, 'Not a time zone we recognise').optional(),
   website: z.string().url().max(300).nullable().optional(),
-  business_hours: businessHours.nullable().optional(),
+  business_hours: businessHoursInput.nullable().optional(),
   recording_default: z.boolean().optional(),
   /** §17 retention, 7–365 days. */
   retention_days: z.number().int().min(7).max(365).optional(),

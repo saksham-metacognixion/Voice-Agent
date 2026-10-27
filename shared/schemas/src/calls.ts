@@ -106,6 +106,12 @@ export const callSummary = z.object({
   rate: z.number(),
   config_version: z.number().int().nullable(),
   credits_charged: z.number().nullable(),
+  /**
+   * D16: credits for the transferred leg, billed apart from the agent leg. Null when the
+   * call was never transferred or the leg has not ended yet. Defaults so a portal deployed
+   * ahead of the API still parses.
+   */
+  transfer_credits_charged: z.number().nullable().default(null),
   status: callDisplayStatus,
   decline_reason: declineReason.nullable(),
   outcome: z.string().nullable(),
@@ -163,6 +169,44 @@ export const capturedPhoneCheck = z.object({
 });
 export type CapturedPhoneCheck = z.infer<typeof capturedPhoneCheck>;
 
+/** D16: the transferred leg — `started` → `bridged` → `ended`, or `cancelled` (never answered, never billed). */
+export const transferStatus = z.enum(['started', 'bridged', 'cancelled', 'ended']);
+export type TransferStatus = z.infer<typeof transferStatus>;
+
+export const callTransfer = z.object({
+  status: transferStatus,
+  bridged_at: isoDateTime.nullable(),
+  ended_at: isoDateTime.nullable(),
+  duration_s: z.number().int().nullable(),
+  /** Credits per minute for this leg, captured once from the call's pricing version. */
+  rate: z.number().nullable(),
+  credits_charged: z.number().nullable(),
+});
+export type CallTransfer = z.infer<typeof callTransfer>;
+
+/**
+ * D16: what the agent looked up during the call. `lookups` is every time it consulted
+ * what it knows; `hits` the look-ups that found something. `sources` names the source
+ * each hit came from where it can be told (`source_id` null = a website page, or a source
+ * since deleted). `detail: count_only` = only the count is known (the platform's file of
+ * what each look-up returned could not be read).
+ */
+export const callKnowledgeSourceUse = z.object({
+  source_id: uuid.nullable(),
+  name: z.string().nullable(),
+  kind: z.enum(['file', 'text', 'url', 'unknown']),
+  hits: z.number().int(),
+});
+export type CallKnowledgeSourceUse = z.infer<typeof callKnowledgeSourceUse>;
+
+export const callKnowledgeUse = z.object({
+  lookups: z.number().int(),
+  hits: z.number().int().nullable(),
+  detail: z.enum(['complete', 'count_only']),
+  sources: z.array(callKnowledgeSourceUse),
+});
+export type CallKnowledgeUse = z.infer<typeof callKnowledgeUse>;
+
 /** GET /calls/:id — the D2 detail adds transcript and analysis. */
 export const callDetail = callSummary.extend({
   transcript_text: z.string().nullable(),
@@ -173,6 +217,10 @@ export const callDetail = callSummary.extend({
    * transcript. Defaults to empty so a portal deployed ahead of the API still parses.
    */
   captured_checks: z.array(capturedPhoneCheck).default([]),
+  /** D16. Null when the call was never transferred. */
+  transfer: callTransfer.nullable().default(null),
+  /** D16. Null when the call never consulted what the agent knows. */
+  knowledge: callKnowledgeUse.nullable().default(null),
 });
 export type CallDetail = z.infer<typeof callDetail>;
 

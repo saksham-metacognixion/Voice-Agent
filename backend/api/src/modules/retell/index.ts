@@ -31,5 +31,7 @@ export {
   retellLifecycleEvent,
   retellInboundEvent,
   RETELL_LIFECYCLE_EVENTS,
+  RETELL_TRANSFER_EVENTS,
+  retellTransferEvent,
 } from './retell-webhook';
-export type { ParsedRetellWebhook, RetellCallFacts, RetellLifecycleEvent, RetellInboundEvent, RetellLifecycleEventType } from './retell-webhook';
+export type { ParsedRetellWebhook, RetellCallFacts, RetellLifecycleEvent, RetellInboundEvent, RetellLifecycleEventType, RetellTransferEvent, RetellTransferEventType } from './retell-webhook';

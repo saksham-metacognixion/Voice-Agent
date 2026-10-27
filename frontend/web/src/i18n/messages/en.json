@@ -307,7 +307,9 @@
       "activationNotQueued": "We could not start putting your agent live just now. Try again in a moment.",
       "numberGeneric": "Something went wrong while setting up your number. We will try again shortly.",
       "numberRejected": "Your phone number settings were not accepted. Check the number options and try again."
-    }
+    },
+    "SIP_VERIFY_IN_PROGRESS": "This number is already being checked. Wait for that check to finish.",
+    "NOT_SIP_NUMBER": "Only a number connected from your own phone system can be checked."
   },
   "validation": {
     "required": "Required",
@@ -594,7 +596,8 @@
           "fri": "Fri",
           "sat": "Sat",
           "sun": "Sun"
-        }
+        },
+        "nextDay": "(next day)"
       },
       "slow": "This is taking longer than usual. Your answers are saved — leave this page open and it will finish on its own.",
       "templateCopy": {
@@ -1431,7 +1434,37 @@
         "note": "Note",
         "notePlaceholder": "What happened next?",
         "noteViewer": "No note.",
-        "noteSaved": "Note saved"
+        "noteSaved": "Note saved",
+        "chargedAgentLeg": "Credits charged (agent)",
+        "chargedTotal": "Total credits",
+        "transfer": {
+          "title": "Transferred call",
+          "endedBody": "After your agent handed the caller over, this part of the call was billed on its own at {rate} credits a minute.",
+          "liveBody": "Your agent handed the caller over. This part of the call is billed on its own once it ends.",
+          "cancelledBody": "Your agent tried to hand the caller over, but nobody answered. Nothing extra was charged.",
+          "status": "Status",
+          "statuses": {
+            "started": "Ringing",
+            "bridged": "Connected",
+            "cancelled": "Not answered",
+            "ended": "Finished"
+          },
+          "duration": "Length",
+          "charged": "Credits charged",
+          "rate": "Rate",
+          "answered": "Answered",
+          "ended": "Ended",
+          "inProgress": "In progress"
+        },
+        "knowledge": {
+          "title": "What your agent knows",
+          "summary": "Your agent looked something up {lookups, plural, one {# time} other {# times}} and found an answer {hits, plural, one {# time} other {# times}}.",
+          "nothingFound": "Your agent looked something up {lookups, plural, one {# time} other {# times}} but found nothing.",
+          "countOnly": "Your agent looked something up {lookups, plural, one {# time} other {# times}}. Which sources answered is not available for this call.",
+          "sourceHits": "{hits, plural, one {# answer} other {# answers}}",
+          "website": "A website page",
+          "removed": "A source since removed"
+        }
       },
       "fields": {
         "is_emergency": "Is emergency",
@@ -1473,7 +1506,9 @@
         "not_connected": "Not connected",
         "error_user_not_joined": "Caller never joined",
         "sip_routing_error": "Phone routing error",
-        "error": "Technical error"
+        "error": "Technical error",
+        "transfer_bridged": "Handed over to a person",
+        "transfer_cancelled": "Hand-over not answered"
       },
       "phoneCheck": {
         "mismatch": "This is not the number the caller said. Check the transcript before calling back.",
@@ -1646,7 +1681,24 @@
       "knowledge": {
         "lockedBody": "Adding what your agent knows is part of the {pack} pack and up.",
         "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack.",
-        "publishedHint": "A source added now reaches your live agent a few minutes after it is read."
+        "publishedHint": "A source added now reaches your live agent a few minutes after it is read.",
+        "usage": {
+          "title": "How often it is used",
+          "body": "From real callers’ calls; test calls are left out.",
+          "window": "Period",
+          "lastDays": "Last {days} days",
+          "noCalls": "No calls in this period yet.",
+          "notUsed": "{calls, plural, one {# call} other {# calls}} in this period, and none needed what your agent knows.",
+          "callsUsed": "Calls that used it",
+          "callsOf": "{used} of {calls}",
+          "lookups": "Look-ups",
+          "answered": "Found an answer",
+          "answeredValue": "{hits} ({pct}%)",
+          "bySource": "By source",
+          "unused": "Not used yet",
+          "sourceValue": "{hits, plural, one {# answer} other {# answers}} in {calls, plural, one {# call} other {# calls}}",
+          "other": "{hits, plural, one {# answer} other {# answers}} came from a website page or a source since removed."
+        }
       },
       "test": {
         "hint": "You are testing draft v{n} in the browser. Test calls use credits.",
@@ -1814,7 +1866,7 @@
           "business": "Your agent answers during the workspace’s business hours. Outside them callers hear a busy tone and the call shows as missed.",
           "custom": "Your agent answers during the hours below. Outside them callers hear a busy tone and the call shows as missed."
         },
-        "noBusinessHours": "The workspace has no business hours yet, so this number would never answer.",
+        "noBusinessHours": "The workspace has no business hours yet, so this number answers around the clock until you set them.",
         "setBusinessHours": "Set business hours",
         "customEmpty": "Open at least one day, or this number never answers.",
         "save": "Save routing"
@@ -1880,8 +1932,54 @@
         "showUsername": "Show username",
         "hideUsername": "Hide username",
         "missing": "We could not read the connection details for this number.",
-        "change": "To change the host or credentials, release this number and import it again with the new details.",
-        "inbound": "For calls to reach your agent, your phone system must send them for this number to the address our team gives you. Ask support if you do not have it yet."
+        "change": "To change the host or credentials, use Update details. We check new details first and keep the current ones if the check fails.",
+        "inbound": "For calls to reach your agent, your phone system must send them for this number to the address our team gives you. Ask support if you do not have it yet.",
+        "verify": {
+          "title": "Connection check",
+          "check": "Check connection",
+          "update": "Update details",
+          "never": "Not checked yet.",
+          "running": "Checking your phone system…",
+          "checkedAt": "Checked {when}",
+          "updated": "New details saved.",
+          "adminOnly": "An owner or admin can check the connection.",
+          "status": {
+            "pending": "Checking",
+            "verified": "Working",
+            "warning": "Reachable",
+            "failed": "Not working"
+          },
+          "toast": {
+            "verified": "Your phone system answered and accepted the details.",
+            "warning": "Your phone system answered, but we could not confirm the password.",
+            "failed": "The check failed. See why below."
+          },
+          "reasons": {
+            "auth_rejected": "Your phone system refused the username or password. Check them with your provider and update them here.",
+            "auth_required": "Your phone system asks for a username and password, and none is saved for this number. Add them with Update details.",
+            "unreachable": "We could not connect to your phone system at that address. Check the address, and that it accepts connections from the internet.",
+            "timeout": "Your phone system did not answer in time. Check the address and any firewall in front of it.",
+            "dns_failed": "That address does not exist. Check the spelling.",
+            "non_public": "That address points to a private network, which calls cannot reach. Use your phone system’s public address.",
+            "port_not_allowed": "That port is not one phone systems use. Use 5060, 5061 or your provider’s SIP port.",
+            "tls_failed": "A secure connection to your phone system could not be set up. Check its certificate, or use port 5060.",
+            "not_sip": "Something answered at that address, but it is not a phone system.",
+            "answered": "Your phone system answered without asking for a password, so we could not confirm it. Calls should still go through.",
+            "forbidden": "Your phone system answered but turned our check away — it probably only accepts known addresses. If calls do not go through, contact support.",
+            "not_on_platform": "This number is no longer connected on our side. Contact support.",
+            "provider_error": "We could not save the details on our side just now. Try again in a few minutes."
+          },
+          "dialog": {
+            "title": "Update connection details",
+            "body": "New details for {number}. Leave a field blank to keep what is saved.",
+            "bodyGeneric": "Leave a field blank to keep what is saved.",
+            "keepHint": "Currently {current}.",
+            "keepBlank": "Leave blank to keep the saved one.",
+            "safety": "We check the new details with your phone system first. If the check fails, nothing changes.",
+            "submit": "Check and save",
+            "failed": "The check failed, so nothing was changed."
+          }
+        }
       },
       "danger": {
         "title": "Release this number",
@@ -2005,7 +2103,8 @@
           "adjustment": "Adjustment",
           "expiry": "Expired credits",
           "refund": "Refund",
-          "topup": "Auto top-up"
+          "topup": "Auto top-up",
+          "transfer": "Transferred call"
         },
         "describe": {
           "trial": "Welcome credits",
@@ -2016,7 +2115,8 @@
           "adjustment": "Adjusted by our team",
           "expiry": "Credits reached their expiry",
           "refund": "Refunded",
-          "topup": "Automatic top-up"
+          "topup": "Automatic top-up",
+          "transfer": "Charge for a transferred call"
         },
         "viewCall": "View call"
       },
@@ -2470,6 +2570,38 @@
         "body": "Your saved card was declined. Update it to keep the balance topped up.",
         "cta": "Update card"
       }
+    },
+    "hours": {
+      "zone": "Time zone",
+      "zoneHint": "The clock these hours are read on.",
+      "zoneWorkspace": "Same as the workspace ({zone})",
+      "datesTitle": "Holidays and special dates",
+      "datesBody": "A date listed here replaces that day’s usual hours.",
+      "addDate": "Add a date",
+      "datesEmpty": "No special dates.",
+      "date": "Date",
+      "kind": "Hours on this date",
+      "closedAllDay": "Closed all day",
+      "specialHours": "Special hours",
+      "past": "Past",
+      "removeHours": "Remove these hours",
+      "removeDate": "Remove this date",
+      "problemsTitle": "Fix these before saving",
+      "problems": {
+        "zone": "The time zone is not one we recognise.",
+        "too_many": "{where}: at most 4 openings a day.",
+        "overlap": "{where}: the opening times overlap.",
+        "bad_date": "{where} is not a real date.",
+        "duplicate_date": "{where} is listed twice.",
+        "already_closed": "{where} is already closed all day.",
+        "too_many_dates": "There are too many special dates. Remove some past ones."
+      },
+      "openNow": "Open now — it is {time} ({zone}).",
+      "closedNow": "Closed now — it is {time} ({zone}). Opens {when}.",
+      "closedNowNoOpening": "Closed now — it is {time} ({zone}), and it does not open in the next week.",
+      "today": "today at {time}",
+      "tomorrow": "tomorrow at {time}",
+      "onDay": "{day} at {time}"
     }
   },
   "impersonation": {

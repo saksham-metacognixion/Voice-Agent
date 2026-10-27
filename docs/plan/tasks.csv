@@ -268,9 +268,9 @@ Checklist:
 - Per-number business hours with override editor
 - Knowledge base usage stats (KB hits per call)
 - SIP re-verify flow
-- fr-CA full message catalogue
+- Arabic for every new string (fr-CA dropped 27 Oct 2026: the market is Arabic-speaking, ADR 0028)
 
-Exit check: A transferred call is billed as two legs; fr-CA renders across the portal",Week 4 — P2,to do,saksham@metacognixion.com,2026-10-05,2026-10-05,8h,Normal,"phase:p2, area:backend, area:frontend, spec:§5.1, spec:§14.1",D15
+Exit check: A transferred call is billed as two legs; Arabic renders across the D16 flows",Week 4 — P2,to do,saksham@metacognixion.com,2026-10-05,2026-10-05,8h,Normal,"phase:p2, area:backend, area:frontend, spec:§5.1, spec:§14.1",D15
 "D17 — P2: call-my-phone, forwarding test, web widget","Give customers two more ways to hear the agent, plus a website channel.
 
 Checklist:
