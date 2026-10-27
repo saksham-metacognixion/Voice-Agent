@@ -51,6 +51,11 @@ export function parseForwardingTestMarker(raw: string | null | undefined): Forwa
  * number with our number as the caller on most carriers (`ours`), or with the customer's
  * line on carriers that pass the forwarding number instead (`original`, §11.2). Any other
  * caller is a real one and goes through the ordinary checks.
+ *
+ * `original` cannot tell the test from a real caller on such a carrier: every forwarded
+ * call shows the customer's line. So a match is only a candidate — the inbound path
+ * consumes the marker atomically, and only the call that consumed it is turned away. At
+ * most one call per test, and a real caller only if they beat the test leg in.
  */
 export function forwardingTestMatch(
   marker: ForwardingTestMarker | null,

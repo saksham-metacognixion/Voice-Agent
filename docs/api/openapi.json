@@ -16676,7 +16676,8 @@
       "testPhoneCallRequest": {
         "properties": {
           "to": {
-            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "maxLength": 40,
+            "minLength": 3,
             "type": "string"
           },
           "version_no": {
@@ -33914,11 +33915,13 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONFLICT, FORWARDING_TEST_IN_PROGRESS}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONCURRENCY_LIMIT, CONFLICT, FORWARDING_TEST_IN_PROGRESS, TESTS_PAUSED}",
             "x-error-codes": [
               "AGENT_NOT_PUBLISHED",
+              "CONCURRENCY_LIMIT",
               "CONFLICT",
-              "FORWARDING_TEST_IN_PROGRESS"
+              "FORWARDING_TEST_IN_PROGRESS",
+              "TESTS_PAUSED"
             ]
           },
           "429": {
@@ -33929,9 +33932,10 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {RATE_LIMITED}",
+            "description": "Error envelope; `code` ∈ {RATE_LIMITED, TEST_RATE_LIMIT}",
             "x-error-codes": [
-              "RATE_LIMITED"
+              "RATE_LIMITED",
+              "TEST_RATE_LIMIT"
             ]
           },
           "503": {

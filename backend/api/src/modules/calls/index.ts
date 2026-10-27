@@ -25,6 +25,7 @@ export type { ConcurrencyDecision, ConcurrencyInput } from './concurrency-monito
 export { RECOVER_WINDOW_MS, RECOVER_ANALYSIS_WINDOW_MS, RECOVER_ANALYSIS_MAX_CHECKS, RECOVER_RECHECK_MS, unsettledCallKind } from './call-recovery.rules';
 export type { UnsettledCallRow, UnsettledKind } from './call-recovery.rules';
 export { TestCallController } from './test-call.controller';
-export { TestCallService, TEST_CALLS_PER_HOUR } from './test-call.service';
+export { TestCallService } from './test-call.service';
+export { TEST_CALLS_PER_HOUR } from './call-headroom';
 export { LiveTranscriptRelay, LIVE_TRANSCRIPT_PATH, forwardable } from './live-transcript.relay';
 export type { TokenPurpose } from './recording';

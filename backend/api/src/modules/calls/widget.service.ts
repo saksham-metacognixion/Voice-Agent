@@ -10,16 +10,16 @@ import {
   widgetKey,
 } from '@portal/schemas';
 import { randomBytes } from 'node:crypto';
+import { portalUrl } from '../../common/env';
 import { AppError } from '../../common/errors/app-error';
+import { clientBucket } from '../../common/http/client-bucket';
+import { normaliseOrigin } from '../../common/http/request-limits';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { REDIS, RedisCache, type RedisLike, redisKeys } from '../redis';
 import { RetellGateway } from '../retell';
 import { WalletService } from '../wallet';
-import { roundCredits } from '../wallet/fifo';
-import { headroom, liveCalls, webCallTransport } from './call-headroom';
-import { ACTIVE_SLACK_MS, RETELL_MAX_CALL_MS, encodeActive } from './inbound.decide';
-import { RESERVE_SCRIPT, type ReserveResult, isReserveResult } from './reserve.script';
+import { MintSlot, headroom, liveCalls, webCallTransport } from './call-headroom';
 
 /** Widget calls per widget per hour — the most one public button may start, whoever presses it. */
 export const WIDGET_CALLS_PER_HOUR = 60;
@@ -45,8 +45,8 @@ const UNAVAILABLE = 'This assistant is not available right now. Please try again
  * A web call's audio needs a token minted with our platform key, so the browser never
  * talks to the platform's API: the embed frame asks us, as W5 does (ADR 0003, D9). The
  * key in the page source authorises nothing on its own. A call goes through only when the
- * agent is live and published, the widget is on, the visitor's page is on the list (if
- * there is one), the visitor and the widget are under their hourly budgets, the SA12
+ * request comes from our embed frame, the agent is live and published, the widget is on,
+ * the visitor's page is on the list (if there is one), the visitor and the widget are under their hourly budgets, the SA12
  * `reject_inbound` switch is off, and the wallet covers it after the other live calls on a
  * free line of the plan — the inbound path's rules (§13.9, ADR 0011 §1). Business hours
  * are a number's setting and do not apply. Every refusal past "no such widget" is one
@@ -112,10 +112,23 @@ export class WidgetService {
     return { business_name: agent.tenant.name, agent_name: agent.name, language: agent.primaryLanguage };
   }
 
-  /** `POST /widget/:key/call` — mint a browser call on the published version for a website visitor. */
-  async startCall(key: string, body: WidgetCallRequest, ip: string): Promise<WidgetCallResponse> {
+  /**
+   * `POST /widget/:key/call` — mint a browser call on the published version for a website visitor.
+   *
+   * `requestOrigin` is the request's own `Origin` header. The only page that makes this
+   * request is our `/embed/` frame, so a browser always sends the portal's origin; a
+   * request without it (curl, a script) is refused before anything is counted. That and
+   * `page_origin` keep the button off other people's sites **in a browser**, and nothing
+   * more: both are plain request data to a client that is not one. What bounds a script
+   * holding the key is the budgets below and the wallet checks after them.
+   */
+  async startCall(key: string, body: WidgetCallRequest, ip: string, requestOrigin: string | undefined): Promise<WidgetCallResponse> {
     const agent = await this.resolve(key);
 
+    if (!requestOrigin || normaliseOrigin(requestOrigin) !== normaliseOrigin(portalUrl())) {
+      this.log.warn(`widget ${agent.id}: refused a request from ${requestOrigin ?? 'no origin'}`);
+      throw new AppError('ORIGIN_NOT_ALLOWED', 'This button is not set up for this website.');
+    }
     if (agent.widgetOrigins.length > 0) {
       const page = body.page_origin ? normaliseWidgetOrigin(body.page_origin) : null;
       if (!page || !agent.widgetOrigins.includes(page)) {
@@ -127,9 +140,11 @@ export class WidgetService {
     // Counted on every attempt, not on success: the budget is for strangers, and a refused
     // attempt costs us the checks below. The visitor's own window first, and the widget's
     // only for an attempt that passed it — counted the other way round, one address
-    // hammering the button spent the hour for every visitor on every other address.
+    // hammering the button spent the hour for every visitor on every other address. A
+    // visitor is an IPv4 address or an IPv6 /64 (`clientBucket`): one IPv6 host can
+    // rotate through its /64 and would otherwise start a fresh window on every press.
     const rateLimited = () => new AppError('RATE_LIMITED', 'Too many calls just now. Please try again in a few minutes.');
-    const fromIp = await this.cache.increment(redisKeys.widgetIpWindow(key, ip), IP_WINDOW_S);
+    const fromIp = await this.cache.increment(redisKeys.widgetIpWindow(key, clientBucket(ip)), IP_WINDOW_S);
     if (fromIp !== null && fromIp > WIDGET_CALLS_PER_IP) throw rateLimited();
     const total = await this.cache.increment(redisKeys.widgetWindow(key), 3_600);
     if (total !== null && total > WIDGET_CALLS_PER_HOUR) throw rateLimited();
@@ -138,90 +153,56 @@ export class WidgetService {
       this.log.warn(`widget ${agent.id} (workspace ${agent.tenantId}): unavailable — ${why}`);
       throw new AppError('WIDGET_UNAVAILABLE', UNAVAILABLE);
     };
-    if (await this.config.killSwitch('reject_inbound')) refuse('reject_inbound');
     if (agent.tenant.pausedAt) refuse('workspace paused');
     if (agent.status !== 'live' || agent.publishedVersion === null || !agent.retellAgentId) refuse(`agent ${agent.status}`);
-    const published = await adminDb.agentVersion.findUnique({
-      where: { agentId_versionNo: { agentId: agent.id, versionNo: agent.publishedVersion! } },
-      select: { retellAgentVersion: true },
-    });
+
+    // Independent reads, in one round: a public button should not pay six in a row.
+    const [rejectInbound, published, { rate }, balance, live, caps] = await Promise.all([
+      this.config.killSwitch('reject_inbound'),
+      adminDb.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId: agent.id, versionNo: agent.publishedVersion! } },
+        select: { retellAgentVersion: true },
+      }),
+      // The live tier's rate and the live ceiling: what callers on the phone get (§9.9).
+      this.config.rateFor(agent.tier),
+      this.wallet.balance(agent.tenantId),
+      liveCalls(this.redis, agent.tenantId, this.log),
+      this.config.capsFor(agent.tenantId).catch(() => null),
+    ]);
+    if (rejectInbound) refuse('reject_inbound');
     if (published?.retellAgentVersion == null) refuse('published version has no platform copy');
 
-    // The live tier's rate and the live ceiling: what callers on the phone get (§9.9).
-    const { rate } = await this.config.rateFor(agent.tier);
-    const balance = await this.wallet.balance(agent.tenantId);
-    const live = await liveCalls(this.redis, agent.tenantId, this.log);
-    const caps = await this.config.capsFor(agent.tenantId).catch(() => null);
     const room = headroom({ balance, live, cap: caps?.concurrency_cap, rate, maxDurationS: agent.maxCallDurationS });
     if (!room.ok) return refuse(room.reason === 'cap' ? 'every line busy' : 'no credits');
-    const { maxMs, cap } = room;
+
+    // The checks above read `active:{ws}` and write nothing, and a public button is pressed
+    // by many strangers at once: twenty presses in a second would each see every line free
+    // and the whole wallet. So the line is taken before minting (`MintSlot`, ADR 0011 §1);
+    // a press that loses the race gets no call at all.
+    const slot = await MintSlot.take(this.redis, this.log, { workspaceId: agent.tenantId, maxMs: room.maxMs, rate, cap: room.cap, balance });
+    if (slot.result === 'cap') refuse('every line busy (race)');
+    if (slot.result === 'balance') refuse('no credits (race)');
 
     const call = await this.retell
       .createWebCall({
         agentId: agent.retellAgentId!,
         agentVersion: published!.retellAgentVersion!,
         metadata: { tenant_id: agent.tenantId, agent_id: agent.id, version_no: agent.publishedVersion, tier: agent.tier, test: false, widget: true },
-        maxCallDurationMs: maxMs,
+        maxCallDurationMs: room.maxMs,
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
+        await slot.release();
         this.log.warn(`widget ${agent.id}: call refused upstream: ${String(error)}`);
         throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not connect you just now. Please try again in a moment.');
       });
-
-    // The checks above read `active:{ws}` and write nothing, and a public button is pressed
-    // by many strangers at once, none of whom has reached `call_started` yet: twenty presses
-    // in a second would each see every line free and the whole wallet. So the slot is taken
-    // here, by the inbound path's atomic check-and-reserve (ADR 0011 §1), under the call id
-    // `call_started` will find (it never overwrites a field) and `call_ended` frees. A press
-    // that loses the race gets no token; a minted call nobody joins ends unconnected and
-    // bills nothing.
-    const slot = await this.reserve(agent.tenantId, call.call_id, roundCredits((maxMs / 60_000) * rate), maxMs, cap, balance);
-    if (slot === 'cap') refuse('every line busy (race)');
-    if (slot === 'balance') refuse('no credits (race)');
+    await slot.bind(call.call_id);
 
     return {
       call_id: call.call_id,
       access_token: call.access_token,
-      max_call_duration_s: Math.floor(maxMs / 1_000),
+      max_call_duration_s: Math.floor(room.maxMs / 1_000),
       ...webCallTransport(call),
     };
-  }
-
-  /**
-   * Writes the call's reservation, re-checking the plan's lines and the wallet inside the
-   * same script — the two predicates `startCall` evaluated before minting. `skipped` when
-   * Redis could not take the write: the call goes ahead, as on the inbound path, and
-   * `call_started` reserves it.
-   */
-  private async reserve(workspaceId: string, callId: string, credits: number, maxMs: number, cap: number | null, balance: number): Promise<ReserveResult> {
-    const key = redisKeys.activeCalls(workspaceId);
-    const now = Date.now();
-    const expiresAt = now + maxMs + ACTIVE_SLACK_MS;
-    // The longest any field can live, so this write never shortens the key under a longer call.
-    const ttlSeconds = Math.ceil((RETELL_MAX_CALL_MS + ACTIVE_SLACK_MS) / 1_000) + 60;
-    try {
-      if (typeof this.redis.eval !== 'function') {
-        await this.redis.hsetnx(key, callId, encodeActive(credits, expiresAt));
-        await this.redis.expire(key, ttlSeconds);
-        return 'ok';
-      }
-      const result = await this.redis.eval(
-        RESERVE_SCRIPT,
-        1,
-        key,
-        callId,
-        String(credits),
-        String(Math.round(expiresAt)),
-        String(now),
-        String(cap ?? -1),
-        String(balance),
-        String(ttlSeconds),
-      );
-      return isReserveResult(result) ? result : 'ok';
-    } catch (error) {
-      this.log.warn(`widget call ${callId}: reservation not written (${error instanceof Error ? error.message : String(error)})`);
-      return 'skipped';
-    }
   }
 
   /** The widget behind a public key: on, and its agent not deleted. Anything else is "no such widget". */

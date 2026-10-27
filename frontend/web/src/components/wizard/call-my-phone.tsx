@@ -32,8 +32,9 @@ export function CallMyPhone({ agentId, versionNo, onPlaced }: { agentId: string;
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const compact = to.replace(/[\s().-]/g, '');
-    const parsed = testPhoneCallRequest.shape.to.safeParse(compact);
+    // Sent as typed: the API reads Eastern Arabic digits, `00` and a national number for
+    // the workspace's country, which a strict +E.164 check here would refuse.
+    const parsed = testPhoneCallRequest.shape.to.safeParse(to);
     if (!parsed.success) {
       setError(t('invalid'));
       return;

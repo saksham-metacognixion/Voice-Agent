@@ -1,5 +1,7 @@
+import { Logger } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { headroom, webCallTransport } from './call-headroom';
+import { InMemoryRedis, redisKeys } from '../redis';
+import { MintSlot, headroom, webCallTransport } from './call-headroom';
 
 describe('headroom (ADR 0011 §1)', () => {
   const base = { balance: 20, live: { count: 0, credits: 0 }, cap: 2, rate: 1, maxDurationS: 600 };
@@ -26,5 +28,35 @@ describe('webCallTransport', () => {
   it('passes through only the fields the platform sent', () => {
     expect(webCallTransport({ call_id: 'c', access_token: 't' })).toEqual({});
     expect(webCallTransport({ transport: 'livekit', url: 'wss://x', expires_at: 5 })).toEqual({ transport: 'livekit', url: 'wss://x', expires_at: 5 });
+  });
+});
+
+describe('MintSlot', () => {
+  const input = { workspaceId: 'ws1', maxMs: 120_000, rate: 1, cap: 2, balance: 10 };
+  const log = new Logger('test');
+
+  it('holds a line under a placeholder until the platform answers, then under the call id', async () => {
+    const redis = new InMemoryRedis();
+    const slot = await MintSlot.take(redis, log, input);
+    expect(slot.result).toBe('ok');
+    const held = await redis.hgetall(redisKeys.activeCalls('ws1'));
+    expect(Object.keys(held)).toHaveLength(1);
+    expect(Object.keys(held)[0]).toMatch(/^mint:/);
+    expect(held[Object.keys(held)[0]!]).toMatch(/^2\.00\|/);
+
+    await slot.bind('call_1');
+    expect(Object.keys(await redis.hgetall(redisKeys.activeCalls('ws1')))).toEqual(['call_1']);
+  });
+
+  it('frees the line when the platform refuses, and never overwrites a reservation call_started already wrote', async () => {
+    const redis = new InMemoryRedis();
+    const refused = await MintSlot.take(redis, log, input);
+    await refused.release();
+    expect(await redis.hgetall(redisKeys.activeCalls('ws1'))).toEqual({});
+
+    const slot = await MintSlot.take(redis, log, input);
+    await redis.hset(redisKeys.activeCalls('ws1'), 'call_2', '0.50|1');
+    await slot.bind('call_2');
+    expect(await redis.hgetall(redisKeys.activeCalls('ws1'))).toEqual({ call_2: '0.50|1' });
   });
 });

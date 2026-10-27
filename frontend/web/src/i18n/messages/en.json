@@ -826,6 +826,7 @@
       "call": {
         "title": "Talk to your agent",
         "subtitle": "You are testing draft version {version}. Nothing is live yet.",
+        "subtitleLive": "You are testing draft version {version}. Callers still reach live version {live}.",
         "timer": "Time",
         "rate": "Rate",
         "perMin": "{credits}/min",
@@ -912,7 +913,7 @@
         "placeholder": "+1 416 555 0123",
         "call": "Call my phone",
         "placed": "Calling {to} from {from}. Answer it to talk to your agent.",
-        "invalid": "Enter your own mobile or landline with its country code, for example +1 416 555 0123."
+        "invalid": "Enter your own mobile or landline, for example +1 416 555 0123."
       }
     },
     "w6": {
@@ -1987,9 +1988,9 @@
             "not_landed": "Not forwarded",
             "failed": "Could not call"
           },
-          "notLandedHint": "The call did not come back. Check the forwarding code for your carrier above, and that nobody answered your phone first, then test again.",
+          "notLandedHint": "The call did not come back. Check the forwarding code for your carrier above, and that neither you nor your voicemail answered first, then test again.",
           "callerIdOriginal": "Your carrier shows forwarded calls with your own line as the caller, so the real caller may not appear in your call log.",
-          "cost": "If someone answers your phone during the test, the agent talks for up to a minute, which uses credits.",
+          "cost": "If someone or your voicemail answers your phone during the test, the agent talks for up to a minute, which uses credits.",
           "toast": {
             "landed": "Forwarding works: the call reached your agent.",
             "notLanded": "The test call was not forwarded."

@@ -9,14 +9,11 @@ import * as React from 'react';
 import { config } from '@/src/config';
 import { intlLocale, localeDirection, messages, type Locale } from '@/src/i18n';
 import { useLocaleChoice } from '@/src/i18n/locale-provider';
+import { FRAME_MAX_PX, FRAME_PADDING_PX, HIDDEN_FRAME, type FrameSize, frameSize } from '@/src/widget/frame-size';
 import { useWidgetCall, type WidgetCallFailure } from '@/src/widget/use-widget-call';
 
-/** What the loader (`public/widget.js`) sizes the frame to, per state. Kept small: it sits on someone else's page. */
-const SIZES = {
-  hidden: { width: 0, height: 0 },
-  button: { width: 260, height: 64 },
-  panel: { width: 300, height: 156 },
-} as const;
+/** The widest the button may grow inside the loader's cap; a longer name still ends in "…". */
+const BUTTON_MAX_PX = FRAME_MAX_PX - 2 * FRAME_PADDING_PX;
 
 /**
  * D17 §11.5: the website widget's frame, `/embed/?key=`. Loaded by `widget.js` on the
@@ -71,7 +68,26 @@ function EmbedButton({ widgetKey, widget, api }: { widgetKey: string | null; wid
   const { state, start, end } = useWidgetCall(api, framed && widget && widget !== 'missing' ? widgetKey : null);
   const busy = state.status === 'mic' || state.status === 'connecting';
   const open = state.status === 'live' || state.status === 'ended' || state.status === 'failed';
-  const size = widget === 'missing' ? SIZES.hidden : open ? SIZES.panel : SIZES.button;
+  const content = React.useRef<HTMLDivElement>(null);
+  const [size, setSize] = React.useState<FrameSize>(HIDDEN_FRAME);
+
+  // The frame follows what it shows, measured (`frameSize`). The box is `w-max shrink-0`,
+  // so resizing the frame never resizes it back and the observer settles at once.
+  React.useLayoutEffect(() => {
+    const el = content.current;
+    if (!el) {
+      setSize(HIDDEN_FRAME);
+      return;
+    }
+    const measure = () => {
+      const next = frameSize(el.getBoundingClientRect());
+      setSize((prev) => (prev.width === next.width && prev.height === next.height ? prev : next));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [widget]);
 
   React.useEffect(() => {
     if (framed && widget !== null) window.parent.postMessage({ type: 'oraly-widget:size', ...size }, '*');
@@ -82,11 +98,12 @@ function EmbedButton({ widgetKey, widget, api }: { widgetKey: string | null; wid
 
   const name = widget.business_name;
   return (
-    <div className={cn('flex p-2', framed ? 'fixed inset-0 items-end justify-end' : 'min-h-dvh flex-col items-center justify-center gap-3')}>
+    <div className={cn('flex p-3', framed ? 'fixed inset-0 items-end justify-end' : 'min-h-dvh flex-col items-center justify-center gap-3')}>
       {!framed ? <p className="text-xs text-muted-foreground">{t('preview')}</p> : null}
+      <div ref={content} className="w-max shrink-0">
       {open ? (
-        <div className="flex w-full max-w-[284px] flex-col gap-2 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-lg" aria-live="polite">
-          <p className="truncate text-sm font-medium">{state.status === 'live' ? (state.agentTalking ? t('speaking', { agent: widget.agent_name }) : t('live', { business: name })) : state.status === 'ended' ? t('ended') : <FailureLine failure={state.failure} />}</p>
+        <div className="flex w-[276px] flex-col gap-2 rounded-2xl border border-border bg-card p-3 text-card-foreground shadow-lg" aria-live="polite">
+          <p className="break-words text-sm font-medium">{state.status === 'live' ? (state.agentTalking ? t('speaking', { agent: widget.agent_name }) : t('live', { business: name })) : state.status === 'ended' ? t('ended') : <FailureLine failure={state.failure} />}</p>
           {state.status === 'live' ? <p className="text-xs tabular-nums text-muted-foreground">{clock(state.elapsedS)}</p> : null}
           {state.status === 'live' ? (
             <Button variant="danger" size="sm" onClick={end}>
@@ -99,10 +116,11 @@ function EmbedButton({ widgetKey, widget, api }: { widgetKey: string | null; wid
           )}
         </div>
       ) : (
-        <Button className="max-w-[244px] rounded-full shadow-lg" onClick={() => void start()} loading={busy} disabled={busy || !framed}>
+        <Button className="rounded-full shadow-lg" style={{ maxWidth: BUTTON_MAX_PX }} onClick={() => void start()} loading={busy} disabled={busy || !framed}>
           {busy ? null : <Mic />} <span className="truncate">{busy ? t('connecting') : t('talk', { business: name })}</span>
         </Button>
       )}
+      </div>
     </div>
   );
 }

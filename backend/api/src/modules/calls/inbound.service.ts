@@ -3,12 +3,12 @@ import type { DeclineReason, WorkspaceCaps } from '@portal/schemas';
 import { OpsAlertService } from '../alerts';
 import type { CurrentPricing } from '../config';
 import { JobQueues, type InboundDecisionJob } from '../jobs';
-import { REDIS, type RedisLike, redisKeys } from '../redis';
+import { RELEASE_LOCK_SCRIPT, REDIS, type RedisLike, redisKeys } from '../redis';
 import { type InboundResponse, RetellGateway, type RetellInboundEvent } from '../retell';
 import { isNumberRecord, type NumberRecord } from '../runtime-cache';
 import { forwardingTestMatch, parseForwardingTestMarker } from './forwarding-test';
-import { ACTIVE_SLACK_MS, type Decision, RETELL_MAX_CALL_MS, decide, encodeActive, parseActiveHash } from './inbound.decide';
-import { RESERVE_SCRIPT, type ReserveResult, isReserveResult } from './reserve.script';
+import { ACTIVE_SLACK_MS, type Decision, RETELL_MAX_CALL_MS, decide, parseActiveHash } from './inbound.decide';
+import { type ReserveResult, reserveActive } from './reserve.script';
 
 /** The whole Redis side of one authorisation shares this budget (ADR 0003 §12). */
 export const INBOUND_REDIS_BUDGET_MS = 150;
@@ -154,9 +154,12 @@ export class InboundAuthorizationService {
         // The test coming back through the carrier's forwarding. Turned away before every
         // other check — a busy tone, no call object, nothing billed, no `calls` row — so it
         // never becomes the agent talking to itself, and the outbound leg ends unconnected.
+        // One call per test: the marker is consumed by the call it turns away, so a real
+        // caller who matches it too (a carrier that shows every forwarded caller as the
+        // customer's line) is turned away only if they beat the test leg, and never after.
         const marker = number && number.inbound_token === token ? parseForwardingTestMarker(testRaw) : null;
         const callerId = number && marker ? forwardingTestMatch(marker, { numberId: number.number_id, from, to }) : null;
-        if (marker && callerId) {
+        if (marker && callerId && (await this.consumeForwardingTest(to, testRaw!, deadline))) {
           this.metrics.forwardingTests += 1;
           void this.queues.enqueueForwardingTestLanded({ testId: marker.test_id, numberId: marker.number_id, workspaceId: marker.workspace_id, callerId });
           return {
@@ -295,38 +298,43 @@ export class InboundAuthorizationService {
     activeExpiryFloor: number,
     deadline: Deadline,
   ): Promise<ReserveResult> {
-    const key = redisKeys.activeCalls(decision.workspaceId);
     const expiresAt = now.getTime() + (decision.maxCallDurationMs ?? RETELL_MAX_CALL_MS) + ACTIVE_SLACK_MS;
     const ttlSeconds = Math.ceil((Math.max(expiresAt, activeExpiryFloor) - now.getTime()) / 1000) + 60;
-    const credits = encodeActive(decision.reservedCredits, expiresAt).split('|')[0]!;
-    // Empty means "the balance was not known", so the script skips that predicate — the
-    // same thing `decide()` did with a `balance_unknown` warning.
-    const ceiling = decision.balanceCeiling === null ? '' : String(decision.balanceCeiling);
-
     try {
-      return await deadline.bound(async () => {
-        if (typeof this.redis.eval !== 'function') {
-          await this.redis.hset(key, callId, encodeActive(decision.reservedCredits, expiresAt));
-          await this.redis.expire(key, ttlSeconds);
-          return 'ok' as const;
-        }
-        const result = await this.redis.eval(
-          RESERVE_SCRIPT,
-          1,
-          key,
+      return await deadline.bound(() =>
+        reserveActive(this.redis, decision.workspaceId, {
           callId,
-          credits,
-          String(Math.round(expiresAt)),
-          String(now.getTime()),
-          String(decision.concurrencyCap ?? -1),
-          ceiling,
-          String(ttlSeconds),
-        );
-        return isReserveResult(result) ? result : 'ok';
-      });
+          credits: decision.reservedCredits,
+          expiresAt,
+          now: now.getTime(),
+          cap: decision.concurrencyCap,
+          ceiling: decision.balanceCeiling,
+          ttlSeconds,
+        }),
+      );
     } catch (error) {
       this.log.warn(`inbound ${callId}: reservation not written (${error instanceof Error ? error.message : String(error)})`);
       return 'skipped';
+    }
+  }
+
+  /**
+   * Takes the forwarding-test marker for this call: true when this call deleted it. Two
+   * calls matching one marker at once both read it in their MGET; only the one that
+   * deletes it is the test. Redis failing between the read and the delete reads as ours —
+   * the marker was there a moment ago, and the alternative hands the test leg to the agent.
+   */
+  private async consumeForwardingTest(e164: string, raw: string, deadline: Deadline): Promise<boolean> {
+    const key = redisKeys.forwardingTest(e164);
+    try {
+      return await deadline.bound(async () => {
+        if (typeof this.redis.eval === 'function') return (await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, key, raw)) === 1;
+        if ((await this.redis.get(key)) !== raw) return false;
+        await this.redis.del(key);
+        return true;
+      });
+    } catch {
+      return true;
     }
   }
 

@@ -5,16 +5,13 @@ import { AppError } from '../../common/errors/app-error';
 import { AgentDraftSyncService, settingsOf } from '../agents';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
-import { REDIS, RedisCache, type RedisLike, redisKeys } from '../redis';
+import { REDIS, RedisCache, type RedisLike } from '../redis';
 import { RetellGateway } from '../retell';
 import { WalletService } from '../wallet';
-import { headroom, liveCalls, webCallTransport } from './call-headroom';
+import { MintSlot, assertUnderTestWindow, countTestCall, headroom, liveCalls, webCallTransport } from './call-headroom';
 import { checkTestDestination } from './call-my-phone';
 import { RecordingSigner } from './recording';
 
-/** §13.4: ten browser test calls per workspace per hour. */
-export const TEST_CALLS_PER_HOUR = 10;
-const WINDOW_S = 3_600;
 /** How long a live-transcript token outlives the call's ceiling (ADR 0011's reservation slack). */
 const LIVE_TOKEN_SLACK_S = 300;
 
@@ -28,6 +25,8 @@ type ReadyTest = {
   retellAgentId: string;
   retellAgentVersion: number;
   maxMs: number;
+  /** The plan's concurrency cap, null = no limit — what the slot is re-checked against. */
+  cap: number | null;
 };
 
 /**
@@ -49,7 +48,9 @@ type ReadyTest = {
  * is left of the wallet **after the other live calls' reservations** in `active:{ws}`, and
  * only while the plan's concurrency cap has a slot free. Sized from the raw balance, two
  * test calls in two tabs — or one beside a live phone call — could each be told they may
- * run the whole balance and together overdraw it past the grace.
+ * run the whole balance and together overdraw it past the grace. Sizing only reads, so
+ * the line is then taken atomically before the platform is asked (`MintSlot`): two tabs
+ * pressing in the same second cannot both pass on the same free line and credits.
  */
 @Injectable()
 export class TestCallService {
@@ -70,6 +71,7 @@ export class TestCallService {
     const target = await this.target(ctx, agentId, versionNo);
     const { agent, version } = target;
     const ready = await this.ready(ctx, target);
+    const slot = await this.takeSlot(ctx.workspaceId, ready);
 
     const call = await this.retell
       .createWebCall({
@@ -78,13 +80,15 @@ export class TestCallService {
         metadata: { tenant_id: ctx.workspaceId, agent_id: agent.id, version_no: version.versionNo, tier: ready.tier, test: true },
         maxCallDurationMs: ready.maxMs,
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
+        await slot.release();
         this.log.warn(`agent ${agent.id} v${version.versionNo}: test call refused upstream: ${String(error)}`);
         throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not start the test call just now. Try again in a moment.');
       });
+    await slot.bind(call.call_id);
 
     // Counted once the platform has minted: a refusal upstream is not one of the ten.
-    await this.cache.increment(redisKeys.testCallWindow(ctx.workspaceId), WINDOW_S);
+    await countTestCall(this.cache, ctx.workspaceId);
 
     // The live transcript's credential (LiveTranscriptRelay): this call, this workspace,
     // valid for as long as the call may run plus the slack a reservation gets.
@@ -166,6 +170,7 @@ export class TestCallService {
     }
 
     const ready = await this.ready(ctx, target);
+    const slot = await this.takeSlot(ctx.workspaceId, ready);
     const call = await this.retell
       .createPhoneCall({
         fromNumber: from.e164,
@@ -175,12 +180,14 @@ export class TestCallService {
         metadata: { tenant_id: ctx.workspaceId, agent_id: agent.id, version_no: version.versionNo, tier: ready.tier, test: true, number_id: from.id },
         maxCallDurationMs: ready.maxMs,
       })
-      .catch((error: unknown) => {
+      .catch(async (error: unknown) => {
+        await slot.release();
         this.log.warn(`agent ${agent.id} v${version.versionNo}: call-my-phone refused upstream: ${String(error)}`);
         throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not place the call just now. Try again in a moment.');
       });
+    await slot.bind(call.call_id);
 
-    await this.cache.increment(redisKeys.testCallWindow(ctx.workspaceId), WINDOW_S);
+    await countTestCall(this.cache, ctx.workspaceId);
     await withWorkspace(ctx, (db) =>
       db.auditLog.create({
         data: {
@@ -246,14 +253,10 @@ export class TestCallService {
     const live = await liveCalls(this.redis, ctx.workspaceId, this.log);
     const caps = await this.config.capsFor(ctx.workspaceId).catch(() => null);
     const room = headroom({ balance, live, cap: caps?.concurrency_cap, rate, maxDurationS: settings.max_call_duration_s });
-    if (!room.ok && room.reason === 'cap') {
-      throw new AppError('CONCURRENCY_LIMIT', `Every line your plan allows (${room.cap}) is on a call right now. Try again when one finishes.`);
-    }
-    if (!room.ok) {
-      throw new AppError('NO_CREDITS', 'Your live calls are holding the rest of your credits. Try again when one finishes, or buy a pack.');
-    }
+    if (!room.ok && room.reason === 'cap') throw concurrencyLimit(room.cap);
+    if (!room.ok) throw creditsHeld();
 
-    await this.assertUnderRateLimit(ctx.workspaceId);
+    await assertUnderTestWindow(this.cache, ctx.workspaceId);
 
     // The draft is re-synced before every test of it: W3's voice and language edits are
     // saved onto the version without a platform round trip, and a test must ring what the
@@ -279,22 +282,22 @@ export class TestCallService {
 
     // min(the version's ceiling, what the wallet covers after the other live calls),
     // inside the platform's [60 s, 2 h] — the inbound path's formula (ADR 0011 §1).
-    return { rate, balance, tier: settings.tier, retellAgentId, retellAgentVersion, maxMs: room.maxMs };
+    return { rate, balance, tier: settings.tier, retellAgentId, retellAgentVersion, maxMs: room.maxMs, cap: room.cap };
   }
 
-  /**
-   * §13.4's fixed hourly window: the counter starts with the first call of the hour and
-   * expires an hour later whatever comes after it (`RedisCache.increment`, `SET NX` + `INCR`
-   * — a `SET … EX` on every call would push the window out for as long as the calls keep
-   * coming). It is read here and bumped after the platform has answered, so a burst can
-   * slip one over and a refused mint costs nothing; Redis down means allow. A test call
-   * spends real minutes — but the customer's own, which the balance check gates, so the
-   * limit is abuse control and not the wallet.
-   */
-  private async assertUnderRateLimit(workspaceId: string): Promise<void> {
-    const used = Number(await this.cache.get(redisKeys.testCallWindow(workspaceId)));
-    if (Number.isFinite(used) && used >= TEST_CALLS_PER_HOUR) {
-      throw new AppError('TEST_RATE_LIMIT', `That is ${TEST_CALLS_PER_HOUR} test calls this hour. Try again a little later.`);
-    }
+  /** The line `ready()` sized, taken atomically before minting. A lost race is the refusal `ready()` would have given. */
+  private async takeSlot(workspaceId: string, ready: ReadyTest): Promise<MintSlot> {
+    const slot = await MintSlot.take(this.redis, this.log, { workspaceId, maxMs: ready.maxMs, rate: ready.rate, cap: ready.cap, balance: ready.balance });
+    if (slot.result === 'cap') throw concurrencyLimit(ready.cap);
+    if (slot.result === 'balance') throw creditsHeld();
+    return slot;
   }
+}
+
+function concurrencyLimit(cap: number | null): AppError {
+  return new AppError('CONCURRENCY_LIMIT', `Every line your plan allows (${cap}) is on a call right now. Try again when one finishes.`);
+}
+
+function creditsHeld(): AppError {
+  return new AppError('NO_CREDITS', 'Your live calls are holding the rest of your credits. Try again when one finishes, or buy a pack.');
 }

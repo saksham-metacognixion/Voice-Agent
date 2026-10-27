@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { e164, isoDateTime, paginationQuery, uuid } from './common.js';
+import { isoDateTime, paginationQuery, uuid } from './common.js';
 import { agentTier, declineReason } from './enums.js';
 
 /** `calls.channel` / `calls.direction` / `calls.status` (§15). */
@@ -343,7 +343,12 @@ export type TestWebCallResponse = z.infer<typeof testWebCallResponse>;
  * the draft, as for the browser test.
  */
 export const testPhoneCallRequest = z.object({
-  to: e164,
+  /**
+   * The customer's phone as they typed it: E.164, `00…`, or national for the number's or
+   * the workspace's country, in Western or Eastern Arabic digits. The API reads it
+   * (`checkTestDestination`) and answers E.164 in `to_number`.
+   */
+  to: z.string().trim().min(3).max(40),
   version_no: z.number().int().min(1).optional(),
 });
 export type TestPhoneCallRequest = z.infer<typeof testPhoneCallRequest>;

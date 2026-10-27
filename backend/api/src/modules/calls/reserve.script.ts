@@ -1,3 +1,6 @@
+import { type RedisLike, redisKeys } from '../redis';
+import { encodeActive } from './inbound.decide';
+
 /**
  * Check-and-reserve for `active:{ws}`, as one atomic Redis script.
  *
@@ -58,4 +61,53 @@ export type ReserveResult = 'ok' | 'cap' | 'balance' | 'skipped';
 
 export function isReserveResult(value: unknown): value is Exclude<ReserveResult, 'skipped'> {
   return value === 'ok' || value === 'cap' || value === 'balance';
+}
+
+/** One reservation: the call's field in `active:{ws}`, and the two predicates it is re-checked against. */
+export interface ActiveReservation {
+  callId: string;
+  credits: number;
+  expiresAt: number;
+  now: number;
+  /** Live calls (excluding this one) must stay below it. Null = no limit. */
+  cap: number | null;
+  /**
+   * What the other live calls' reservations must stay below. Null = the balance is not
+   * known, and the predicate is skipped (`decide()`'s `balance_unknown`). The inbound path
+   * passes balance + grace; a call we mint ourselves passes the balance alone, as
+   * `headroom()` does — the grace keeps a call from being cut mid-sentence, it never
+   * starts one.
+   */
+  ceiling: number | null;
+  ttlSeconds: number;
+}
+
+/**
+ * The one writer of a reservation into `active:{ws}` ahead of `call_started`: the §13.9
+ * path and every call we mint (call-headroom.ts). Throws when Redis does not answer; each
+ * caller decides what that means for its call. Without Lua (`InMemoryRedis`) it is a plain
+ * HSET, exact for one process.
+ */
+export async function reserveActive(redis: RedisLike, workspaceId: string, r: ActiveReservation): Promise<Exclude<ReserveResult, 'skipped'>> {
+  const key = redisKeys.activeCalls(workspaceId);
+  const value = encodeActive(r.credits, r.expiresAt);
+  if (typeof redis.eval !== 'function') {
+    await redis.hset(key, r.callId, value);
+    await redis.expire(key, r.ttlSeconds);
+    return 'ok';
+  }
+  const [credits, expiresAt] = value.split('|') as [string, string];
+  const result = await redis.eval(
+    RESERVE_SCRIPT,
+    1,
+    key,
+    r.callId,
+    credits,
+    expiresAt,
+    String(r.now),
+    String(r.cap ?? -1),
+    r.ceiling === null ? '' : String(r.ceiling),
+    String(r.ttlSeconds),
+  );
+  return isReserveResult(result) ? result : 'ok';
 }

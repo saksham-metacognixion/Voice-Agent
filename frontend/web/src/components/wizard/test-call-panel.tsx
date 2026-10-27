@@ -60,7 +60,11 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
           <CardTitle>{tt('title')}</CardTitle>
           <StatusPill status={state.status} agentTalking={state.agentTalking} />
         </div>
-        <CardDescription>{tt('subtitle', { version: draft?.version_no ?? '–' })}</CardDescription>
+        <CardDescription>
+          {agent.published_version
+            ? tt('subtitleLive', { version: draft?.version_no ?? '–', live: agent.published_version })
+            : tt('subtitle', { version: draft?.version_no ?? '–' })}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
         <dl className="grid grid-cols-3 gap-3 rounded-lg border border-border bg-muted/40 p-3 text-center">

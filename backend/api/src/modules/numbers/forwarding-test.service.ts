@@ -4,7 +4,9 @@ import type { ForwardingTest } from '@portal/schemas';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
+import { MintSlot, assertUnderTestWindow, countTestCall, headroom, liveCalls } from '../calls/call-headroom';
 import { FORWARDING_TEST_MARKER_TTL_S, FORWARDING_TEST_RING_MS, type ForwardingTestMarker } from '../calls/forwarding-test';
+import { PlatformConfigService } from '../config';
 import { type ForwardingTestJob, JobQueues } from '../jobs';
 import { REDIS, RedisCache, type RedisLike, redisKeys } from '../redis';
 import { RetellGateway } from '../retell';
@@ -35,10 +37,16 @@ type StoredTest = ForwardingTest & { test_id: string };
  *               The number's `forwarding_status` becomes `ready`.
  *   4. expire   `forwarding-test-expire`, delayed by the ring window: still `calling` →
  *               `not_landed`. If someone picks up the customer's phone instead (no
- *               forwarding, or "when I don't answer" and they answered), they hear the
- *               agent for up to a minute — the one way this test costs credits.
+ *               forwarding, or "when I don't answer" and they answered) — or the line's
+ *               voicemail does — they hear the agent for up to a minute: the one way this
+ *               test costs credits.
  *
- * The outbound leg is a test call (`metadata.test`), billed by `call_ended` like any call.
+ * The outbound leg is a test call (`metadata.test`), billed by `call_ended` like any call,
+ * so it passes what every test call passes (call-headroom.ts): the SA12 `pause_web_tests`
+ * switch, the workspace's ten-an-hour test window (shared with the browser test and "Call
+ * my phone"), a free line of the plan and credits left after the other live calls — and
+ * it takes its line in `active:{ws}` before it dials.
+ *
  * Synchronous up to the ring, like the D16 SIP re-verify; the outcome arrives on the row,
  * which the portal polls while the test reads `calling`.
  */
@@ -51,6 +59,7 @@ export class ForwardingTestService {
     private readonly cache: RedisCache,
     @Inject(REDIS) private readonly redis: RedisLike,
     private readonly wallet: WalletService,
+    private readonly config: PlatformConfigService,
     private readonly queues: JobQueues,
   ) {}
 
@@ -66,7 +75,7 @@ export class ForwardingTestService {
           pausedAt: true,
           forwardingFrom: true,
           forwardingTestJson: true,
-          agent: { select: { id: true, retellAgentId: true, publishedVersion: true, deletedAt: true } },
+          agent: { select: { id: true, tier: true, retellAgentId: true, publishedVersion: true, deletedAt: true } },
         },
       });
       const published =
@@ -88,7 +97,21 @@ export class ForwardingTestService {
       throw new AppError('AGENT_NOT_PUBLISHED', 'Point this number at a live agent before testing the forwarding.');
     }
     if (forwardingTestOf(row)?.status === 'calling') throw new AppError('FORWARDING_TEST_IN_PROGRESS', 'A forwarding test is already ringing for this number.');
-    if (!((await this.wallet.balance(ctx.workspaceId)) > 0)) throw new AppError('NO_CREDITS', 'You are out of credits. Buy a pack to test the forwarding.');
+    if (await this.config.killSwitch('pause_web_tests')) throw new AppError('TESTS_PAUSED', 'Test calls are paused for a few minutes. Please try again shortly.');
+    await assertUnderTestWindow(this.cache, ctx.workspaceId);
+
+    // The live tier's rate (the leg runs the number's published agent), and the line it
+    // takes beside the other live calls — sized for the leg's 60 s ceiling.
+    const [{ rate }, balance, live, caps] = await Promise.all([
+      this.config.rateFor(agent.tier),
+      this.wallet.balance(ctx.workspaceId),
+      liveCalls(this.redis, ctx.workspaceId, this.log),
+      this.config.capsFor(ctx.workspaceId).catch(() => null),
+    ]);
+    if (!(balance > 0)) throw new AppError('NO_CREDITS', 'You are out of credits. Buy a pack to test the forwarding.');
+    const room = headroom({ balance, live, cap: caps?.concurrency_cap, rate, maxDurationS: TEST_LEG_MAX_MS / 1_000 });
+    if (!room.ok && room.reason === 'cap') throw concurrencyLimit(room.cap);
+    if (!room.ok) throw creditsHeld();
 
     const e164 = row.e164;
     const testId = randomUUID();
@@ -105,6 +128,7 @@ export class ForwardingTestService {
     }
     if (claimed !== 'OK') throw new AppError('FORWARDING_TEST_IN_PROGRESS', 'A forwarding test is already ringing for this number.');
 
+    let slot: MintSlot | null = null;
     try {
       // Counted once the lease is ours: a refused duplicate does not spend the budget.
       const used = await this.cache.increment(redisKeys.forwardingTestWindow(row.id), WINDOW_S);
@@ -112,23 +136,29 @@ export class ForwardingTestService {
         throw new AppError('RATE_LIMITED', `You can test the forwarding ${FORWARDING_TESTS_PER_HOUR} times an hour. Try again later.`);
       }
 
+      slot = await MintSlot.take(this.redis, this.log, { workspaceId: ctx.workspaceId, maxMs: room.maxMs, rate, cap: room.cap, balance });
+      if (slot.result === 'cap') throw concurrencyLimit(room.cap);
+      if (slot.result === 'balance') throw creditsHeld();
+
       const startedAt = new Date();
       await this.store(ctx.workspaceId, row.id, { test_id: testId, status: 'calling', started_at: startedAt.toISOString(), finished_at: null, caller_id: null });
       try {
-        await this.retell.createPhoneCall({
+        const placed = await this.retell.createPhoneCall({
           fromNumber: e164,
           toNumber: row.forwardingFrom,
           agentId: agent.retellAgentId,
           agentVersion: row.published.retellAgentVersion,
           metadata: { tenant_id: ctx.workspaceId, agent_id: agent.id, number_id: row.id, test: true, forwarding_test: testId },
-          maxCallDurationMs: TEST_LEG_MAX_MS,
+          maxCallDurationMs: room.maxMs,
         });
+        await slot.bind(placed.call_id);
       } catch (error) {
         this.log.warn(`forwarding test ${numberId}: call refused upstream: ${error instanceof Error ? error.message : String(error)}`);
         await this.store(ctx.workspaceId, row.id, { test_id: testId, status: 'failed', started_at: startedAt.toISOString(), finished_at: new Date().toISOString(), caller_id: null });
         throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not place the test call just now. Try again in a moment.');
       }
 
+      await countTestCall(this.cache, ctx.workspaceId);
       await this.queues.enqueueForwardingTestExpire({ testId, numberId: row.id, workspaceId: ctx.workspaceId }, FORWARDING_TEST_RING_MS);
       await withWorkspace(ctx, (db) =>
         db.auditLog.create({
@@ -137,6 +167,7 @@ export class ForwardingTestService {
       ).catch((error: unknown) => this.log.warn(`forwarding test ${numberId}: audit row not written: ${String(error)}`));
     } catch (error) {
       await this.cache.releaseLock(redisKeys.forwardingTest(e164), markerValue);
+      await slot?.release();
       throw error;
     }
   }
@@ -145,8 +176,8 @@ export class ForwardingTestService {
   async landed(job: ForwardingTestJob): Promise<void> {
     const settled = await this.settle(job, 'landed');
     if (!settled) return;
-    // A real caller dialling the customer's line in the next few seconds must not be
-    // mistaken for the test: the marker goes now, not at its TTL — this test's only.
+    // The inbound path consumed the marker when it turned the call away; this is for a
+    // landing settled any other way. This test's marker only, never a newer one.
     if (settled.e164 && settled.original) {
       const marker: ForwardingTestMarker = { test_id: job.testId, number_id: job.numberId, workspace_id: job.workspaceId, original: settled.original };
       await this.cache.releaseLock(redisKeys.forwardingTest(settled.e164), JSON.stringify(marker));
@@ -208,4 +239,12 @@ export class ForwardingTestService {
   private store(workspaceId: string, numberId: string, test: StoredTest): Promise<unknown> {
     return withWorkspace(workspaceId, (db) => db.phoneNumber.update({ where: { id: numberId }, data: { forwardingTestJson: test as unknown as Prisma.InputJsonValue } }));
   }
+}
+
+function concurrencyLimit(cap: number | null): AppError {
+  return new AppError('CONCURRENCY_LIMIT', `Every line your plan allows (${cap}) is on a call right now. Try again when one finishes.`);
+}
+
+function creditsHeld(): AppError {
+  return new AppError('NO_CREDITS', 'Your live calls are holding the rest of your credits. Try again when one finishes, or buy a pack.');
 }

@@ -45,7 +45,8 @@ export class PublicWidgetController {
   @Post(':key/call')
   @HttpCode(201)
   call(@Param('key') key: string, @Body() body: unknown, @Req() request: FastifyRequest): Promise<WidgetCallResponse> {
-    return this.widgets.startCall(key, widgetCallRequest.parse(body ?? {}), request.ip);
+    const origin = typeof request.headers.origin === 'string' ? request.headers.origin : undefined;
+    return this.widgets.startCall(key, widgetCallRequest.parse(body ?? {}), request.ip, origin);
   }
 }
 

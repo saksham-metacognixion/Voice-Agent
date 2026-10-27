@@ -2,6 +2,8 @@ import { adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { portalUrl } from '../src/common/env';
+import { encodeActive } from '../src/modules/calls';
 import { WIDGET_CALLS_PER_HOUR, WIDGET_CALLS_PER_IP } from '../src/modules/calls/widget.service';
 import { PlatformConfigService } from '../src/modules/config';
 import { ForwardingTestService } from '../src/modules/numbers/forwarding-test.service';
@@ -189,12 +191,16 @@ describe('POST /numbers/:id/forwarding/test — "Test forwarding" (D4)', () => {
     expect(retell.countOf('createPhoneCall')).toBe(before);
 
     // A real caller while the test rings is answered as usual.
+    const realId = `call_real_${randomUUID().slice(0, 8)}`;
     const real = await webhook(`/webhooks/retell/inbound/${number.token}`, {
       event: 'call_inbound',
       event_timestamp: Date.now(),
-      call_inbound: { call_id: `call_real_${randomUUID().slice(0, 8)}`, from_number: '+12125550199', to_number: number.e164 },
+      call_inbound: { call_id: realId, from_number: '+12125550199', to_number: number.e164 },
     });
     expect(real.json().call_inbound?.reject).toBeUndefined();
+    // That caller hangs up (as call_ended would free the line): the test leg holds one of
+    // the plan's lines too, and the callers below must not be turned away on the cap.
+    await redis.hdel(redisKeys.activeCalls(ws.workspaceId), realId);
 
     // The carrier forwards our own call back: busy tone, no call row, and the test lands.
     const forwardedId = `call_fwd_${randomUUID().slice(0, 8)}`;
@@ -204,6 +210,16 @@ describe('POST /numbers/:id/forwarding/test — "Test forwarding" (D4)', () => {
       call_inbound: { call_id: forwardedId, from_number: number.e164, to_number: number.e164 },
     });
     expect(forwarded.json()).toEqual({ call_inbound: { reject: true } });
+    // One call per test: the marker went with the call it turned away, so the next caller
+    // who matches it — on a carrier that shows every forwarded caller as the customer's
+    // line — is answered, not mistaken for the test.
+    expect(await redis.get(redisKeys.forwardingTest(number.e164))).toBeNull();
+    const after = await webhook(`/webhooks/retell/inbound/${number.token}`, {
+      event: 'call_inbound',
+      event_timestamp: Date.now(),
+      call_inbound: { call_id: `call_after_${randomUUID().slice(0, 8)}`, from_number: '+14165550100', to_number: number.e164 },
+    });
+    expect(after.json().call_inbound?.reject).toBeUndefined();
     const landed = await waitFor('the test to land', async () => {
       const got = await call('GET', `/numbers/${number.id}`, headers);
       const forwarding = got.body.forwarding as { status: string; test: { status: string; caller_id: string | null } };
@@ -249,11 +265,50 @@ describe('POST /numbers/:id/forwarding/test — "Test forwarding" (D4)', () => {
     expect(failed.status).toBe(503);
     expect(((await call('GET', `/numbers/${number.id}`, headers)).body.forwarding as { test: { status: string } }).test.status).toBe('failed');
     expect(await redis.get(redisKeys.forwardingTest(number.e164))).toBeNull();
+    // …and the line it took for the call that never rang.
+    expect(await redis.hgetall(redisKeys.activeCalls(ws.workspaceId))).toEqual({});
 
     const other = await paidWorkspace(app, 'fwd-other', 'starter');
     expect((await call('POST', `/numbers/${number.id}/forwarding/test`, await auth(other.sub, other.workspaceId))).status).toBe(404);
     const viewer = await addMember(ws.workspaceId, 'fwd-viewer', 'viewer');
     expect((await call('POST', `/numbers/${number.id}/forwarding/test`, await auth(viewer.sub, ws.workspaceId))).status).toBe(403);
+  });
+
+  it('passes what every test call passes: the kill switch, a free line, credits the live calls leave, and it takes its line before dialling', async () => {
+    const { ws, headers, number } = await forwardingSetup('fwd-gates');
+    const test = () => call('POST', `/numbers/${number.id}/forwarding/test`, headers);
+    const before = retell.countOf('createPhoneCall');
+
+    const config = app.get(PlatformConfigService);
+    await config.setKillSwitch('pause_web_tests', { on: true, reason: 'e2e' });
+    try {
+      expect((await test()).body.code).toBe('TESTS_PAUSED');
+    } finally {
+      await config.setKillSwitch('pause_web_tests', { on: false });
+    }
+
+    const active = redisKeys.activeCalls(ws.workspaceId);
+    const cap = (await config.capsFor(ws.workspaceId)).concurrency_cap;
+    const until = Date.now() + 600_000;
+    for (let i = 0; i < cap; i += 1) await redis.hset(active, `call_live_${i}`, encodeActive(0.01, until));
+    const busy = await test();
+    expect(busy.status).toBe(409);
+    expect(busy.body.code).toBe('CONCURRENCY_LIMIT');
+
+    await redis.del(active);
+    await redis.hset(active, 'call_holding_all', encodeActive(await app.get(WalletService).balance(ws.workspaceId), until));
+    const held = await test();
+    expect(held.status).toBe(402);
+    expect(held.body.code).toBe('NO_CREDITS');
+    expect(retell.countOf('createPhoneCall')).toBe(before);
+
+    await redis.del(active);
+    expect((await test()).status).toBe(200);
+    // The line was taken before dialling and moved to the call once it had an id.
+    const fields = Object.keys(await redis.hgetall(active));
+    expect(fields).toHaveLength(1);
+    expect(fields[0]).toMatch(/^call_out_/);
+    await redis.del(active, redisKeys.forwardingTest(number.e164));
   });
 });
 
@@ -268,8 +323,15 @@ describe('the website widget (§11.5)', () => {
     return { ws, headers, agentId, key: res.body.key as string };
   }
 
-  const publicCall = (key: string, body: unknown = {}, ip = '203.0.113.7') =>
-    app.inject({ method: 'POST', url: `/widget/${key}/call`, headers: { 'content-type': 'application/json' }, payload: JSON.stringify(body), remoteAddress: ip });
+  /** As the `/embed/` frame sends it: from the portal's origin. */
+  const publicCall = (key: string, body: unknown = {}, ip = '203.0.113.7', origin: string | null = portalUrl()) =>
+    app.inject({
+      method: 'POST',
+      url: `/widget/${key}/call`,
+      headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) },
+      payload: JSON.stringify(body),
+      remoteAddress: ip,
+    });
 
   it('owner and admin turn it on (a key is minted once), every member reads it, and the public config names nothing private', async () => {
     const ws = await paidWorkspace(app, 'wg-settings', 'starter');
@@ -315,6 +377,13 @@ describe('the website widget (§11.5)', () => {
   it('refuses a page not on the list, a widget switched off, a paused agent and an empty wallet — without saying which', async () => {
     const { ws, headers, agentId, key } = await widgetSetup('wg-refuse', ['https://maple-dental.example']);
     const before = retell.countOf('createWebCall');
+    // Only our embed frame calls this route, and a browser always names the portal as its
+    // origin: a request with none (curl, a script) or another site's is refused first.
+    for (const origin of [null, 'https://copycat.example']) {
+      const res = await publicCall(key, { page_origin: 'https://maple-dental.example' }, '203.0.113.19', origin);
+      expect(res.statusCode, String(origin)).toBe(403);
+      expect(res.json().code).toBe('ORIGIN_NOT_ALLOWED');
+    }
     const foreign = await publicCall(key, { page_origin: 'https://copycat.example' }, '203.0.113.20');
     expect(foreign.statusCode).toBe(403);
     expect(foreign.json().code).toBe('ORIGIN_NOT_ALLOWED');
@@ -351,6 +420,18 @@ describe('the website widget (§11.5)', () => {
     // Past the widget's hourly budget, from that one address: every attempt is refused on its own window.
     for (let i = 0; i < WIDGET_CALLS_PER_HOUR; i += 1) expect((await publicCall(key, {}, '198.51.100.9')).statusCode).toBe(429);
     expect((await publicCall(key, {}, '198.51.100.10')).statusCode).toBe(201);
+    await hangUp();
+  });
+
+  it('counts an IPv6 visitor by its /64, so rotating addresses does not reset the window', async () => {
+    const { ws, key } = await widgetSetup('wg-ipv6');
+    const hangUp = () => redis.del(redisKeys.activeCalls(ws.workspaceId));
+    for (let i = 1; i <= WIDGET_CALLS_PER_IP; i += 1) {
+      expect((await publicCall(key, {}, `2001:db8:17:4::${i.toString(16)}`)).statusCode).toBe(201);
+      await hangUp();
+    }
+    expect((await publicCall(key, {}, '2001:db8:17:4:beef::1')).statusCode).toBe(429);
+    expect((await publicCall(key, {}, '2001:db8:17:5::1')).statusCode).toBe(201);
     await hangUp();
   });
 

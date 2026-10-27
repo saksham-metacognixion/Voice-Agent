@@ -150,6 +150,8 @@ describe('POST /agents/:id/test/web', () => {
     const minted = retell.calls.filter((c) => c.method === 'createWebCall').at(-1)!.args[0] as { maxCallDurationMs: number };
     expect(minted.maxCallDurationMs).toBe(Math.round((5 / rate) * 60_000));
     expect(res.body.balance).toBe(20); // the wallet itself is untouched
+    // That call takes a line of its own until call_ended frees it; hang it up.
+    await redis.hdel(key, res.body.call_id as string);
 
     // Holding all of it: no credits for this call, and nothing minted.
     await redis.hset(key, 'call_other_1', encodeActive(20, inAnHour));
@@ -176,6 +178,27 @@ describe('POST /agents/:id/test/web', () => {
     await redis.del(key);
   });
 
+  it('takes its line before minting: two tabs pressing at once on the last free line get one call, not two (ADR 0011 §1)', async () => {
+    const ws = await trialWorkspace('tw-race');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const redis = app.get<RedisLike>(REDIS);
+    const key = redisKeys.activeCalls(ws.workspaceId);
+    const cap = (await app.get(PlatformConfigService).capsFor(ws.workspaceId)).concurrency_cap;
+    for (let i = 0; i < cap - 1; i += 1) await redis.hset(key, `call_busy_${i}`, encodeActive(0.01, Date.now() + 3_600_000));
+
+    const before = retell.countOf('createWebCall');
+    const presses = await Promise.all([0, 1].map(() => call('POST', `/agents/${agentId}/test/web`, headers, {})));
+    expect(presses.map((r) => r.status).sort()).toEqual([201, 409]);
+    expect(presses.find((r) => r.status === 409)!.body.code).toBe('CONCURRENCY_LIMIT');
+    expect(retell.countOf('createWebCall')).toBe(before + 1);
+    // The winner's line is the call's own, under the id call_started and call_ended use.
+    const won = presses.find((r) => r.status === 201)!.body.call_id as string;
+    expect(Object.keys(await redis.hgetall(key))).toContain(won);
+    expect(Object.keys(await redis.hgetall(key))).toHaveLength(cap);
+    await redis.del(key);
+  });
+
   it(`allows ${TEST_CALLS_PER_HOUR} calls an hour per workspace, then 429 TEST_RATE_LIMIT — a fixed window that a refused mint does not spend`, async () => {
     const ws = await trialWorkspace('tw-limit');
     const headers = await auth(ws.sub, ws.workspaceId);
@@ -189,8 +212,12 @@ describe('POST /agents/:id/test/web', () => {
     expect((await call('POST', `/agents/${agentId}/test/web`, headers, {})).status).toBe(503);
     expect(await redis.get(key)).toBeNull();
 
+    // Each call ends before the next (as call_ended would free its line), so the plan's
+    // lines and the wallet are not what refuses.
+    const hangUp = () => redis.del(redisKeys.activeCalls(ws.workspaceId));
     for (let i = 0; i < TEST_CALLS_PER_HOUR; i += 1) {
       expect((await call('POST', `/agents/${agentId}/test/web`, headers, {})).status).toBe(201);
+      await hangUp();
     }
     const over = await call('POST', `/agents/${agentId}/test/web`, headers, {});
     expect(over.status).toBe(429);
@@ -204,6 +231,7 @@ describe('POST /agents/:id/test/web', () => {
     // …and once it lapses the count starts over rather than carrying on.
     await redis.expire(key, 1);
     await new Promise((r) => setTimeout(r, 1_100));
+    await hangUp();
     expect((await call('POST', `/agents/${agentId}/test/web`, headers, {})).status).toBe(201);
     expect(await redis.get(key)).toBe('1');
   });

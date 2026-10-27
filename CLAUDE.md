@@ -321,7 +321,9 @@ job settles.
 - **A forwarding test is turned away before the checks** (D17, ADR 0029): the first MGET also
   reads `fwdtest:{e164}`; a call from our own number or the customer's forwarded line while
   it is set is answered `inboundDecline()` — no `calls` row, nothing billed — and only
-  enqueues `forwarding-test-landed`. Not part of `decide()`.
+  enqueues `forwarding-test-landed`. Not part of `decide()`. **The call it turns away
+  consumes the marker** (compare-and-delete inside the budget), so a test declines one
+  call at most — never every real caller on a carrier that shows the forwarded line.
 - `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`, clamped to Retell's
   [60 s, 2 h]. "remainingCredits" is the balance **minus what the other live calls may still
   spend** — that is what `active:{ws}` holds per call (ADR 0011 §1).
@@ -869,9 +871,20 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   and language only — no Auth0, workspace or PostHog — and its API client sends no token.
   `public/widget.js` (hand-written, no build) frames it from the portal's origin and only
   takes `{type: 'oraly-widget:size'}` from that frame. Unframed (D3's "Preview") it shows
-  the button and places no call. The public mint takes its `active:{ws}` slot with
-  `RESERVE_SCRIPT` right after minting, so a burst of strangers cannot pass the plan's
-  lines or the wallet; the per-IP window is counted before the per-widget one. CloudFront's `/embed/*` behaviour is
+  the button and places no call. The public mint refuses a request whose own `Origin` is
+  not the portal's (`ORIGIN_NOT_ALLOWED` — only our frame calls it); the allow-list is a
+  browser control, not authentication, and a script holding the key is bounded by the
+  budgets and the wallet only. The per-visitor window (IPv4 address or IPv6 /64,
+  `clientBucket`) is counted before the per-widget one.
+- **Every call we mint takes its line before the platform is asked** (`MintSlot` in
+  `modules/calls/call-headroom.ts`): the browser test, "Call my phone", the forwarding
+  test and the widget write a `mint:<uuid>` placeholder through `reserveActive()` (the
+  inbound path's `RESERVE_SCRIPT`, the one writer of a reservation ahead of
+  `call_started`), move it to the call id with `HSETNX` once minted, and free it on a
+  refusal. A lost race is the ordinary `CONCURRENCY_LIMIT` / `NO_CREDITS`
+  (`WIDGET_UNAVAILABLE` on the widget), with nothing minted. A self-minted call's ceiling
+  is the balance alone; inbound passes balance + grace. The §13.4 10/h window
+  (`assertUnderTestWindow` / `countTestCall`) is shared by all three test mints. CloudFront's `/embed/*` behaviour is
   the one path without `X-Frame-Options`. The D3 Website tab (`AGENT_TABS`) holds the
   snippet; "Call my phone" sits in `TestCallPanel` once `last_pack_credits` is set; D4's
   Forwarding section has "Test forwarding" (`ForwardingTestPanel`, polls while `calling`).
@@ -1217,8 +1230,8 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   the Action — `disposable-email.test.ts` fails when they drift. Subdomains count.
 - **`registerRequestLimits`** (`common/http/request-limits.ts`, wired in `main.ts` only) is
   one `onRequest` hook: a state-changing request with a foreign `Origin` is `403
-  ORIGIN_NOT_ALLOWED`; more than `API_RATE_LIMIT_PER_MIN` (default 600) per IP per fixed
-  minute is `429 RATE_LIMITED` with `Retry-After` and CORS headers. **Never** `/webhooks/*`
+  ORIGIN_NOT_ALLOWED`; more than `API_RATE_LIMIT_PER_MIN` (default 600) per IP (an IPv6
+  client by its /64, `clientBucket`) per fixed minute is `429 RATE_LIMITED` with `Retry-After` and CORS headers. **Never** `/webhooks/*`
   or `/health*`. Redis silent = allow. The e2e harness does not register it — its test is a
   real Fastify instance in `request-limits.test.ts`.
 - **OpenTelemetry owns traces, Sentry owns errors.** `src/observability/register-{api,worker}.ts`
@@ -1385,9 +1398,11 @@ throws and never waits past its budget (ADR 0010 §6).
   `POST /support/tickets/:id/messages` (owner/admin/editor), `GET /support/tickets` (any member).
 - D17 routes (ADR 0029): `POST /agents/:id/test/phone {to, version_no?}` (owner/admin/editor,
   verified; the browser test's checks and hourly window plus `402 PURCHASE_REQUIRED`,
-  `409 NO_NUMBER`, `422` on `to`: `VALIDATION_FAILED` for a number that is not real, else `DESTINATION_COUNTRY` / `DESTINATION_TYPE` / `DESTINATION_IS_AGENT`), `POST /numbers/:id/forwarding/test` (owner/admin/editor,
+  `409 NO_NUMBER`, `422` on `to` — taken as typed: Eastern Arabic digits, `00`, or national
+  for the number's or the workspace's country, read by `checkTestDestination` — `VALIDATION_FAILED` for a number that is not real, else `DESTINATION_COUNTRY` / `DESTINATION_TYPE` / `DESTINATION_IS_AGENT`), `POST /numbers/:id/forwarding/test` (owner/admin/editor,
   verified; answers the number with `forwarding.test`; `NOT_FORWARDING_NUMBER`,
-  `FORWARDING_TEST_IN_PROGRESS`, 5/h per number), `GET|PUT /agents/:id/widget` (PUT
+  `FORWARDING_TEST_IN_PROGRESS`, 5/h per number, and a test call's gates:
+  `TESTS_PAUSED`, the workspace's `TEST_RATE_LIMIT`, `CONCURRENCY_LIMIT`, `NO_CREDITS`), `GET|PUT /agents/:id/widget` (PUT
   owner/admin), and the public `GET /widget/:key` + `POST /widget/:key/call {page_origin}`
   (`ORIGIN_NOT_ALLOWED`, `RATE_LIMITED`, and one `409 WIDGET_UNAVAILABLE` for every state a
   stranger should not learn). `GET /stats` answers `by_channel: {phone, web}`.

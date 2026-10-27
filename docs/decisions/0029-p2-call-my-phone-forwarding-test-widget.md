@@ -41,6 +41,12 @@ visitor is a real caller on the `web` channel, so that rule had to change first.
   `DESTINATION_COUNTRY`, `DESTINATION_TYPE`, `DESTINATION_IS_AGENT`, and
   `VALIDATION_FAILED` only for a number that is not real — so the portal can tell the
   customer it is the target, not the typing. This is a test button. Outbound dialling with consent rules is D18.
+- **`to` is what the customer typed** (code review, 27 Oct). The request takes any 3–40
+  character string and `checkTestDestination` reads it: Eastern Arabic digits
+  (`asciiDigits`, as the captured-phone check), bidi marks dropped, `00` for `+`, and a
+  number without `+` read as national in the from-number's and the workspace's countries
+  in turn. A strict `+E.164` check in the portal had refused `٠٥٠١٢٣٤٥٦٧` and `0501234567`
+  from a Saudi customer on an Arabic keyboard. The answer's `to_number` is E.164.
 - **The version is an override**, `override_agent_id` + `override_agent_version`, so the
   number stays bound to `latest_published` (§9.9). Metadata
   `{tenant_id, agent_id, version_no, tier, test: true, number_id}`: billed by `call_ended`
@@ -79,13 +85,26 @@ where the §13.9 path sees it.
   "a late landing cannot flip it back", which reported a working forward as broken
   whenever the carrier rang the customer's phone for 75–90 s. A `calling` row read 60 s past its window
   reads `not_landed` (`forwardingTestOf`), in case the expire job was lost.
-- **Landing frees the marker at once**, compare-and-delete on the exact value
-  (`releaseLock`). A real caller in the next seconds whose carrier shows the forwarding
-  line is then not mistaken for the test. During the ring window that remains possible
-  for **one** call. That trade is accepted and written down.
+- **The call that is turned away consumes the marker** (code review, 27 Oct), on the hot
+  path, compare-and-delete on the exact value (`RELEASE_LOCK_SCRIPT`, inside the 150 ms
+  budget, and only after a match). Two calls that both read the marker race for it, and
+  only the one that deleted it is declined. As first written, the marker went only when
+  the `forwarding-test-landed` job ran, and on a carrier that shows every forwarded
+  caller as the customer's line (`original`), every real caller until then got a busy
+  tone with no `calls` row. Now a test turns away **one** call: a real caller only if
+  they beat the test leg in, and then the test leg is answered by the agent for its 60 s
+  ceiling. That trade is accepted and written down. The landed job's own release stays,
+  for a landing settled any other way.
 - The outbound leg has a 60 s ceiling (the platform's floor) and `metadata.test`. The one
-  way the test costs credits is someone answering the customer's phone, and the D4 copy
-  says so.
+  way the test costs credits is someone, or the line's voicemail, answering the customer's
+  phone (with forwarding off, voicemail is the likelier of the two), and the D4 copy says so.
+- **It is a test call, so it passes what every test call passes** (code review, 27 Oct):
+  the SA12 `pause_web_tests` switch (`409 TESTS_PAUSED`), the workspace's 10/h test
+  window shared with the browser test and "Call my phone" (`429 TEST_RATE_LIMIT`), a free
+  line of the plan (`409 CONCURRENCY_LIMIT`) and credits left after the other live calls
+  (`402 NO_CREDITS`) at the live tier's rate for its 60 s — and it takes its line before
+  dialling (`MintSlot`, below). As first written it checked `balance > 0` only, and could
+  ring past the plan's lines and into what live calls had reserved.
 - Synchronous up to the ring, like D16's SIP re-verify. The portal re-reads the number
   every 3 s while it reads `calling` (the page's own cache entry, so the badge moves too).
   5 tests/h per number; editor and above, verified email.
@@ -104,8 +123,12 @@ where the §13.9 path sees it.
   ADR 0006). The key is public by design, so it authorises nothing. A call starts only
   when all of the following hold:
   - the widget is on;
+  - the request's own `Origin` is the portal's — our `/embed/` frame is the only page that
+    calls this route — else `403 ORIGIN_NOT_ALLOWED`. The §6.2 hook lets a request with
+    no `Origin` through to authentication, and this route has none;
   - the page's origin is on the list (if there is one) → else `403 ORIGIN_NOT_ALLOWED`;
-  - the visitor (5 per 10 min per IP) and the widget (60/h) are under budget → else
+  - the visitor (5 per 10 min per IPv4 address or IPv6 /64, `clientBucket` — a host is
+    handed a /64 and rotates through it at will) and the widget (60/h) are under budget → else
     `429 RATE_LIMITED`. The budget counts attempts, not successes, because the caller is a
     stranger. The visitor's window is counted first and the widget's only for an attempt
     that passed it, so one address cannot spend the widget's hour for everyone;
@@ -121,15 +144,22 @@ where the §13.9 path sees it.
   `max_call_duration_s`), sized by the ADR 0011 §1 formula. Metadata
   `{tenant_id, agent_id, version_no, tier, test: false, widget: true}`. No `calls` row is
   written here: `call_started` creates it and `call_ended` bills it, exactly as for W5.
-- **The slot is taken at the mint**, not left to `call_started`: right after minting,
-  `WidgetService` writes the call's `active:{ws}` field with the inbound path's
-  `RESERVE_SCRIPT`, which re-checks the plan's lines and the wallet atomically (ADR 0011
-  §1). Strangers press a public button at once, none has reached `call_started`, and a
-  read-only check let every one of them see every line free and the whole wallet. A press
-  that loses the race gets `WIDGET_UNAVAILABLE` and no token; the minted call is never
-  joined and ends unconnected, billed zero. `call_started` finds the field and leaves it
-  (`HSETNX`); `call_ended` frees it. The browser test does not do this: it is the
-  customer's own wallet, behind a login and 10/h.
+- **The line is taken before the mint, for every call we mint** (`MintSlot`,
+  `call-headroom.ts`; code review, 27 Oct). `headroom()` only reads `active:{ws}`, and
+  presses in the same second — strangers on a widget, two tabs, an editor and an admin —
+  each saw every line free and the whole wallet. So the browser test, "Call my phone",
+  the forwarding test and the widget write a placeholder field (`mint:<uuid>`, held
+  2 min) through `reserveActive()` — the inbound path's `RESERVE_SCRIPT`, which re-checks
+  the plan's lines and the wallet atomically (ADR 0011 §1) — **before** asking the
+  platform, move it to the call id once it answers (`HSETNX`: `call_started` may have
+  reserved already, and never overwrites) and free it if it refuses. A press that loses
+  the race gets the refusal it would have got a moment later (`CONCURRENCY_LIMIT` /
+  `NO_CREDITS`, `WIDGET_UNAVAILABLE` on the widget) and nothing is minted. Before, not
+  after: the two phone tests dial the moment they are minted. As first written only the
+  widget reserved, and after its mint; the browser test and "Call my phone" did not,
+  and could together spend about twice the wallet. A self-minted call's ceiling is the
+  balance alone (`headroom()`'s rule); the inbound path passes balance + grace. Both
+  write through the one `reserveActive()`.
 - **`is_test` is now what we minted:** `isTestCall()` = `metadata.test` when it is a
   boolean, else `channel === 'web'`. W5 and "Call my phone" say `true`, the widget says
   `false`, and an inbound call carries no `test` and is not a browser call. The portal's
@@ -139,7 +169,9 @@ where the §13.9 path sees it.
   - `public/widget.js` (hand-written, no build, no dependency) adds one `position: fixed`
     iframe of `/embed/?key=` from the origin it was loaded from, with
     `allow="microphone; autoplay"`.
-  - The frame reports the size it needs by `postMessage`. The loader accepts only
+  - The frame reports the size it needs by `postMessage`, measured from what it shows
+    (`frameSize`): a fixed 260 × 64 cut business names and the failure sentence short in
+    QA. The loader accepts only
     `{type: 'oraly-widget:size'}` from that frame's window and origin, and clamps it to
     400 px.
   - `/embed/` is a static page of the portal. `Providers` gives it theme and language only:
@@ -154,6 +186,13 @@ where the §13.9 path sees it.
     Test tab.
   - `page_origin` is `location.ancestorOrigins[0]` (unforgeable by the embedding page in
     Chrome and Safari), else the referrer's origin. A list with no readable origin refuses.
+  - **That makes the list a browser control, not authentication** (code review, 27 Oct).
+    `page_origin` is a field in the request body and `Origin` is a header. A browser
+    cannot forge either, but a script holding the key can send both. The list keeps the button
+    off another site's pages. What bounds a script is the per-visitor and per-widget
+    budgets, the plan's lines and the wallet. A tighter bound would need a challenge
+    a script cannot answer (a CAPTCHA, a proof of work), which is a product decision,
+    not one made here.
 - **CloudFront:** `/embed/*` gets its own behaviour with `EmbedHeadersPolicy`: the managed
   SecurityHeaders set **without** `X-Frame-Options`, which would blank the frame on every
   customer site. Every other path keeps `SAMEORIGIN`. `deploy-frontend.sh` uploads
@@ -203,7 +242,13 @@ for it ("From your website").
   environment before the widget works on a customer's site. Until then the frame is
   blocked by `X-Frame-Options`.
 - A carrier that shows the forwarding line as the caller turns away at most one real
-  caller per test, during the ring window.
-- Exit checks: `test/d17-channels.e2e.test.ts` (12 cases: call-my-phone 4, forwarding 3,
-  widget 5, the last being the D17 exit check). Unit: `call-my-phone.test.ts`,
-  `forwarding-test.test.ts`, `frontend/web/src/dashboard/caller.test.ts`.
+  caller per test, during the ring window — now enforced by the hot path consuming the
+  marker, not by a job that runs later.
+- A test call holds one of the plan's lines from its mint until `call_ended` frees it
+  (or its ceiling + 5 min passes), as a phone call always did.
+- Exit checks: `test/d17-channels.e2e.test.ts` (14 cases: call-my-phone 4, forwarding 4,
+  widget 6, the last being the D17 exit check) and the browser test's race in
+  `test/d9-test-call.e2e.test.ts`. Unit: `call-my-phone.test.ts`, `forwarding-test.test.ts`,
+  `call-headroom.test.ts` (`MintSlot`), `common/http/client-bucket.test.ts`,
+  `frontend/web/src/dashboard/caller.test.ts` (`callerLabel`, the one caller label every
+  list and drawer uses).

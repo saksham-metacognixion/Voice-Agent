@@ -1,6 +1,7 @@
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ERROR_STATUS } from '@portal/schemas';
 import { portalUrl } from '../env';
+import { clientBucket } from './client-bucket';
 
 /**
  * §6.2 "CSRF: … origin check on state-changing requests" and the API-wide request budget,
@@ -17,7 +18,8 @@ import { portalUrl } from '../env';
  * **Budget.** A fixed one-minute window per client IP (`API_RATE_LIMIT_PER_MIN`, default
  * 600, 0 turns it off) answers 429 `RATE_LIMITED` with `Retry-After`. `request.ip` is the
  * real client: Caddy trusts `X-Forwarded-For` only from private ranges and replaces it on
- * every public request, so the header cannot be rotated to dodge the window. Redis silent
+ * every public request, so the header cannot be rotated to dodge the window. An IPv6
+ * client is counted by its /64 (`clientBucket`), which a host can rotate through freely. Redis silent
  * or slow past 50 ms = allow (the cache never throws); a budget that fails closed would
  * turn a Redis blip into an outage of the whole portal.
  *
@@ -116,7 +118,7 @@ export function registerRequestLimits(
       if (limit <= 0) return;
       const at = now();
       const count = await deps.increment(
-        deps.windowKey(request.ip, Math.floor(at / RATE_LIMIT_WINDOW_MS)),
+        deps.windowKey(clientBucket(request.ip), Math.floor(at / RATE_LIMIT_WINDOW_MS)),
         2 * (RATE_LIMIT_WINDOW_MS / 1000),
         REDIS_BUDGET_MS,
       );
@@ -157,6 +159,6 @@ function refuse(
     .send({ code: verdict.code, message: MESSAGES[verdict.code] });
 }
 
-function normaliseOrigin(value: string): string {
+export function normaliseOrigin(value: string): string {
   return value.trim().replace(/\/+$/, '').toLowerCase();
 }

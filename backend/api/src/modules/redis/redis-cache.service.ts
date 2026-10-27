@@ -26,7 +26,8 @@ export interface ScanResult {
  * What this is *not*: a wrapper for BullMQ or pub/sub (D4). Those need the raw client
  * and their own failure semantics.
  */
-const RELEASE_LOCK_SCRIPT = `
+/** Compare-and-delete: `DEL key` only while it still holds `ARGV[1]`. 1 when this call deleted it. */
+export const RELEASE_LOCK_SCRIPT = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then
   return redis.call('DEL', KEYS[1])
 end
