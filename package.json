@@ -32,6 +32,7 @@
     "auth0:export": "node infra/scripts/auth0.mjs export",
     "auth0:plan": "node infra/scripts/auth0.mjs plan",
     "auth0:deploy": "node infra/scripts/auth0.mjs deploy",
+    "auth0:google-picker": "node infra/scripts/auth0.mjs google-picker",
     "verify:auth0": "pnpm --filter @portal/api verify:auth0",
     "dev:issuer": "node infra/scripts/local-issuer.mjs",
     "dev:issuer:staff": "LOCAL_ISSUER_MODE=staff node infra/scripts/local-issuer.mjs",

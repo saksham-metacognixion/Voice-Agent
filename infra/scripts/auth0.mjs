@@ -7,6 +7,8 @@
  *   pnpm auth0:export <customer|staff>       pull the live tenant into infra/auth0/export/<tenant>/
  *   pnpm auth0:plan   <customer|staff>       what a deploy would change, applying nothing
  *   pnpm auth0:deploy <customer|staff>       apply infra/auth0/tenant.<tenant>.yaml
+ *   pnpm auth0:google-picker <customer|staff> [--apply]
+ *                                            make Google show its account picker (see below)
  *
  * Always in that order the first time: the deploy CLI matches objects by NAME, so a
  * tenant.yaml written against the wrong names does not fail — it quietly creates a second
@@ -98,7 +100,7 @@ const MFA_SCOPES = [
 ];
 const RUNTIME_SCOPES = ['read:users', 'create:users', 'update:users', 'delete:users'];
 
-const [command, tenantArg] = process.argv.slice(2);
+const [command, tenantArg, ...flags] = process.argv.slice(2);
 
 try {
   switch (command) {
@@ -119,6 +121,9 @@ try {
     case 'deploy':
       await deploy(tenantName(tenantArg), { dryRun: false });
       break;
+    case 'google-picker':
+      await googlePicker(tenantName(tenantArg), { apply: flags.includes('--apply') });
+      break;
     default:
       usage();
   }
@@ -138,6 +143,7 @@ function usage() {
       '  pnpm auth0:export <customer|staff>',
       '  pnpm auth0:plan   <customer|staff>',
       '  pnpm auth0:deploy <customer|staff>',
+      '  pnpm auth0:google-picker <customer|staff> [--apply]',
       '',
       'See docs/runbooks/auth0.md.',
     ].join('\n'),
@@ -374,6 +380,92 @@ async function deploy(tenant, { dryRun }) {
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
+}
+
+/**
+ * Google's account picker on every "Continue with Google" (QA, 27 Oct): after "Sign out"
+ * on a wrong-email invite, Auth0's session was gone but Google's was not, so Google
+ * signed the same account straight back in and the invited address could never be
+ * chosen. `prompt=select_account` is Google's own parameter, and Auth0 forwards it only
+ * as a connection-level `upstream_params` entry — the /authorize `prompt` is Auth0's.
+ *
+ * Not in tenant.<tenant>.yaml: google-oauth2's options hold its client keys and are
+ * managed in the dashboard (see the `connections:` note there). So this reads the live
+ * options, adds the one entry and writes them back whole — Auth0 replaces `options` on
+ * PATCH, it does not merge. Without `--apply` it changes nothing.
+ */
+async function googlePicker(tenant, { apply }) {
+  const creds = credentials(tenant);
+  const { token, scopes } = await managementToken(creds);
+  const api = `https://${creds.domain}/api/v2`;
+  const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+
+  const listed = await fetch(`${api}/connections?strategy=google-oauth2&fields=id,name,options`, { headers });
+  if (!listed.ok) throw new Error(`reading connections: ${listed.status} ${await listed.text()}`);
+  const connections = await listed.json();
+  const google = connections.find((connection) => connection.name === 'google-oauth2');
+  if (!google) throw new Error(`${creds.domain} has no google-oauth2 connection.`);
+
+  // Without read:connections_options Auth0 leaves the keys out, and writing that back
+  // would erase them. With it, no keys means Auth0's shared development keys: nothing to
+  // lose, but Auth0 does not document upstream parameters for them, and they are not for
+  // production at all (no federated logout, MFA unreliable).
+  const options = google.options ?? {};
+  if (!options.client_id || !options.client_secret) {
+    if (!scopes.has('read:connections_options') || !scopes.has('update:connections_options')) {
+      throw new Error(
+        'google-oauth2 came back without its client keys and the M2M app lacks\n' +
+          '  read:connections_options / update:connections_options. Writing these options back\n' +
+          '  would lose the keys — nothing was changed.',
+      );
+    }
+    console.log(
+      "! google-oauth2 runs on Auth0's development keys. Auth0 does not say it forwards\n" +
+        '  upstream_params for them, and they must be replaced with our own Google OAuth client\n' +
+        '  before production. Check the picker after applying.\n',
+    );
+  }
+
+  const current = options.upstream_params ?? {};
+  console.log(`${creds.domain} google-oauth2 upstream_params: ${JSON.stringify(current)}`);
+  if (current.prompt?.value === 'select_account') {
+    console.log('✓ Google already shows its account picker. Nothing to do.');
+    return;
+  }
+
+  const upstream = { ...current, prompt: { value: 'select_account' } };
+  if (!apply) {
+    console.log(`Would set:                       ${JSON.stringify(upstream)}`);
+    console.log(`\nNothing was changed. \`pnpm auth0:google-picker ${tenant} --apply\` applies it.`);
+    return;
+  }
+
+  const patched = await fetch(`${api}/connections/${google.id}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify({ options: { ...options, upstream_params: upstream } }),
+  });
+  if (!patched.ok) throw new Error(`updating google-oauth2: ${patched.status} ${await patched.text()}`);
+  const after = (await patched.json()).options?.upstream_params ?? {};
+  console.log(`✓ upstream_params now:           ${JSON.stringify(after)}`);
+}
+
+async function managementToken(creds) {
+  const response = await fetch(`https://${creds.domain}/oauth/token`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'client_credentials',
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
+      audience: `https://${creds.domain}/api/v2/`,
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(`${creds.domain} refused the client credentials: ${body.error ?? response.status} ${body.error_description ?? ''}`);
+  }
+  return { token: body.access_token, scopes: new Set((body.scope ?? '').split(' ').filter(Boolean)) };
 }
 
 /**

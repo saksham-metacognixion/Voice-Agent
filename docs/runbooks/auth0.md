@@ -106,6 +106,12 @@ Not managed, on purpose:
 
 - **Social connection `options`** (Google/Microsoft client keys). They are secrets that
   belong in the dashboard, and a deploy that sent an empty `options` block would wipe them.
+  The one option we do set there is Google's account picker (`upstream_params.prompt =
+  select_account`), with `pnpm auth0:google-picker customer` (shows the change) and
+  `--apply` (writes it, keys preserved). Without it, "Sign out" on a wrong-email invite
+  left Google's own session alive and "Continue with Google" signed the same account
+  straight back in, with no way to pick the invited one (QA, 27 Oct). The dashboard has
+  no field for it — run the command again after the connection is recreated.
 - **The M2M application itself.** A configuration that can rewrite its own credentials can
   lock itself out.
 - **Anything with `delete:`.** Removing an application or a connection is a decision

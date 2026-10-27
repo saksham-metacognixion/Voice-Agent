@@ -119,7 +119,9 @@ connections:
   # enabled for "Voice Agent"). Listed here without `options`, a0deploy sent an empty
   # options object once the M2M app could read connection options, and the Management API
   # answered 400 "Too few properties defined (0)" (30 Sep 2026). AUTH0_ALLOW_DELETE is
-  # false, so leaving it out of this file deletes nothing.
+  # false, so leaving it out of this file deletes nothing. Its one setting of ours —
+  # upstream_params.prompt = select_account, Google's account picker on every sign-in —
+  # is written by `pnpm auth0:google-picker customer --apply` (docs/runbooks/auth0.md §3).
 
 # §6.2 rate limiting: "login 5 failures / 15 min per email+IP, then CAPTCHA; sign-up
 # 3 / hour / IP". Brute force counts per email+IP and blocks at the fifth failure (Auth0
