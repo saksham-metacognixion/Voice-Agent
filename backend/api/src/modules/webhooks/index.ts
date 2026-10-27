@@ -9,3 +9,5 @@ export type { RetellHandlerOutcome } from './retell-events.handler';
 export { WebhookProcessingService, SWEEP_AFTER_MS } from './webhook-processing.service';
 export { CallRecoveryService, RECOVER_ANALYSIS_AFTER_MS, RECOVER_ENDED_AFTER_MS, RECOVER_ONE_ENDED_AFTER_MS, RECOVER_ONE_ANALYSIS_AFTER_MS, RECOVER_UNFINISHED_AFTER_MS, RECOVER_NOT_FOUND_CHECKS_IN_PROGRESS, RECOVER_BATCH } from './call-recovery.service';
 export type { CallRecoveryOutcome } from './call-recovery.service';
+export { webhookTenantHint } from './webhook-tenant';
+export type { WebhookTenantHint } from './webhook-tenant';

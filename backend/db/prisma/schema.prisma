@@ -397,6 +397,7 @@ model Tenant {
   creditLedger         CreditLedger[]
   purchases            Purchase[]
   jobs                 Job[]
+  webhookEvents        WebhookEvent[]
   alerts               Alert[]
   notifications        Notification[]
   customDeal           CustomDeal?            @relation("TenantCustomDeal", fields: [customDealId], references: [id], onDelete: SetNull)
@@ -974,9 +975,17 @@ model WebhookEvent {
   receivedAt  DateTime  @default(now()) @map("received_at")
   processedAt DateTime? @map("processed_at")
   error       String?
+  /// The workspace the event was settled against, written once it is processed — for a
+  /// call, the workspace `calls` billed it to, which a call let through without metadata
+  /// only reveals after the agent / number fallback (ADR 0011 §2). Null until then, and
+  /// for events that belong to no workspace (`auth`). SA12 reads it before the payload.
+  tenantId    String?   @map("tenant_id") @db.Uuid
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 
   @@unique([provider, externalId, eventType])
   @@index([provider, receivedAt])
+  @@index([tenantId, receivedAt(sort: Desc)])
   @@map("webhook_events")
 }
 

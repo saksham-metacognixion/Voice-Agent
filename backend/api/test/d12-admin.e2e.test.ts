@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
 import { JOBS, JobQueues, JobRecordsService } from '../src/modules/jobs';
 import { RedisCache, redisKeys } from '../src/modules/redis';
-import { WebhookEventsService } from '../src/modules/webhooks';
+import { WebhookEventsService, WebhookProcessingService } from '../src/modules/webhooks';
 import { Auth0ManagementService } from '../src/modules/auth';
 import { type D5Harness, startD5Harness } from './d5-fixtures';
 import { paidWorkspace, type PaidWorkspace } from './d6-fixtures';
@@ -898,6 +898,70 @@ describe('SA12 jobs and webhook events', () => {
     const list = await call('GET', `/admin/customers/${ws.workspaceId}/webhook-events`, staff.readOnly.token);
     expect(list.status).toBe(200);
     expect(leaked(list)).toBe(false);
+  });
+
+  it('names the customer a call was billed to when the call carried no metadata, on every event of it (QA: "Webhook events list shows no Customer")', async () => {
+    const events = h.app.get(WebhookEventsService);
+    const processing = h.app.get(WebhookProcessingService);
+    // Its own workspace: the call is billed, and later suites assert the shared one's balance.
+    const tag = randomUUID().replace(/-/g, '').slice(0, 8);
+    const own = await paidWorkspace(h.app, `d12-nometa-${tag}`, 'growth');
+    await adminDb.tenant.update({ where: { id: own.workspaceId }, data: { name: `D12 Nometa ${tag}` } });
+    const retellAgentId = `agent_nometa_${tag}`;
+    const ownAgent = await adminDb.agent.create({
+      data: { tenantId: own.workspaceId, name: 'Front desk', status: 'live', tier: 'standard', publishedVersion: 1, draftVersion: 1, retellAgentId, retellLlmId: `llm_nometa_${tag}` },
+    });
+    await adminDb.agentVersion.create({ data: { agentId: ownAgent.id, versionNo: 1, source: 'generated', briefJson: {}, promptText: 'You are the front desk.', publishedAt: new Date() } });
+    const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+    await adminDb.phoneNumber.create({
+      data: { tenantId: own.workspaceId, agentId: ownAgent.id, e164, type: 'retell_twilio', status: 'active', inboundToken: `tok_nometa_${tag}`, country: 'CA' },
+    });
+    const callId = `call_nometa_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+    const start = Date.now() - 120_000;
+    // A fail-open or a recovered call: no `metadata` at all, so the workspace is only found
+    // through the agent / number fallback (ADR 0011 §2).
+    const call_ = (extra: Record<string, unknown>) => ({
+      call_id: callId,
+      call_type: 'phone_call',
+      direction: 'inbound',
+      agent_id: retellAgentId,
+      from_number: '+14165550199',
+      to_number: e164,
+      start_timestamp: start,
+      ...extra,
+    });
+    const deliver = async (eventType: string, payload: unknown) => {
+      const stored = await events.store({ provider: 'retell', externalId: callId, eventType, payload });
+      await processing.process(stored.id);
+      return stored.id;
+    };
+
+    // A transfer event before the call has a row: settled as deferred, nobody to name yet.
+    const transferId = await deliver('transfer_cancelled', { event: 'transfer_cancelled', event_timestamp: start + 30_000, call: { call_id: callId } });
+    expect((await adminDb.webhookEvent.findUniqueOrThrow({ where: { id: transferId } })).tenantId).toBeNull();
+
+    const startedId = await deliver('call_started', { event: 'call_started', event_timestamp: start, call: call_({ call_status: 'ongoing' }) });
+    const endedId = await deliver('call_ended', {
+      event: 'call_ended',
+      event_timestamp: start + 60_000,
+      call: call_({ call_status: 'ended', end_timestamp: start + 60_000, disconnection_reason: 'user_hangup' }),
+    });
+    const billed = await adminDb.call.findUniqueOrThrow({ where: { id: callId } });
+    expect(billed.tenantId).toBe(own.workspaceId);
+    expect(Number(billed.creditsCharged)).toBeGreaterThan(0);
+
+    // SA12's list names the customer on every event of the call, the early transfer included.
+    const found = await call('GET', `/admin/webhook-events?q=${callId}`, staff.readOnly.token);
+    expect(found.status).toBe(200);
+    const rows = found.body.items as Array<{ id: string; tenant_id: string | null; tenant_name: string | null }>;
+    expect(rows.map((r) => r.id).sort()).toEqual([transferId, startedId, endedId].sort());
+    for (const r of rows) expect(r).toMatchObject({ tenant_id: own.workspaceId, tenant_name: `D12 Nometa ${tag}` });
+
+    // And the Customer 360 "Webhooks" tab finds them.
+    const tab = await call('GET', `/admin/customers/${own.workspaceId}/webhook-events?limit=100`, staff.readOnly.token);
+    expect(tab.status).toBe(200);
+    const onTab = (tab.body.items as Array<{ id: string }>).map((r) => r.id);
+    for (const id of [transferId, startedId, endedId]) expect(onTab).toContain(id);
   });
 });
 

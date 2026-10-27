@@ -199,3 +199,26 @@ prod tenants were not checked.
 - Not in D12: notes and flags editing, tickets (SA4), refunds (SA9), overrides (`PUT
   …/overrides`), lot extension, anonymise, number release/resync from the console, recording
   access with a ticket, act-as, staff management (SA13) — P2 per admin §11.
+
+## Addendum, 27 Oct 2026: a webhook event names the workspace it was billed to
+
+QA (ClickUp "Webhook events list shows no Customer for a call that was billed to a
+workspace"): on SA12 the three events of a call billed to Bright Smile Dental Clinic showed
+"–" under Customer and were missing from that customer's Webhooks tab. The console read the
+workspace out of the payload only (`call.metadata.tenant_id`), and a call let through
+without metadata — a fail-open, or an event `call-recovery` stored — carries none; billing
+finds its workspace through the agent / number fallback (ADR 0011 §2).
+
+- `webhook_events.tenant_id` (nullable, `SET NULL`, indexed with `received_at`), migration
+  `20261027180000_webhook_events_tenant`, backfilled from `calls` (Retell), then our
+  metadata, then the Stripe customer.
+- Written after the handler by `WebhookEventsService.attribute()`, from the queue and from
+  an SA12 replay, never failing the event. Retell: the `calls` row's workspace, on every row
+  of the call still without one, so a transfer event settled as deferred is named when its
+  `call_ended` lands. Stripe: our metadata, else the workspace holding the object's
+  customer. Auth events name none.
+- The list, the customer filter, the event detail and the replay audit read the column
+  first and fall back to the payload (`webhookTenantHint`) for a row not attributed yet; a
+  row attributed to one workspace never matches another on its payload.
+- Test: `test/d12-admin.e2e.test.ts`, "names the customer a call was billed to when the call
+  carried no metadata".

@@ -1049,6 +1049,14 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   blanked (`webhook-payload.ts`) unless the role has `can_listen_recordings`, and every
   view writes `webhook.payload_viewed` (outcome and field names, never values). The list
   and the replay answer carry no body.
+- **A webhook event's customer is `webhook_events.tenant_id`**, written by
+  `WebhookEventsService.attribute()` after the handler (queue and SA12 replay): for a call,
+  the workspace `calls` billed it to, on every row of that call still without one (a transfer
+  event stored before the row is named when `call_ended` lands); Stripe, our metadata else the
+  object's customer. The SA12 list, the Customer 360 Webhooks tab and the replay audit read
+  it first and the payload (`webhookTenantHint`) only for a row not attributed yet. The
+  payload alone showed "–" for a fail-open or recovered call billed through the agent /
+  number fallback (ADR 0021 addendum, 27 Oct).
 - Reads cross workspaces on `adminDb`; writes reuse the customer path's services: credits
   through `WalletService.withWallet` (a `credit_adjustments` row references the ledger row,
   same transaction), pause/resume through `runtime-cache.refresh`, switches through

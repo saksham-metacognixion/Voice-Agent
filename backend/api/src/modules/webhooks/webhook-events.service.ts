@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Prisma, adminDb } from '@portal/db';
+import { webhookTenantHint } from './webhook-tenant';
 
 export type WebhookProviderName = 'retell' | 'stripe' | 'auth';
 
@@ -81,6 +82,56 @@ export class WebhookEventsService {
   markFailed(id: string, error: unknown): Promise<unknown> {
     const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
     return adminDb.webhookEvent.update({ where: { id }, data: { error: message.slice(0, 2000) } });
+  }
+
+  /**
+   * Records which workspace a processed event was settled against (`webhook_events.tenant_id`),
+   * so SA12 names the customer the call was billed to. Run after the handler, not before:
+   * for a call let through without metadata only the `calls` row knows (ADR 0011 §2).
+   *
+   *   - voice platform: the `calls` row's workspace, written on **every** row of the call
+   *     still without one — a transfer event stored before the row existed is named when
+   *     its `call_ended` lands; else our metadata, for an event with no call row
+   *   - Stripe: our metadata, else the workspace holding the object's customer
+   *   - auth: none
+   *
+   * Never fails the event: it is processed already, and the console falls back to the
+   * payload. Returns the workspace, or null when there is none to name.
+   */
+  async attribute(row: { id: string; provider: string; externalId: string; payloadJson: unknown }): Promise<string | null> {
+    try {
+      const hint = webhookTenantHint(row.provider, row.payloadJson);
+      if (row.provider === 'retell') {
+        const call = await adminDb.call.findUnique({ where: { id: row.externalId }, select: { tenantId: true } });
+        const tenantId = call?.tenantId ?? (await this.existingTenant(hint.tenantId));
+        if (!tenantId) return null;
+        await adminDb.webhookEvent.updateMany({
+          where: call ? { provider: 'retell', externalId: row.externalId, tenantId: null } : { id: row.id, tenantId: null },
+          data: { tenantId },
+        });
+        return tenantId;
+      }
+      if (row.provider === 'stripe') {
+        const tenantId =
+          (await this.existingTenant(hint.tenantId)) ??
+          (hint.stripeCustomerId
+            ? ((await adminDb.tenant.findUnique({ where: { stripeCustomerId: hint.stripeCustomerId }, select: { id: true } }))?.id ?? null)
+            : null);
+        if (!tenantId) return null;
+        await adminDb.webhookEvent.updateMany({ where: { id: row.id, tenantId: null }, data: { tenantId } });
+        return tenantId;
+      }
+      return null;
+    } catch (error) {
+      this.log.warn(`webhook ${row.id}: workspace not recorded: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+  }
+
+  /** A workspace id the payload names, if that workspace exists (the column is a foreign key). */
+  private async existingTenant(id: string | null): Promise<string | null> {
+    if (!id) return null;
+    return (await adminDb.tenant.findUnique({ where: { id }, select: { id: true } }))?.id ?? null;
   }
 
   /**

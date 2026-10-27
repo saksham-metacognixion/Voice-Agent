@@ -13,16 +13,20 @@ import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import type { StaffContext } from '../auth';
 import { JobQueues, QUEUES } from '../jobs';
-import { WebhookProcessingService } from '../webhooks';
-import { iso, record, uuidParam, idMatch } from './admin.helpers';
+import { WebhookProcessingService, webhookTenantHint } from '../webhooks';
+import { iso, uuidParam, idMatch } from './admin.helpers';
 import { StaffAuditService } from './staff-audit.service';
 import { StaffLimitsService } from './staff-limits.service';
 import { redactWebhookPayload } from './webhook-payload';
 
 /**
  * SA12 "Webhook events" (D12 §11). The rows are `webhook_events` as the receivers store
- * them (§13.10); the workspace is read out of the payload, because the table carries
- * none — Stripe puts ours in `metadata.workspace_id`, Retell in `call.metadata.tenant_id`.
+ * them (§13.10). The customer is `webhook_events.tenant_id`, which the worker writes once
+ * the event is processed — for a call, the workspace `calls` billed it to, found by the
+ * agent / number fallback when the call carried no metadata (ADR 0011 §2). A row not
+ * settled yet falls back to what its payload says (`webhookTenantHint`): Stripe's
+ * `metadata.workspace_id`, Retell's `call.metadata.tenant_id`. Reading the payload alone
+ * showed "–" for a call billed to a workspace, and left it off that customer's tab.
  * Replay runs the stored body through the same handler the queue runs
  * (`WebhookProcessingService.replay`), inline, so the staff member sees the outcome.
  *
@@ -57,21 +61,29 @@ export class AdminWebhooksService {
         ...idMatch(query.q),
       ];
     if (query.tenant_id) {
+      // The settled workspace, or — for a row the worker has not attributed yet — what the
+      // payload names. A row attributed to another workspace never matches on its payload.
       where.AND = [
         {
           OR: [
+            { tenantId: query.tenant_id },
             {
-              payloadJson: {
-                path: ['data', 'object', 'metadata', 'workspace_id'],
-                equals: query.tenant_id,
-              },
-            },
-            { payloadJson: { path: ['call', 'metadata', 'tenant_id'], equals: query.tenant_id } },
-            {
-              payloadJson: {
-                path: ['data', 'object', 'metadata', 'tenant_id'],
-                equals: query.tenant_id,
-              },
+              tenantId: null,
+              OR: [
+                {
+                  payloadJson: {
+                    path: ['data', 'object', 'metadata', 'workspace_id'],
+                    equals: query.tenant_id,
+                  },
+                },
+                { payloadJson: { path: ['call', 'metadata', 'tenant_id'], equals: query.tenant_id } },
+                {
+                  payloadJson: {
+                    path: ['data', 'object', 'metadata', 'tenant_id'],
+                    equals: query.tenant_id,
+                  },
+                },
+              ],
             },
           ],
         },
@@ -130,7 +142,7 @@ export class AdminWebhooksService {
     const row = await adminDb.webhookEvent.findUnique({ where: { id } });
     if (!row) throw AppError.notFound('Webhook event');
     const before = { processed_at: iso(row.processedAt), error: row.error };
-    const tenantId = this.tenantOf(row.provider, row.payloadJson);
+    const tenantId = this.tenantOf(row);
     // A replay runs the handler's own transactions (a credit, a call row), which no audit
     // write can join. The request is therefore recorded *before* anything runs — no audit
     // row, no write — and the outcome as a second row once the handler has answered.
@@ -154,12 +166,14 @@ export class AdminWebhooksService {
         reason: error instanceof Error ? error.message : String(error),
       };
     }
+    // The replay may have just attributed the row (`WebhookEventsService.attribute`).
+    const fresh = await adminDb.webhookEvent.findUniqueOrThrow({ where: { id } });
     await this.audit.record({
       staff,
       action: 'webhook.replayed',
       targetType: 'webhook_event',
       targetId: id,
-      tenantId,
+      tenantId: this.tenantOf(fresh) ?? tenantId,
       reasonCode: body.reason_code,
       note: body.note,
       before,
@@ -170,7 +184,6 @@ export class AdminWebhooksService {
       `webhook ${id} (${row.provider} ${row.eventType}) replayed by ${staff.email}: ${result.outcome}`,
     );
     // The row as it is now, without its body: a replay is not a payload view.
-    const fresh = await adminDb.webhookEvent.findUniqueOrThrow({ where: { id } });
     const [event] = await this.decorate([fresh]);
     return { event: event!, outcome: result.outcome, reason: result.reason ?? null };
   }
@@ -185,12 +198,13 @@ export class AdminWebhooksService {
       receivedAt: Date;
       processedAt: Date | null;
       error: string | null;
+      tenantId: string | null;
     }>,
   ): Promise<AdminWebhookEventResponse[]> {
     const tenantIds = [
       ...new Set(
         rows
-          .map((r) => this.tenantOf(r.provider, r.payloadJson))
+          .map((r) => this.tenantOf(r))
           .filter((x): x is string => Boolean(x)),
       ),
     ];
@@ -203,7 +217,7 @@ export class AdminWebhooksService {
     const names = new Map(tenants.map((t) => [t.id, t.name]));
     return Promise.all(
       rows.map(async (r) => {
-        const tenantId = this.tenantOf(r.provider, r.payloadJson);
+        const tenantId = this.tenantOf(r);
         const queueState = r.processedAt
           ? null
           : await this.queues.stateOf(QUEUES.webhooks, `wh-${r.id}`, 300);
@@ -225,18 +239,8 @@ export class AdminWebhooksService {
     );
   }
 
-  private tenantOf(provider: string, payload: unknown): string | null {
-    const p = record(payload);
-    const candidates =
-      provider === 'stripe'
-        ? [
-            record(record(record(p.data).object).metadata).workspace_id,
-            record(record(record(p.data).object).metadata).tenant_id,
-          ]
-        : provider === 'retell'
-          ? [record(record(p.call).metadata).tenant_id]
-          : [];
-    const found = candidates.find((c) => typeof c === 'string' && /^[0-9a-f-]{36}$/i.test(c));
-    return typeof found === 'string' ? found : null;
+  /** The settled workspace, else what the payload names (a row the worker has not attributed yet). */
+  private tenantOf(row: { provider: string; payloadJson: unknown; tenantId: string | null }): string | null {
+    return row.tenantId ?? webhookTenantHint(row.provider, row.payloadJson).tenantId;
   }
 }

@@ -46,6 +46,7 @@ export class WebhookProcessingService {
     if (row.processedAt) return { outcome: 'ignored', reason: 'already processed' };
 
     const result = await this.events.process(row.id, () => this.dispatch(row));
+    await this.events.attribute(row);
     this.log.log(`${row.provider} ${row.eventType} ${row.externalId}: ${JSON.stringify(result)}`);
     return result as { outcome: string; reason?: string };
   }
@@ -65,6 +66,9 @@ export class WebhookProcessingService {
     });
     if (!row) return { outcome: 'ignored', reason: `webhook_events ${eventId} does not exist` };
     const result = await this.events.process(row.id, () => this.dispatch(row));
+    // A replay is how a row from before `tenant_id` existed, or one settled while its call
+    // had no row yet, gets its workspace too.
+    await this.events.attribute(row);
     this.log.warn(`replay ${row.provider} ${row.eventType} ${row.externalId}: ${JSON.stringify(result)}`);
     return result as { outcome: string; reason?: string };
   }
