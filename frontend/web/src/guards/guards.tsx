@@ -179,7 +179,10 @@ export function AppGuard({ children }: { children: React.ReactNode }) {
 /**
  * The opposite guard, for /login and /signup: a signed-in person is sent on to `?next=`
  * when it is a safe same-origin path (QA-001), else to where they belong, instead of
- * seeing a sign-in button.
+ * seeing a sign-in button. Only an anonymous visitor ever sees the page: while the
+ * workspace is still loading a signed-in person gets the loader — the form used to show
+ * for those two round trips, and for good when they failed — and a gate that could not
+ * be read sends them to `/`, which says so and offers a retry (QA-012).
  */
 export function RedirectIfSignedIn({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
@@ -189,13 +192,14 @@ export function RedirectIfSignedIn({ children }: { children: React.ReactNode }) 
   const gate = useSessionGate(pathname);
   // Read once; the prerendered HTML has no query, and this only matters once signed in.
   const next = React.useMemo(() => readQuery().get('next'), []);
-  const target = auth.status === 'authenticated' ? signedInDestination(next, gate.ready ? gate.destination : null) : null;
+  const gateDestination = gate.ready ? (gate.destination ?? routes.root) : null;
+  const target = auth.status === 'authenticated' ? signedInDestination(next, gateDestination) : null;
 
   React.useEffect(() => {
     if (target) router.replace(target);
   }, [target, router]);
 
-  if (auth.status === 'loading' || target) return <PageLoader label={t('common.loading')} />;
+  if (auth.status !== 'anonymous') return <PageLoader label={t('common.loading')} />;
   return <>{children}</>;
 }
 
