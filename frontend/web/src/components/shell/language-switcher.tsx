@@ -6,11 +6,11 @@ import {
 import { Languages } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { track } from '@/src/analytics/posthog';
-import { LOCALE_NAMES, isLocale, type Locale } from '@/src/i18n';
+import { LOCALE_NAMES, isLocale, localeDirection, type Locale } from '@/src/i18n';
 import { useLocaleChoice } from '@/src/i18n/locale-provider';
 
 /**
- * English / العربية. The choice is per browser (localStorage, like the theme) and applies in
+ * English / العربية / Français. The choice is per browser (localStorage, like the theme) and applies in
  * place: no navigation, so the URL, its query and anything typed into a form are kept.
  * Each language is named in itself, so a reader who cannot read the current one can still
  * find their own.
@@ -39,7 +39,7 @@ export function LanguageMenu({ className }: { className?: string }) {
       <DropdownMenuContent align="end" className="min-w-[9rem]">
         <DropdownMenuRadioGroup value={locale} onValueChange={choose}>
           {locales.map((l) => (
-            <DropdownMenuRadioItem key={l} value={l} lang={l} dir={l === 'ar' ? 'rtl' : 'ltr'}>
+            <DropdownMenuRadioItem key={l} value={l} lang={l} dir={localeDirection(l)}>
               {LOCALE_NAMES[l]}
             </DropdownMenuRadioItem>
           ))}

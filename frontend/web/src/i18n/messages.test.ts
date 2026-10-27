@@ -1,7 +1,7 @@
 import { createTranslator } from 'next-intl';
 import { afterEach, describe, expect, it } from 'vitest';
 import { formatCreditsValue, formatPhone } from '../lib/format';
-import { LOCALES, intlLocale, localeBootScript, localeDirection, messages, resolveLocale, setActiveLocale } from './index';
+import { LOCALES, intlLocale, localeBootScript, localeDirection, matchLocale, messages, resolveLocale, setActiveLocale } from './index';
 
 type Tree = { [key: string]: Tree | string | string[] };
 
@@ -78,9 +78,20 @@ describe('locale resolution', () => {
     expect(resolveLocale(null, [])).toBe('en');
   });
 
+  it('reads Canadian French for any French browser, and only an exact stored id', () => {
+    expect(resolveLocale(null, ['fr-CA', 'en'])).toBe('fr-CA');
+    expect(resolveLocale(null, ['fr-FR'])).toBe('fr-CA');
+    expect(resolveLocale(null, ['FR'])).toBe('fr-CA');
+    expect(resolveLocale('fr-CA', ['en-US'])).toBe('fr-CA');
+    expect(resolveLocale('fr', ['en-US'])).toBe('en');
+    expect(matchLocale('ar-AE')).toBe('ar');
+    expect(matchLocale('es-ES')).toBeNull();
+  });
+
   it('writes Arabic right to left with Western digits', () => {
     expect(localeDirection('ar')).toBe('rtl');
     expect(localeDirection('en')).toBe('ltr');
+    expect(localeDirection('fr-CA')).toBe('ltr');
     expect(intlLocale('ar')).toBe('ar-u-nu-latn');
   });
 
@@ -89,7 +100,9 @@ describe('locale resolution', () => {
     const run = new Function('localStorage', 'navigator', 'document', localeBootScript);
     run({ getItem: () => 'ar' }, { languages: ['en-US'] }, { documentElement: html });
     expect(html).toEqual({ lang: 'ar', dir: 'rtl' });
-    run({ getItem: () => null }, { languages: ['fr-CA', 'en'] }, { documentElement: html });
+    run({ getItem: () => null }, { languages: ['fr-FR', 'en'] }, { documentElement: html });
+    expect(html).toEqual({ lang: 'fr-CA', dir: 'ltr' });
+    run({ getItem: () => null }, { languages: ['de-DE'] }, { documentElement: html });
     expect(html).toEqual({ lang: 'en', dir: 'ltr' });
   });
 });

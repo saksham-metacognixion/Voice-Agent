@@ -9,8 +9,13 @@ const PREFERRED: AgentLanguage[] = ['en-US', 'en-GB', 'en-AU', 'en-IN', 'fr-CA',
 /** The Gulf Arabics (ADR 0027): first for someone using the portal in Arabic, after the launch set otherwise. */
 const GULF: AgentLanguage[] = ['ar-SA', 'ar-AE'];
 
+/** The French ones, Quebec first: at the top for someone using the portal in French. */
+const FRENCH: AgentLanguage[] = ['fr-CA', 'fr-FR'];
+
 function preferred(portal: Locale): AgentLanguage[] {
-  return portal === 'ar' ? [...GULF, ...PREFERRED] : [...PREFERRED, ...GULF];
+  if (portal === 'ar') return [...GULF, ...PREFERRED];
+  if (portal === 'fr-CA') return [...FRENCH, ...PREFERRED.filter((l) => !FRENCH.includes(l)), ...GULF];
+  return [...PREFERRED, ...GULF];
 }
 
 /** One `Intl.DisplayNames` per portal language: the list reads "French (Canada)" or "الفرنسية (كندا)". */

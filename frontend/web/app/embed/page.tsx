@@ -7,7 +7,7 @@ import { Mic, PhoneOff } from 'lucide-react';
 import { NextIntlClientProvider, useTranslations } from 'next-intl';
 import * as React from 'react';
 import { config } from '@/src/config';
-import { intlLocale, localeDirection, messages, type Locale } from '@/src/i18n';
+import { DEFAULT_LOCALE, intlLocale, localeDirection, matchLocale, messages, type Locale } from '@/src/i18n';
 import { useLocaleChoice } from '@/src/i18n/locale-provider';
 import { FRAME_MAX_PX, FRAME_PADDING_PX, HIDDEN_FRAME, type FrameSize, frameSize } from '@/src/widget/frame-size';
 import { useWidgetCall, type WidgetCallFailure } from '@/src/widget/use-widget-call';
@@ -49,7 +49,7 @@ export default function EmbedPage() {
       .catch(() => setWidget('missing'));
   }, [api]);
 
-  const locale: Locale = widget && widget !== 'missing' ? (widget.language.toLowerCase().startsWith('ar') ? 'ar' : 'en') : visitor;
+  const locale: Locale = widget && widget !== 'missing' ? (matchLocale(widget.language) ?? DEFAULT_LOCALE) : visitor;
   React.useLayoutEffect(() => {
     document.documentElement.lang = locale;
     document.documentElement.dir = localeDirection(locale);

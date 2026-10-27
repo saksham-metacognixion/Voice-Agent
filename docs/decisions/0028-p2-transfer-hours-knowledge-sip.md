@@ -125,6 +125,9 @@ What the platform actually sends was read before building, not assumed:
 
 ### 5. Arabic, not fr-CA
 
+> Amended later on 27 Oct by ADR 0030: the owner asked for French back as well, so the
+> portal now ships `fr-CA` beside Arabic.
+
 No `fr-CA` locale is wired in; every D16 string ships in `en.json` and `ar.json` with full
 Arabic plural forms. `messages.test.ts` gained a check every locale runs: no straight
 apostrophe before `{`/`}`, which ICU reads as a quote and prints the placeholder literally.

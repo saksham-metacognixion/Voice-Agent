@@ -25,4 +25,10 @@ describe('sortedLanguages (ADR 0027)', () => {
     expect(en[0]).toBe('en-US');
     expect(en.indexOf('ar-SA')).toBe(en.indexOf('de-DE') + 1);
   });
+
+  it('puts the French ones first, Quebec on top, for someone using the portal in French', () => {
+    const fr = sortedLanguages('fr-CA');
+    expect(fr.slice(0, 3)).toEqual(['fr-CA', 'fr-FR', 'en-US']);
+    expect(new Set(fr).size).toBe(fr.length);
+  });
 });

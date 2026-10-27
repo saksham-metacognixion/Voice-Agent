@@ -1,0 +1,2717 @@
+{
+  "common": {
+    "appName": "Oraly",
+    "tagline": "Des conversations humaines. De vrais résultats.",
+    "loading": "Chargement…",
+    "retry": "Réessayer",
+    "back": "Retour",
+    "continue": "Continuer",
+    "cancel": "Annuler",
+    "close": "Fermer",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "saving": "Enregistrement…",
+    "unsaved": "Modifications non enregistrées",
+    "saveFailed": "Impossible d’enregistrer",
+    "optional": "Facultatif",
+    "signIn": "Se connecter",
+    "signUp": "Créer un compte",
+    "signOut": "Se déconnecter",
+    "dashboard": "Tableau de bord",
+    "comingSoon": "Bientôt disponible",
+    "unknownError": "Un problème est survenu.",
+    "play": "Écouter",
+    "pause": "Pause",
+    "sampleUnavailable": "Extrait non disponible",
+    "remove": "Retirer",
+    "add": "Ajouter",
+    "premium": "Premium",
+    "standard": "Standard",
+    "premiumRate": "1,5× crédits",
+    "standardRate": "1× crédits",
+    "theme": {
+      "light": "Clair",
+      "dark": "Sombre",
+      "system": "Système",
+      "toggle": "Changer de thème"
+    },
+    "stepOf": "Étape {n} sur {total}",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "pageN": "Page {n}",
+    "copy": "Copier",
+    "copied": "Copié",
+    "show": "Afficher",
+    "hide": "Masquer",
+    "yes": "Oui",
+    "no": "Non",
+    "none": "Aucun",
+    "actions": "Actions",
+    "open": "Ouvrir",
+    "unsavedChanges": "Vous avez des modifications non enregistrées.",
+    "progress": "Progression",
+    "language": "Langue",
+    "changeLanguage": "Changer de langue",
+    "listSeparator": ", ",
+    "photo": "Photo"
+  },
+  "nav": {
+    "home": "Accueil",
+    "calls": "Appels",
+    "agents": "Agents",
+    "numbers": "Numéros de téléphone",
+    "wallet": "Portefeuille et facturation",
+    "settings": "Paramètres",
+    "help": "Aide",
+    "build": "Créer",
+    "operate": "Gérer",
+    "account": "Compte",
+    "workspace": "Espace de travail",
+    "switchWorkspace": "Changer d’espace de travail",
+    "switchWorkspaceCurrent": "Changer d’espace de travail (actuel : {name})",
+    "createWorkspace": "Nouvel espace de travail",
+    "openMenu": "Ouvrir le menu",
+    "closeMenu": "Fermer le menu",
+    "openNavigation": "Ouvrir la navigation",
+    "signedInAs": "Connecté en tant que",
+    "main": "Principal",
+    "more": "Plus",
+    "moreHint": "Le reste du tableau de bord.",
+    "short": {
+      "home": "Accueil",
+      "calls": "Appels",
+      "agents": "Agents",
+      "numbers": "Numéros",
+      "wallet": "Portefeuille",
+      "settings": "Paramètres",
+      "help": "Aide"
+    }
+  },
+  "shell": {
+    "balance": "{credits} crédits",
+    "balanceTitle": "Solde de crédits",
+    "balanceUnavailable": "Solde non disponible",
+    "trial": "Essai gratuit",
+    "planTier": "Formule {tier}",
+    "pausedBanner": "Cet espace de travail est en pause. Votre agent ne répond pas aux appels.",
+    "pausedReason": "Motif : {reason}",
+    "finishSetup": "Votre agent n’est pas encore en service.",
+    "finishSetupCta": "Poursuivre la configuration",
+    "live": "En direct",
+    "reconnecting": "Reconnexion…",
+    "dismiss": "Ignorer",
+    "role": {
+      "owner": "Propriétaire",
+      "admin": "Administrateur",
+      "editor": "Éditeur",
+      "viewer": "Lecteur"
+    },
+    "tier": {
+      "trial": "Essai",
+      "starter": "Starter",
+      "growth": "Growth",
+      "scale": "Scale",
+      "pro": "Pro",
+      "volume": "Volume"
+    },
+    "balanceAria": "Solde : {credits} crédits. Ouvrir le portefeuille."
+  },
+  "auth": {
+    "brand": "De la conversation à l’action.",
+    "brandPoints": {
+      "one": "Décrivez votre entreprise en mots simples.",
+      "two": "Écoutez votre agent répondre avant de payer quoi que ce soit.",
+      "three": "Mettez-le en service sur un vrai numéro de téléphone quand vous serez prêt."
+    },
+    "login": {
+      "title": "Bon retour parmi nous",
+      "subtitle": "Connectez-vous à votre espace de travail.",
+      "cta": "Se connecter",
+      "redirecting": "Redirection vers la page de connexion…",
+      "noAccount": "Nouveau ici?",
+      "createAccount": "Créer un compte",
+      "forgot": "Mot de passe oublié?",
+      "sessionExpired": "Votre session a pris fin. Reconnectez-vous pour continuer.",
+      "failed": "La connexion n’a pas abouti.",
+      "failedHint": "{reason}"
+    },
+    "signup": {
+      "title": "Créez votre compte",
+      "subtitle": "Gratuit pour commencer — 20 crédits d’essai, aucune carte requise.",
+      "cta": "Créer un compte",
+      "haveAccount": "Vous avez déjà un compte?",
+      "signIn": "Se connecter",
+      "terms": "En continuant, vous acceptez les Conditions d’utilisation et la Politique de confidentialité."
+    },
+    "verify": {
+      "title": "Confirmez votre courriel",
+      "body": "Nous avons envoyé un lien de confirmation à {email}. Ouvrez-le, puis revenez ici.",
+      "bodyNoEmail": "Nous vous avons envoyé un lien de confirmation. Ouvrez-le, puis revenez ici.",
+      "check": "Je l’ai confirmé",
+      "checking": "Vérification…",
+      "stillUnverified": "Votre courriel n’est pas encore confirmé. Laissez un instant au lien, puis réessayez.",
+      "spam": "Rien dans votre boîte de réception? Vérifiez le dossier des pourriels.",
+      "useAnother": "Utiliser un autre compte"
+    },
+    "forgot": {
+      "title": "Réinitialiser votre mot de passe",
+      "body": "Entrez votre adresse courriel et nous vous enverrons un lien pour choisir un nouveau mot de passe.",
+      "email": "Adresse courriel",
+      "cta": "Envoyer le lien de réinitialisation",
+      "sent": "Vérifiez votre boîte de réception",
+      "sentBody": "Si un compte existe pour {email}, un lien de réinitialisation est en route. Il expire dans quelques heures.",
+      "back": "Retour à la connexion",
+      "social": "Compte créé avec Google? Utilisez plutôt le bouton Google de la page de connexion."
+    },
+    "reset": {
+      "title": "Choisir un nouveau mot de passe",
+      "body": "La réinitialisation du mot de passe se fait sur notre page de connexion sécurisée. Ouvrez le lien reçu par courriel pour définir un nouveau mot de passe, puis connectez-vous ci-dessous.",
+      "cta": "Aller à la connexion",
+      "requestAnother": "Demander un autre lien"
+    },
+    "mfa": {
+      "title": "Authentification à deux facteurs",
+      "body": "Ajoutez à chaque connexion un code à usage unique tiré d’une application d’authentification.",
+      "status": "État",
+      "enabled": "Activée",
+      "notEnabled": "Non activée",
+      "onHint": "L’authentification à deux facteurs est activée. Chaque connexion demande un code de votre application d’authentification.",
+      "enable": "Configurer l’authentification à deux facteurs",
+      "verifying": "Vous devrez vous reconnecter et inscrire une application d’authentification.",
+      "done": "L’authentification à deux facteurs est activée. Un code de votre application d’authentification vous sera demandé à chaque connexion."
+    },
+    "callback": {
+      "title": "Connexion en cours…",
+      "error": "Nous n’avons pas pu terminer la connexion.",
+      "retry": "Retour à la connexion"
+    },
+    "select": {
+      "title": "Choisir un espace de travail",
+      "subtitle": "Vous êtes membre de plusieurs. Choisissez où travailler.",
+      "empty": "Vous n’êtes membre d’aucun espace de travail pour l’instant.",
+      "create": "Créer un espace de travail",
+      "open": "Ouvrir"
+    },
+    "setup": {
+      "title": "Configurer votre espace de travail",
+      "subtitle": "Un espace de travail, c’est votre entreprise dans Oraly. Vous pourrez inviter votre équipe plus tard.",
+      "name": "Nom de l’entreprise",
+      "namePlaceholder": "p. ex. Dentisterie Beau Sourire",
+      "country": "Pays",
+      "countryPlaceholder": "Choisir un pays",
+      "timezone": "Fuseau horaire",
+      "timezoneHint": "Les heures d’ouverture et les rapports utilisent ce fuseau horaire.",
+      "timezoneMismatch": "Ce fuseau horaire n’appartient pas au pays choisi ({country}). Les heures d’ouverture et les rapports l’utiliseront — vérifiez que c’est bien celui de votre entreprise.",
+      "phone": "Téléphone de l’entreprise",
+      "phoneHint": "Format E.164, p. ex. +14155550123. Vous pourrez l’ajouter plus tard.",
+      "website": "Site web",
+      "cta": "Créer l’espace de travail",
+      "creating": "Création…",
+      "trialNote": "Vous commencez avec 20 crédits gratuits pour des appels test dans le navigateur."
+    },
+    "invite": {
+      "title": "Rejoindre l’espace de travail",
+      "body": "Vous avez été invité dans un espace de travail. Connectez-vous avec l’adresse courriel à laquelle l’invitation a été envoyée, puis acceptez ci-dessous.",
+      "accept": "Accepter l’invitation",
+      "accepting": "Ajout en cours…",
+      "success": "Vous avez rejoint {workspace} à titre de {role}.",
+      "open": "Ouvrir l’espace de travail",
+      "missing": "Il manque le jeton dans ce lien d’invitation. Demandez à la personne qui vous a invité de vous le renvoyer.",
+      "invalid": "Cette invitation n’est pas valide ou a expiré. Demandez à la personne qui vous a invité de vous en envoyer une nouvelle.",
+      "expired": "Cette invitation a expiré. Demandez à la personne qui vous a invité de vous en envoyer une nouvelle.",
+      "used": "Cette invitation a déjà été utilisée. Demandez à la personne qui vous a invité de vous en envoyer une nouvelle.",
+      "wrongEmail": "Cette invitation a été envoyée à une autre adresse courriel que {email}. Déconnectez-vous, puis connectez-vous avec l’adresse à laquelle l’invitation a été envoyée.",
+      "details": "{inviter} vous invite à rejoindre {workspace} à titre de {role}.",
+      "expires": "L’invitation expire le {date}.",
+      "alreadyMemberHint": "Vous êtes déjà membre de cet espace de travail.",
+      "alreadyMember": "Vous êtes déjà membre de cet espace de travail.",
+      "wrongAccount": "Connecté en tant que {email}. Si l’invitation a été envoyée à une autre adresse, déconnectez-vous et connectez-vous avec celle-ci."
+    },
+    "brandKicker": "Des conversations humaines. De vrais résultats.",
+    "configMissing": {
+      "title": "La connexion n’est pas configurée dans cette version",
+      "body": "Les variables {vars} doivent être définies à la compilation."
+    }
+  },
+  "errors": {
+    "NETWORK": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
+    "UNAUTHENTICATED": "Votre session a pris fin. Reconnectez-vous pour continuer.",
+    "INVALID_TOKEN": "Votre session a pris fin. Reconnectez-vous pour continuer.",
+    "EMAIL_UNVERIFIED": "Confirmez d’abord votre adresse courriel.",
+    "FORBIDDEN_ROLE": "Votre rôle dans cet espace de travail ne le permet pas.",
+    "NOT_A_MEMBER": "Vous n’êtes pas membre de cet espace de travail.",
+    "OWNER_ONLY": "Seul le propriétaire de l’espace de travail peut faire cela.",
+    "WORKSPACE_PAUSED": "Cet espace de travail est en pause. Communiquez avec le soutien pour le réactiver.",
+    "NOT_FOUND": "Nous n’avons pas trouvé cet élément.",
+    "CONFLICT": "C’est déjà en cours.",
+    "GENERATION_PAUSED": "La génération d’agents est brièvement suspendue pour maintenance. Réessayez dans quelques minutes.",
+    "PURCHASES_PAUSED": "Les achats sont brièvement suspendus pour maintenance.",
+    "VALIDATION_FAILED": "Certains champs sont à corriger.",
+    "BAD_REQUEST": "Certains champs sont à corriger.",
+    "BRIEF_INCOMPLETE": "Dites-nous d’abord un peu plus sur l’entreprise et sur ce qu’est un appel réussi.",
+    "GENERATION_FAILED": "Nous n’avons pas pu rédiger l’agent cette fois-ci.",
+    "RATE_LIMITED": "Trop de requêtes. Patientez un moment, puis réessayez.",
+    "TEST_RATE_LIMIT": "Trop d’appels test. Patientez un moment, puis réessayez.",
+    "NO_CREDITS": "Vous n’avez plus de crédits.",
+    "INVITE_INVALID": "Cette invitation n’est pas valide ou a expiré.",
+    "INVITE_EXPIRED": "Cette invitation a expiré.",
+    "INVITE_USED": "Cette invitation a déjà été utilisée.",
+    "INVITE_WRONG_EMAIL": "Cette invitation a été envoyée à une autre adresse courriel.",
+    "ALREADY_MEMBER": "Vous êtes déjà membre de cet espace de travail.",
+    "PLAN_LIMIT": "Votre formule ne comprend pas cette fonction.",
+    "DOCUMENT_UNREADABLE": "Nous n’avons trouvé aucun texte lisible dans ce fichier. Pour une photo, essayez une image plus nette, prise de face; pour un document numérisé, exportez-le en texte ou en PDF.",
+    "INTERNAL": "Un problème est survenu de notre côté. Réessayez.",
+    "UPSTREAM_UNAVAILABLE": "Un service dont nous dépendons est indisponible. Réessayez sous peu.",
+    "NOT_CONFIGURED": "Cette fonction n’est pas encore prête. Notre équipe a été avisée.",
+    "default": "Un problème est survenu.",
+    "title": "Un problème est survenu",
+    "loadFailed": "Impossible de charger ce contenu.",
+    "TESTS_PAUSED": "Les appels test sont brièvement suspendus pour maintenance. Réessayez dans quelques minutes.",
+    "CONCURRENCY_LIMIT": "Toutes les lignes permises par votre formule sont occupées en ce moment. Réessayez quand un appel se termine.",
+    "ACTIVATION_IN_PROGRESS": "La mise en service de votre agent est déjà en cours.",
+    "PACK_UNAVAILABLE": "Ce forfait n’est pas offert. Choisissez-en un autre.",
+    "PROMO_INVALID": "Ce code promo ne peut pas être utilisé.",
+    "NO_PAYMENT_METHOD": "Aucune carte n’est encore enregistrée pour cet espace de travail.",
+    "LINT_FAILED": "Les instructions de votre agent doivent être corrigées avant sa mise en service.",
+    "NUMBER_IN_USE": "Ce numéro est déjà utilisé.",
+    "IMPERSONATION_READ_ONLY": "Ceci est une vue du personnel en lecture seule. Rien ne peut y être modifié.",
+    "ACCOUNT_LOCKED": "Ce compte a été verrouillé. Communiquez avec le soutien.",
+    "EMAIL_DISPOSABLE": "Les adresses courriel temporaires ne sont pas acceptées. Inscrivez-vous plutôt avec votre courriel professionnel ou personnel.",
+    "ORIGIN_NOT_ALLOWED": "Cette requête provient d’une page que nous ne reconnaissons pas. Rechargez le portail et réessayez.",
+    "WORKSPACE_REQUIRED": "Choisissez un espace de travail et réessayez.",
+    "INVALID_CURSOR": "Cette page de résultats n’est plus à jour. Revenez à la première page.",
+    "MFA_REQUIRED": "Reconnectez-vous avec l’authentification à deux facteurs pour continuer.",
+    "AGENT_IN_USE": "Un numéro de téléphone répond encore avec cet agent. Déplacez ou libérez d’abord le numéro.",
+    "PUBLISH_IN_PROGRESS": "La publication de cet agent est en cours. Réessayez dans un instant.",
+    "VERSION_IMMUTABLE": "Cette version est publiée et ne peut plus être modifiée. Votre modification crée un nouveau brouillon.",
+    "VERSION_SYNCING": "Vos dernières modifications sont encore en préparation pour les appels. Réessayez dans quelques secondes.",
+    "AGENT_NOT_GENERATED": "Votre agent n’a pas encore été rédigé. Générez-le d’abord à partir de votre fiche.",
+    "AGENT_NOT_PUBLISHED": "Publiez d’abord cet agent, puis réessayez.",
+    "stepUnavailable": "Impossible d’ouvrir cette étape de la configuration. Réessayez et, si le problème persiste, communiquez avec le soutien.",
+    "serverReasons": {
+      "briefUnreadable": "Nous n’avons pas pu lire votre fiche pour le moment. Vos réponses sont enregistrées — réessayez dans une minute.",
+      "noPrompt": "Cette version n’a pas encore de script à améliorer. Générez-la d’abord.",
+      "workspacePaused": "Cet espace de travail est en pause. Communiquez avec le soutien pour continuer.",
+      "agentMissing": "Cet agent n’existe plus.",
+      "draftMissing": "Le brouillon visé par cette tâche n’existe plus.",
+      "generationInternal": "Un problème est survenu pendant la rédaction de votre agent.",
+      "generationSlow": "La rédaction de votre agent a pris trop de temps. Votre fiche est enregistrée — réessayez.",
+      "generationRefused": "Nous n’avons pas pu rédiger un agent à partir de cette fiche. Essayez de décrire l’entreprise autrement.",
+      "generationUnavailable": "La génération d’agents n’est pas disponible pour le moment. Nous avons été avisés.",
+      "generationDefault": "La génération a échoué — réessayez.",
+      "generationNotQueued": "Nous n’avons pas pu lancer la génération pour le moment. Réessayez dans un instant.",
+      "jobLost": "Cette tâche a été interrompue avant la fin. Votre fiche est enregistrée — réessayez.",
+      "jobGeneric": "Un problème est survenu. Votre fiche est enregistrée — réessayez.",
+      "jobCancelled": "Cette tâche a été annulée par le soutien. Relancez-la quand vous serez prêt.",
+      "activationGeneric": "Nous n’avons pas pu mettre votre agent en service. Rien n’a été facturé pour le numéro; réessayez ou communiquez avec le soutien.",
+      "activationNotQueued": "Nous n’avons pas pu lancer la mise en service de votre agent pour le moment. Réessayez dans un instant.",
+      "numberGeneric": "Un problème est survenu lors de la configuration de votre numéro. Nous réessaierons sous peu.",
+      "numberRejected": "Les paramètres de votre numéro de téléphone n’ont pas été acceptés. Vérifiez les options du numéro et réessayez."
+    },
+    "SIP_VERIFY_IN_PROGRESS": "Ce numéro est déjà en cours de vérification. Attendez la fin de cette vérification.",
+    "NOT_SIP_NUMBER": "Seul un numéro relié à votre propre système téléphonique peut être vérifié.",
+    "PURCHASE_REQUIRED": "Achetez d’abord un forfait. L’essai gratuit ne permet que des appels test dans le navigateur.",
+    "DESTINATION_COUNTRY": "Nous pouvons seulement appeler un téléphone situé dans le pays de votre espace de travail ou dans celui de votre numéro.",
+    "DESTINATION_TYPE": "Ce type de numéro ne peut pas être appelé pour un test. Utilisez un cellulaire ou une ligne fixe.",
+    "DESTINATION_IS_AGENT": "Un agent répond à ce numéro, directement ou par renvoi d’appel. Utilisez un cellulaire ou une ligne fixe où une personne répond.",
+    "NO_NUMBER": "Votre espace de travail n’a pas encore de numéro en service d’où appeler.",
+    "NOT_FORWARDING_NUMBER": "Seul un numéro vers lequel votre ligne actuelle est renvoyée peut être testé de cette façon.",
+    "FORWARDING_TEST_IN_PROGRESS": "Un test de renvoi d’appel est déjà en cours pour ce numéro.",
+    "WIDGET_UNAVAILABLE": "Cet assistant n’est pas disponible pour le moment. Veuillez réessayer plus tard."
+  },
+  "validation": {
+    "required": "Obligatoire",
+    "min": "Au moins {min} caractères",
+    "max": "Au plus {max} caractères",
+    "email": "Entrez une adresse courriel valide",
+    "url": "Entrez une adresse complète commençant par https://",
+    "phone": "Utilisez le format international, p. ex. +14155550123",
+    "time": "Utilisez le format HH:MM, sur 24 heures",
+    "name": "Entre 2 et 80 caractères",
+    "agentName": "Entre 2 et 30 caractères",
+    "transferNumber": "Une règle de transfert nécessite un numéro vers lequel transférer",
+    "handoffMessage": "Écrivez le message que votre agent doit lire à l’appelant"
+  },
+  "wizard": {
+    "title": "Configurer votre agent",
+    "steps": {
+      "template": "Modèle",
+      "brief": "Entreprise",
+      "voice": "Voix",
+      "knowledge": "Connaissances",
+      "test": "Test",
+      "phone": "Téléphone",
+      "activate": "Mise en service"
+    },
+    "exit": "Enregistrer et quitter",
+    "w1": {
+      "title": "Que doit faire votre agent?",
+      "subtitle": "Choisissez l’option la plus proche. Vous pourrez modifier chaque détail à l’étape suivante.",
+      "industry": "Votre secteur",
+      "industryHint": "Adapte les exemples et les textes indicatifs qui suivent.",
+      "industryPlaceholder": "Choisir un secteur",
+      "industryOther": "Autre",
+      "bestFor": "Idéal pour",
+      "hearSample": "Écouter un extrait",
+      "select": "Choisir",
+      "selected": "Choisi",
+      "continue": "Continuer",
+      "creating": "Configuration de votre agent…",
+      "empty": "Aucun modèle n’est offert pour le moment.",
+      "existing": "Vous avez déjà commencé un agent à partir du modèle {template}. Continuez avec celui-ci, ou choisissez un autre modèle pour recommencer.",
+      "startOver": "Recommencer avec ce modèle",
+      "premiumHint": "Utilise la gamme de voix Premium (1,5 crédit la minute).",
+      "conflictTitle": "Vérifiez le modèle",
+      "conflictBody": "Le modèle {template} est conçu pour ces secteurs : {industries}. Vous avez choisi {industry}. Vous pouvez continuer — l’agent utilisera quand même ce que vous écrivez sur votre entreprise — mais un modèle plus proche donne un meilleur premier script.",
+      "conflictSuggest": "Pour {industry}, essayez : {templates}.",
+      "catalog": {
+        "names": {
+          "receptionist": "Réceptionniste IA",
+          "appointment": "Demande de rendez-vous",
+          "afterhours": "Réponse après les heures",
+          "lead_qual": "Qualification de prospects",
+          "faq_support": "FAQ / Soutien",
+          "restaurant": "Réservations au restaurant",
+          "custom": "Personnalisé"
+        },
+        "taglines": {
+          "receptionist": "Répond aux appels, prend les messages",
+          "appointment": "Prend les rendez-vous",
+          "afterhours": "Répond quand vous êtes fermé",
+          "lead_qual": "Évalue les prospects",
+          "faq_support": "Répond à partir de vos documents",
+          "restaurant": "Tables et heures",
+          "custom": "Partir de zéro"
+        },
+        "bestFor": {
+          "receptionist": "Toute entreprise de services",
+          "appointment": "Cliniques, salons, gens de métier",
+          "afterhours": "Toute entreprise dont la ligne est renvoyée",
+          "lead_qual": "Immobilier, agences, services aux entreprises",
+          "faq_support": "Lignes d’information et de soutien",
+          "restaurant": "Restaurants et cafés",
+          "custom": "Tous les usages"
+        },
+        "industries": {
+          "dental": "Dentaire",
+          "plumbing": "Plomberie",
+          "auto": "Mécanique automobile",
+          "legal": "Juridique",
+          "salon": "Salon de coiffure",
+          "real_estate": "Immobilier",
+          "restaurant": "Restaurant",
+          "generic": "Général"
+        },
+        "examples": {
+          "plumbing": "Nous sommes une entreprise de plomberie résidentielle qui dessert l’Ouest-de-l’Île. Débouchage de drains, tuyaux éclatés, chauffe-eau et rénovations de salle de bain. Nous avons une ligne d’urgence 24 heures sur 24.",
+          "dental": "Nous sommes une clinique dentaire familiale à Laval. Examens, nettoyages, obturations, couronnes et rendez-vous d’urgence pour les maux de dents. Deux dentistes, une hygiéniste, ouvert six jours sur sept.",
+          "auto": "Nous sommes un garage indépendant : entretien, freins, pneus et inspections avant achat pour la plupart des marques. Voiture de courtoisie sur demande.",
+          "legal": "Nous sommes un cabinet de deux avocats en droit de la famille au centre-ville. Divorce, garde d’enfants et médiation. La première consultation dure trente minutes et est payante.",
+          "salon": "Nous sommes un salon de coiffure avec quatre coiffeurs. Coupes, coloration, balayage et mises en plis. Sans rendez-vous quand c’est possible, mais presque tout se fait sur rendez-vous.",
+          "real_estate": "Nous sommes une équipe de courtiers immobiliers résidentiels sur la Rive-Sud. Inscriptions, représentation d’acheteurs et évaluations gratuites de propriétés.",
+          "restaurant": "Nous sommes un bistro de quarante places. Dîner et souper, fermé le lundi. Réservations pour les groupes de huit personnes ou moins; les groupes plus nombreux s’organisent avec le gérant.",
+          "generic": "Décrivez ce que fait votre entreprise, à qui vous offrez vos services et ce qui fait qu’un appel vaut la peine d’être pris."
+        }
+      }
+    },
+    "w2": {
+      "title": "Parlez-nous de votre entreprise",
+      "hint": "Écrivez comme si vous l’expliquiez à un nouvel employé. Des phrases simples fonctionnent le mieux — l’agent en fait un script.",
+      "generate": "Générer mon agent",
+      "regenerate": "Régénérer",
+      "generateHint": "Remplissez les deux premiers champs pour générer.",
+      "generating": "Rédaction de votre agent…",
+      "stage": {
+        "queued": "Démarrage",
+        "started": "Lecture de votre fiche",
+        "writing": "Rédaction du script",
+        "done": "Terminé"
+      },
+      "generatedTitle": "Votre agent est prêt",
+      "generatedBody": "La version {version} a été rédigée à partir de votre fiche. Vérifiez le résumé, puis choisissez une voix.",
+      "failedTitle": "Nous n’avons pas pu rédiger l’agent",
+      "failedBody": "Rien n’est perdu — vos réponses sont enregistrées. Réessayez dans un instant.",
+      "warnings": "Remarques du rédacteur",
+      "scenarios": "Comment un appel pourrait se dérouler",
+      "continue": "Choisir une voix",
+      "editAfter": "Vous avez changé quelque chose? Régénérez pour mettre le script à jour.",
+      "editScript": "Modifier le script",
+      "scriptUnsaved": "Enregistrez ou annulez vos modifications du script avant de continuer.",
+      "script": {
+        "title": "Le script de votre agent",
+        "hint": "Les instructions que l’agent suit à chaque appel, rédigées à partir de votre fiche. Modifiez-le ici comme un document, ou régénérez-le à partir de la fiche.",
+        "show": "Ouvrir le script",
+        "hide": "Masquer le script",
+        "regenerateNote": "Régénérer réécrit le script à partir de votre fiche et remplace les modifications faites ici."
+      },
+      "restored": "Vos réponses enregistrées ont été restaurées.",
+      "sections": {
+        "basics": "L’essentiel",
+        "documents": "Menu, liste de prix ou photos",
+        "details": "Détails que demandent les appelants",
+        "rules": "Règles et relais",
+        "personality": "Personnalité"
+      },
+      "card": {
+        "will": "{name} va :",
+        "wont": "{name} ne va pas :",
+        "handoff": "Passe le relais quand :",
+        "empty": "Remplissez la fiche et ce résumé se rédige tout seul.",
+        "defaultName": "Votre agent",
+        "preview": "Aperçu",
+        "fromGeneration": "Tiré de votre agent généré",
+        "derived": {
+          "services": "Répondre aux questions sur {services}",
+          "servicesMore": "Répondre aux questions sur {services} et plus",
+          "faqs": "{n, plural, one {Répondre à # question fréquente} other {Répondre à # questions fréquentes}}",
+          "quoteListed": "Donner les prix que vous avez indiqués",
+          "quotePrices": "Donner des prix",
+          "notHuman": "Prétendre être une personne",
+          "listSeparator": ", ",
+          "handoff": "{condition} → {action}",
+          "handoffMessage": "{condition} → {action} : « {message} »",
+          "actions": {
+            "transfer": "transférer l’appel",
+            "take_message": "prendre un message",
+            "read_message": "lire un message"
+          }
+        }
+      },
+      "fields": {
+        "about_business": {
+          "label": "À propos de votre entreprise",
+          "hint": "Ce que vous faites, votre clientèle, où vous êtes. De 20 à 1 000 caractères.",
+          "placeholder": "Nous sommes une clinique dentaire familiale à Montréal avec trois dentistes. Nous recevons adultes et enfants pour les examens, nettoyages, obturations et urgences."
+        },
+        "goal": {
+          "label": "Ce qu’un bon appel permet d’accomplir",
+          "hint": "La chose principale que l’agent doit accomplir dans la plupart des appels.",
+          "placeholder": "Inscrire l’appelant à la prochaine plage libre, ou prendre un message avec son nom et son numéro si la demande nécessite une personne."
+        },
+        "business_hours": {
+          "label": "Heures d’ouverture",
+          "hint": "Quand une personne est disponible. En dehors de ces heures, l’agent prend des messages."
+        },
+        "address": {
+          "label": "Adresse",
+          "hint": "Ce que dit l’agent quand on demande où vous êtes.",
+          "placeholder": "1250, rue Sainte-Catherine Ouest, Montréal (QC)"
+        },
+        "services": {
+          "label": "Services",
+          "hint": "Appuyez sur Entrée après chacun. Jusqu’à 30.",
+          "placeholder": "Nettoyage, blanchiment, visite d’urgence…"
+        },
+        "pricing": {
+          "label": "Prix",
+          "hint": "Seulement ce que l’agent peut annoncer. Laissez vide et il ne donnera jamais de prix.",
+          "placeholder": "Examen et nettoyage à partir de 150 $. Visite d’urgence 95 $ plus le traitement."
+        },
+        "faqs": {
+          "label": "Questions fréquentes",
+          "hint": "Les questions que posent les appelants, avec la réponse que vous voulez donner.",
+          "question": "Question",
+          "answer": "Réponse",
+          "add": "Ajouter une question",
+          "questionPlaceholder": "Acceptez-vous les clients sans rendez-vous?",
+          "answerPlaceholder": "Oui, mais les rendez-vous passent en premier."
+        },
+        "documents": {
+          "label": "Téléverser un fichier ou une photo",
+          "hint": "Un menu, une liste de prix, une liste de services — un PDF, un fichier Word ou une photo prise avec votre téléphone. L’agent le lit mot pour mot à chaque appel."
+        },
+        "never_do": {
+          "label": "Ce que l’agent ne doit jamais faire",
+          "hint": "Règles strictes. Elles ont priorité sur tout le reste.",
+          "placeholder": "Ne jamais donner de conseils médicaux. Ne jamais confirmer un rendez-vous sans numéro de téléphone."
+        },
+        "handoff_rules": {
+          "label": "Quand passer le relais à une personne",
+          "hint": "Jusqu’à cinq règles.",
+          "condition": "Quand l’appelant…",
+          "conditionPlaceholder": "dit que c’est une urgence",
+          "action": "Alors",
+          "add": "Ajouter une règle",
+          "number": "Transférer au",
+          "message": "Message à lire",
+          "messageHint": "Votre agent lit ce message à l’appelant mot pour mot. Jusqu’à 500 caractères.",
+          "messagePlaceholder": "Nous sommes fermés en ce moment. Rappelez-nous pendant nos heures d’ouverture et notre équipe se fera un plaisir de vous aider.",
+          "actions": {
+            "transfer": "Transférer l’appel",
+            "take_message": "Prendre un message",
+            "read_message": "Lire un message à l’appelant"
+          }
+        },
+        "agent_name": {
+          "label": "Nom de l’agent",
+          "hint": "Le nom qu’il donne en se présentant. De 2 à 30 caractères.",
+          "placeholder": "Sophie"
+        },
+        "personality": {
+          "label": "Personnalité",
+          "hint": "Ajustez le ton; le script fait le reste.",
+          "formality": {
+            "label": "Ton",
+            "low": "Formel",
+            "high": "Amical"
+          },
+          "brevity": {
+            "label": "Longueur",
+            "low": "Bref",
+            "high": "Bavard"
+          },
+          "energy": {
+            "label": "Énergie",
+            "low": "Calme",
+            "high": "Enjoué"
+          },
+          "notes": "Autre chose sur le ton",
+          "notesPlaceholder": "Chaleureux mais efficace; jamais vendeur."
+        },
+        "anything_else": {
+          "label": "Autre chose",
+          "hint": "Stationnement, accessibilité, langues parlées à l’accueil — tout ce qu’un appelant pourrait demander.",
+          "placeholder": "Stationnement gratuit derrière l’immeuble. Nous parlons anglais."
+        },
+        "ai_disclosure": {
+          "label": "Dire aux appelants que c’est une IA",
+          "hint": "Il ne prétendra jamais être une personne, peu importe votre choix.",
+          "always": {
+            "title": "Toujours le dire",
+            "body": "Commence chaque appel en précisant brièvement qu’il s’agit d’un assistant IA."
+          },
+          "if_asked": {
+            "title": "Seulement si on le demande",
+            "body": "Répond honnêtement quand un appelant le demande, sinon poursuit l’appel."
+          },
+          "never_volunteer": {
+            "title": "Ne jamais le dire de lui-même",
+            "body": "Comme ci-dessus, mais n’en parle jamais de sa propre initiative."
+          }
+        }
+      },
+      "hours": {
+        "open": "Ouverture",
+        "close": "Fermeture",
+        "closed": "Fermé",
+        "addInterval": "Ajouter des heures",
+        "copyToAll": "Appliquer lundi à tous les jours de semaine",
+        "days": {
+          "mon": "Lun",
+          "tue": "Mar",
+          "wed": "Mer",
+          "thu": "Jeu",
+          "fri": "Ven",
+          "sat": "Sam",
+          "sun": "Dim"
+        },
+        "nextDay": "(le lendemain)"
+      },
+      "slow": "Cela prend plus de temps que d’habitude. Vos réponses sont enregistrées — laissez cette page ouverte et tout se terminera de lui-même.",
+      "templateCopy": {
+        "restaurant": {
+          "goal": "Prendre les demandes de réservation avec le nombre de personnes, la date et l’heure, répondre aux questions sur le menu, les prix et les heures, et diriger les groupes de plus de huit vers le gérant.",
+          "services": "Salle à manger, pour emporter, salle privée, traiteur…",
+          "pricing": "Plats principaux de 18 $ à 34 $. Table d’hôte du midi 22 $. Droit de bouchon 15 $. Préciser que les prix viennent du menu et peuvent changer."
+        }
+      },
+      "documents": {
+        "none": "Aucun document pour l’instant. Téléversez un menu ou une liste de prix — un fichier ou une photo — et l’agent s’en servira pour donner les prix.",
+        "choose": "Choisir un document",
+        "add": "Téléverser un fichier ou une photo",
+        "remove": "Retirer",
+        "chars": "{n} caractères",
+        "truncated": "Tronqué",
+        "budget": "{used} / {max} caractères utilisés",
+        "full": "L’espace pour les documents est plein. Retirez-en un pour en ajouter un autre.",
+        "accepts": "PDF, Word, texte, CSV ou photo (JPEG, PNG, WebP), jusqu’à {mb} Mo, jusqu’à {n} documents.",
+        "stage": {
+          "idle": "",
+          "reading": "Lecture du fichier…",
+          "extracting": "Extraction du texte…",
+          "transcribing": "Lecture de la photo — cela prend quelques secondes…"
+        },
+        "errors": {
+          "fileType": "Ce type de fichier n’est pas pris en charge. Téléversez un PDF, un fichier Word, du texte, un CSV ou une photo JPEG, PNG ou WebP.",
+          "fileSize": "Ce fichier dépasse {mb} Mo.",
+          "empty": "Ce fichier est vide.",
+          "budget": "Il ne reste plus d’espace pour ce fichier. Retirez d’abord un document."
+        }
+      }
+    },
+    "w3": {
+      "title": "Choisir une voix et des langues",
+      "subtitle": "Toutes les voix peuvent dire votre message d’accueil. Les voix Premium sont plus naturelles et coûtent 1,5 crédit la minute.",
+      "primaryLanguage": "Langue principale",
+      "primaryHint": "Celle que parlent la plupart des appelants.",
+      "alsoSpeaks": "Parle aussi",
+      "alsoSpeaksHint": "Jusqu’à quatre de plus. L’agent change de langue quand l’appelant le fait.",
+      "alsoSpeaksMax": "Vous pouvez ajouter jusqu’à quatre langues de plus.",
+      "voices": "Voix",
+      "search": "Rechercher une voix",
+      "filters": {
+        "all": "Toutes",
+        "gender": "Voix",
+        "male": "Masculine",
+        "female": "Féminine",
+        "neutral": "Neutre",
+        "tier": "Gamme",
+        "clear": "Effacer les filtres",
+        "native": "Accents natifs seulement"
+      },
+      "hearSample": "Écouter cette voix",
+      "previewFailed": "Nous ne pouvons pas faire jouer cette voix pour le moment.",
+      "previewLimited": "Trop d’écoutes. Patientez un moment.",
+      "selected": "Voix choisie",
+      "noneSelected": "Choisissez une voix pour continuer.",
+      "currentVoice": "Votre voix actuelle",
+      "empty": "Aucune voix ne correspond à ces filtres.",
+      "emptyAll": "Le catalogue de voix est en cours de mise à jour. Revenez dans quelques minutes.",
+      "stale": "La liste des voix n’est peut-être pas à jour. Les nouvelles voix apparaîtront après la prochaine mise à jour.",
+      "speed": "Vitesse",
+      "temperature": "Expressivité",
+      "advanced": "Réglages fins",
+      "advancedHint": "La plupart des entreprises n’y touchent pas.",
+      "accent": "Accent {accent}",
+      "continue": "Continuer",
+      "saving": "Enregistrement de votre choix…",
+      "tierChange": "Cette voix fait passer l’agent à la gamme {tier}.",
+      "showMore": "Afficher plus ({count} autres voix)",
+      "showing": "{shown} voix affichées sur {total}",
+      "groups": {
+        "native": "Accent natif en {language}",
+        "alsoSpeaks": "Parle aussi {language}, avec son propre accent"
+      },
+      "sampleHint": "La vitesse modifie aussi l’extrait. Lors de l’appel test, votre agent dit votre propre message d’accueil.",
+      "temperatureHint": "S’entend pendant les appels, pas dans l’extrait.",
+      "rewrite": {
+        "title": "Votre script n’est pas encore en {language}",
+        "body": "Il a été rédigé avant que vous choisissiez la langue, donc votre agent accueillerait encore les appelants dans une autre langue. Réécrivez-le en {language} à partir de vos réponses. Les modifications faites à la main dans le script seront remplacées.",
+        "action": "Réécrire en {language}",
+        "running": "Réécriture de votre script en {language}…",
+        "failed": "Nous n’avons pas pu réécrire le script. Réessayez dans un instant."
+      },
+      "accents": {
+        "american": "américain",
+        "british": "britannique",
+        "australian": "australien",
+        "canadian": "canadien",
+        "indian": "indien",
+        "irish": "irlandais",
+        "scottish": "écossais",
+        "south_african": "sud-africain",
+        "new_zealand": "néo-zélandais",
+        "french": "français",
+        "german": "allemand",
+        "spanish": "espagnol",
+        "mexican": "mexicain",
+        "latin_american": "latino-américain",
+        "italian": "italien",
+        "portuguese": "portugais",
+        "brazilian": "brésilien",
+        "japanese": "japonais",
+        "chinese": "chinois",
+        "korean": "coréen",
+        "arabic": "arabe",
+        "saudi": "saoudien",
+        "emirati": "émirati",
+        "gulf": "du Golfe",
+        "russian": "russe",
+        "dutch": "néerlandais",
+        "swedish": "suédois",
+        "polish": "polonais",
+        "turkish": "turc",
+        "neutral": "neutre"
+      }
+    },
+    "placeholder": {
+      "title": "Prochaine étape : {step}",
+      "body": "Cette étape arrive dans la prochaine version. Votre progression est enregistrée.",
+      "dashboard": "Aller au tableau de bord"
+    },
+    "w4": {
+      "title": "Votre agent est en service. Que devrait-il savoir d’autre?",
+      "subtitle": "Ajoutez les pages de votre site web, vos menus, vos listes de prix ou votre FAQ, et votre agent s’en sert pour répondre à chaque appel. Vous pouvez passer cette étape et les ajouter plus tard depuis l’onglet « Connaissances » de votre agent.",
+      "continue": "Continuer",
+      "skip": "Passer pour l’instant",
+      "lockedTitle": "Inclus dans un forfait supérieur",
+      "lockedBody": "Ajouter ce que votre agent sait est offert à partir du forfait {pack}. Passez pour l’instant — une fois ce forfait acheté, ajoutez des sources depuis l’onglet « Connaissances » de votre agent.",
+      "lockedBodyGeneric": "Ajouter ce que votre agent sait est offert avec un forfait supérieur. Passez pour l’instant — une fois ce forfait acheté, ajoutez des sources depuis l’onglet « Connaissances » de votre agent.",
+      "asideTitle": "De bonnes sources",
+      "asideBody": "Les pages courtes et factuelles fonctionnent le mieux : heures, services, prix, politiques, itinéraire.",
+      "asideLive": "Chaque source est lue dès qu’elle est ajoutée. Ce qui est encore en lecture lors de la mise en service sera pris en compte à votre prochaine publication.",
+      "full": "Votre agent peut connaître jusqu’à {max} sources. Retirez-en une pour en ajouter une autre.",
+      "listTitle": "Sources",
+      "checking": "Vérification de la progression…",
+      "emptyTitle": "Rien d’ajouté pour l’instant",
+      "emptyBody": "Les sources que vous ajoutez apparaissent ici avec leur progression.",
+      "failedDefault": "Nous n’avons pas pu lire cette source.",
+      "remove": "Retirer {name}",
+      "status": {
+        "processing": "En traitement",
+        "ready": "Prête",
+        "failed": "Échec",
+        "deleting": "Retrait en cours"
+      },
+      "addTitle": "Ajouter une source",
+      "addBody": "Une page, un fichier ou un bloc de texte à la fois.",
+      "typeLabel": "Type de source",
+      "types": {
+        "url": "Page web",
+        "urlHint": "Une page publique de votre site web.",
+        "file": "Fichier",
+        "fileHint": "PDF, Word, texte, CSV ou une photo, jusqu’à {mb} Mo.",
+        "text": "Texte",
+        "textHint": "Collez ce que vous voulez : FAQ, menu, politique."
+      },
+      "fields": {
+        "url": "Adresse de la page",
+        "urlHint": "Une seule page est lue, pas tout le site.",
+        "file": "Fichier",
+        "fileHint": "Le fichier est lu une fois et n’est pas conservé ensuite. Une photo est convertie en texte.",
+        "name": "Nom",
+        "namePlaceholder": "p. ex. Heures d’ouverture",
+        "text": "Texte",
+        "textPlaceholder": "Q : Acceptez-vous les clients sans rendez-vous?\nR : Oui, jusqu’à 16 h en semaine."
+      },
+      "errors": {
+        "url": "Entrez une adresse web complète qui commence par https://",
+        "name": "Donnez un nom à ce texte.",
+        "text": "Collez d’abord du texte.",
+        "file": "Choisissez d’abord un fichier.",
+        "fileType": "Ce type de fichier n’est pas pris en charge. Utilisez un PDF, un document Word, un fichier texte ou CSV, ou une photo JPEG, PNG ou WebP.",
+        "fileSize": "Ce fichier dépasse {mb} Mo."
+      },
+      "add": "Ajouter la source",
+      "adding": "Ajout…",
+      "added": "Source ajoutée. Nous la lisons maintenant.",
+      "menu": {
+        "title": "Votre menu",
+        "body": "Téléversez le menu à partir duquel votre agent doit répondre : ce qu’il contient, les prix, les ingrédients. Les appelants qui demandent quelque chose qui n’y figure pas en sont informés — rien n’est inventé.",
+        "none": "Aucun menu téléversé pour l’instant.",
+        "choose": "Choisir un fichier de menu",
+        "upload": "Téléverser le menu",
+        "replace": "Remplacer le menu",
+        "remove": "Retirer",
+        "accepts": "PDF, Word, texte, CSV ou une photo du menu, jusqu’à {mb} Mo.",
+        "inUse": "Utilisé",
+        "uploaded": "Menu téléversé. Nous le lisons maintenant.",
+        "replaced": "Menu remplacé. Nous lisons maintenant le nouveau.",
+        "removed": "Menu retiré.",
+        "failedDefault": "Nous n’avons pas pu lire ce menu.",
+        "liveHint": "Enregistré dès le téléversement. Votre agent s’en sert au prochain appel test, puis à chaque appel une fois en service.",
+        "publishedHint": "Enregistré dès le téléversement. Votre agent en service s’en sert quelques minutes après sa lecture; les appels tests l’utilisent tout de suite.",
+        "removeTitle": "Retirer le menu?",
+        "removeBody": "Votre agent ne s’en servira plus pour répondre aux questions sur le menu.",
+        "removeConsequence": "Les appelants qui posent des questions sur les plats ou les prix se feront dire que l’agent n’a pas cette information.",
+        "stage": {
+          "idle": "",
+          "reading": "Lecture du fichier…",
+          "transcribing": "Lecture de la photo — cela prend quelques secondes…",
+          "replacing": "Retrait de l’ancien menu…",
+          "uploading": "Téléversement…"
+        },
+        "errors": {
+          "fileType": "Ce type de fichier n’est pas pris en charge. Téléversez le menu en PDF, Word, texte ou CSV, ou en photo JPEG, PNG ou WebP.",
+          "fileSize": "Ce fichier dépasse {mb} Mo.",
+          "empty": "Ce fichier est vide."
+        }
+      },
+      "readingPhoto": "Lecture de la photo…"
+    },
+    "w5": {
+      "title": "Testez votre agent",
+      "subtitle": "Parlez à votre agent dans le navigateur, voyez ce qu’il a noté et dites-lui quoi changer. Les appels tests utilisent vos crédits.",
+      "continue": "Continuer",
+      "call": {
+        "title": "Parlez à votre agent",
+        "subtitle": "Vous testez la version brouillon {version}. Rien n’est encore en service.",
+        "subtitleLive": "Vous testez la version brouillon {version}. Les appelants joignent toujours la version en service {live}.",
+        "timer": "Durée",
+        "rate": "Tarif",
+        "perMin": "{credits}/min",
+        "used": "Utilisés",
+        "balance": "Solde",
+        "left": "≈ {credits} restants",
+        "noCreditsHint": "Choisissez un forfait à la dernière étape pour continuer à tester.",
+        "start": "Lancer l’appel test",
+        "again": "Rappeler",
+        "end": "Raccrocher",
+        "askingMic": "Autorisez le microphone…",
+        "connecting": "Connexion…",
+        "micHint": "Votre navigateur vous demandera l’accès à votre microphone.",
+        "transcript": "Transcription en direct",
+        "listening": "À l’écoute… dites bonjour.",
+        "transcriptEmpty": "La conversation s’affichera ici.",
+        "agent": "Agent",
+        "you": "Vous",
+        "tryThese": "Essayez de dire",
+        "phoneOnly": "Appels téléphoniques seulement",
+        "transferNote": "Les transferts vers votre personnel ne peuvent être testés que lors de vrais appels téléphoniques. Ici, l’agent peut proposer le transfert, mais il ne sera pas établi.",
+        "status": {
+          "idle": "Prêt",
+          "connecting": "Connexion",
+          "live": "En communication",
+          "agentTalking": "L’agent parle",
+          "ended": "Appel terminé",
+          "failed": "Connexion impossible"
+        },
+        "errors": {
+          "micDeniedTitle": "Microphone bloqué",
+          "micDenied": "Autorisez l’accès au microphone pour ce site dans la barre d’adresse de votre navigateur, puis réessayez.",
+          "micMissingTitle": "Aucun microphone détecté",
+          "micMissing": "Branchez un microphone ou un casque d’écoute, puis réessayez.",
+          "noCreditsTitle": "Plus de crédits",
+          "apiTitle": "Nous n’avons pas pu lancer l’appel",
+          "connectionTitle": "L’appel n’a pas pu être établi",
+          "connection": "Vérifiez votre connexion et réessayez. Si vous êtes sur un réseau d’entreprise, il bloque peut-être les appels dans le navigateur."
+        }
+      },
+      "after": {
+        "title": "Après l’appel",
+        "subtitle": "Ce que votre agent a retenu de la conversation.",
+        "ready": "Prêt",
+        "analysing": "Analyse en cours",
+        "notRecorded": "Nous n’avons encore aucune trace de cet appel. Si vous avez raccroché en une seconde ou deux, rien n’a été facturé.",
+        "duration": "Durée",
+        "seconds": "{s, plural, one {# seconde} other {# secondes}}",
+        "charged": "Crédits facturés",
+        "pending": "Calcul…",
+        "sentiment": "Humeur de l’appelant",
+        "outcome": "Résultat",
+        "successful": "Objectif atteint",
+        "unsuccessful": "Objectif non atteint",
+        "summary": "Résumé",
+        "waiting": "Le résumé arrive habituellement dans la minute qui suit la fin de l’appel.",
+        "late": "Cela prend plus de temps que d’habitude. Les résultats s’afficheront ici dès leur arrivée.",
+        "unavailable": "Aucun résumé n’a été produit pour cet appel. Les appels très courts n’en ont parfois pas.",
+        "captured": "Ce qu’il a noté",
+        "fullTranscript": "Transcription complète",
+        "yes": "Oui",
+        "no": "Non"
+      },
+      "improve": {
+        "title": "Dites-lui quoi changer",
+        "subtitle": "Décrivez le changement dans vos mots. Nous rédigeons une nouvelle version brouillon; l’ancienne est conservée.",
+        "label": "Que faut-il changer?",
+        "placeholder": "p. ex. Demander le numéro de téléphone de l’appelant avant de terminer l’appel, et ne pas parler des prix.",
+        "tooShort": "Écrivez au moins {min} caractères.",
+        "submit": "Mettre à jour mon agent",
+        "working": "Mise à jour de votre agent…",
+        "workingHint": "Cela prend habituellement de 10 à 20 secondes.",
+        "failedTitle": "Nous n’avons pas pu mettre à jour votre agent",
+        "failedBody": "Rien n’a été modifié. Réessayez ou reformulez la demande.",
+        "refusedTitle": "Aucun changement",
+        "refusedBody": "Cette demande va à l’encontre d’une règle que tous les agents suivent; votre agent reste donc inchangé.",
+        "doneTitle": "La version {version} est prête",
+        "doneBody": "Votre agent a été mis à jour.",
+        "testAgain": "Rappelez pour entendre la différence."
+      },
+      "callMyPhone": {
+        "title": "Appeler mon téléphone",
+        "body": "Écoutez votre agent sur un vrai téléphone. Nous appelons le numéro que vous entrez à partir de l’un de vos numéros. Cela utilise des crédits, comme tout appel.",
+        "placeholder": "+1 514 555 0123",
+        "call": "Appeler mon téléphone",
+        "placed": "Appel vers {to} depuis {from}. Répondez pour parler à votre agent.",
+        "invalid": "Entrez votre propre cellulaire ou ligne fixe, par exemple +1 514 555 0123."
+      }
+    },
+    "w6": {
+      "title": "Comment les appelants joindront-ils votre agent?",
+      "subtitle": "Choisissez un numéro maintenant. Il sera configuré lors de la mise en service, à la prochaine étape; rien n’est acheté pour l’instant.",
+      "continue": "Continuer",
+      "fixErrors": "Certains champs sont à corriger.",
+      "options": {
+        "label": "Option de numéro de téléphone",
+        "rental": "{credits, plural, one {# crédit} other {# crédits}} par mois.",
+        "new": {
+          "title": "Un nouveau numéro",
+          "body": "Obtenez un numéro local ou sans frais auquel votre agent répond."
+        },
+        "forward": {
+          "title": "Conserver votre numéro",
+          "body": "Nous vous donnons un nouveau numéro et vous y renvoyez votre ligne actuelle."
+        },
+        "sip": {
+          "title": "Utiliser votre propre ligne",
+          "body": "Connectez par SIP un système téléphonique que vous avez déjà.",
+          "free": "Aucuns frais mensuels de numéro.",
+          "locked": "Offert à partir du forfait {pack}.",
+          "lockedGeneric": "Offert avec un forfait supérieur."
+        }
+      },
+      "details": {
+        "new": {
+          "title": "Votre nouveau numéro",
+          "body": "Choisissez un pays et, si vous le souhaitez, un indicatif régional. Nous choisissons le numéro disponible le plus proche."
+        },
+        "forward": {
+          "title": "Renvoyer votre numéro actuel",
+          "body": "Les appelants continuent de composer le numéro qu’ils connaissent. Nous donnons un nouveau numéro à votre agent et vous y renvoyez votre ligne."
+        },
+        "sip": {
+          "title": "Votre connexion SIP",
+          "body": "Le numéro que votre système achemine et l’adresse pour le joindre. Votre mot de passe est chiffré dès sa réception et n’est plus jamais affiché."
+        }
+      },
+      "fields": {
+        "country": "Pays",
+        "countries": {
+          "US": "États-Unis",
+          "CA": "Canada"
+        },
+        "areaCode": "Indicatif régional",
+        "areaCodeHint": "Trois chiffres, p. ex. 514.",
+        "tollFree": "Sans frais",
+        "tollFreeHint": "Un numéro 8XX plutôt qu’un numéro local.",
+        "existingNumber": "Votre numéro actuel",
+        "existingNumberHint": "La ligne que les appelants composent aujourd’hui, avec l’indicatif de pays, p. ex. +14505550123.",
+        "sipNumber": "Numéro de téléphone",
+        "sipHost": "Adresse SIP",
+        "sipHostHint": "p. ex. sip.example.com ou sip:pbx.example.com:5060",
+        "sipUsername": "Nom d’utilisateur",
+        "sipPassword": "Mot de passe",
+        "sipPasswordHint": "Seulement si votre système en exige un.",
+        "sipPasswordAgain": "Un mot de passe est enregistré. Entrez-le de nouveau pour le conserver; enregistrer sans mot de passe le supprime."
+      },
+      "routing": {
+        "title": "Réponse et relais",
+        "body": "Quand l’agent répond, et à qui il peut transférer un appelant.",
+        "hours": "Quand répondre",
+        "modes": {
+          "always": "En tout temps",
+          "business": "Pendant les heures d’ouverture"
+        },
+        "hoursHint": {
+          "always": "Votre agent répond à tous les appels, jour et nuit.",
+          "business": "Votre agent répond pendant les heures d’ouverture indiquées à l’étape 2."
+        }
+      },
+      "transfer": {
+        "title": "Transférer à une personne",
+        "body": "Jusqu’à cinq personnes ou lignes vers lesquelles l’agent peut transférer un appelant qui le demande.",
+        "empty": "Personne pour l’instant. L’agent prendra plutôt un message.",
+        "label": "Nom",
+        "labelPlaceholder": "p. ex. Réception",
+        "number": "Numéro de téléphone",
+        "remove": "Retirer la personne {n}",
+        "add": "Ajouter une personne",
+        "max": "Vous avez atteint le maximum ({max}).",
+        "errors": {
+          "label": "Donnez un nom à cette personne.",
+          "number": "Entrez le numéro avec l’indicatif de pays, p. ex. +14505550123."
+        }
+      },
+      "errors": {
+        "country": "Choisissez les États-Unis ou le Canada.",
+        "areaCode": "Un indicatif régional compte trois chiffres et ne commence pas par 0 ni par 1.",
+        "e164": "Entrez le numéro avec l’indicatif de pays, p. ex. +14505550123.",
+        "sipHost": "Entrez une adresse comme sip.example.com.",
+        "generic": "Vérifiez ce champ."
+      },
+      "guide": {
+        "carrier": "Votre fournisseur de téléphonie",
+        "carriers": {
+          "bell": "Bell",
+          "rogers": "Rogers",
+          "telus": "TELUS",
+          "videotron": "Vidéotron",
+          "att": "AT&T",
+          "verizon": "Verizon",
+          "tmobile": "T-Mobile",
+          "other": "Autre fournisseur"
+        },
+        "turnOn": "Pour activer le renvoi",
+        "turnOff": "Pour le désactiver",
+        "whenLive": "Faites-le une fois votre agent en service — votre nouveau numéro s’affiche aux écrans suivants.",
+        "content": {
+          "bell": {
+            "steps": [
+              "Décrochez le combiné et composez *72.",
+              "Composez {destination}.",
+              "Attendez la tonalité de confirmation, puis raccrochez."
+            ],
+            "disable_steps": [
+              "Composez *73 et attendez la tonalité de confirmation."
+            ],
+            "notes": [
+              "Le Renvoi automatique doit faire partie de votre service Bell. Le renvoi conditionnel (occupé / sans réponse) utilise *90 et *92."
+            ]
+          },
+          "rogers": {
+            "steps": [
+              "Composez *72.",
+              "Composez {destination} et attendez la confirmation.",
+              "Raccrochez."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Sur un cellulaire Rogers, le renvoi peut aussi être configuré dans Paramètres → Appels → Renvoi d’appel."
+            ]
+          },
+          "telus": {
+            "steps": [
+              "Composez *72.",
+              "Composez {destination}.",
+              "Raccrochez après la tonalité de confirmation."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Avec certains services sans fil, TELUS facture du temps d’antenne pour les appels renvoyés."
+            ]
+          },
+          "videotron": {
+            "steps": [
+              "Composez *72.",
+              "Composez {destination}.",
+              "Raccrochez après la tonalité de confirmation."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Le renvoi conditionnel (occupé / sans réponse) utilise *90 et *92."
+            ]
+          },
+          "att": {
+            "steps": [
+              "Composez *72.",
+              "Composez {destination}.",
+              "Raccrochez lorsque vous entendez la tonalité de confirmation."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Sans fil : composez *21*{destination}# pour renvoyer tous les appels, ##21# pour annuler."
+            ]
+          },
+          "verizon": {
+            "steps": [
+              "Composez *72.",
+              "Composez {destination}.",
+              "Attendez la tonalité de confirmation et raccrochez."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Renvoi si occupé / sans réponse : *71 + {destination}; pour annuler, *73."
+            ]
+          },
+          "tmobile": {
+            "steps": [
+              "Composez **21*{destination}# et appuyez sur Appeler.",
+              "Attendez le message de confirmation."
+            ],
+            "disable_steps": [
+              "Composez ##21# et appuyez sur Appeler."
+            ],
+            "notes": [
+              "Renvoi conditionnel : **61* (sans réponse), **67* (occupé), **62* (injoignable)."
+            ]
+          },
+          "other": {
+            "steps": [
+              "Composez *72 (la plupart des fournisseurs nord-américains).",
+              "Composez {destination}.",
+              "Attendez la tonalité de confirmation et raccrochez."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Les codes varient selon le fournisseur et le service. Si *72 ne fonctionne pas, cherchez « renvoi d’appel » avec le nom de votre fournisseur ou demandez à son service à la clientèle de renvoyer vers {destination}.",
+              "Faites un essai en appelant votre ligne d’affaires depuis un autre téléphone : votre agent devrait répondre."
+            ]
+          }
+        },
+        "yourNewNumber": "votre nouveau numéro"
+      }
+    },
+    "w7": {
+      "title": "Choisissez un forfait et passez en service",
+      "subtitle": "Les crédits paient les appels : 1 crédit, c’est 1 minute avec une voix Standard. Votre agent est mis en service dès que le paiement est confirmé.",
+      "progressTitle": "Mise en service",
+      "progressSubtitle": "Cela prend habituellement moins d’une minute. Vous pouvez quitter cette page; nous vous enverrons un courriel une fois terminé.",
+      "cancelledTitle": "Paiement annulé",
+      "cancelledBody": "Rien n’a été facturé. Choisissez un forfait au moment qui vous convient.",
+      "confirm": {
+        "title": "Confirmation de votre paiement…",
+        "body": "Nous attendons la confirmation du paiement. Cela prend normalement quelques secondes.",
+        "slowTitle": "Toujours en attente de la confirmation du paiement",
+        "slowBody": "Certains paiements prennent plus de temps à être confirmés. Si vous avez terminé le paiement, vous pouvez lancer la mise en service maintenant — nous vérifions d’abord le paiement.",
+        "start": "Lancer la mise en service",
+        "check": "Vérifier de nouveau",
+        "paidTitle": "Paiement confirmé",
+        "paidBody": "Vos crédits ont été ajoutés. La mise en service commence.",
+        "notPaid": "Aucun paiement n’a été complété pour cette transaction. Si vous avez payé, attendez un moment et vérifiez de nouveau; sinon, choisissez un forfait ci-dessous.",
+        "refunded": "Ce paiement a été remboursé et n’a donc ajouté aucun crédit. Choisissez un forfait ci-dessous pour mettre votre agent en service."
+      },
+      "otherPack": "Besoin d’un autre forfait?",
+      "otherPackAction": "Choisir de nouveau",
+      "packs": {
+        "label": "Forfaits",
+        "none": "Aucun forfait n’est offert en ce moment. Veuillez réessayer plus tard.",
+        "roleTitle": "Demandez au propriétaire de l’espace de travail",
+        "roleBody": "Seul un propriétaire ou un administrateur peut acheter des crédits et mettre l’agent en service.",
+        "credits": "{credits} crédits",
+        "bonus": "+{credits} en prime",
+        "concurrency": "{n, plural, one {# appel simultané} other {# appels simultanés}}",
+        "knowledge": "{n, plural, one {Ce que votre agent sait pour # agent} other {Ce que votre agent sait pour # agents}}",
+        "noKnowledge": "Aucune source de connaissances",
+        "summaryTitle": "Forfait {pack}",
+        "summaryBody": "{credits} crédits, valides pendant {months} mois.",
+        "topup": "Recharger automatiquement",
+        "topupHint": "Nous achetons un autre forfait {pack} quand votre solde descend à {threshold} crédits, pour que votre agent réponde toujours.",
+        "pay": "Payer {price} et passer en service",
+        "redirecting": "Ouverture du paiement sécurisé…",
+        "secure": "Paiement sécurisé par Stripe"
+      },
+      "progress": {
+        "connecting": "Connexion…",
+        "status": {
+          "pending": "Démarrage",
+          "publishing": "Publication de votre agent",
+          "provisioning": "Configuration de votre numéro",
+          "binding": "Connexion de votre numéro",
+          "marking_live": "Mise en service",
+          "live": "Votre agent est en service",
+          "failed": "Nous n’avons pas pu terminer"
+        },
+        "badgeLive": "En service",
+        "badgeFailed": "Arrêté",
+        "badgeWorking": "En cours",
+        "workingBody": "Chaque étape est enregistrée dès qu’elle est terminée, donc rien n’est fait deux fois.",
+        "liveBody": "Redirection vers votre nouveau numéro…",
+        "failedBody": "Votre paiement est en sécurité. Réessayez; si l’échec persiste, nous vous aiderons.",
+        "progressLabel": "{pct} % terminé",
+        "attempt": "Tentative {n} sur {max}",
+        "steps": {
+          "publish": "Publier l’agent",
+          "provision": "Obtenir le numéro",
+          "bind": "Relier le numéro à l’agent",
+          "mark_live": "Mettre en service",
+          "notify": "Envoyer le courriel de confirmation"
+        },
+        "skipped": "Non requis",
+        "number": "Votre numéro : {number}",
+        "failedTitle": "La mise en service s’est arrêtée",
+        "failedDefault": "Un problème est survenu pendant la mise en service.",
+        "changeNumber": "Changer de numéro de téléphone",
+        "polling": "Mises à jour en direct en pause — vérification toutes les quelques secondes."
+      },
+      "packCopy": {
+        "mostPopular": "Le plus populaire",
+        "starterNote": "Un agent sur un numéro. Le texte de votre FAQ va dans votre fiche."
+      }
+    },
+    "live": {
+      "title": "{name} est en service",
+      "subtitle": "Votre agent répond aux appels dès maintenant. Composez le numéro ci-dessous pour l’entendre.",
+      "numberTitle": "Le numéro de votre agent",
+      "numberBody": "Les appels à ce numéro sont dirigés vers votre agent.",
+      "numberPending": "Votre numéro est en cours de finalisation. Il apparaîtra ici et dans « Numéros » sous peu.",
+      "dashboard": "Aller au tableau de bord",
+      "calls": "Voir les appels",
+      "forwarding": {
+        "title": "Dernière étape : renvoyer le {from}",
+        "body": "Votre agent répond déjà au {to}. Renvoyez votre ligne actuelle vers ce numéro avec les codes ci-dessous.",
+        "confirm": "J’ai activé le renvoi d’appel",
+        "confirmed": "Merci — le renvoi d’appel est indiqué comme activé.",
+        "ready": "Les appels au {from} sont renvoyés à votre agent."
+      }
+    },
+    "context": {
+      "building": "Création d’un agent « {template} » pour {business}."
+    }
+  },
+  "dashboard": {
+    "home": {
+      "title": "Accueil",
+      "welcome": "Bienvenue dans {workspace}",
+      "body": "Les appels en direct, les crédits et la journée de votre agent apparaîtront ici dès que vous serez en service.",
+      "credits": {
+        "title": "Crédits",
+        "buy": "Acheter des crédits",
+        "credits": "crédits",
+        "ofPack": "d’un forfait de {pack} crédits",
+        "remaining": "Crédits restants de votre dernier forfait",
+        "usedToday": "Utilisés aujourd’hui",
+        "expiring": "Prochaine expiration",
+        "expiringValue": "{credits} le {date}",
+        "nothingExpiring": "Aucune expiration à venir",
+        "autoTopupOn": "La recharge automatique est activée : le solde est rechargé sous {threshold} crédits."
+      },
+      "today": {
+        "title": "Aujourd’hui",
+        "timezone": "Votre journée, fuseau {tz}",
+        "calls": "Appels",
+        "ofWhichTests": "dont {n, plural, one {# test} other {# tests}}",
+        "missed": "Manqués",
+        "minutes": "Minutes",
+        "credits": "Crédits utilisés",
+        "avgDuration": "Durée moy.",
+        "answered": "Répondus",
+        "phoneCalls": "Téléphone",
+        "websiteCalls": "Site web",
+        "channelMinutes": "{minutes} min"
+      },
+      "agents": {
+        "title": "Agents",
+        "all": "Tous les agents"
+      },
+      "checklist": {
+        "title": "Étapes de configuration",
+        "progress": "{done} sur {total} terminées",
+        "steps": {
+          "workspace_created": "Créer votre espace de travail",
+          "agent_created": "Créer un agent",
+          "agent_generated": "Rédiger l’agent à partir de votre fiche",
+          "agent_published": "Publier l’agent",
+          "credits_purchased": "Acheter vos premiers crédits",
+          "number_attached": "Associer un numéro de téléphone"
+        }
+      },
+      "recent": {
+        "title": "Appels récents",
+        "all": "Tous les appels"
+      },
+      "activity": {
+        "title": "30 derniers jours",
+        "total": "{value} {metric} au cours des 30 derniers jours",
+        "metricLabel": "Afficher",
+        "metric": {
+          "calls": "Appels",
+          "minutes": "Minutes",
+          "credits": "Crédits"
+        },
+        "empty": "Aucun appel au cours des 30 derniers jours.",
+        "emptyHint": "Dès que votre agent répondra à un appel, chaque journée s’affichera ici.",
+        "table": "Afficher sous forme de tableau",
+        "day": "Jour",
+        "missed": "Manqués",
+        "tooltip": "{calls} appels · {missed} manqués · {minutes} min · {credits} crédits"
+      }
+    },
+    "calls": {
+      "title": "Appels",
+      "empty": "Aucun appel pour l’instant. Dès que votre agent est en service, chaque appel s’affiche ici avec sa transcription et son résumé.",
+      "count": "{n} appels",
+      "loadFailed": "Impossible de charger les appels. Réessayez.",
+      "emptyFiltered": "Aucun appel ne correspond à ces filtres.",
+      "browserTest": "Test dans le navigateur",
+      "unknownCaller": "Appelant inconnu",
+      "test": "test",
+      "creditsShort": "{n} cr",
+      "perMin": "{n}/min",
+      "selectAll": "Sélectionner tous les appels de cette page",
+      "selectAllShort": "Tout sélectionner",
+      "sortBy": "Trier les appels",
+      "sortOptions": {
+        "started_at_desc": "Plus récents d’abord",
+        "started_at_asc": "Plus anciens d’abord",
+        "duration_s_desc": "Plus longs d’abord",
+        "duration_s_asc": "Plus courts d’abord",
+        "credits_charged_desc": "Plus de crédits d’abord",
+        "credits_charged_asc": "Moins de crédits d’abord"
+      },
+      "selectOne": "Sélectionner cet appel",
+      "handledYes": "Traité",
+      "showing": "Appels {first}–{last} sur {total}",
+      "showingPage": "Appels {first}–{last}",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "status": {
+        "registered": "Sonnerie",
+        "in_progress": "En cours",
+        "ended": "Terminé",
+        "analyzed": "Finalisé",
+        "missed": "Manqué"
+      },
+      "sentiment": {
+        "positive": "Positif",
+        "neutral": "Neutre",
+        "negative": "Négatif",
+        "unknown": "Inconnu"
+      },
+      "direction": {
+        "inbound": "Entrant",
+        "outbound": "Sortant"
+      },
+      "channel": {
+        "phone": "Téléphone",
+        "web": "Site web"
+      },
+      "declineReason": {
+        "balance": "Refusé : le solde était insuffisant.",
+        "cap": "Refusé : toutes les lignes étaient occupées.",
+        "blocked": "Refusé : cet appelant est bloqué.",
+        "hours": "Refusé : en dehors des heures d’ouverture.",
+        "paused": "Refusé : l’agent ou l’espace de travail était en pause."
+      },
+      "columns": {
+        "when": "Date",
+        "caller": "Appelant",
+        "agent": "Agent",
+        "duration": "Durée",
+        "mood": "Humeur",
+        "credits": "Crédits",
+        "status": "Statut",
+        "handled": "Traité"
+      },
+      "filters": {
+        "range": "Période",
+        "ranges": {
+          "all": "Toute la période",
+          "today": "Aujourd’hui",
+          "7d": "7 derniers jours",
+          "30d": "30 derniers jours"
+        },
+        "status": "Statut",
+        "anyStatus": "Tous les statuts",
+        "agent": "Agent",
+        "anyAgent": "Tous les agents",
+        "channel": "Canal",
+        "anyChannel": "Téléphone et site web",
+        "phone": "Téléphone",
+        "web": "Site web",
+        "test": "Appels test",
+        "testAny": "Inclure les tests",
+        "testHide": "Masquer les tests",
+        "testOnly": "Tests seulement",
+        "handled": "Traité",
+        "handledAny": "Traités ou non",
+        "handledNo": "À traiter",
+        "handledYes": "Traités",
+        "clear": "Effacer les filtres"
+      },
+      "bulk": {
+        "selected": "{n} sélectionnés",
+        "markHandled": "Marquer comme traités",
+        "export": "Exporter la sélection",
+        "clear": "Effacer",
+        "done": "{n} appels marqués comme traités"
+      },
+      "export": {
+        "button": "Exporter en CSV",
+        "done": "Votre exportation est en cours de téléchargement."
+      },
+      "recording": {
+        "none": "Aucun enregistrement pour cet appel.",
+        "load": "Charger l’enregistrement",
+        "unavailable": "L’enregistrement n’est pas disponible.",
+        "expired": "Le lien de l’enregistrement a expiré. Chargez-le de nouveau.",
+        "playbackError": "L’enregistrement n’a pas pu être lu.",
+        "noAudioSupport": "Votre navigateur ne peut pas lire l’audio ici."
+      },
+      "transcript": {
+        "agent": "Agent",
+        "caller": "Appelant",
+        "unavailable": "Aucune transcription pour cet appel.",
+        "showAll": "Afficher {n} de plus"
+      },
+      "detail": {
+        "title": "Appel",
+        "notFound": "Cet appel ne fait pas partie de votre espace de travail.",
+        "missedTitle": "L’appelant n’a pas joint votre agent",
+        "summary": "Résumé",
+        "summaryPending": "Le résumé arrive environ une minute après la fin de l’appel.",
+        "summaryUnavailable": "Aucun résumé n’a été reçu pour cet appel.",
+        "sentiment": "Humeur de l’appelant",
+        "outcome": "Résultat",
+        "goalReached": "Objectif atteint",
+        "goalNotReached": "Objectif non atteint",
+        "voicemail": "Messagerie vocale",
+        "captured": "Ce que l’agent a noté",
+        "capturedPending": "Les renseignements notés arrivent avec le résumé.",
+        "capturedNone": "Rien n’a été noté pendant cet appel.",
+        "transcript": "Transcription",
+        "recording": "Enregistrement",
+        "details": "Détails",
+        "duration": "Durée",
+        "charged": "Crédits facturés",
+        "rate": "Tarif",
+        "tier": "Gamme",
+        "direction": "Sens",
+        "channel": "Canal",
+        "from": "De",
+        "to": "À",
+        "agentVersion": "Version de l’agent",
+        "started": "Début",
+        "ended": "Fin",
+        "disconnection": "Motif de fin",
+        "callId": "ID de l’appel",
+        "handled": "Traité",
+        "handledAt": "Marqué comme traité {when}",
+        "handledHint": "Cochez une fois qu’un suivi a été fait.",
+        "markedHandled": "Marqué comme traité",
+        "markedUnhandled": "Marqué comme non traité",
+        "note": "Note",
+        "notePlaceholder": "Qu’est-ce qui s’est passé ensuite?",
+        "noteViewer": "Aucune note.",
+        "noteSaved": "Note enregistrée",
+        "chargedAgentLeg": "Crédits facturés (agent)",
+        "chargedTotal": "Total des crédits",
+        "transfer": {
+          "title": "Appel transféré",
+          "endedBody": "Après que votre agent a transféré l’appelant, cette partie de l’appel a été facturée à part, à {rate} crédits la minute.",
+          "liveBody": "Votre agent a transféré l’appelant. Cette partie de l’appel sera facturée à part une fois terminée.",
+          "cancelledBody": "Votre agent a tenté de transférer l’appelant, mais personne n’a répondu. Rien de plus n’a été facturé.",
+          "status": "Statut",
+          "statuses": {
+            "started": "Sonnerie",
+            "bridged": "Connecté",
+            "cancelled": "Sans réponse",
+            "ended": "Terminé"
+          },
+          "duration": "Durée",
+          "charged": "Crédits facturés",
+          "rate": "Tarif",
+          "answered": "Réponse",
+          "ended": "Fin",
+          "inProgress": "En cours"
+        },
+        "knowledge": {
+          "title": "Ce que votre agent sait",
+          "summary": "Votre agent a fait {lookups, plural, one {# recherche} other {# recherches}} et a trouvé une réponse {hits, plural, one {# fois} other {# fois}}.",
+          "nothingFound": "Votre agent a fait {lookups, plural, one {# recherche} other {# recherches}}, sans rien trouver.",
+          "countOnly": "Votre agent a fait {lookups, plural, one {# recherche} other {# recherches}}. Les sources qui ont répondu ne sont pas disponibles pour cet appel.",
+          "sourceHits": "{hits, plural, one {# réponse} other {# réponses}}",
+          "website": "Une page du site web",
+          "removed": "Une source supprimée depuis"
+        }
+      },
+      "fields": {
+        "is_emergency": "Urgence",
+        "caller_name": "Nom de l’appelant",
+        "callback_number": "Numéro de rappel",
+        "message": "Message",
+        "service": "Service",
+        "preferred_slots": "Plages horaires préférées",
+        "is_new_client": "Nouveau client",
+        "reason": "Motif",
+        "topic": "Sujet",
+        "resolved": "Résolu",
+        "follow_up_required": "Suivi requis",
+        "email": "Courriel",
+        "need": "Besoin",
+        "budget": "Budget",
+        "timeline": "Échéancier",
+        "qualified": "Qualifié",
+        "score": "Pointage",
+        "urgency": "Degré d’urgence",
+        "message_taken": "Message pris",
+        "party_size": "Nombre de personnes",
+        "date_time": "Date et heure",
+        "special_requests": "Demandes spéciales"
+      },
+      "disconnect": {
+        "user_hangup": "L’appelant a raccroché",
+        "agent_hangup": "L’agent a mis fin à l’appel",
+        "call_transfer": "Transféré",
+        "voicemail_reached": "Messagerie vocale atteinte",
+        "inactivity": "Personne n’a parlé",
+        "max_duration_reached": "Durée maximale atteinte",
+        "concurrency_limit_reached": "Trop d’appels simultanés",
+        "no_valid_payment": "Aucun crédit",
+        "dial_busy": "Ligne occupée",
+        "dial_failed": "Connexion impossible",
+        "dial_no_answer": "Pas de réponse",
+        "registered_call_timeout": "Jamais connecté",
+        "not_connected": "Non connecté",
+        "error_user_not_joined": "L’appelant ne s’est jamais joint",
+        "sip_routing_error": "Erreur d’acheminement téléphonique",
+        "error": "Erreur technique",
+        "transfer_bridged": "Transféré à une personne",
+        "transfer_cancelled": "Transfert sans réponse"
+      },
+      "phoneCheck": {
+        "mismatch": "Ce n’est pas le numéro que l’appelant a dit. Vérifiez la transcription avant de rappeler.",
+        "invalid": "Ce numéro semble incomplet ({digits} chiffres). Vérifiez la transcription avant de rappeler.",
+        "heard": "L’appelant a dit : <num>{numbers}</num>",
+        "summary": "Le résumé peut répéter un numéro de téléphone que l’appelant n’a pas dit. Utilisez le numéro vérifié sous « {captured} »."
+      },
+      "websiteVisitor": "Visiteur du site web"
+    },
+    "agents": {
+      "title": "Agents",
+      "empty": "Aucun agent pour l’instant.",
+      "count": "{n} agents",
+      "emptyHint": "Partez d’un modèle et il sera prêt à tester en quelques minutes.",
+      "version": "Version {n}",
+      "notPublished": "Pas encore publié",
+      "numbers": "{n} numéros",
+      "numbersLabel": "Numéros",
+      "unpublished": "Modifications non publiées",
+      "live": "En service",
+      "draft": "Brouillon",
+      "max": "max.",
+      "created": "Créé {when}",
+      "status": {
+        "live": "En service",
+        "paused": "En pause",
+        "draft": "Brouillon"
+      },
+      "templates": {
+        "receptionist": "Réceptionniste",
+        "appointment": "Prise de rendez-vous",
+        "afterhours": "Après les heures",
+        "lead_qual": "Qualification de prospects",
+        "faq_support": "FAQ et soutien",
+        "restaurant": "Restaurant",
+        "custom": "Personnalisé"
+      },
+      "tabs": {
+        "overview": "Aperçu",
+        "brief": "Fiche",
+        "prompt": "Avancé",
+        "voice": "Voix",
+        "knowledge": "Connaissances",
+        "test": "Test",
+        "versions": "Versions",
+        "settings": "Paramètres",
+        "website": "Site web"
+      },
+      "detail": {
+        "back": "Tous les agents",
+        "missing": "Aucun agent n’a été choisi.",
+        "notFound": "Cet agent ne fait pas partie de votre espace de travail.",
+        "subtitle": "En service {live} · Brouillon {draft}",
+        "tabs": "Sections de l’agent"
+      },
+      "new": {
+        "button": "Nouvel agent",
+        "title": "Nouvel agent",
+        "body": "Choisissez le modèle le plus proche. Tout peut être modifié par la suite.",
+        "name": "Nom",
+        "nameHint": "Son nom dans votre tableau de bord, 2–60 caractères.",
+        "namePlaceholder": "Réception",
+        "template": "Modèle",
+        "create": "Créer l’agent",
+        "planLimit": "Votre formule comprend un seul agent. Choisissez un forfait plus grand pour en ajouter un autre."
+      },
+      "publish": {
+        "title": "Le brouillon v{n} contient des modifications qui ne sont pas en service (en service : v{live})",
+        "firstTitle": "Le brouillon v{n} est prêt à être publié",
+        "hint": "La publication lance les vérifications et met cette version sur vos numéros.",
+        "pausedHint": "Cet agent est en pause. La publication le met à jour, mais ne le fait pas reprendre.",
+        "button": "Publier v{n}",
+        "done": "La version {n} est en service.",
+        "alreadyLive": "La version {n} était déjà en service.",
+        "blocked": "Corrigez ces points avant de publier",
+        "warnings": "Publié avec des avertissements",
+        "saveFirst": "Enregistrez d’abord les modifications de votre script. La publication envoie la dernière version enregistrée, pas le contenu de l’éditeur."
+      },
+      "overview": {
+        "configuration": "Configuration",
+        "liveVsDraft": "Ce que les appelants entendent maintenant, à côté de ce que le brouillon changerait.",
+        "draftOnly": "Rien n’est en service pour l’instant. Voici les paramètres du brouillon.",
+        "setting": "Paramètre",
+        "tier": "Gamme",
+        "voice": "Voix",
+        "language": "Langues",
+        "maxDuration": "Durée maximale d’appel",
+        "recording": "Enregistrement",
+        "on": "Activé",
+        "off": "Désactivé",
+        "greeting": "Message d’accueil",
+        "recentCalls": "Appels récents",
+        "allCalls": "Tous les appels",
+        "noCalls": "Aucun appel pour cet agent pour l’instant.",
+        "status": "Statut",
+        "statusLabel": "Statut",
+        "numbers": "Numéros de téléphone",
+        "noNumbers": "Aucun numéro associé",
+        "template": "Modèle",
+        "created": "Créé",
+        "publishedAt": "Publié",
+        "draftUpdated": "Brouillon mis à jour",
+        "finishBrief": "Compléter la fiche"
+      },
+      "brief": {
+        "hint": "Vos modifications s’enregistrent automatiquement dans le brouillon v{n}. Régénérez pour réécrire le script à partir de celles-ci.",
+        "viewerHint": "Vous pouvez lire la fiche; la modifier exige le rôle d’éditeur.",
+        "regenerateTitle": "Réécrire le script",
+        "regenerateBody": "Transforme la fiche en une nouvelle version brouillon. La version actuelle est conservée.",
+        "regenerated": "La version {n} a été rédigée à partir de votre fiche."
+      },
+      "prompt": {
+        "hint": "Modification du script du brouillon v{n}. Enregistrer crée une nouvelle version; l’ancienne est conservée.",
+        "viewerHint": "Lecture du script de la v{n}. La modification exige le rôle d’éditeur.",
+        "save": "Enregistrer comme nouvelle version",
+        "saved": "Enregistré comme version {n}.",
+        "greeting": "Message d’accueil",
+        "greetingHint": "La première chose que l’appelant entend.",
+        "prompt": "Script",
+        "promptHint": "Des instructions simples fonctionnent mieux. Les règles de la plateforme ci-dessous sont toujours ajoutées.",
+        "closing": "Conclusion",
+        "closingHint": "La façon dont l’agent termine un appel.",
+        "tooShort": "Écrivez au moins {min} caractères.",
+        "tooLong": "Le script est trop long.",
+        "guardrails": "Règles de la plateforme (toujours appliquées)",
+        "guardrailsHint": "Elles sont ajoutées à chaque agent et ne peuvent pas être modifiées.",
+        "lintTitle": "Vérifications",
+        "linting": "Vérification…",
+        "lintHint": "Lancées pendant que vous tapez. Les erreurs bloquent la publication; les avertissements sont des conseils.",
+        "lintNone": "Commencez à taper pour lancer les vérifications.",
+        "lintClean": "Toutes les vérifications sont réussies.",
+        "publishable": "Aucune erreur. Cette version peut être publiée.",
+        "notPublishable": "Les erreurs doivent être corrigées avant la publication.",
+        "field": "dans {field}",
+        "versionNote": "Chaque enregistrement crée une nouvelle version, qui ne change plus. Restaurez une version antérieure à partir de l’onglet « Versions ».",
+        "noVersion": "Cet agent n’a pas encore de version.",
+        "noPrompt": "Générez d’abord le script à partir de l’onglet « Fiche ».",
+        "greetingRequired": "Chaque agent a besoin d’un message d’accueil : sans lui, l’appelant n’entend que le silence quand l’appel se connecte.",
+        "leaveConfirm": "Certaines modifications du script ne sont pas enregistrées. Quitter et les perdre?",
+        "ruleFallback": "Vérification",
+        "rules": {
+          "prompt_empty": "Script vide",
+          "prompt_too_long": "Longueur du script",
+          "no_greeting": "Message d’accueil manquant",
+          "greeting_too_long": "Longueur du message d’accueil",
+          "handoff_rule_missing": "Aucune règle de relais",
+          "transfer_tool_missing": "Transfert sans numéro",
+          "handoff_message_missing": "Message de relais absent du script",
+          "absolute_language": "Formulation absolue",
+          "language_mismatch": "Langue non concordante",
+          "guardrails_missing": "Règles de la plateforme manquantes",
+          "platform_named": "Plateforme nommée"
+        },
+        "findings": {
+          "prompt_empty": "Cette version n’a pas encore de script. Générez-en un avant de publier.",
+          "prompt_too_long": "Le script est assez long pour ralentir chaque appel. Raccourcissez-le.",
+          "no_greeting": "Il n’y a pas de message d’accueil, alors l’appelant n’entend que le silence quand l’appel se connecte.",
+          "greeting_too_long": "Le message d’accueil est long. Raccourcissez-le pour que l’appelant puisse parler plus tôt.",
+          "handoff_rule_missing": "Un numéro de transfert est défini, mais le script ne dit jamais quand transférer, alors l’agent ne l’utilisera pas.",
+          "transfer_tool_missing": "La fiche demande un transfert, mais aucun numéro de transfert ne s’est rendu à l’agent, alors le transfert échouerait pendant l’appel.",
+          "handoff_message_missing": "Le script ne contient pas l’un de vos messages de relais, alors l’agent pourrait dire autre chose. Régénérez-le, ou collez le message dans le script.",
+          "absolute_language": "Le script fait une promesse sur les prix ou la disponibilité. Nuancez-la — c’est l’entreprise, pas l’agent, qui garantit quoi que ce soit.",
+          "language_mismatch": "Le script est rédigé dans une autre langue que la langue principale de l’agent.",
+          "guardrails_missing": "Les règles de la plateforme sont absentes de ce script.",
+          "platform_named": "Le script nomme la plateforme vocale derrière votre agent. Votre agent ne doit parler qu’au nom de votre entreprise; régénérez le script ou retirez le nom dans « Avancé »."
+        }
+      },
+      "voice": {
+        "hint": "Les modifications s’enregistrent dans le brouillon et sont mises en service à la prochaine publication.",
+        "viewerHint": "Les paramètres de voix peuvent être modifiés par les éditeurs et les rôles supérieurs."
+      },
+      "knowledge": {
+        "lockedBody": "Ajouter ce que votre agent sait est inclus à partir du forfait {pack}.",
+        "lockedBodyGeneric": "Ajouter ce que votre agent sait est inclus dans un forfait plus grand.",
+        "publishedHint": "Une source ajoutée maintenant parvient à votre agent en service quelques minutes après sa lecture.",
+        "usage": {
+          "title": "Fréquence d’utilisation",
+          "body": "D’après les appels de vrais appelants; les appels test sont exclus.",
+          "window": "Période",
+          "lastDays": "{days} derniers jours",
+          "noCalls": "Aucun appel pendant cette période pour l’instant.",
+          "notUsed": "{calls, plural, one {# appel} other {# appels}} pendant cette période, et aucun n’a eu besoin de ce que votre agent sait.",
+          "callsUsed": "Appels qui l’ont utilisé",
+          "callsOf": "{used} sur {calls}",
+          "lookups": "Recherches",
+          "answered": "Réponse trouvée",
+          "answeredValue": "{hits} ({pct} %)",
+          "bySource": "Par source",
+          "unused": "Pas encore utilisée",
+          "sourceValue": "{hits, plural, one {# réponse} other {# réponses}} dans {calls, plural, one {# appel} other {# appels}}",
+          "other": "{hits, plural, one {# réponse provenait} other {# réponses provenaient}} d’une page du site web ou d’une source supprimée depuis."
+        }
+      },
+      "test": {
+        "hint": "Vous testez le brouillon v{n} dans le navigateur. Les appels test utilisent des crédits.",
+        "viewerHint": "Les appels test peuvent être faits par les éditeurs et les rôles supérieurs.",
+        "noPrompt": "Générez le script à partir de l’onglet « Fiche » avant de tester."
+      },
+      "versions": {
+        "hint": "Chaque version est conservée. Choisissez-en deux à comparer.",
+        "compare": "Comparer deux versions",
+        "compareThese": "Comparer v{a} et v{b}",
+        "pick": "Choisir",
+        "pickVersion": "Choisir la version {n} à comparer",
+        "version": "Version",
+        "source": "Source",
+        "created": "Créée",
+        "changes": "Modifications",
+        "actions": "Actions",
+        "live": "En service",
+        "draft": "Brouillon",
+        "noPrompt": "Aucun script",
+        "publishedAt": "Publiée {when}",
+        "moreChanges": "{n} de plus",
+        "view": "Voir",
+        "restore": "Restaurer comme brouillon",
+        "publish": "Publier",
+        "restored": "La version {n} est maintenant le brouillon.",
+        "published": "La version {n} est en service.",
+        "alreadyLive": "La version {n} était déjà en service.",
+        "lintBlocked": "Cette version contient des erreurs et ne peut pas être publiée.",
+        "empty": "Aucune version pour l’instant.",
+        "viewTitle": "Version {n}",
+        "greeting": "Message d’accueil",
+        "prompt": "Script",
+        "feedback": "Rétroaction à l’origine de cette version",
+        "lintOk": "Vérifications réussies",
+        "lintErrors": "Contient des erreurs",
+        "diffTitle": "v{a} → v{b}",
+        "diffSummary": "{added} lignes ajoutées, {removed} retirées",
+        "sources": {
+          "generated": "Générée",
+          "feedback": "Rétroaction",
+          "manual": "Modification manuelle",
+          "regenerate": "Régénérée"
+        }
+      },
+      "settings": {
+        "general": "Général",
+        "generalHint": "Des libellés pour votre tableau de bord. Les appelants ne les entendent jamais.",
+        "name": "Nom",
+        "nameHint": "2–60 caractères.",
+        "industry": "Secteur d’activité",
+        "calls": "Appels",
+        "callsHint": "Ces réglages s’appliquent au brouillon et sont mis en service à la prochaine publication.",
+        "tier": "Gamme",
+        "tierHint": "Premium utilise la technologie vocale la plus naturelle.",
+        "standardBody": "{rate}. Convient à la plupart des entreprises.",
+        "premiumBody": "{rate}. Les voix les plus naturelles.",
+        "maxDuration": "Durée maximale d’appel",
+        "maxDurationHint": "Les appels se terminent à ce moment. De 3 à 30 minutes.",
+        "recording": "Enregistrer les appels",
+        "recordingHint": "Les enregistrements apparaissent sur la page de chaque appel.",
+        "on": "activé",
+        "off": "désactivé",
+        "liveNow": "En service actuellement : {tier}, {duration} max., enregistrement {recording}.",
+        "saved": "Paramètres enregistrés.",
+        "danger": "Mettre en pause ou supprimer",
+        "dangerHint": "Propriétaires et administrateurs seulement.",
+        "pause": "Mettre l’agent en pause",
+        "pauseHint": "Les appelants qui composent ses numéros entendent un signal occupé jusqu’à la reprise.",
+        "resume": "Reprendre l’agent",
+        "resumeHint": "Il répond de nouveau sur chaque numéro.",
+        "paused": "Agent mis en pause.",
+        "resumed": "L’agent a repris.",
+        "delete": "Supprimer l’agent",
+        "deleteHint": "Supprime l’agent. Ses appels restent dans votre historique.",
+        "deleteTitle": "Supprimer {name}?",
+        "deleteBody": "Cette action est irréversible. Les appels qu’il a pris restent dans votre historique.",
+        "deleted": "Agent supprimé.",
+        "inUse": "Libérez d’abord ses numéros de téléphone.",
+        "adminOnly": "Votre rôle ne permet pas de mettre en pause ni de supprimer des agents."
+      },
+      "website": {
+        "title": "Bouton pour site web",
+        "body": "Ajoutez un bouton « Parlez-nous » à votre site web. Les visiteurs parlent à votre agent en service dans leur navigateur, sans téléphone. Ces appels utilisent des crédits comme les appels téléphoniques et s’affichent dans « Appels » avec le canal « Site web ».",
+        "notLive": "Votre agent n’est pas encore en service. D’ici là, le bouton indique aux visiteurs qu’il n’est pas disponible.",
+        "enabled": "Afficher le bouton",
+        "enabledHint": "Désactivez-le pour masquer le bouton partout où il est installé.",
+        "adminOnly": "Seuls les propriétaires et les administrateurs peuvent modifier ces paramètres.",
+        "turnedOn": "Le bouton pour site web est activé.",
+        "turnedOff": "Le bouton pour site web est désactivé.",
+        "snippet": {
+          "title": "L’ajouter à votre site",
+          "body": "Collez cette ligne dans le HTML de votre site web, juste avant la balise body de fermeture, sur chaque page où le bouton doit apparaître.",
+          "preview": "Aperçu",
+          "rotate": "Nouvelle clé",
+          "off": "Le bouton est désactivé, donc l’extrait n’affiche rien tant que vous ne le réactivez pas."
+        },
+        "origins": {
+          "title": "Où il peut apparaître",
+          "body": "Indiquez les adresses de vos sites web pour que personne ne puisse mettre votre bouton sur un autre site. Laissez vide pour autoriser n’importe quel site.",
+          "placeholder": "https://example.com",
+          "any": "N’importe quel site web peut afficher ce bouton.",
+          "invalid": "Adresse de site web non valide : {sites}",
+          "saved": "Enregistré."
+        },
+        "rotate": {
+          "title": "Remplacer la clé?",
+          "body": "Vous obtiendrez un nouvel extrait à coller sur votre site.",
+          "consequence": "Le bouton cesse de fonctionner sur tous les sites qui utilisent l’ancien extrait jusqu’à ce que vous colliez le nouveau.",
+          "confirm": "Remplacer la clé",
+          "done": "La nouvelle clé est prête. Collez le nouvel extrait sur votre site."
+        }
+      }
+    },
+    "numbers": {
+      "title": "Numéros de téléphone",
+      "subtitle": "Les numéros que vos appelants composent pour joindre vos agents.",
+      "empty": "Aucun numéro de téléphone pour l’instant.",
+      "emptyHint": "Ajoutez un numéro et associez-le à un agent en service pour commencer à recevoir des appels.",
+      "emptyViewer": "Un propriétaire ou un administrateur peut en ajouter un.",
+      "add": "Ajouter un numéro",
+      "settingUp": "Configuration…",
+      "back": "Tous les numéros",
+      "loadFailed": "Nous n’avons pas pu charger vos numéros.",
+      "notFound": "Ce numéro ne fait pas partie de cet espace de travail.",
+      "rename": "Renommer",
+      "changeAgent": "Changer d’agent",
+      "release": "Libérer",
+      "openNumber": "Ouvrir",
+      "moreActions": "Plus d’actions pour {number}",
+      "listLabel": "Numéros de téléphone",
+      "columns": {
+        "number": "Numéro",
+        "label": "Libellé",
+        "type": "Type",
+        "country": "Pays",
+        "agent": "Agent",
+        "status": "Statut",
+        "calls7d": "Appels (7 jours)",
+        "rental": "Location"
+      },
+      "type": {
+        "new": "Nouveau",
+        "forward": "Cible de renvoi",
+        "sip": "SIP"
+      },
+      "status": {
+        "provisioning": "En configuration",
+        "active": "Actif",
+        "paused": "En pause",
+        "releasing": "Libération en cours",
+        "released": "Libéré",
+        "failed": "Échec"
+      },
+      "rentalValue": "{credits} cr/mois",
+      "rentalNone": "—",
+      "nextRental": "Prochaine location : {date}",
+      "noAgent": "Aucun agent",
+      "unknownAgent": "Agent supprimé",
+      "releasedNote": "Ce numéro a été libéré. Il ne répond plus aux appels et rien n’est facturé pour celui-ci.",
+      "failedNote": "La configuration de ce numéro a échoué : {reason}",
+      "renameDialog": {
+        "title": "Renommer le numéro",
+        "label": "Libellé",
+        "hint": "Visible par vous seulement, par exemple « Réception ».",
+        "save": "Enregistrer le libellé",
+        "saved": "Libellé enregistré.",
+        "clear": "Retirer le libellé"
+      },
+      "tabs": {
+        "label": "Paramètres du numéro",
+        "routing": "Acheminement",
+        "handoff": "Relais",
+        "callers": "Appelants",
+        "forwarding": "Renvoi d’appel",
+        "sip": "SIP",
+        "danger": "Zone de danger"
+      },
+      "readOnly": "Vous pouvez consulter ce numéro. Un propriétaire, un administrateur ou un éditeur peut le modifier.",
+      "saved": "Enregistré.",
+      "routing": {
+        "title": "Acheminement",
+        "body": "Quel agent répond à ce numéro, et quand.",
+        "agent": "Agent",
+        "agentHint": "Seuls les agents publiés peuvent répondre aux appels.",
+        "agentNone": "Publiez d’abord un agent — aucun n’est encore en service.",
+        "active": "Répondre aux appels sur ce numéro",
+        "activeHint": "Désactivé, ce numéro est en pause : les appelants entendent un signal occupé et rien n’est facturé.",
+        "hours": "Quand répondre",
+        "modes": {
+          "always": "24 heures sur 24",
+          "business": "Pendant les heures d’ouverture",
+          "custom": "Selon un horaire propre à ce numéro"
+        },
+        "modeHints": {
+          "always": "Votre agent répond à tous les appels, jour et nuit.",
+          "business": "Votre agent répond pendant les heures d’ouverture de l’espace de travail. En dehors de celles-ci, les appelants entendent un signal occupé et l’appel apparaît comme manqué.",
+          "custom": "Votre agent répond pendant les heures ci-dessous. En dehors de celles-ci, les appelants entendent un signal occupé et l’appel apparaît comme manqué."
+        },
+        "noBusinessHours": "L’espace de travail n’a pas encore d’heures d’ouverture, alors ce numéro répond 24 heures sur 24 jusqu’à ce que vous les définissiez.",
+        "setBusinessHours": "Définir les heures d’ouverture",
+        "customEmpty": "Ouvrez au moins une journée, sinon ce numéro ne répondra jamais.",
+        "save": "Enregistrer l’acheminement"
+      },
+      "handoff": {
+        "title": "Relais",
+        "body": "Les personnes à qui votre agent peut transférer un appelant quand celui-ci demande à parler à quelqu’un ou que l’agent ne peut pas l’aider.",
+        "save": "Enregistrer les relais",
+        "fix": "Corrigez d’abord les lignes en surbrillance."
+      },
+      "callers": {
+        "countriesTitle": "Pays des appelants autorisés",
+        "countriesBody": "Les appels de partout ailleurs sont refusés. Laissez vide pour accepter ce que votre formule permet.",
+        "countriesAdd": "Ajouter un pays",
+        "countriesEmpty": "Tout pays permis par votre formule.",
+        "countriesMax": "Jusqu’à {max} pays.",
+        "removeCountry": "Retirer {country}",
+        "blockTitle": "Appelants bloqués",
+        "blockBody": "Les appels de ces numéros sont refusés avant que votre agent réponde et ne coûtent rien.",
+        "blockPlaceholder": "+15145550123, puis Entrée",
+        "blockInvalid": "Pas un numéro de téléphone au format international : {entries}",
+        "blockMax": "Jusqu’à {max} numéros.",
+        "save": "Enregistrer les appelants",
+        "recentTitle": "Appelants récents",
+        "recentBody": "Qui a appelé ce numéro, du plus récent au plus ancien.",
+        "recentEmpty": "Personne n’a encore appelé ce numéro.",
+        "recentLabel": "Appelants récents sur ce numéro",
+        "columns": {
+          "caller": "Appelant",
+          "when": "Quand",
+          "status": "Statut",
+          "length": "Durée",
+          "action": "Action"
+        },
+        "block": "Bloquer",
+        "blocked": "Bloqué",
+        "blockedToast": "{number} est bloqué sur ce numéro.",
+        "unknown": "Appelant inconnu"
+      },
+      "forwarding": {
+        "title": "Renvoyer votre ligne existante",
+        "body": "Vos appelants continuent de composer le {from}. Votre fournisseur renvoie ces appels au {to}, auquel votre agent répond.",
+        "bodyPending": "Vos appelants continuent de composer le {from}. Votre fournisseur renvoie ces appels à ce numéro dès qu’il est configuré.",
+        "status": {
+          "waiting_for_customer": "En attente de votre action",
+          "ready": "Renvoi activé",
+          "failed": "À vérifier"
+        },
+        "confirm": "J’ai activé le renvoi d’appel",
+        "confirmHint": "Dites-le-nous une fois que votre fournisseur renvoie les appels, pour que nous cessions de vous le rappeler.",
+        "confirmed": "Renvoi marqué comme activé.",
+        "unconfirm": "Marquer le renvoi comme pas encore activé",
+        "test": {
+          "title": "Tester le renvoi",
+          "body": "Nous appelons le {from} à partir de ce numéro. Si votre fournisseur renvoie l’appel, il revient directement ici et nous savons que ça fonctionne.",
+          "start": "Tester le renvoi",
+          "again": "Tester de nouveau",
+          "calling": "Appel en cours…",
+          "ringing": "Appel de votre ligne en cours. Cela peut prendre jusqu’à une minute et demie.",
+          "never": "Pas encore testé.",
+          "testedAt": "Testé le {when}",
+          "status": {
+            "calling": "Appel en cours",
+            "landed": "Fonctionne",
+            "not_landed": "Non renvoyé",
+            "failed": "Appel impossible"
+          },
+          "notLandedHint": "L’appel n’est pas revenu. Vérifiez le code de renvoi de votre fournisseur ci-dessus, et que ni vous ni votre boîte vocale n’avez répondu en premier, puis testez de nouveau.",
+          "callerIdOriginal": "Votre fournisseur affiche les appels renvoyés avec votre propre ligne comme appelant, donc le véritable appelant pourrait ne pas apparaître dans votre historique d’appels.",
+          "cost": "Si quelqu’un ou votre boîte vocale répond à votre téléphone pendant le test, l’agent parle jusqu’à une minute, ce qui utilise des crédits.",
+          "toast": {
+            "landed": "Le renvoi fonctionne : l’appel a joint votre agent.",
+            "notLanded": "L’appel test n’a pas été renvoyé."
+          }
+        }
+      },
+      "sip": {
+        "title": "Connexion SIP",
+        "body": "Le système téléphonique d’où proviennent les appels de ce numéro.",
+        "number": "Numéro",
+        "host": "URI de terminaison",
+        "username": "Nom d’utilisateur",
+        "password": "Mot de passe",
+        "passwordStored": "Enregistré chiffré",
+        "passwordNone": "Aucun",
+        "showUsername": "Afficher le nom d’utilisateur",
+        "hideUsername": "Masquer le nom d’utilisateur",
+        "missing": "Nous n’avons pas pu lire les détails de connexion de ce numéro.",
+        "change": "Pour changer l’hôte ou les identifiants, utilisez « Mettre à jour les détails ». Nous vérifions d’abord les nouveaux détails et conservons les actuels si la vérification échoue.",
+        "inbound": "Pour que les appels joignent votre agent, votre système téléphonique doit les envoyer, pour ce numéro, à l’adresse fournie par notre équipe. Demandez-la au soutien si vous ne l’avez pas encore.",
+        "verify": {
+          "title": "Vérification de la connexion",
+          "check": "Vérifier la connexion",
+          "update": "Mettre à jour les détails",
+          "never": "Pas encore vérifiée.",
+          "running": "Vérification de votre système téléphonique…",
+          "checkedAt": "Vérifiée le {when}",
+          "updated": "Nouveaux détails enregistrés.",
+          "adminOnly": "Un propriétaire ou un administrateur peut vérifier la connexion.",
+          "status": {
+            "pending": "Vérification",
+            "verified": "Fonctionne",
+            "warning": "Joignable",
+            "failed": "Ne fonctionne pas"
+          },
+          "toast": {
+            "verified": "Votre système téléphonique a répondu et accepté les détails.",
+            "warning": "Votre système téléphonique a répondu, mais nous n’avons pas pu confirmer le mot de passe.",
+            "failed": "La vérification a échoué. Voyez pourquoi ci-dessous."
+          },
+          "reasons": {
+            "auth_rejected": "Votre système téléphonique a refusé le nom d’utilisateur ou le mot de passe. Vérifiez-les auprès de votre fournisseur et mettez-les à jour ici.",
+            "auth_required": "Votre système téléphonique demande un nom d’utilisateur et un mot de passe, et aucun n’est enregistré pour ce numéro. Ajoutez-les avec « Mettre à jour les détails ».",
+            "unreachable": "Nous n’avons pas pu nous connecter à votre système téléphonique à cette adresse. Vérifiez l’adresse, et qu’il accepte les connexions provenant d’Internet.",
+            "timeout": "Votre système téléphonique n’a pas répondu à temps. Vérifiez l’adresse et tout pare-feu placé devant.",
+            "dns_failed": "Cette adresse n’existe pas. Vérifiez l’orthographe.",
+            "non_public": "Cette adresse pointe vers un réseau privé, que les appels ne peuvent pas joindre. Utilisez l’adresse publique de votre système téléphonique.",
+            "port_not_allowed": "Ce port n’est pas utilisé par les systèmes téléphoniques. Utilisez 5060, 5061 ou le port SIP de votre fournisseur.",
+            "tls_failed": "Impossible d’établir une connexion sécurisée avec votre système téléphonique. Vérifiez son certificat ou utilisez le port 5060.",
+            "not_sip": "Quelque chose a répondu à cette adresse, mais ce n’est pas un système téléphonique.",
+            "answered": "Votre système téléphonique a répondu sans demander de mot de passe, alors nous n’avons pas pu le confirmer. Les appels devraient quand même passer.",
+            "forbidden": "Votre système téléphonique a répondu mais a refusé notre vérification — il n’accepte probablement que des adresses connues. Si les appels ne passent pas, communiquez avec le soutien.",
+            "not_on_platform": "Ce numéro n’est plus connecté de notre côté. Communiquez avec le soutien.",
+            "provider_error": "Nous n’avons pas pu enregistrer les détails de notre côté pour le moment. Réessayez dans quelques minutes."
+          },
+          "dialog": {
+            "title": "Mettre à jour les détails de connexion",
+            "body": "Nouveaux détails pour {number}. Laissez un champ vide pour conserver ce qui est enregistré.",
+            "bodyGeneric": "Laissez un champ vide pour conserver ce qui est enregistré.",
+            "keepHint": "Actuellement : {current}.",
+            "keepBlank": "Laissez vide pour conserver celui qui est enregistré.",
+            "safety": "Nous vérifions d’abord les nouveaux détails avec votre système téléphonique. Si la vérification échoue, rien ne change.",
+            "submit": "Vérifier et enregistrer",
+            "failed": "La vérification a échoué, alors rien n’a été modifié."
+          }
+        }
+      },
+      "danger": {
+        "title": "Libérer ce numéro",
+        "body": "Libérer le numéro, c’est y renoncer. Il cesse aussitôt de répondre et sa location mensuelle prend fin.",
+        "consequences": [
+          "Les appelants qui le composent ne joindront plus votre agent.",
+          "Aucune annulation possible — nous ne pouvons pas récupérer ce même numéro pour vous.",
+          "Les appels passés restent dans votre historique d’appels."
+        ],
+        "consequencesSip": [
+          "Les appels de votre système téléphonique ne joindront plus votre agent.",
+          "Vous pourrez importer de nouveau le même numéro SIP plus tard.",
+          "Les appels passés restent dans votre historique d’appels."
+        ],
+        "button": "Libérer le numéro",
+        "confirmTitle": "Libérer le {number}?",
+        "typeLabel": "Tapez {number} pour confirmer",
+        "done": "Le {number} a été libéré.",
+        "adminOnly": "Seul un propriétaire ou un administrateur peut libérer un numéro.",
+        "released": "Ce numéro a déjà été libéré."
+      },
+      "addDialog": {
+        "title": "Ajouter un numéro de téléphone",
+        "body": "Choisissez comment les appelants joindront votre agent.",
+        "agent": "Agent qui répond",
+        "agentNone": "Publiez un agent avant d’ajouter un numéro.",
+        "submitNew": "Obtenir ce numéro",
+        "submitSip": "Connecter cette ligne",
+        "balanceLow": "Un numéro coûte {credits} crédits par mois et votre solde est de {balance}. Achetez d’abord des crédits.",
+        "buyCredits": "Acheter des crédits",
+        "adminOnly": "Seul un propriétaire ou un administrateur peut ajouter un numéro.",
+        "started": "Nous configurons votre numéro. Il apparaîtra ici dès qu’il sera prêt.",
+        "sipLocked": "Utiliser votre propre ligne fait partie d’un forfait supérieur."
+      }
+    },
+    "wallet": {
+      "title": "Portefeuille et facturation",
+      "subtitle": "Vos crédits, ce qu’ils ont payé et votre mode de paiement.",
+      "empty": "Votre historique de crédits apparaîtra ici.",
+      "paused": {
+        "banner": "Les achats sont en pause pour le moment."
+      },
+      "viewerNote": "Vous pouvez voir le solde et l’historique. Un propriétaire ou un administrateur gère les paiements.",
+      "balance": {
+        "title": "Solde",
+        "credits": "crédits",
+        "plan": "Formule {tier} · {concurrency, plural, one {# appel simultané} other {# appels simultanés}} · {kb, plural, =0 {sans connaissances d’agent} one {connaissances pour # agent} other {connaissances pour # agents}}",
+        "expiring": "Prochaine expiration : {credits} le {date}",
+        "nothingExpiring": "Rien n’expire bientôt.",
+        "minutes": "Environ {minutes} minutes avec un agent standard",
+        "buy": "Acheter des crédits",
+        "live": "Mis à jour en direct"
+      },
+      "buy": {
+        "title": "Acheter des crédits",
+        "body": "Les crédits sont ajoutés dès que le paiement est confirmé."
+      },
+      "checkout": {
+        "confirming": "Confirmation de votre paiement…",
+        "credited": "Paiement reçu. Vos crédits ont été ajoutés.",
+        "pending": "Paiement reçu. Les crédits apparaîtront ici d’ici une minute.",
+        "cancelled": "Le paiement a été annulé. Rien n’a été facturé.",
+        "failed": "Nous n’avons pas encore pu confirmer le paiement. Si vous avez payé, les crédits arriveront sous peu."
+      },
+      "autoTopup": {
+        "title": "Recharge automatique",
+        "body": "Un forfait est acheté automatiquement quand le solde baisse, pour que votre agent ne s’arrête jamais en pleine journée.",
+        "enabled": "Recharge automatique",
+        "on": "Activée",
+        "off": "Désactivée",
+        "pack": "Forfait",
+        "packPlaceholder": "Choisir un forfait",
+        "threshold": "Quand le solde descend sous",
+        "thresholdHint": "En crédits, au moins 10.",
+        "thresholdError": "Entrez au moins 10 crédits.",
+        "packError": "Choisissez le forfait à acheter.",
+        "card": "Carte",
+        "cardValue": "•••• {last4}",
+        "noCard": "Aucune carte enregistrée pour l’instant. Une carte est enregistrée quand vous achetez un forfait avec la recharge automatique activée.",
+        "addCard": "Ajouter une carte",
+        "save": "Enregistrer la recharge automatique",
+        "saved": "Recharge automatique enregistrée.",
+        "summaryOn": "Achète le forfait {pack} quand le solde descend sous {threshold} crédits.",
+        "summaryOff": "Désactivée. Votre agent cesse de répondre quand il n’y a plus de crédits."
+      },
+      "expiring": {
+        "title": "Expirent bientôt",
+        "body": "Les crédits expirent {months} mois après l’achat et les plus anciens sont utilisés en premier.",
+        "empty": "Rien n’expire dans les 60 prochains jours.",
+        "row": "{credits} crédits le {date}",
+        "bodyNoPolicy": "Les crédits les plus anciens sont utilisés en premier."
+      },
+      "usage": {
+        "title": "Utilisation",
+        "subtitle": "Crédits utilisés par les appels chaque jour, 30 derniers jours",
+        "summary": "{total} cr utilisés · {perDay}/jour",
+        "empty": "Aucun crédit utilisé dans les 30 derniers jours.",
+        "emptyHint": "Chaque journée avec des appels apparaît ici."
+      },
+      "ledger": {
+        "title": "Historique des crédits",
+        "body": "Toutes les entrées et sorties de crédits du portefeuille, des plus récentes aux plus anciennes.",
+        "filter": "Afficher",
+        "all": "Tout",
+        "empty": "Rien pour l’instant.",
+        "emptyFiltered": "Aucun mouvement de ce type.",
+        "label": "Historique des crédits",
+        "columns": {
+          "date": "Date",
+          "type": "Type",
+          "description": "Description",
+          "amount": "Montant",
+          "balance": "Solde"
+        },
+        "reason": {
+          "trial": "Essai gratuit",
+          "purchase": "Achat de forfait",
+          "call": "Appel",
+          "rental": "Location du numéro",
+          "kb": "Connaissances de l’agent",
+          "adjustment": "Ajustement",
+          "expiry": "Crédits expirés",
+          "refund": "Remboursement",
+          "topup": "Recharge automatique",
+          "transfer": "Appel transféré"
+        },
+        "describe": {
+          "trial": "Crédits de bienvenue",
+          "purchase": "Crédits ajoutés",
+          "call": "Frais d’appel",
+          "rental": "Location mensuelle du numéro",
+          "kb": "Frais mensuels pour ce qu’un agent sait",
+          "adjustment": "Ajusté par notre équipe",
+          "expiry": "Crédits arrivés à expiration",
+          "refund": "Remboursé",
+          "topup": "Recharge automatique",
+          "transfer": "Frais pour un appel transféré"
+        },
+        "viewCall": "Voir l’appel"
+      },
+      "invoices": {
+        "title": "Factures",
+        "body": "Les reçus de chaque paiement, hébergés par notre fournisseur de paiement.",
+        "empty": "Aucune facture pour l’instant. Une facture est émise pour chaque forfait acheté.",
+        "label": "Factures",
+        "columns": {
+          "date": "Date",
+          "number": "Facture",
+          "amount": "Montant",
+          "status": "Statut",
+          "actions": "Actions"
+        },
+        "status": {
+          "draft": "Brouillon",
+          "open": "Ouverte",
+          "paid": "Payée",
+          "payment_failed": "Paiement échoué",
+          "void": "Annulée",
+          "uncollectible": "Irrécouvrable"
+        },
+        "view": "Voir",
+        "pdf": "PDF",
+        "noNumber": "—"
+      },
+      "payment": {
+        "title": "Modes de paiement",
+        "body": "Les cartes, l’adresse de facturation et le numéro de taxe sont gérés de façon sécurisée sur la page de notre fournisseur de paiement.",
+        "card": "Carte enregistrée",
+        "none": "Aucune carte enregistrée.",
+        "manage": "Gérer les modes de paiement",
+        "opening": "Ouverture…",
+        "needPurchase": "Achetez d’abord un forfait — c’est ce qui crée votre compte de facturation."
+      }
+    },
+    "settings": {
+      "title": "Paramètres",
+      "theme": "Apparence",
+      "themeHint": "Choisissez l’apparence d’Oraly sur cet appareil.",
+      "workspace": "Espace de travail",
+      "security": "Sécurité",
+      "members": "Équipe",
+      "tabs": {
+        "label": "Sections des paramètres",
+        "workspace": "Espace de travail",
+        "team": "Équipe",
+        "notifications": "Notifications",
+        "security": "Sécurité",
+        "privacy": "Données et confidentialité",
+        "audit": "Journal d’activité"
+      },
+      "adminOnly": "Seul un propriétaire ou un administrateur peut modifier ceci.",
+      "saved": "Paramètres enregistrés.",
+      "ws": {
+        "title": "Renseignements sur l’entreprise",
+        "body": "Utilisés par vos agents et pour chaque date et heure que nous vous affichons.",
+        "name": "Nom de l’entreprise",
+        "nameError": "Entre 2 et 80 caractères.",
+        "country": "Pays",
+        "countryHint": "Ne peut plus être modifié une fois l’espace de travail créé.",
+        "timezone": "Fuseau horaire",
+        "timezoneHint": "« Aujourd’hui », les heures d’ouverture et le résumé quotidien suivent ce fuseau.",
+        "website": "Site web",
+        "websiteError": "Entrez une adresse complète, comme https://example.com.",
+        "hoursTitle": "Heures d’ouverture par défaut",
+        "hoursBody": "Les numéros réglés sur « pendant les heures d’ouverture » répondent selon cet horaire.",
+        "hoursClear": "Aucune heure d’ouverture",
+        "save": "Enregistrer l’espace de travail"
+      },
+      "team": {
+        "title": "Membres",
+        "body": "Toutes les personnes qui peuvent ouvrir cet espace de travail.",
+        "label": "Membres de l’espace de travail",
+        "you": "Vous",
+        "columns": {
+          "name": "Nom",
+          "email": "Courriel",
+          "role": "Rôle",
+          "joined": "Membre depuis",
+          "actions": "Actions"
+        },
+        "roleLabel": "Rôle de {name}",
+        "roleChanged": "{name} est maintenant {role}.",
+        "remove": "Retirer",
+        "removeTitle": "Retirer {name}?",
+        "removeBody": "Cette personne perd immédiatement l’accès à cet espace de travail. Son activité passée reste dans le journal d’activité.",
+        "removed": "{name} ne fait plus partie de l’équipe.",
+        "transfer": "Nommer propriétaire",
+        "transferTitle": "Nommer {name} propriétaire?",
+        "transferBody": "Il n’y a qu’un seul propriétaire. Vous devenez administrateur, et {name} pourra ensuite modifier votre rôle ou vous retirer.",
+        "transferType": "Tapez {email} pour confirmer",
+        "transferred": "{name} est maintenant propriétaire.",
+        "invitesTitle": "Invitations en attente",
+        "invitesEmpty": "Aucune invitation en attente.",
+        "invitesLabel": "Invitations en attente",
+        "inviteColumns": {
+          "email": "Courriel",
+          "role": "Rôle",
+          "status": "Statut",
+          "expires": "Expiration",
+          "actions": "Actions"
+        },
+        "inviteStatus": {
+          "pending": "En attente",
+          "expired": "Expirée"
+        },
+        "revoke": "Révoquer",
+        "revoked": "Invitation révoquée.",
+        "resend": "Renvoyer",
+        "resent": "Nouveau lien d’invitation créé pour {email}. L’ancien lien ne fonctionne plus.",
+        "resentEmailed": "Une nouvelle invitation a été envoyée par courriel à {email}. L’ancien lien ne fonctionne plus.",
+        "resendTitle": "Envoyer une nouvelle invitation à {email}?",
+        "resendBody": "Un nouveau lien sera créé et envoyé par courriel. Le lien envoyé précédemment cesse aussitôt de fonctionner.",
+        "expiredOn": "Expirée le {date}",
+        "inviteTitle": "Inviter quelqu’un",
+        "inviteBody": "Nous lui envoyons par courriel un lien pour se joindre à l’équipe avec ce rôle.",
+        "email": "Courriel",
+        "emailError": "Entrez une adresse courriel valide.",
+        "role": "Rôle",
+        "invite": "Envoyer l’invitation",
+        "invited": "Invitation créée pour {email}.",
+        "invitedEmailed": "Invitation envoyée par courriel à {email}.",
+        "emailFailed": "Nous n’avons pas pu envoyer de courriel à {email}. Copiez le lien ci-dessous et envoyez-le vous-même.",
+        "linkTitle": "Partagez ce lien avec {email}",
+        "linkBody": "Seule la personne qui détient ce lien peut se joindre, et seulement en étant connectée avec {email}. Il n’est affiché qu’une fois et expire le {date}.",
+        "linkBodyEmailed": "Nous avons envoyé ce lien par courriel à {email}; vous pouvez aussi le copier et l’envoyer vous-même. Seule la personne qui le détient peut se joindre, et seulement en étant connectée avec {email}. Il n’est affiché qu’une fois et expire le {date}.",
+        "roles": {
+          "owner": "Propriétaire",
+          "admin": "Administrateur",
+          "editor": "Éditeur",
+          "viewer": "Lecteur"
+        },
+        "roleHints": {
+          "admin": "Tout, sauf transférer la propriété.",
+          "editor": "Crée des agents, modifie l’acheminement, consulte les appels.",
+          "viewer": "Consulte les appels et les agents; ne modifie rien."
+        }
+      },
+      "notifications": {
+        "title": "Vos notifications",
+        "body": "Ce sont vos préférences personnelles; chaque membre règle les siennes.",
+        "defaultNote": "Vous utilisez les réglages par défaut de l’espace de travail. Enregistrer crée vos propres préférences.",
+        "newMessage": "Quand un appelant laisse un message",
+        "newMessageHint": "Un message, c’est tout ce qu’un appelant a demandé à votre agent de transmettre.",
+        "modes": {
+          "instant": "M’envoyer un courriel immédiatement",
+          "daily": "Un résumé quotidien",
+          "off": "Ne pas m’envoyer de courriel"
+        },
+        "lowBalance": "Courriels de solde bas",
+        "lowBalanceHint": "À 20 %, 5 % et 0 de votre dernier forfait.",
+        "save": "Enregistrer les notifications"
+      },
+      "sec": {
+        "mfaTitle": "Authentification à deux facteurs",
+        "passwordTitle": "Mot de passe",
+        "passwordBody": "Nous vous envoyons par courriel un lien pour choisir un nouveau mot de passe.",
+        "passwordButton": "M’envoyer un lien de réinitialisation",
+        "passwordSent": "Le lien de réinitialisation a été envoyé à {email}.",
+        "passwordSocial": "Si vous vous connectez avec Google, votre mot de passe est géré par Google.",
+        "signOutTitle": "Se déconnecter",
+        "signOutBody": "Vous déconnecte d’Oraly sur cet appareil.",
+        "signOut": "Se déconnecter"
+      },
+      "privacy": {
+        "recordingTitle": "Enregistrements",
+        "recording": "Enregistrer les appels des nouveaux agents",
+        "recordingHint": "Chaque agent peut quand même activer ou désactiver l’enregistrement dans ses propres paramètres.",
+        "retention": "Conserver les enregistrements et transcriptions pendant",
+        "retentionHint": "Les enregistrements et transcriptions plus anciens sont supprimés automatiquement.",
+        "days": "{n, plural, one {# jour} other {# jours}}",
+        "save": "Enregistrer les paramètres de confidentialité",
+        "requestsTitle": "Exporter ou supprimer vos données",
+        "requestsBody": "L’exportation complète de cet espace de travail, ou sa suppression, est prise en charge par notre équipe pour que rien de facturable ne soit perdu par erreur. La suppression libère tous les numéros et entraîne la perte des crédits restants.",
+        "requestsCta": "Écrire à {email}",
+        "requestsSubject": "Demande relative aux données de l’espace de travail {workspace}"
+      },
+      "audit": {
+        "title": "Journal d’activité",
+        "body": "Ce qui a changé dans cet espace de travail, qui l’a fait et d’où.",
+        "area": "Domaine",
+        "allAreas": "Tout",
+        "areas": {
+          "agent": "Agents",
+          "number": "Numéros",
+          "knowledge": "Connaissances",
+          "member": "Membres",
+          "invite": "Invitations",
+          "workspace": "Espace de travail",
+          "phone_plan": "Options de numéro",
+          "billing": "Facturation",
+          "auto_topup": "Recharge automatique",
+          "credits": "Crédits",
+          "purchase": "Achats",
+          "user": "Connexion et sécurité",
+          "support": "Soutien"
+        },
+        "empty": "Rien n’a encore été enregistré.",
+        "emptyFiltered": "Rien dans ce domaine pour l’instant.",
+        "label": "Journal d’activité",
+        "columns": {
+          "time": "Heure",
+          "actor": "Qui",
+          "action": "Quoi",
+          "details": "Détails",
+          "ip": "Adresse IP"
+        },
+        "system": "Oraly",
+        "staff": "Équipe de soutien",
+        "formerMember": "Ancien membre",
+        "adminOnly": "Seul un propriétaire ou un administrateur peut consulter le journal d’activité.",
+        "actions": {
+          "agent_created": "A créé un agent",
+          "agent_deleted": "A supprimé un agent",
+          "agent_draft_selected": "A restauré une version comme brouillon",
+          "agent_paused": "A mis un agent en pause",
+          "agent_prompt_edited": "A modifié les instructions d’un agent",
+          "agent_published": "A publié un agent",
+          "agent_resumed": "A réactivé un agent",
+          "agent_activated": "A mis un agent en service",
+          "number_buy_requested": "A demandé un nouveau numéro",
+          "number_import_requested": "A connecté un numéro SIP",
+          "number_updated": "A modifié les paramètres d’un numéro",
+          "number_release_requested": "A libéré un numéro",
+          "number_released_unpaid": "A libéré un numéro pour location impayée",
+          "knowledge_added": "A ajouté à ce qu’un agent sait",
+          "knowledge_removed": "A retiré de ce qu’un agent sait",
+          "knowledge_removal_requested": "A demandé un retrait de ce qu’un agent sait",
+          "member_role_changed": "A modifié le rôle d’un membre",
+          "member_removed": "A retiré un membre",
+          "invite_created": "A invité quelqu’un",
+          "invite_revoked": "A révoqué une invitation",
+          "invite_accepted": "A rejoint l’espace de travail",
+          "workspace_created": "A créé l’espace de travail",
+          "workspace_updated": "A modifié les paramètres de l’espace de travail",
+          "workspace_ownership_transferred": "A transféré la propriété de l’espace de travail",
+          "phone_plan_created": "A choisi une option de numéro de téléphone",
+          "phone_plan_updated": "A changé l’option de numéro de téléphone",
+          "billing_portal_session": "A ouvert les paramètres de paiement",
+          "auto_topup_enabled": "A activé la recharge automatique",
+          "auto_topup_disabled": "A désactivé la recharge automatique",
+          "workspace_paused": "A mis l’espace de travail en pause",
+          "workspace_resumed": "A réactivé l’espace de travail",
+          "number_paused": "A mis un numéro en pause",
+          "number_resumed": "A réactivé un numéro",
+          "credits_adjusted": "A ajusté le solde de crédits",
+          "purchase_refunded": "A remboursé un achat",
+          "user_email_verified": "A confirmé le courriel d’un membre",
+          "user_mfa_reset": "A réinitialisé l’authentification à deux facteurs d’un membre",
+          "user_locked": "A verrouillé le compte d’un membre",
+          "user_unlocked": "A déverrouillé le compte d’un membre",
+          "user_force_logout": "A déconnecté un membre partout",
+          "support_ticket_opened": "A ouvert une demande de soutien"
+        },
+        "meta": {
+          "agent_id": "Agent",
+          "version_no": "Version",
+          "name": "Nom",
+          "role": "Rôle",
+          "email": "Courriel",
+          "user_id": "Membre",
+          "number_id": "Numéro",
+          "e164": "Numéro",
+          "has_password": "Mot de passe défini",
+          "has_sip_password": "Mot de passe défini",
+          "host": "Hôte SIP",
+          "from_user_id": "De",
+          "to_user_id": "À",
+          "paused": "En pause",
+          "toll_free": "Sans frais",
+          "country": "Pays",
+          "area_code": "Indicatif régional",
+          "forward_from": "Renvoyé depuis",
+          "template_id": "Modèle",
+          "industry": "Secteur",
+          "type": "Type",
+          "size_bytes": "Taille (octets)",
+          "status": "Statut",
+          "status_before": "Statut précédent",
+          "was": "Avant",
+          "fields": "Modifié",
+          "option": "Option",
+          "days_overdue": "Jours de retard",
+          "overdue_since": "En retard depuis",
+          "timezone": "Fuseau horaire",
+          "trial_credits": "Crédits d’essai",
+          "lint_warnings": "Avertissements",
+          "existing_agents": "Agents existants",
+          "from": "De",
+          "to": "À",
+          "pack_id": "Forfait",
+          "threshold": "Quand le solde descend sous",
+          "card_last4": "Carte se terminant par",
+          "reason_code": "Raison",
+          "delta": "Crédits",
+          "credits_reversed": "Crédits retirés",
+          "text": "Message",
+          "subject": "Objet"
+        },
+        "reasons": {
+          "goodwill": "Geste commercial",
+          "service_issue": "Problème de service",
+          "billing_error": "Erreur de facturation",
+          "promo": "Promotion",
+          "partner_deal": "Entente de partenariat",
+          "fraud_suspected": "Fraude soupçonnée",
+          "abuse_policy": "Politique d’utilisation acceptable",
+          "customer_request": "À votre demande",
+          "chargeback": "Rétrofacturation",
+          "expiry_extension": "Prolongation de l’expiration",
+          "testing_internal": "Tests internes",
+          "support_investigation": "Enquête du soutien",
+          "legal_request": "Demande juridique",
+          "other": "Autre"
+        }
+      },
+      "language": "Langue",
+      "languageHint": "La langue d’affichage du portail dans ce navigateur. Votre agent garde ses propres langues, réglées dans son onglet « Voix »."
+    },
+    "help": {
+      "title": "Aide",
+      "subtitle": "Guides, soutien et état du service.",
+      "body": "Les guides et le soutien arrivent bientôt. D’ici là, écrivez à support@oraly.ai.",
+      "guidesTitle": "Guides",
+      "guides": {
+        "forwarding": {
+          "title": "Renvoyer votre numéro actuel",
+          "body": "Les codes à composer chez votre fournisseur pour renvoyer les appels vers le numéro de votre agent."
+        },
+        "sip": {
+          "title": "Connecter votre propre système téléphonique (SIP)",
+          "body": "Ce qu’il faut avoir sous la main avant d’importer une ligne SIP.",
+          "steps": [
+            "Le numéro de téléphone que votre système achemine, en format international (+1…).",
+            "L’URI de terminaison de votre jonction, par exemple sip.example.com ou sip:pbx.example.com:5060.",
+            "Un nom d’utilisateur et un mot de passe si votre jonction en utilise. Le mot de passe est chiffré dès son arrivée et n’est plus jamais affiché.",
+            "Un forfait qui permet d’utiliser votre propre ligne."
+          ],
+          "cta": "Ajouter un numéro SIP"
+        },
+        "billing": {
+          "title": "Crédits et facturation",
+          "body": "Comment les crédits sont décomptés."
+        }
+      },
+      "faq": {
+        "rate": "Une minute sur un agent standard coûte {standard} crédits; sur un agent premium, {premium}. Les appels sont facturés à la seconde.",
+        "missed": "Les appels qui n’aboutissent jamais — occupé, sans réponse, refusé — ne coûtent rien.",
+        "expiry": "Les crédits expirent {months} mois après l’achat, et les plus anciens sont utilisés en premier.",
+        "rental": "Chaque numéro de téléphone coûte {credits} crédits par mois. Un numéro sur votre propre ligne SIP ne coûte rien.",
+        "grace": "Votre solde peut descendre jusqu’à {grace} crédits sous zéro pour qu’un appel ne soit jamais coupé en pleine phrase.",
+        "refund": "Les crédits ne sont pas remboursables."
+      },
+      "faqUnavailable": "Impossible de charger les tarifs pour le moment.",
+      "reportTitle": "Signaler un appel",
+      "reportBody": "Un problème lors d’un appel? Choisissez-le et nous en recevons les détails immédiatement.",
+      "reportEmpty": "Aucun appel à signaler pour l’instant.",
+      "report": "Signaler",
+      "reportSubject": "Signalement de l’appel {id}",
+      "reportLine": "Appel {id} du {when}, de {caller}.",
+      "reportPrompt": "Ce qui n’a pas fonctionné :",
+      "allCalls": "Tous les appels",
+      "statusTitle": "État du service",
+      "status": {
+        "ok": "Tous les systèmes sont opérationnels",
+        "degraded": "Certains systèmes fonctionnent au ralenti",
+        "unknown": "État non disponible",
+        "checked": "Vérifié à {time}",
+        "calls": "Prise des appels",
+        "background": "Tâches en arrière-plan (numéros, courriels, rédaction des agents)",
+        "up": "Opérationnel",
+        "down": "Perturbé",
+        "refresh": "Vérifier de nouveau",
+        "page": "Ouvrir la page d’état"
+      },
+      "contact": {
+        "title": "Contacter le soutien",
+        "body": "Ouvrez une demande et une personne vous répond, habituellement en un jour ouvrable. Les réponses s’affichent ici et par courriel.",
+        "subject": "Objet",
+        "category": "De quoi s’agit-il?",
+        "categoryNone": "Je ne sais pas",
+        "categories": {
+          "billing": "Crédits et facturation",
+          "calls": "Un appel",
+          "agent": "Mon agent",
+          "numbers": "Numéros de téléphone",
+          "account": "Compte et équipe",
+          "other": "Autre chose"
+        },
+        "message": "Message",
+        "send": "Envoyer au soutien",
+        "invalid": "Veuillez remplir ce champ.",
+        "opened": "La demande #{id} est ouverte. Nous répondrons ici et par courriel.",
+        "viewer": "Demandez à un éditeur, à un administrateur ou au propriétaire de cet espace de travail de contacter le soutien.",
+        "orEmail": "Vous préférez le courriel?"
+      },
+      "tickets": {
+        "title": "Mes demandes",
+        "body": "Tout ce que cet espace de travail nous a demandé, avec nos réponses.",
+        "empty": "Aucune demande pour l’instant.",
+        "unavailable": "Impossible de charger les demandes pour le moment.",
+        "updated": "{when} · {who}",
+        "status": {
+          "open": "Ouverte",
+          "pending": "Répondue",
+          "resolved": "Résolue",
+          "closed": "Fermée"
+        },
+        "reply": "Répondre",
+        "replyPlaceholder": "Ajouter à cette demande…",
+        "closedNote": "Cette demande est fermée. Ouvrez-en une nouvelle si vous avez besoin d’aide supplémentaire.",
+        "support": "Soutien",
+        "system": "Mise à jour",
+        "you": "Vous"
+      }
+    },
+    "comingSoon": "Cette page arrivera dans la prochaine version.",
+    "live": {
+      "newCall": "Nouvel appel entrant",
+      "missedCall": "Appel manqué",
+      "from": "De {number}",
+      "view": "Voir",
+      "fromWebsite": "De votre site web"
+    },
+    "alerts": {
+      "loadFailed": "Impossible de charger les alertes",
+      "lowBalance": {
+        "title": "Votre solde est sous {pct} % de votre dernier forfait",
+        "outTitle": "Vous n’avez plus de crédits",
+        "body": "Il reste {balance} crédits. Les appels cessent quand le solde est épuisé.",
+        "outBody": "Votre agent ne répondra plus tant que vous n’aurez pas ajouté de crédits.",
+        "cta": "Acheter des crédits"
+      },
+      "rentalOverdue": {
+        "title": "La location du numéro {number} est en retard",
+        "body": "{days} jours de retard. Ajoutez des crédits pour garder le numéro."
+      },
+      "numberReleased": {
+        "title": "Le numéro {number} a été libéré",
+        "body": "La location du numéro est restée impayée trop longtemps, et il a été libéré. Associez un nouveau numéro pour recevoir des appels.",
+        "cta": "Numéros de téléphone"
+      },
+      "concurrency": {
+        "title": "Des appelants atteignent votre limite d’appels simultanés",
+        "body": "{live} appels simultanés pour une limite de {cap}. Un forfait plus grand augmente la limite.",
+        "cta": "Voir les forfaits"
+      },
+      "autoTopupFailed": {
+        "title": "La recharge automatique a échoué",
+        "body": "Votre carte enregistrée a été refusée. Mettez-la à jour pour que la recharge automatique continue.",
+        "cta": "Mettre à jour la carte"
+      }
+    },
+    "hours": {
+      "zone": "Fuseau horaire",
+      "zoneHint": "Le fuseau horaire dans lequel ces heures s’appliquent.",
+      "zoneWorkspace": "Le même que l’espace de travail ({zone})",
+      "datesTitle": "Jours fériés et dates spéciales",
+      "datesBody": "Une date indiquée ici remplace les heures habituelles de cette journée.",
+      "addDate": "Ajouter une date",
+      "datesEmpty": "Aucune date spéciale.",
+      "date": "Date",
+      "kind": "Heures à cette date",
+      "closedAllDay": "Fermé toute la journée",
+      "specialHours": "Heures spéciales",
+      "past": "Passée",
+      "removeHours": "Retirer ces heures",
+      "removeDate": "Retirer cette date",
+      "problemsTitle": "Corrigez ces points avant d’enregistrer",
+      "problems": {
+        "zone": "Ce fuseau horaire n’est pas reconnu.",
+        "too_many": "{where} : au plus 4 plages d’ouverture par jour.",
+        "overlap": "{where} : les heures d’ouverture se chevauchent.",
+        "bad_date": "{where} n’est pas une date valide.",
+        "duplicate_date": "{where} figure deux fois.",
+        "already_closed": "{where} est déjà fermé toute la journée.",
+        "too_many_dates": "Il y a trop de dates spéciales. Retirez-en quelques-unes déjà passées."
+      },
+      "openNow": "Ouvert en ce moment — il est {time} ({zone}).",
+      "closedNow": "Fermé en ce moment — il est {time} ({zone}). Ouvre {when}.",
+      "closedNowNoOpening": "Fermé en ce moment — il est {time} ({zone}), et aucune ouverture n’est prévue au cours de la prochaine semaine.",
+      "today": "aujourd’hui à {time}",
+      "tomorrow": "demain à {time}",
+      "onDay": "{day} à {time}"
+    }
+  },
+  "impersonation": {
+    "title": "Vue du personnel",
+    "invalidLink": "Ce lien de consultation n’est pas valide. Relancez-le à partir de la console.",
+    "expiredLink": "Ce lien de consultation a expiré. Relancez-le à partir de la console.",
+    "opening": "Ouverture de l’espace de travail…",
+    "banner": "Consultation de {tenant} en lecture seule",
+    "bannerNoName": "Consultation d’un espace de travail en lecture seule",
+    "staff": "Personnel : {email}",
+    "expires": "Fin : {time}",
+    "hint": "Rien ne peut être modifié à partir de cette vue.",
+    "exit": "Quitter la vue",
+    "exiting": "Fermeture…",
+    "ended": "La session de consultation a pris fin."
+  },
+  "embed": {
+    "talk": "Parler à {business}",
+    "connecting": "Connexion…",
+    "live": "En appel avec {business}",
+    "speaking": "{agent} parle",
+    "hangUp": "Raccrocher",
+    "ended": "Appel terminé. Merci!",
+    "again": "Rappeler",
+    "preview": "Aperçu : voici le bouton que les visiteurs voient sur votre site web. Les appels démarrent seulement depuis votre site; pour parler à votre agent, utilisez l’onglet « Test ».",
+    "missing": "Ce bouton n’est pas configuré.",
+    "errors": {
+      "micDenied": "Autorisez le microphone pour parler.",
+      "micMissing": "Aucun microphone trouvé.",
+      "busy": "Trop d’appels en ce moment. Réessayez bientôt.",
+      "unavailable": "Non disponible pour le moment. Réessayez plus tard.",
+      "connection": "Connexion impossible. Réessayez."
+    }
+  }
+}

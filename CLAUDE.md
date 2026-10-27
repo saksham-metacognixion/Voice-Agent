@@ -49,7 +49,7 @@ When the spec and the code disagree, the spec wins unless a decision in `docs/de
 | Layer          | Choice                                                                                                                                                                                                                                                                          |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                                                                                     |
-| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, ar — fr-CA dropped 27 Oct for the Arabic market, ADR 0028), PostHog, `retell-client-js-sdk`                                                                                          |
+| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand (ephemeral wizard UI only), React Hook Form + zod, next-intl (en, ar, fr-CA — ADR 0026, ADR 0030), PostHog, `retell-client-js-sdk`                                                                                          |
 | SSE client     | `@microsoft/fetch-event-source` — `EventSource` cannot send `Authorization` or `X-Workspace-Id`                                                                                                                                                                                 |
 | API            | NestJS on the Fastify adapter, validation via `nestjs-zod` from `@portal/schemas`                                                                                                                                                                                               |
 | Worker         | Same Nest codebase, separate entrypoint. BullMQ processors + Job Schedulers registered idempotently on boot                                                                                                                                                                     |
@@ -117,10 +117,12 @@ runtime block, curated Gulf voices recognised by platform name, Arabic digits in
 check; UAE not sold until Emirati numbers transcribe (26 Oct), 0028 D16 — the transferred
 leg as its own `transfer` ledger row folded from the stored events, per-number date
 overrides and strict hours writes, knowledge use per call, SIP re-verify by OPTIONS +
-digest, and Arabic instead of fr-CA (27 Oct), 0029 D17 — "Call my phone" on the browser
+digest, and Arabic instead of fr-CA (27 Oct, amended by 0030), 0029 D17 — "Call my phone" on the browser
 test's checks plus a paid pack and an own-phone destination, the forwarding test as a
 `fwdtest:{e164}` marker the inbound path declines, the website widget as a public key, an
-`/embed/` iframe and one `WIDGET_UNAVAILABLE`, `is_test` from `metadata.test` (27 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+`/embed/` iframe and one `WIDGET_UNAVAILABLE`, `is_test` from `metadata.test` (27 Oct), 0030 Canadian French in the portal beside Arabic —
+`fr-CA` as the locale id (Auth0 `ui_locales`, `<html lang>`, `Intl`), `matchLocale` (same
+tag, else same base language), one glossary (27 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -837,12 +839,15 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Data goes through `useApi()` and the generated hooks; SSE through `useWorkspaceEvents`;
   a `202 {job_id}` through `useJobWatch` **and** the topic's frames at the same time.
   Errors become copy through `errorMessage(error, t)` (branch on `code`, never on text).
-- Every user-facing string is a key in `src/i18n/messages/en.json` **and** `ar.json`
-  (`useTranslations`); `src/i18n/messages.test.ts` fails on a key, placeholder or tag in one
-  and not the other, a line that does not format under Arabic plural rules (ADR 0026), or a
-  straight apostrophe before `{`/`}` (ICU quotes the placeholder). Write a one-word plural
-  branch as `# time`, never `{once}`: the placeholder check reads it as an argument. There is
-  no fr-CA: the market is Arabic-speaking (ADR 0028).
+- Every user-facing string is a key in `src/i18n/messages/en.json`, `ar.json` **and**
+  `fr-CA.json` (`useTranslations`); `src/i18n/messages.test.ts` fails on a key, placeholder
+  or tag in one and not the others, a line that does not format under its locale's plural
+  rules (ADR 0026), or a straight apostrophe before `{`/`}` (ICU quotes the placeholder) —
+  French uses `’` throughout. Write a one-word plural branch as `# time`, never `{once}`:
+  the placeholder check reads it as an argument. French is Québécois, vouvoiement, sentence
+  case, one glossary (ADR 0030 §3: pack → forfait, plan → formule, brief → fiche, email →
+  courriel); the locale id is `fr-CA` everywhere, and `matchLocale()` gives a `fr-FR` browser
+  the Canadian catalogue.
   The language is per browser (`portal:locale`, `LocaleProvider`), applied to `<html lang
   dir>` before paint by `localeBootScript`; no locale in the URL. `lib/format` and every
   `Intl` call use `activeIntlLocale()` (`ar-u-nu-latn`: Western digits), never the browser's.
