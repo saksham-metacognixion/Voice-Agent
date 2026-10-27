@@ -64,9 +64,17 @@ if [ -d "$OUT/samples" ]; then
     --cache-control "public, max-age=86400" --delete --only-show-errors
 fi
 
+if [ -f "$OUT/widget.js" ]; then
+  # D17: the website widget loader is fetched by every page of every customer site that
+  # embeds it. Five minutes in the visitor's browser, so a fix still reaches them quickly.
+  echo "▶ uploading the widget loader"
+  aws s3 cp "$OUT/widget.js" "s3://$FRONTEND_BUCKET/widget.js" \
+    --cache-control "public, max-age=300" --content-type "text/javascript; charset=utf-8" --only-show-errors
+fi
+
 echo "▶ syncing pages"
 aws s3 sync "$OUT" "s3://$FRONTEND_BUCKET" \
-  --exclude "_next/static/*" --exclude "brand/*" --exclude "samples/*" \
+  --exclude "_next/static/*" --exclude "brand/*" --exclude "samples/*" --exclude "widget.js" \
   --cache-control "no-cache, no-store, must-revalidate" --delete --only-show-errors
 
 echo "▶ invalidating CloudFront"

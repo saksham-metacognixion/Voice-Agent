@@ -30,7 +30,7 @@ export default function HomePage() {
   const stream = useDashboardLive({
     onNewCall: (call) => {
       toast(call.missed ? t('dashboard.live.missedCall') : t('dashboard.live.newCall'), {
-        description: call.fromNumber ? t('dashboard.live.from', { number: formatPhone(call.fromNumber) }) : undefined,
+        description: call.website ? t('dashboard.live.fromWebsite') : call.fromNumber ? t('dashboard.live.from', { number: formatPhone(call.fromNumber) }) : undefined,
         action: { label: t('dashboard.live.view'), onClick: () => router.push(callPath(call.callId)) },
       });
     },

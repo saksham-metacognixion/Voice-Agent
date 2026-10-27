@@ -5,6 +5,7 @@ import { Checkbox, Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 import { ArrowDown, ArrowUp, ArrowUpDown, Check } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { CallStatusBadge, SentimentBadge } from '@/src/components/dashboard/status-badges';
+import { webCaller } from '@/src/dashboard/caller';
 import { formatCreditsValue, formatDateTime, formatDuration, formatPhone } from '@/src/lib/format';
 
 export interface CallsTableProps {
@@ -142,7 +143,7 @@ export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, on
                   ) : null}
                   <td className="whitespace-nowrap px-3 py-2.5 tabular-nums">{formatDateTime(call.started_at ?? call.created_at, timeZone)}</td>
                   <td className="px-3 py-2.5">
-                    <span className="font-medium">{call.channel === 'web' ? tl('browserTest') : formatPhone(call.from_number) === '–' ? tl('unknownCaller') : formatPhone(call.from_number)}</span>
+                    <span className="font-medium">{webCaller(call) ? tl(webCaller(call)!) : formatPhone(call.from_number) === '–' ? tl('unknownCaller') : formatPhone(call.from_number)}</span>
                     {call.is_test && call.channel !== 'web' ? <span className="ms-1 text-xs text-muted-foreground">({tl('test')})</span> : null}
                   </td>
                   <td className="hidden max-w-[10rem] truncate px-3 py-2.5 text-muted-foreground md:table-cell">{agentName(call.agent_id) ?? (call.agent_id ? '…' : '–')}</td>
@@ -168,7 +169,7 @@ export function CallsTable({ calls, agentName, timeZone, sort, order, onSort, on
 function CallCard({ call, agentName, timeZone, selected, canSelect, active, onSelect, onOpen }: { call: CallSummary; agentName: string; timeZone: string | undefined; selected: boolean; canSelect: boolean; active: boolean; onSelect: (checked: boolean) => void; onOpen: () => void }) {
   const t = useTranslations('dashboard.calls.columns');
   const tl = useTranslations('dashboard.calls');
-  const caller = call.channel === 'web' ? tl('browserTest') : formatPhone(call.from_number) === '–' ? tl('unknownCaller') : formatPhone(call.from_number);
+  const caller = webCaller(call) ? tl(webCaller(call)!) : formatPhone(call.from_number) === '–' ? tl('unknownCaller') : formatPhone(call.from_number);
   return (
     <li
       className={cn('flex cursor-pointer flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-card active:bg-muted/50', active && 'border-primary/50 bg-accent/50', selected && 'bg-primary/5')}

@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { capturedFields, parseAnalysis } from '@/src/dashboard/analysis';
+import { webCaller } from '@/src/dashboard/caller';
 import { useServerCopy } from '@/src/i18n/server-copy';
 import { PhoneCheckNote, PhoneSummaryNote } from '@/src/components/dashboard/phone-check';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
@@ -74,7 +75,7 @@ function CallBody({ call }: { call: CallDetail }) {
     return new Map(defs.map((f) => [f.name, f.description]));
   }, [agent.data]);
   const analysing = call.status === 'ended' || call.status === 'in_progress' || call.status === 'registered';
-  const caller = call.channel === 'web' ? tl('browserTest') : formatPhone(call.from_number) === '–' ? tl('unknownCaller') : formatPhone(call.from_number);
+  const caller = webCaller(call) ? tl(webCaller(call)!) : formatPhone(call.from_number) === '–' ? tl('unknownCaller') : formatPhone(call.from_number);
 
   return (
     <div className="flex flex-col gap-5">

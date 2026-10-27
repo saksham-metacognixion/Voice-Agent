@@ -29,6 +29,7 @@ import { MAX_BLOCKLIST, isNumberEditable, maskSecretish, parseBlocklist } from '
 import { callPath, settingsPath } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { ForwardingTestPanel } from './forwarding-test';
 import { useAgentsForNumbers, useNumbersNav } from './number-bits';
 import { SipVerifyPanel } from './sip-verify';
 
@@ -432,7 +433,7 @@ function RecentCallers({ number, disabled, blocklist, onBlock }: { number: Phone
 
 // ------------------------------------------------------------------ Forwarding
 
-/** Option B: the carrier codes, the real destination, and "I have switched it on" (`forwarding_confirmed`). */
+/** Option B: the carrier codes, the real destination, "Test forwarding" (D17) and "I have switched it on" (`forwarding_confirmed`). */
 export function ForwardingSection({ number, disabled }: { number: PhoneNumberResponse; disabled: boolean }) {
   const t = useTranslations('dashboard.numbers.forwarding');
   const { save, busy, error } = usePatchNumber(number);
@@ -451,6 +452,7 @@ export function ForwardingSection({ number, disabled }: { number: PhoneNumberRes
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <CarrierForwardingGuide carrier={carrier} onCarrierChange={setCarrier} />
+        {!disabled && number.status === 'active' ? <ForwardingTestPanel number={number} /> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {!disabled ? (
           <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">

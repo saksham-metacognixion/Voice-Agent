@@ -16,6 +16,7 @@ export * from './agents.js';
 export * from './voices.js';
 export * from './knowledge.js';
 export * from './numbers.js';
+export * from './widget.js';
 export * from './activation.js';
 export * from './notifications.js';
 export * from './responses.js';

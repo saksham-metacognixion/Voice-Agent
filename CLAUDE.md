@@ -117,7 +117,10 @@ runtime block, curated Gulf voices recognised by platform name, Arabic digits in
 check; UAE not sold until Emirati numbers transcribe (26 Oct), 0028 D16 — the transferred
 leg as its own `transfer` ledger row folded from the stored events, per-number date
 overrides and strict hours writes, knowledge use per call, SIP re-verify by OPTIONS +
-digest, and Arabic instead of fr-CA (27 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+digest, and Arabic instead of fr-CA (27 Oct), 0029 D17 — "Call my phone" on the browser
+test's checks plus a paid pack and an own-phone destination, the forwarding test as a
+`fwdtest:{e164}` marker the inbound path declines, the website widget as a public key, an
+`/embed/` iframe and one `WIDGET_UNAVAILABLE`, `is_test` from `metadata.test` (27 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -294,6 +297,10 @@ job settles.
   (`not_connected` / `error`, `recovery_reason: not_found`, billed zero by the ordinary
   handler). The predicate and windows are `modules/calls/call-recovery.rules.ts`
   (`unsettledCallKind`), shared by the route and the service.
+- **`is_test` is what we minted** (D17, ADR 0029): `isTestCall()` reads `metadata.test` when it
+  is a boolean, else `channel = web`. W5 and "Call my phone" mint `test: true`, the website
+  widget `test: false` — a real caller on the `web` channel. Never infer "test" from `web`
+  alone again; the portal's `webCaller()` and the new-call toast follow the same rule.
 - `calls.agent_version` is **our** `agent_versions.version_no` — `metadata.version_no`, else the
   platform version mapped through the published row's `retell_agent_version`, else null. Never
   the platform's counter (a draft reads 0 there, and it must not reach the wire).
@@ -311,6 +318,10 @@ job settles.
   `businessHoursInput` (known IANA zone, ≤ 4 non-overlapping intervals a day, real unique dates). The SA12 `reject_inbound`
   kill switch declines before all of them. The checks are a pure function, `decide()` in
   `modules/calls/inbound.decide.ts`; the service only fetches and answers.
+- **A forwarding test is turned away before the checks** (D17, ADR 0029): the first MGET also
+  reads `fwdtest:{e164}`; a call from our own number or the customer's forwarded line while
+  it is set is answered `inboundDecline()` — no `calls` row, nothing billed — and only
+  enqueues `forwarding-test-landed`. Not part of `decide()`.
 - `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`, clamped to Retell's
   [60 s, 2 h]. "remainingCredits" is the balance **minus what the other live calls may still
   spend** — that is what `active:{ws}` holds per call (ADR 0011 §1).
@@ -854,6 +865,16 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   assertions: a real Generate, a real W5 test call with live transcript and after-call
   card, a real feedback patch, W6 persistence, the W7 Stripe redirect and cancel/unpaid
   returns). It stops before paying: activation buys a real number.
+- **`/embed/` runs on strangers' sites** (D17 §11.5, ADR 0029): `Providers` gives it theme
+  and language only — no Auth0, workspace or PostHog — and its API client sends no token.
+  `public/widget.js` (hand-written, no build) frames it from the portal's origin and only
+  takes `{type: 'oraly-widget:size'}` from that frame. Unframed (D3's "Preview") it shows
+  the button and places no call. The public mint takes its `active:{ws}` slot with
+  `RESERVE_SCRIPT` right after minting, so a burst of strangers cannot pass the plan's
+  lines or the wallet; the per-IP window is counted before the per-widget one. CloudFront's `/embed/*` behaviour is
+  the one path without `X-Frame-Options`. The D3 Website tab (`AGENT_TABS`) holds the
+  snippet; "Call my phone" sits in `TestCallPanel` once `last_pack_credits` is set; D4's
+  Forwarding section has "Test forwarding" (`ForwardingTestPanel`, polls while `calling`).
 - W5 test calls: `useTestCall` gives `RetellClient` a `fetch` that answers create-web-call
   from `POST /agents/:id/test/web`, and replaces `client.api.monitorSocket` so only the
   live-transcript socket goes to our relay (`${apiUrl}/test-calls/v2/monitor-call/:id`)
@@ -1240,6 +1261,9 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `admin:health:{provider}`    | the health strip's cached Retell / Stripe probe, 60 s (D12)                                                            |
 | `ratelimit:api:{ip}:{min}`   | API requests from one client IP in one epoch minute, TTL 2 min (D14, ADR 0025)                                          |
 | `ratelimit:sip-verify:{ws}`  | SIP re-verify checks this hour, per workspace (D16, ADR 0028)                                                           |
+| `fwdtest:{e164}`             | the "Test forwarding" ringing for a number, `SET NX` 90 s — the lease and the inbound path's cue (D17, ADR 0029)        |
+| `ratelimit:fwd-test:{number}` | forwarding tests this hour, per number (D17)                                                                           |
+| `ratelimit:widget:{key}` / `ratelimit:widget-ip:{key}:{ip}` | website widget calls per widget per hour / per visitor address per 10 min (D17)          |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
 throws and never waits past its budget (ADR 0010 §6).
@@ -1359,6 +1383,14 @@ throws and never waits past its budget (ADR 0010 §6).
   read-only reads only), `GET|POST /admin/canned-responses`, `DELETE /admin/canned-responses/:id`
   (super_admin/ops/support). Customer side (tag `support`): `POST /support/tickets` and
   `POST /support/tickets/:id/messages` (owner/admin/editor), `GET /support/tickets` (any member).
+- D17 routes (ADR 0029): `POST /agents/:id/test/phone {to, version_no?}` (owner/admin/editor,
+  verified; the browser test's checks and hourly window plus `402 PURCHASE_REQUIRED`,
+  `409 NO_NUMBER`, `422` on `to`: `VALIDATION_FAILED` for a number that is not real, else `DESTINATION_COUNTRY` / `DESTINATION_TYPE` / `DESTINATION_IS_AGENT`), `POST /numbers/:id/forwarding/test` (owner/admin/editor,
+  verified; answers the number with `forwarding.test`; `NOT_FORWARDING_NUMBER`,
+  `FORWARDING_TEST_IN_PROGRESS`, 5/h per number), `GET|PUT /agents/:id/widget` (PUT
+  owner/admin), and the public `GET /widget/:key` + `POST /widget/:key/call {page_origin}`
+  (`ORIGIN_NOT_ALLOWED`, `RATE_LIMITED`, and one `409 WIDGET_UNAVAILABLE` for every state a
+  stranger should not learn). `GET /stats` answers `by_channel: {phone, web}`.
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 
@@ -1493,7 +1525,9 @@ knowledge W4 → auto top-up → team and invites.
   the overdue → release path, expiry idempotency, low-balance alert state, digest per
   timezone (DST included), reconciliation once-per-window alerting, concurrency alert
   hysteresis, webhook ordering / replay / decline for both providers, and the RLS matrix over
-  every D6/D7 table (`test/d7-*.e2e.test.ts`, `backend/db/test/rls.e2e.test.ts`); from D9 —
+  every D6/D7 table (`test/d7-*.e2e.test.ts`, `backend/db/test/rls.e2e.test.ts`); from D17 — the
+  "Call my phone" gates, the forwarding test's hot-path decline and stale-job safety, and
+  the widget's public refusals and exit check (`test/d17-channels.e2e.test.ts`); from D9 —
   the test-call mint (draft re-sync, credits, rate limit, kill switch, roles, isolation) and
   the live-transcript relay's authorisation and frame filter (`test/d9-test-call.e2e.test.ts`,
   `live-transcript.relay.test.ts`); from D10 — server-side sort with a stable cursor, the

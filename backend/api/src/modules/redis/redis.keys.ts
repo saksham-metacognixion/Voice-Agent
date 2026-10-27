@@ -14,6 +14,10 @@
  *   worker:heartbeat  the worker's liveness beacon (D7)
  *   ratelimit:test-web:{ws}  browser test calls this hour (§13.4, D9)
  *   ratelimit:sip-verify:{ws}  SIP re-verify checks this hour (D16)
+ *   fwdtest:{e164}    a "Test forwarding" ringing for this number, read by the inbound path (D17)
+ *   ratelimit:fwd-test:{number}  forwarding tests this hour, per number (D17)
+ *   ratelimit:widget:{key}  website widget calls this hour, per widget (D17)
+ *   ratelimit:widget-ip:{key}:{ip}  website widget calls from one visitor address (D17)
  *   alert:platform_concurrency  the open platform-wide concurrency incident (D7)
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
  *
@@ -60,6 +64,19 @@ export const redisKeys = {
   testCallWindow: (workspaceId: string) => `ratelimit:test-web:{${workspaceId}}`,
   /** D16: SIP re-verify checks in the current hour, per workspace — each one dials a host the customer named. */
   sipVerifyWindow: (workspaceId: string) => `ratelimit:sip-verify:{${workspaceId}}`,
+  /**
+   * D17: the "Test forwarding" now ringing for this number — `{test_id, number_id,
+   * workspace_id, original}` — written by `ForwardingTestService` for as long as the test
+   * may ring and read by the §13.9 path in the same MGET as `num:{e164}`, so recognising
+   * the forwarded call costs no round trip. Absent is the normal case.
+   */
+  forwardingTest: (e164: string) => `fwdtest:{${e164}}`,
+  /** D17: forwarding tests in the current hour, per number — each one rings the customer's line. */
+  forwardingTestWindow: (numberId: string) => `ratelimit:fwd-test:{${numberId}}`,
+  /** D17 §11.5: website widget calls in the current hour, per widget — the stranger-facing budget. */
+  widgetWindow: (key: string) => `ratelimit:widget:{${key}}`,
+  /** D17 §11.5: website widget calls from one visitor address in the current window. */
+  widgetIpWindow: (key: string, ip: string) => `ratelimit:widget-ip:{${key}}:${ip}`,
   /** §6.2 / D14: API requests from one client IP in one fixed minute (`window` = epoch minute). */
   apiRequestWindow: (ip: string, window: number) => `ratelimit:api:${ip}:${window}`,
   /**

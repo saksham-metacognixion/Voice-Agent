@@ -1,5 +1,6 @@
-import type { PhoneNumberResponse, PhonePlanResponse, SipVerification, TransferTarget } from '@portal/schemas';
-import { businessHours, sipVerification, transferTarget } from '@portal/schemas';
+import type { ForwardingTest, PhoneNumberResponse, PhonePlanResponse, SipVerification, TransferTarget } from '@portal/schemas';
+import { businessHours, forwardingTest, sipVerification, transferTarget } from '@portal/schemas';
+import { FORWARDING_TEST_RING_MS } from '../calls/forwarding-test';
 import { SipCredentialsCipher } from '../crypto';
 
 type NumberRow = {
@@ -28,6 +29,7 @@ type NumberRow = {
   updatedAt: Date;
   sipVerificationJson?: unknown;
   sipVerifyStartedAt?: Date | null;
+  forwardingTestJson?: unknown;
 };
 
 /** How long a re-verify may hold its lease (`phone_numbers.sip_verify_started_at`) before another may start. */
@@ -63,6 +65,7 @@ export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.ca
           from: row.forwardingFrom,
           status: (row.forwardingStatus ?? 'waiting_for_customer') as NonNullable<PhoneNumberResponse['forwarding']>['status'],
           carrier: (row.carrier as NonNullable<PhoneNumberResponse['forwarding']>['carrier']) ?? null,
+          test: forwardingTestOf(row),
         }
       : null,
     sip: sip ? { host: sip.host, username: sip.username, has_password: sip.has_password, verification: verificationOf(row) } : null,
@@ -82,6 +85,24 @@ export function verificationOf(row: { sipVerificationJson?: unknown; sipVerifySt
   const last = parsed.success ? parsed.data : null;
   if (held) return { status: 'pending', checked_at: last?.checked_at ?? null, reason: null, checks: null, credentials_updated: false };
   return last;
+}
+
+/** How long past its ring window a `calling` test may sit before it reads as over (its expire job was lost). */
+const FORWARDING_TEST_GRACE_MS = 60_000;
+
+/**
+ * D17: the last forwarding test as stored. A test still `calling` well after its window
+ * closed lost its expire job (a worker restart, Redis blinking); it reads as `not_landed`,
+ * which is what that job would have written, so the button is not stuck on "Calling…".
+ */
+export function forwardingTestOf(row: { forwardingTestJson?: unknown }, now = Date.now()): ForwardingTest | null {
+  const parsed = forwardingTest.safeParse(row.forwardingTestJson);
+  if (!parsed.success) return null;
+  const test = parsed.data;
+  if (test.status === 'calling' && now - Date.parse(test.started_at) > FORWARDING_TEST_RING_MS + FORWARDING_TEST_GRACE_MS) {
+    return { ...test, status: 'not_landed', finished_at: new Date(Date.parse(test.started_at) + FORWARDING_TEST_RING_MS).toISOString() };
+  }
+  return test;
 }
 
 type PlanRow = {

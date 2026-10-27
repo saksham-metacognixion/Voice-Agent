@@ -17,6 +17,7 @@ import { Ctx, RequireEmailVerified, Roles } from '../auth';
 import type { WorkspaceContext } from '../auth';
 import { NumbersService } from './numbers.service';
 import { PhonePlansService } from './phone-plans.service';
+import { ForwardingTestService } from './forwarding-test.service';
 import { SipVerificationService } from './sip-verification.service';
 
 /**
@@ -48,6 +49,7 @@ export class NumbersController {
   constructor(
     private readonly numbers: NumbersService,
     private readonly sip: SipVerificationService,
+    private readonly forwardingTests: ForwardingTestService,
   ) {}
 
   @Get()
@@ -102,6 +104,21 @@ export class NumbersController {
   async verifySip(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<PhoneNumberResponse> {
     const numberId = idOf(id, 'Phone number');
     await this.sip.verify(ctx, numberId, sipVerifyRequest.parse(body ?? {}));
+    return this.numbers.get(ctx, numberId);
+  }
+
+  /**
+   * D17: ring the customer's own line from an Option B number and watch for it to be
+   * forwarded back (D4 Forwarding, spec p. 37). Editor and above, like routing edits. Answers
+   * the number with `forwarding.test` reading `calling`; the outcome lands on the row.
+   */
+  @Post(':id/forwarding/test')
+  @HttpCode(200)
+  @Roles('owner', 'admin', 'editor')
+  @RequireEmailVerified()
+  async testForwarding(@Ctx() ctx: WorkspaceContext, @Param('id') id: string): Promise<PhoneNumberResponse> {
+    const numberId = idOf(id, 'Phone number');
+    await this.forwardingTests.start(ctx, numberId);
     return this.numbers.get(ctx, numberId);
   }
 

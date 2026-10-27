@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isoDateTime, paginationQuery, uuid } from './common.js';
+import { e164, isoDateTime, paginationQuery, uuid } from './common.js';
 import { agentTier, declineReason } from './enums.js';
 
 /** `calls.channel` / `calls.direction` / `calls.status` (§15). */
@@ -260,6 +260,12 @@ export const statsDay = z.object({
   credits: z.number(),
 });
 
+const channelStats = z.object({
+  calls: z.number().int(),
+  minutes: z.number(),
+  credits: z.number(),
+});
+
 export const statsResponse = z.object({
   range: statsRange,
   from: isoDateTime,
@@ -278,6 +284,13 @@ export const statsResponse = z.object({
   avg_duration_s: z.number().nullable(),
   missed_by_reason: z.record(declineReason, z.number().int()),
   by_day: z.array(statsDay),
+  /**
+   * D17 §11.5: real callers per channel — the phone line apart from the website widget.
+   * Test calls are in neither. Defaults so a portal deployed ahead of the API still parses.
+   */
+  by_channel: z
+    .object({ phone: channelStats, web: channelStats })
+    .default({ phone: { calls: 0, minutes: 0, credits: 0 }, web: { calls: 0, minutes: 0, credits: 0 } }),
 });
 export type StatsResponse = z.infer<typeof statsResponse>;
 
@@ -323,3 +336,26 @@ export const testWebCallResponse = z.object({
   expires_at: z.number().optional(),
 });
 export type TestWebCallResponse = z.infer<typeof testWebCallResponse>;
+
+/**
+ * POST /agents/:id/test/phone {to} — W5 "Call my phone" (spec p. 24, Phase 2). The agent
+ * rings the customer's own phone from one of the workspace's numbers. Default version:
+ * the draft, as for the browser test.
+ */
+export const testPhoneCallRequest = z.object({
+  to: e164,
+  version_no: z.number().int().min(1).optional(),
+});
+export type TestPhoneCallRequest = z.infer<typeof testPhoneCallRequest>;
+
+export const testPhoneCallResponse = z.object({
+  call_id: z.string(),
+  /** The workspace number the call comes from — what the customer's phone will show. */
+  from_number: z.string(),
+  to_number: z.string(),
+  rate: z.number(),
+  balance: z.number(),
+  version_no: z.number().int(),
+  max_call_duration_s: z.number().int(),
+});
+export type TestPhoneCallResponse = z.infer<typeof testPhoneCallResponse>;

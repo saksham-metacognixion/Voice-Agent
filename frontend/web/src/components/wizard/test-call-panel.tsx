@@ -7,6 +7,7 @@ import { Mic, PhoneOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { errorMessage } from '@/src/lib/errors';
+import { CallMyPhone } from './call-my-phone';
 import { formatCredits } from '@/src/wizard/plan-gates';
 import { canTransfer, needsPhoneTransfer } from '@/src/wizard/test-scenarios';
 import { useTestCall, type TestCallFailure } from '@/src/wizard/use-test-call';
@@ -106,6 +107,9 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
             <div ref={transcriptEnd} />
           </div>
         </div>
+
+        {/* D17: hidden until the first pack — the trial is browser test calls only (§5.4). */}
+        {wallet.data?.last_pack_credits != null && draft ? <CallMyPhone agentId={agent.id} versionNo={draft.version_no} onPlaced={onEnded} /> : null}
 
         {/* A browser call has no phone line: a transfer to staff cannot complete here (BUG-006). */}
         {transfers ? <p className="text-xs text-muted-foreground">{tt('transferNote')}</p> : null}

@@ -55,6 +55,10 @@ export const JOBS = {
   recoverCall: 'recover-call',
   /** D16: what the agent looked up during one call (`CallKnowledgeService`). `jobId = kb-<call_id>`, freed when it settles. */
   callKnowledge: 'call-knowledge',
+  /** D17: the inbound path saw a "Test forwarding" come back. `jobId = fwdtest-landed-<test id>`. */
+  forwardingTestLanded: 'forwarding-test-landed',
+  /** D17: the ring window of a forwarding test is over; `not_landed` unless it landed. `jobId = fwdtest-expire-<test id>`, delayed. */
+  forwardingTestExpire: 'forwarding-test-expire',
 } as const;
 
 /** §13.11 Job Schedulers. Registered idempotently on worker boot (architecture §12). */
@@ -159,6 +163,15 @@ export interface RecoverCallJob {
 
 export interface CallKnowledgeJob {
   callId: string;
+}
+
+/** D17. Both forwarding-test jobs carry the test they settle; a stale one (another test since) is a no-op. */
+export interface ForwardingTestJob {
+  testId: string;
+  numberId: string;
+  workspaceId: string;
+  /** `landed` only: how the forwarded call showed up. */
+  callerId?: 'ours' | 'original';
 }
 
 export interface WarmWorkspaceJob {

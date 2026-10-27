@@ -13,6 +13,8 @@ export interface NewCallFrame {
   agentId: string | null;
   /** True when the §13.9 checks declined it — shown as Missed. */
   missed: boolean;
+  /** D17: a visitor on the customer's website (§11.5), who has no number to show. */
+  website: boolean;
 }
 
 interface DashboardLive {
@@ -121,13 +123,16 @@ export function DashboardLiveProvider({ children, enabled = true }: { children: 
           if (seen.current.has(callId)) return;
           seen.current.add(callId);
           if (seen.current.size > 500) seen.current.delete(seen.current.values().next().value as string);
-          const isTest = data.is_test === true || data.channel === 'web';
+          // A browser call is a test unless the frame says otherwise: the website widget
+          // (D17) is the one that does, and is news like a phone call.
+          const isTest = data.is_test === true || (data.channel === 'web' && data.is_test !== false);
           if (isTest) return;
           const call: NewCallFrame = {
             callId,
             fromNumber: typeof data.from_number === 'string' ? data.from_number : null,
             agentId: typeof data.agent_id === 'string' ? data.agent_id : null,
             missed: event.type === 'missed',
+            website: data.channel === 'web',
           };
           for (const listener of listeners.current) listener(call);
         }

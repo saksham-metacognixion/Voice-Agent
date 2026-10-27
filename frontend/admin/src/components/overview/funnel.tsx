@@ -2,13 +2,15 @@
 
 import type { AdminFunnelResponse } from '@portal/schemas';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@portal/ui';
-import { formatNumber, formatPercent } from '@/src/lib/format';
+import { formatMinutes, formatNumber, formatPercent } from '@/src/lib/format';
 
 const STEP_NAMES: Record<number, string> = { 1: 'W1 Template', 2: 'W2 Brief', 3: 'W3 Voice', 4: 'W4 Knowledge', 5: 'W5 Test', 6: 'W6 Phone', 7: 'W7 Activate' };
 
 /** SA1 funnel: sign-up → live as horizontal bars, % of the cohort. */
 export function Funnel({ f }: { f: AdminFunnelResponse }) {
   const max = Math.max(1, f.cohort_size, ...f.steps.map((s) => s.count));
+  // The median is taken over the workspaces that went live, so that is its sample size.
+  const liveCount = f.steps.find((s) => s.key === 'live')?.count;
   return (
     <Card>
       <CardHeader className="pb-0">
@@ -41,7 +43,10 @@ export function Funnel({ f }: { f: AdminFunnelResponse }) {
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Median time to live</dt>
-            <dd className="text-lg font-semibold tabular-nums">{f.median_minutes_to_live === null ? '–' : `${formatNumber(f.median_minutes_to_live, 0)} min`}</dd>
+            <dd className="text-lg font-semibold tabular-nums">
+              {formatMinutes(f.median_minutes_to_live)}
+              {f.median_minutes_to_live !== null && liveCount !== undefined ? <span className="ms-1 text-xs font-normal text-muted-foreground">(n = {formatNumber(liveCount, 0)})</span> : null}
+            </dd>
           </div>
           <div className="col-span-2 sm:col-span-1">
             <dt className="text-xs text-muted-foreground">Stuck by step</dt>

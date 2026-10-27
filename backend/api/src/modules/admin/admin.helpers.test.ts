@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PricingConfig } from '@portal/schemas';
 import { diffConfig, marginsFor } from './admin-pricing.service';
-import { AT_RISK_AFTER_MS, CHURNED_AFTER_MS, customerStatusOf, idMatch, phoneQuery } from './admin.helpers';
+import { AT_RISK_AFTER_MS, CHURNED_AFTER_MS, customerStatusOf, idMatch, median, phoneQuery } from './admin.helpers';
 
 import { pricingConfig } from '@portal/schemas';
 
@@ -74,6 +74,22 @@ describe('customerStatusOf (SA2 "Status")', () => {
     expect(customerStatusOf({ ...live, balance: 50, balanceSince: now, lastActivityAt: now })).toBe(
       'active',
     );
+  });
+});
+
+describe('median (SA1 "Time to live", BUG-022)', () => {
+  it('takes the middle of an odd sample, unsorted input', () => {
+    expect(median([30, 10, 20])).toBe(20);
+  });
+  it('averages the two middle values of an even sample', () => {
+    expect(median([10, 40])).toBe(25);
+    expect(median([60, 10, 30, 20])).toBe(25);
+  });
+  it('is null for an empty sample and leaves the input alone', () => {
+    expect(median([])).toBeNull();
+    const input = [3, 1, 2];
+    median(input);
+    expect(input).toEqual([3, 1, 2]);
   });
 });
 

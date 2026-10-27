@@ -121,6 +121,22 @@ Resources:
           return request;
         }
 
+  # D17 §11.5: the website widget's frame (/embed/) is the one page other sites may put in
+  # an iframe. The managed SecurityHeaders policy answers X-Frame-Options: SAMEORIGIN, which
+  # would blank it on every customer's site; this policy is the same set of headers without
+  # that one. Only the portal has the page; on the console the behaviour matches nothing.
+  EmbedHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub voice-agent-${Environment}-${App}-embed
+        Comment: SecurityHeaders without frame options, for the website widget frame (ADR 0029)
+        SecurityHeadersConfig:
+          ContentTypeOptions: { Override: true }
+          ReferrerPolicy: { ReferrerPolicy: strict-origin-when-cross-origin, Override: true }
+          StrictTransportSecurity: { AccessControlMaxAgeSec: 31536000, IncludeSubdomains: false, Preload: false, Override: true }
+          XSSProtection: { Protection: true, ModeBlock: true, Override: true }
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -157,6 +173,18 @@ Resources:
           FunctionAssociations:
             - EventType: viewer-request
               FunctionARN: !GetAtt RewriteToIndexHtml.FunctionARN
+        CacheBehaviors:
+          - PathPattern: /embed/*
+            TargetOriginId: s3
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD, OPTIONS]
+            CachedMethods: [GET, HEAD]
+            Compress: true
+            CachePolicyId: !FindInMap [CloudFrontPolicies, Managed, CachingOptimized]
+            ResponseHeadersPolicyId: !Ref EmbedHeadersPolicy
+            FunctionAssociations:
+              - EventType: viewer-request
+                FunctionARN: !GetAtt RewriteToIndexHtml.FunctionARN
         CustomErrorResponses:
           # A private bucket answers a missing key with 403, not 404 (ADR 0008). Both become
           # the export's own 404 page, with the status the browser deserves.

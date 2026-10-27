@@ -326,6 +326,21 @@ export class FakeRetellGateway {
     }));
   }
 
+  /** D17 outbound: "Call my phone" and the forwarding test. The platform answers with the registered call. */
+  createPhoneCall(input: { fromNumber: string; toNumber: string; agentId?: string; agentVersion?: number; metadata?: Record<string, unknown>; maxCallDurationMs?: number }) {
+    return this.record('createPhoneCall', [input], () => ({
+      call_id: `call_out_${Math.random().toString(16).slice(2, 14)}`,
+      call_type: 'phone_call',
+      direction: 'outbound',
+      from_number: input.fromNumber,
+      to_number: input.toNumber,
+      agent_id: input.agentId,
+      agent_version: input.agentVersion,
+      call_status: 'registered',
+      metadata: input.metadata,
+    }));
+  }
+
   createPhoneNumber(input: { numberToken: string; agentId: string; country: 'US' | 'CA'; areaCode?: number; tollFree?: boolean; provider?: 'twilio' | 'telnyx'; nickname: string; allowedInboundCountries?: string[] }) {
     return this.record('createPhoneNumber', [input], () => {
       const area = input.areaCode ?? (input.country === 'CA' ? 450 : 620);

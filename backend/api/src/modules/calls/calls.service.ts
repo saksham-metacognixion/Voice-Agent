@@ -313,7 +313,7 @@ export class CallsService {
             agentVersion: await this.versionOf(call, origin?.agentId ?? null),
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
-            isTest: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
+            isTest: isTestCall(call),
             fromNumber: call.from_number ?? null,
             toNumber: call.to_number ?? null,
             startedAt,
@@ -335,7 +335,7 @@ export class CallsService {
       agent_id: existing?.agentId ?? origin?.agentId ?? null,
       channel: channelOf(call.call_type),
       direction: directionOf(call.direction),
-      is_test: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
+      is_test: isTestCall(call),
     });
     return { outcome: 'started', callId: call.call_id, rate, configVersion };
   }
@@ -397,7 +397,7 @@ export class CallsService {
             agentVersion: await this.versionOf(call, origin?.agentId ?? null),
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
-            isTest: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
+            isTest: isTestCall(call),
             fromNumber: call.from_number ?? null,
             toNumber: call.to_number ?? null,
             startedAt,
@@ -498,7 +498,7 @@ export class CallsService {
             agentVersion: await this.versionOf(call, origin?.agentId ?? null),
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
-            isTest: metadataOf(call).test === true || channelOf(call.call_type) === 'web',
+            isTest: isTestCall(call),
             fromNumber: call.from_number ?? null,
             toNumber: call.to_number ?? null,
             startedAt: timestamp(call.start_timestamp),
@@ -756,6 +756,18 @@ function ourEnd(call: RetellCallFacts): string | null {
 
 function metadataOf(call: RetellCallFacts): Record<string, unknown> {
   return (call.metadata ?? {}) as Record<string, unknown>;
+}
+
+/**
+ * A test call is one we minted as such: the W5/D3 browser test and "Call my phone" put
+ * `test: true` in the metadata. A browser call is a test unless it says otherwise — the
+ * website widget (D17 §11.5) is the one that does, with `test: false`, and is a real
+ * caller on the `web` channel.
+ */
+function isTestCall(call: RetellCallFacts): boolean {
+  const test = metadataOf(call).test;
+  if (typeof test === 'boolean') return test;
+  return channelOf(call.call_type) === 'web';
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

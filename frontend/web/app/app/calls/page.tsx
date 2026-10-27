@@ -87,7 +87,7 @@ export default function CallsPage() {
   const stream = useDashboardLive({
     onNewCall: (call) => {
       toast(call.missed ? tc('dashboard.live.missedCall') : tc('dashboard.live.newCall'), {
-        description: call.fromNumber ? tc('dashboard.live.from', { number: formatPhone(call.fromNumber) }) : undefined,
+        description: call.website ? tc('dashboard.live.fromWebsite') : call.fromNumber ? tc('dashboard.live.from', { number: formatPhone(call.fromNumber) }) : undefined,
         action: { label: tc('dashboard.live.view'), onClick: () => update({ callId: call.callId }, 'replace') },
       });
     },

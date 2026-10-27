@@ -77,6 +77,12 @@ export type AnalyticsEvent =
   | 'test_call_started'
   | 'test_call_ended'
   | 'test_call_failed'
+  // D17: "Call my phone" (W5), "Test forwarding" (D4), the website widget (D3 Website)
+  | 'test_phone_call_started'
+  | 'test_phone_call_failed'
+  | 'forwarding_test_started'
+  | 'forwarding_test_finished'
+  | 'widget_toggled'
   | 'feedback_submitted'
   | 'feedback_applied'
   | 'feedback_failed'

@@ -14,6 +14,7 @@ import { PromptTab } from '@/src/components/dashboard/agent/prompt-tab';
 import { PublishBar } from '@/src/components/dashboard/agent/publish-bar';
 import { SettingsTab } from '@/src/components/dashboard/agent/settings-tab';
 import { TestTab } from '@/src/components/dashboard/agent/test-tab';
+import { WebsiteTab } from '@/src/components/dashboard/agent/website-tab';
 import { VersionsTab } from '@/src/components/dashboard/agent/versions-tab';
 import { VoiceTab } from '@/src/components/dashboard/agent/voice-tab';
 import { AgentStatusBadge, TierBadge } from '@/src/components/dashboard/status-badges';
@@ -123,6 +124,7 @@ export default function AgentDetailPage() {
         <TabsContent value="voice">{tab === 'voice' ? <VoiceTab key={data.draft?.version_no ?? 'none'} agent={data} canEdit={canEdit} /> : null}</TabsContent>
         <TabsContent value="knowledge">{tab === 'knowledge' ? <KnowledgeTab agent={data} canEdit={canEdit} /> : null}</TabsContent>
         <TabsContent value="test">{tab === 'test' ? <TestTab agent={data} canEdit={canEdit} /> : null}</TabsContent>
+        <TabsContent value="website">{tab === 'website' ? <WebsiteTab agent={data} canAdmin={canAdmin} /> : null}</TabsContent>
         <TabsContent value="versions">{tab === 'versions' ? <VersionsTab agent={data} canEdit={canEdit} /> : null}</TabsContent>
         <TabsContent value="settings">{tab === 'settings' ? <SettingsTab key={data.draft?.version_no ?? 'none'} agent={data} canEdit={canEdit} canAdmin={canAdmin} /> : null}</TabsContent>
       </Tabs>

@@ -43,8 +43,12 @@ export const ErrorCode = {
   UNAUTHENTICATED: 'UNAUTHENTICATED',
   INVALID_TOKEN: 'INVALID_TOKEN',
   INVALID_SIGNATURE: 'INVALID_SIGNATURE',
+  /** D17: a forwarding test is for an Option B number — one with the customer's own line forwarded to it. */
+  NOT_FORWARDING_NUMBER: 'NOT_FORWARDING_NUMBER',
   // 402
   NO_CREDITS: 'NO_CREDITS',
+  /** D17: what needs a paid pack first — trial credits are browser test calls only (§5.4). */
+  PURCHASE_REQUIRED: 'PURCHASE_REQUIRED',
   // 403
   EMAIL_UNVERIFIED: 'EMAIL_UNVERIFIED',
   FORBIDDEN_ROLE: 'FORBIDDEN_ROLE',
@@ -91,12 +95,30 @@ export const ErrorCode = {
   AGENT_NOT_GENERATED: 'AGENT_NOT_GENERATED',
   /** The operation needs a published agent (resume, point a number at it) and this one never was (QA-021). */
   AGENT_NOT_PUBLISHED: 'AGENT_NOT_PUBLISHED',
+  /** D17 "Call my phone": the workspace has no live number to place the call from. */
+  NO_NUMBER: 'NO_NUMBER',
+  /** D17: a forwarding test is already ringing for this number. */
+  FORWARDING_TEST_IN_PROGRESS: 'FORWARDING_TEST_IN_PROGRESS',
+  /**
+   * D17 §11.5: the website widget cannot take a call right now. One code for a paused
+   * workspace or agent, no credits, every line busy or the inbound kill switch — the
+   * answer goes to a stranger's browser, and the workspace's state is not theirs to read.
+   */
+  WIDGET_UNAVAILABLE: 'WIDGET_UNAVAILABLE',
   // 422
   VALIDATION_FAILED: 'VALIDATION_FAILED',
   LINT_FAILED: 'LINT_FAILED',
   GENERATION_FAILED: 'GENERATION_FAILED',
   /** A pricing publish below the margin floor without an override (admin §5.4). */
   MARGIN_FLOOR: 'MARGIN_FLOOR',
+  /**
+   * D17 "Call my phone": a well-formed number the test may not ring, one code per reason so
+   * the portal can say which (`VALIDATION_FAILED` is a number that is not real). Each also
+   * carries `fields: [{field: 'to'}]`.
+   */
+  DESTINATION_COUNTRY: 'DESTINATION_COUNTRY',
+  DESTINATION_TYPE: 'DESTINATION_TYPE',
+  DESTINATION_IS_AGENT: 'DESTINATION_IS_AGENT',
   // 429
   TEST_RATE_LIMIT: 'TEST_RATE_LIMIT',
   RATE_LIMITED: 'RATE_LIMITED',
@@ -127,10 +149,12 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   PLAN_LIMIT: 400,
   DOCUMENT_UNREADABLE: 400,
   NOT_SIP_NUMBER: 400,
+  NOT_FORWARDING_NUMBER: 400,
   UNAUTHENTICATED: 401,
   INVALID_TOKEN: 401,
   INVALID_SIGNATURE: 401,
   NO_CREDITS: 402,
+  PURCHASE_REQUIRED: 402,
   EMAIL_UNVERIFIED: 403,
   FORBIDDEN_ROLE: 403,
   NOT_A_MEMBER: 403,
@@ -159,10 +183,16 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   VERSION_SYNCING: 409,
   AGENT_NOT_GENERATED: 409,
   AGENT_NOT_PUBLISHED: 409,
+  NO_NUMBER: 409,
+  FORWARDING_TEST_IN_PROGRESS: 409,
+  WIDGET_UNAVAILABLE: 409,
   VALIDATION_FAILED: 422,
   LINT_FAILED: 422,
   GENERATION_FAILED: 422,
   MARGIN_FLOOR: 422,
+  DESTINATION_COUNTRY: 422,
+  DESTINATION_TYPE: 422,
+  DESTINATION_IS_AGENT: 422,
   TEST_RATE_LIMIT: 429,
   RATE_LIMITED: 429,
   INTERNAL: 500,

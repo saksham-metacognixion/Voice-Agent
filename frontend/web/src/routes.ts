@@ -14,6 +14,8 @@ export const routes = {
   invite: '/invite/',
   /** Admin §7.4 (D12): where the console's "View as" lands — `#session=&key=` (the fragment, never logged), kept for the tab. */
   impersonate: '/impersonate/',
+  /** D17 §11.5: the website widget's frame, `?key=` — public, outside every guard and provider but theme and language. */
+  embed: '/embed/',
   selectWorkspace: '/select-workspace/',
   setupWorkspace: '/setup/workspace/',
   onboarding: {
@@ -153,7 +155,7 @@ export function switchWorkspaceDestination(query: URLSearchParams): string {
 }
 
 /** D3 agent tabs, in the order the spec lists them (p. 36). */
-export const AGENT_TABS = ['overview', 'brief', 'prompt', 'voice', 'knowledge', 'test', 'versions', 'settings'] as const;
+export const AGENT_TABS = ['overview', 'brief', 'prompt', 'voice', 'knowledge', 'test', 'website', 'versions', 'settings'] as const;
 export type AgentTab = (typeof AGENT_TABS)[number];
 
 export function agentPath(agentId: string, tab: AgentTab = 'overview'): string {

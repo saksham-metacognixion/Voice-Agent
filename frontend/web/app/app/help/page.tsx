@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { ContactSupportCard, MyTicketsCard } from '@/src/components/dashboard/support-tickets';
+import { webCaller } from '@/src/dashboard/caller';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
 import { PageHeader } from '@/src/components/shell/portal-shell';
 import { config } from '@/src/config';
@@ -214,7 +215,7 @@ function ReportCallCard() {
 
   const mailto = (c: CallSummary) => {
     const when = formatDateTime(c.started_at ?? c.created_at, tz);
-    const caller = c.channel === 'web' ? tc('dashboard.calls.browserTest') : c.from_number ? formatPhone(c.from_number) : tc('dashboard.calls.unknownCaller');
+    const caller = webCaller(c) ? tc(`dashboard.calls.${webCaller(c)!}`) : c.from_number ? formatPhone(c.from_number) : tc('dashboard.calls.unknownCaller');
     const body = `${t('reportLine', { id: c.id, when, caller })}\n\n${t('reportPrompt')}\n`;
     return `mailto:${config.support.email}?subject=${encodeURIComponent(t('reportSubject', { id: c.id }))}&body=${encodeURIComponent(body)}`;
   };
@@ -237,7 +238,7 @@ function ReportCallCard() {
             {calls.data.items.map((c) => (
               <li key={c.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                 <Link href={callPath(c.id)} className="flex min-w-0 flex-col text-sm hover:underline">
-                  <span className="truncate font-medium tabular-nums">{c.channel === 'web' ? tc('dashboard.calls.browserTest') : c.from_number ? formatPhone(c.from_number) : tc('dashboard.calls.unknownCaller')}</span>
+                  <span className="truncate font-medium tabular-nums">{webCaller(c) ? tc(`dashboard.calls.${webCaller(c)!}`) : c.from_number ? formatPhone(c.from_number) : tc('dashboard.calls.unknownCaller')}</span>
                   <span className="text-xs text-muted-foreground tabular-nums">{formatDateTime(c.started_at ?? c.created_at, tz)}</span>
                 </Link>
                 <Button variant="outline" size="sm" asChild>

@@ -27,6 +27,8 @@ import { LiveTranscriptRelay } from './live-transcript.relay';
 import { RecordingSigner } from './recording';
 import { TestCallController } from './test-call.controller';
 import { TestCallService } from './test-call.service';
+import { AgentWidgetController, PublicWidgetController } from './widget.controller';
+import { WidgetService } from './widget.service';
 
 /**
  * Spec §13.1 `calls`: the §13.9 inbound authorisation, the §14 metering that the Retell
@@ -37,11 +39,12 @@ import { TestCallService } from './test-call.service';
  * API and the worker import the same services"). The Retell lifecycle handler itself is
  * registered by the webhooks module, which owns the `webhooks` queue. D7 adds the two
  * §13.11 monitors that read call data — `reconcile-calls` and `concurrency-monitor` —
- * run from the `scheduled` module.
+ * run from the `scheduled` module. D17 adds the website widget (§11.5): the customer's
+ * settings on the agent and the public mint the embed frame calls (`WidgetService`).
  */
 @Module({
   imports: [AgentsModule, RetellModule, WalletModule, PlatformConfigModule, RuntimeCacheModule, AlertsModule, NotificationsModule],
-  controllers: [CallsController, StatsController, TestCallController],
+  controllers: [CallsController, StatsController, TestCallController, AgentWidgetController, PublicWidgetController],
   providers: [
     CallsService,
     CallKnowledgeService,
@@ -51,6 +54,7 @@ import { TestCallService } from './test-call.service';
     CallReconciliationService,
     ConcurrencyMonitorService,
     TestCallService,
+    WidgetService,
     LiveTranscriptRelay,
   ],
   exports: [LiveTranscriptRelay, CallsService, CallsQueryService, InboundAuthorizationService, RecordingSigner, CallReconciliationService, ConcurrencyMonitorService],

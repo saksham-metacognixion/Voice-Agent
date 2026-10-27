@@ -14,6 +14,7 @@ import {
   type QueueName,
   type RecoverCallJob,
   type CallKnowledgeJob,
+  type ForwardingTestJob,
   type RefreshNumberJob,
   SCHEDULED_JOBS,
   type WarmWorkspaceJob,
@@ -329,6 +330,20 @@ export class JobQueues implements OnApplicationShutdown {
    */
   enqueueCallKnowledge(callId: string): Promise<EnqueueResult> {
     return this.add<CallKnowledgeJob>(QUEUES.calls, JOBS.callKnowledge, { callId }, { ...REPAIR_JOB_OPTIONS, delay: 5_000, jobId: `kb-${safeId(callId)}` }, 250);
+  }
+
+  /**
+   * D17, from the inbound hot path: the forwarding test came back. Short timeout like the
+   * inbound write-behind; the busy tone does not wait on it. If it is lost the test reads
+   * `not_landed` when its window closes — wrong, but the customer can run it again.
+   */
+  enqueueForwardingTestLanded(job: ForwardingTestJob): Promise<EnqueueResult> {
+    return this.add<ForwardingTestJob>(QUEUES.calls, JOBS.forwardingTestLanded, job, { ...REPAIR_JOB_OPTIONS, jobId: `fwdtest-landed-${safeId(job.testId)}` }, 250);
+  }
+
+  /** D17: closes a forwarding test's ring window. */
+  enqueueForwardingTestExpire(job: ForwardingTestJob, delayMs: number): Promise<EnqueueResult> {
+    return this.add<ForwardingTestJob>(QUEUES.calls, JOBS.forwardingTestExpire, job, { ...REPAIR_JOB_OPTIONS, delay: delayMs, jobId: `fwdtest-expire-${safeId(job.testId)}` });
   }
 
   enqueueWarmWorkspace(workspaceId: string): Promise<EnqueueResult> {

@@ -24,6 +24,28 @@ export type PhoneNumberStatus = z.infer<typeof phoneNumberStatus>;
 export const forwardingStatus = z.enum(['waiting_for_customer', 'ready', 'failed']);
 export type ForwardingStatus = z.infer<typeof forwardingStatus>;
 
+/**
+ * D17 "Test forwarding" (D4, spec p. 37): we ring the customer's own line from their
+ * number and watch for the carrier forwarding it back. `calling` while it rings;
+ * `landed` when it arrived (and was turned away with a busy tone — nobody answers it);
+ * `not_landed` when nothing arrived in time; `failed` when the call could not be placed.
+ */
+export const forwardingTestStatus = z.enum(['calling', 'landed', 'not_landed', 'failed']);
+export type ForwardingTestStatus = z.infer<typeof forwardingTestStatus>;
+
+export const forwardingTest = z.object({
+  status: forwardingTestStatus,
+  started_at: isoDateTime,
+  finished_at: isoDateTime.nullable(),
+  /**
+   * How the forwarded call showed up: with our number as the caller (`ours`, most
+   * carriers keep the original caller) or with the customer's line (`original`, carriers
+   * that pass the forwarding number — §11.2). Null until it lands.
+   */
+  caller_id: z.enum(['ours', 'original']).nullable(),
+});
+export type ForwardingTest = z.infer<typeof forwardingTest>;
+
 export const hoursMode = z.enum(['always', 'business', 'custom']);
 export type HoursMode = z.infer<typeof hoursMode>;
 
@@ -247,7 +269,13 @@ export const phoneNumberResponse = z.object({
   allowed_countries: z.array(z.string()),
   blocklist: z.array(z.string()),
   forwarding: z
-    .object({ from: z.string(), status: forwardingStatus, carrier: carrier.nullable() })
+    .object({
+      from: z.string(),
+      status: forwardingStatus,
+      carrier: carrier.nullable(),
+      /** D17: the last "Test forwarding". Null before the first. */
+      test: forwardingTest.nullable().default(null),
+    })
     .nullable(),
   /** Option C: the trunk's host and username. The password is never returned, only whether one is stored. */
   sip: z

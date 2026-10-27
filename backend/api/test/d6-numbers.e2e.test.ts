@@ -469,7 +469,7 @@ describe('PATCH and DELETE /numbers/:id', () => {
     const row = await waitForNumber((accepted.body.number as { id: string }).id);
     expect(row.status).toBe('active');
     const shown = await call('GET', `/numbers/${row.id}`, headers);
-    expect(shown.body.forwarding).toEqual({ from: '+15145550100', status: 'waiting_for_customer', carrier: 'bell' });
+    expect(shown.body.forwarding).toEqual({ from: '+15145550100', status: 'waiting_for_customer', carrier: 'bell', test: null });
 
     const guide = await call('GET', `/numbers/forwarding-guide?carrier=bell&destination=${encodeURIComponent(row.e164!)}`, headers);
     expect(guide.status).toBe(200);

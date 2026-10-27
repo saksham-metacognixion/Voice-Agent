@@ -21,6 +21,7 @@ export type {
   WarmWorkspaceJob,
   RecoverCallJob,
   CallKnowledgeJob,
+  ForwardingTestJob,
   RefreshNumberJob,
   PromptingJob,
   KnowledgeSyncJob,

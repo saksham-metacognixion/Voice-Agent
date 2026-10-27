@@ -3,11 +3,12 @@ import type { Job } from 'bullmq';
 import { AlertsModule } from '../alerts';
 import { PlatformConfigModule } from '../config';
 import { CryptoModule } from '../crypto';
-import { JOBS, JobHandlerRegistry, type ProvisionNumberJob, QUEUES } from '../jobs';
+import { type ForwardingTestJob, JOBS, JobHandlerRegistry, type ProvisionNumberJob, QUEUES } from '../jobs';
 import { NotificationsModule } from '../notifications';
 import { RetellModule } from '../retell';
 import { RuntimeCacheModule } from '../runtime-cache';
 import { WalletModule } from '../wallet';
+import { ForwardingTestService } from './forwarding-test.service';
 import { NumberProvisioningService } from './number-provisioning.service';
 import { NumberRentalService } from './number-rental.service';
 import { NumbersController, PhonePlanController } from './numbers.controller';
@@ -22,21 +23,26 @@ import { SipVerificationService } from './sip-verification.service';
  * the activation workflow's *provision* and *bind* steps are these same operations;
  * `activation` depends on `numbers`, never the reverse. D7 adds `NumberRentalService`
  * (§5.3 rental, overdue warnings, unpaid release), run from the `scheduled` module.
+ * D17 adds `ForwardingTestService` ("Test forwarding", D4) and its two `calls`-queue jobs.
  */
 @Module({
   // The two global modules are imported explicitly for the same reason BillingModule does it.
   imports: [RetellModule, PlatformConfigModule, RuntimeCacheModule, WalletModule, AlertsModule, CryptoModule, NotificationsModule],
   controllers: [PhonePlanController, NumbersController],
-  providers: [PhonePlansService, NumberProvisioningService, NumbersService, ProvisionNumberWorker, NumberRentalService, SipProbe, SipVerificationService],
+  providers: [PhonePlansService, NumberProvisioningService, NumbersService, ProvisionNumberWorker, NumberRentalService, SipProbe, SipVerificationService, ForwardingTestService],
   exports: [PhonePlansService, NumberProvisioningService, NumbersService, NumberRentalService],
 })
 export class NumbersModule implements OnModuleInit {
   constructor(
     private readonly registry: JobHandlerRegistry,
     private readonly worker: ProvisionNumberWorker,
+    private readonly forwardingTests: ForwardingTestService,
   ) {}
 
   onModuleInit(): void {
     this.registry.register<ProvisionNumberJob>(QUEUES.provisioning, JOBS.provisionNumber, (job: Job<ProvisionNumberJob>) => this.worker.run(job));
+    // D17: small Postgres writes, on `calls` like the inbound write-behind that queues the first one.
+    this.registry.register<ForwardingTestJob>(QUEUES.calls, JOBS.forwardingTestLanded, (job: Job<ForwardingTestJob>) => this.forwardingTests.landed(job.data));
+    this.registry.register<ForwardingTestJob>(QUEUES.calls, JOBS.forwardingTestExpire, (job: Job<ForwardingTestJob>) => this.forwardingTests.expire(job.data));
   }
 }

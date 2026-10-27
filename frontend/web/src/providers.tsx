@@ -25,6 +25,16 @@ initErrorReporting({ dsn: config.sentry.dsn, app: 'portal', environment: config.
  * is in the right colours.
  */
 export function Providers({ children }: { children: React.ReactNode }) {
+  // D17 §11.5: the website widget's frame runs on strangers' sites. No sign-in, no
+  // workspace, no analytics — nothing that would touch Auth0, read a session or send a
+  // visitor's page view to PostHog. Theme and language only.
+  if (isEmbed(usePathname())) {
+    return (
+      <ThemeProvider>
+        <LocaleProvider>{children}</LocaleProvider>
+      </ThemeProvider>
+    );
+  }
   return (
     <ThemeProvider>
       <LocaleProvider>
@@ -45,6 +55,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       </LocaleProvider>
     </ThemeProvider>
   );
+}
+
+function isEmbed(pathname: string | null): boolean {
+  return pathname === routes.embed || pathname === routes.embed.replace(/\/$/, '');
 }
 
 /**

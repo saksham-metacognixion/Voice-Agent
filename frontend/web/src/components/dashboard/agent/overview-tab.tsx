@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import { BriefCard } from '@/src/components/wizard/brief-card';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { AgentStatusBadge, CallStatusBadge, TierBadge } from '@/src/components/dashboard/status-badges';
+import { webCaller } from '@/src/dashboard/caller';
 import { formatDateTime, formatDuration, formatPhone } from '@/src/lib/format';
 import { agentPath, callPath, routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -84,7 +85,7 @@ export function OverviewTab({ agent }: { agent: AgentDetail }) {
                 {calls.data.items.map((call) => (
                   <li key={call.id}>
                     <Link href={callPath(call.id)} className="flex items-center gap-3 py-2 text-sm hover:bg-muted/60">
-                      <span className="min-w-0 flex-1 truncate">{call.channel === 'web' ? tl('browserTest') : formatPhone(call.from_number)}</span>
+                      <span className="min-w-0 flex-1 truncate">{webCaller(call) ? tl(webCaller(call)!) : formatPhone(call.from_number)}</span>
                       <span className="text-xs text-muted-foreground">{formatDateTime(call.started_at ?? call.created_at, ws.workspace?.timezone)}</span>
                       <span className="text-xs tabular-nums text-muted-foreground">{formatDuration(call.duration_s)}</span>
                       <CallStatusBadge status={call.status} />

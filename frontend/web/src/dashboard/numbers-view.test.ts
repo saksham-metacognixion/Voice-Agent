@@ -6,7 +6,7 @@ const base = { id: 'n', agent_id: null, e164: '+15145550100', nickname: null, ki
 describe('numberType (D4 list)', () => {
   it('names New, Forward target and SIP', () => {
     expect(numberType(base)).toBe('new');
-    expect(numberType({ ...base, forwarding: { from: '+15145550000', status: 'ready', carrier: 'bell' } })).toBe('forward');
+    expect(numberType({ ...base, forwarding: { from: '+15145550000', status: 'ready', carrier: 'bell', test: null } })).toBe('forward');
     expect(numberType({ ...base, kind: 'sip' })).toBe('sip');
   });
 });

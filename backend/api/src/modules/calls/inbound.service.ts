@@ -6,6 +6,7 @@ import { JobQueues, type InboundDecisionJob } from '../jobs';
 import { REDIS, type RedisLike, redisKeys } from '../redis';
 import { type InboundResponse, RetellGateway, type RetellInboundEvent } from '../retell';
 import { isNumberRecord, type NumberRecord } from '../runtime-cache';
+import { forwardingTestMatch, parseForwardingTestMarker } from './forwarding-test';
 import { ACTIVE_SLACK_MS, type Decision, RETELL_MAX_CALL_MS, decide, encodeActive, parseActiveHash } from './inbound.decide';
 import { RESERVE_SCRIPT, type ReserveResult, isReserveResult } from './reserve.script';
 
@@ -33,7 +34,7 @@ export type InboundVerdict =
 
 export interface InboundOutcome {
   body: InboundResponse | Record<string, never>;
-  decision: Decision | { kind: 'redis_down'; reason: string };
+  decision: Decision | { kind: 'redis_down'; reason: string } | { kind: 'forwarding_test'; testId: string; callerId: 'ours' | 'original' };
   /** What Retell will do with `body`. */
   answered: 'allow' | 'decline' | 'fail_open';
   latencyMs: number;
@@ -48,6 +49,8 @@ export interface InboundMetrics {
   failOpen: number;
   redisDown: number;
   overBudget: number;
+  /** D17: forwarding tests recognised and turned away. */
+  forwardingTests: number;
 }
 
 class Deadline {
@@ -106,6 +109,7 @@ export class InboundAuthorizationService {
     failOpen: 0,
     redisDown: 0,
     overBudget: 0,
+    forwardingTests: 0,
   };
   private lastFailOpenLog = 0;
   private lastRedisDownAlert = 0;
@@ -139,12 +143,30 @@ export class InboundAuthorizationService {
         // absent for most of every cycle and the veto would quietly never fire
         // (redisKeys.rejectInbound). Missing still reads as off — a cache gap must not
         // start rejecting calls.
-        const [numRaw, pricingRaw, rejectRaw] = await deadline.bound(() =>
-          this.redis.mget(redisKeys.number(to), redisKeys.pricingCurrent, redisKeys.rejectInbound),
+        // D17: a "Test forwarding" ringing for this number rides the same round trip.
+        const [numRaw, pricingRaw, rejectRaw, testRaw] = await deadline.bound(() =>
+          this.redis.mget(redisKeys.number(to), redisKeys.pricingCurrent, redisKeys.rejectInbound, redisKeys.forwardingTest(to)),
         );
         number = parseNumber(numRaw);
         pricing = parsePricing(pricingRaw);
         rejectInbound = rejectRaw === '1';
+
+        // The test coming back through the carrier's forwarding. Turned away before every
+        // other check — a busy tone, no call object, nothing billed, no `calls` row — so it
+        // never becomes the agent talking to itself, and the outbound leg ends unconnected.
+        const marker = number && number.inbound_token === token ? parseForwardingTestMarker(testRaw) : null;
+        const callerId = number && marker ? forwardingTestMatch(marker, { numberId: number.number_id, from, to }) : null;
+        if (marker && callerId) {
+          this.metrics.forwardingTests += 1;
+          void this.queues.enqueueForwardingTestLanded({ testId: marker.test_id, numberId: marker.number_id, workspaceId: marker.workspace_id, callerId });
+          return {
+            body: RetellGateway.inboundDecline(),
+            decision: { kind: 'forwarding_test', testId: marker.test_id, callerId },
+            answered: 'decline',
+            latencyMs: elapsedMs(startedAt),
+            warnings: [],
+          };
+        }
       }
 
       let caps: WorkspaceCaps | null = null;

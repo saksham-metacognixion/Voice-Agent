@@ -301,15 +301,22 @@ export class CallsQueryService {
            GROUP BY 1
            ORDER BY 1`,
         ]);
-      const [answered, completed, test] = await Promise.all([
+      const [answered, completed, test, channels] = await Promise.all([
         db.call.count({ where: { ...where, status: { not: 'declined' } } }),
         // The average is over calls that have a duration. `answered` includes the ones
         // still ringing or talking, whose duration_s is null until call_ended writes it;
         // dividing by those understates the average for as long as a call is live.
         db.call.count({ where: { ...where, status: { not: 'declined' }, durationS: { not: null } } }),
         db.call.count({ where: { ...where, isTest: true } }),
+        // D17 §11.5: the website widget is its own channel in analytics. Real callers only.
+        db.call.groupBy({
+          by: ['channel'],
+          where: { ...where, isTest: false },
+          _count: { _all: true },
+          _sum: { durationS: true, creditsCharged: true, transferCreditsCharged: true },
+        }),
       ]);
-      return { totals, missedByReason, daily, answered, completed, test };
+      return { totals, missedByReason, daily, answered, completed, test, channels };
     });
 
     const total = rows.totals._count._all;
@@ -336,6 +343,10 @@ export class CallsQueryService {
         minutes: round2(Number(d.seconds ?? 0) / 60),
         credits: round2(Number(d.credits ?? 0)),
       })),
+      by_channel: {
+        phone: channelTotals(rows.channels.find((c) => c.channel === 'phone')),
+        web: channelTotals(rows.channels.find((c) => c.channel === 'web')),
+      },
     };
   }
 
@@ -501,4 +512,15 @@ function isFresh(url: string): boolean {
 
 function round2(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function channelTotals(
+  row: { _count: { _all: number }; _sum: { durationS: number | null; creditsCharged: Prisma.Decimal | null; transferCreditsCharged: Prisma.Decimal | null } } | undefined,
+): { calls: number; minutes: number; credits: number } {
+  if (!row) return { calls: 0, minutes: 0, credits: 0 };
+  return {
+    calls: row._count._all,
+    minutes: round2((row._sum.durationS ?? 0) / 60),
+    credits: round2((row._sum.creditsCharged?.toNumber() ?? 0) + (row._sum.transferCreditsCharged?.toNumber() ?? 0)),
+  };
 }

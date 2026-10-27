@@ -41,6 +41,13 @@ export function TodayCard() {
             <Stat label={t('credits')} value={formatCreditsValue(stats.data.credits_used)} />
             <Stat label={t('avgDuration')} value={formatDuration(stats.data.avg_duration_s)} />
             <Stat label={t('answered')} value={formatNumber(stats.data.calls.answered, 0)} />
+            {/* D17 §11.5: the website widget is its own channel. Shown once it has had a caller. */}
+            {stats.data.by_channel.web.calls > 0 ? (
+              <>
+                <Stat label={t('phoneCalls')} value={formatNumber(stats.data.by_channel.phone.calls, 0)} hint={t('channelMinutes', { minutes: formatNumber(stats.data.by_channel.phone.minutes, 1) })} />
+                <Stat label={t('websiteCalls')} value={formatNumber(stats.data.by_channel.web.calls, 0)} hint={t('channelMinutes', { minutes: formatNumber(stats.data.by_channel.web.minutes, 1) })} />
+              </>
+            ) : null}
           </dl>
         )}
       </CardContent>

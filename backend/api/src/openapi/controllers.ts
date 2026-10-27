@@ -26,6 +26,7 @@ import { AgentsController, TemplatesController } from '../modules/agents/agents.
 import { BillingController } from '../modules/billing/billing.controller';
 import { CallsController, StatsController } from '../modules/calls/calls.controller';
 import { TestCallController } from '../modules/calls/test-call.controller';
+import { AgentWidgetController, PublicWidgetController } from '../modules/calls/widget.controller';
 import { ConfigController } from '../modules/config/config.controller';
 import { EventsController } from '../modules/events/events.controller';
 import { JobsController } from '../modules/jobs/jobs.controller';
@@ -62,6 +63,8 @@ export const CONTROLLERS = [
   CallsController,
   StatsController,
   TestCallController,
+  AgentWidgetController,
+  PublicWidgetController,
   WalletController,
   BillingController,
   JobsController,

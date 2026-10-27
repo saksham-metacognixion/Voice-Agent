@@ -11027,6 +11027,54 @@
         ],
         "type": "object"
       },
+      "agentWidget": {
+        "properties": {
+          "agent_live": {
+            "type": "boolean"
+          },
+          "allowed_origins": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "key": {
+            "nullable": true,
+            "pattern": "^wk_[0-9a-f]{32}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled",
+          "key",
+          "allowed_origins",
+          "agent_live"
+        ],
+        "type": "object"
+      },
+      "agentWidgetUpdate": {
+        "properties": {
+          "allowed_origins": {
+            "items": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "rotate_key": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "auditEntryResponse": {
         "properties": {
           "action": {
@@ -13790,6 +13838,45 @@
                       "failed"
                     ],
                     "type": "string"
+                  },
+                  "test": {
+                    "default": null,
+                    "nullable": true,
+                    "properties": {
+                      "caller_id": {
+                        "enum": [
+                          "ours",
+                          "original"
+                        ],
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "finished_at": {
+                        "format": "date-time",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "started_at": {
+                        "format": "date-time",
+                        "type": "string"
+                      },
+                      "status": {
+                        "enum": [
+                          "calling",
+                          "landed",
+                          "not_landed",
+                          "failed"
+                        ],
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "status",
+                      "started_at",
+                      "finished_at",
+                      "caller_id"
+                    ],
+                    "type": "object"
                   }
                 },
                 "required": [
@@ -14149,6 +14236,45 @@
                   "failed"
                 ],
                 "type": "string"
+              },
+              "test": {
+                "default": null,
+                "nullable": true,
+                "properties": {
+                  "caller_id": {
+                    "enum": [
+                      "ours",
+                      "original"
+                    ],
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "finished_at": {
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "started_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "status": {
+                    "enum": [
+                      "calling",
+                      "landed",
+                      "not_landed",
+                      "failed"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "status",
+                  "started_at",
+                  "finished_at",
+                  "caller_id"
+                ],
+                "type": "object"
               }
             },
             "required": [
@@ -16181,6 +16307,65 @@
             "nullable": true,
             "type": "number"
           },
+          "by_channel": {
+            "default": {
+              "phone": {
+                "calls": 0,
+                "credits": 0,
+                "minutes": 0
+              },
+              "web": {
+                "calls": 0,
+                "credits": 0,
+                "minutes": 0
+              }
+            },
+            "properties": {
+              "phone": {
+                "properties": {
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "credits": {
+                    "type": "number"
+                  },
+                  "minutes": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "minutes",
+                  "credits"
+                ],
+                "type": "object"
+              },
+              "web": {
+                "properties": {
+                  "calls": {
+                    "type": "integer"
+                  },
+                  "credits": {
+                    "type": "number"
+                  },
+                  "minutes": {
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "calls",
+                  "minutes",
+                  "credits"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "phone",
+              "web"
+            ],
+            "type": "object"
+          },
           "by_day": {
             "items": {
               "properties": {
@@ -16485,6 +16670,58 @@
           "name",
           "tagline",
           "best_for"
+        ],
+        "type": "object"
+      },
+      "testPhoneCallRequest": {
+        "properties": {
+          "to": {
+            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "type": "string"
+          },
+          "version_no": {
+            "exclusiveMinimum": false,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "to"
+        ],
+        "type": "object"
+      },
+      "testPhoneCallResponse": {
+        "properties": {
+          "balance": {
+            "type": "number"
+          },
+          "call_id": {
+            "type": "string"
+          },
+          "from_number": {
+            "type": "string"
+          },
+          "max_call_duration_s": {
+            "type": "integer"
+          },
+          "rate": {
+            "type": "number"
+          },
+          "to_number": {
+            "type": "string"
+          },
+          "version_no": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "call_id",
+          "from_number",
+          "to_number",
+          "rate",
+          "balance",
+          "version_no",
+          "max_call_duration_s"
         ],
         "type": "object"
       },
@@ -17083,6 +17320,70 @@
         },
         "required": [
           "received"
+        ],
+        "type": "object"
+      },
+      "widgetCallRequest": {
+        "properties": {
+          "page_origin": {
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "widgetCallResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "call_id": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "number"
+          },
+          "ice_servers": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "max_call_duration_s": {
+            "type": "integer"
+          },
+          "transport": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "call_id",
+          "access_token",
+          "max_call_duration_s"
+        ],
+        "type": "object"
+      },
+      "widgetConfig": {
+        "properties": {
+          "agent_name": {
+            "type": "string"
+          },
+          "business_name": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "business_name",
+          "agent_name",
+          "language"
         ],
         "type": "object"
       },
@@ -28953,6 +29254,192 @@
         ]
       }
     },
+    "/agents/{id}/test/phone": {
+      "post": {
+        "description": "Spec §13.4.",
+        "operationId": "startTestPhoneCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/testPhoneCallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/testPhoneCallResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NO_CREDITS, PURCHASE_REQUIRED}",
+            "x-error-codes": [
+              "NO_CREDITS",
+              "PURCHASE_REQUIRED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, CONCURRENCY_LIMIT, NO_NUMBER, TESTS_PAUSED, VERSION_SYNCING}",
+            "x-error-codes": [
+              "AGENT_NOT_GENERATED",
+              "CONCURRENCY_LIMIT",
+              "NO_NUMBER",
+              "TESTS_PAUSED",
+              "VERSION_SYNCING"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {DESTINATION_COUNTRY, DESTINATION_IS_AGENT, DESTINATION_TYPE, VALIDATION_FAILED}",
+            "x-error-codes": [
+              "DESTINATION_COUNTRY",
+              "DESTINATION_IS_AGENT",
+              "DESTINATION_TYPE",
+              "VALIDATION_FAILED"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {TEST_RATE_LIMIT}",
+            "x-error-codes": [
+              "TEST_RATE_LIMIT"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D17 W5 \"Call my phone\" — the agent rings the customer's own phone from a workspace number (paid packs only)",
+        "tags": [
+          "calls"
+        ],
+        "x-auth": "workspace",
+        "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
     "/agents/{id}/test/web": {
       "post": {
         "description": "Spec §13.4.",
@@ -29590,6 +30077,222 @@
           "owner",
           "admin",
           "editor"
+        ]
+      }
+    },
+    "/agents/{id}/widget": {
+      "get": {
+        "description": "Spec §11.5.",
+        "operationId": "getAgentWidget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentWidget"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D17 — the website widget's settings: on/off, public key, allowed sites",
+        "tags": [
+          "widget"
+        ],
+        "x-auth": "workspace"
+      },
+      "put": {
+        "description": "Spec §11.5.",
+        "operationId": "updateAgentWidget",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/agentWidgetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentWidget"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D17 — turn the website widget on or off, set the allowed sites, rotate the key",
+        "tags": [
+          "widget"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin"
         ]
       }
     },
@@ -33106,6 +33809,163 @@
         ]
       }
     },
+    "/numbers/{id}/forwarding/test": {
+      "post": {
+        "operationId": "testNumberForwarding",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/phoneNumberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FORWARDING_NUMBER, WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "NOT_FORWARDING_NUMBER",
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NO_CREDITS}",
+            "x-error-codes": [
+              "NO_CREDITS"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONFLICT, FORWARDING_TEST_IN_PROGRESS}",
+            "x-error-codes": [
+              "AGENT_NOT_PUBLISHED",
+              "CONFLICT",
+              "FORWARDING_TEST_IN_PROGRESS"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {RATE_LIMITED}",
+            "x-error-codes": [
+              "RATE_LIMITED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D17 — ring the customer's own line from an Option B number and watch for it to be forwarded back",
+        "tags": [
+          "numbers"
+        ],
+        "x-auth": "workspace",
+        "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
     "/numbers/{id}/sip/verify": {
       "post": {
         "operationId": "verifyNumberSip",
@@ -33430,7 +34290,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "D1 — totals and per-day series in the workspace timezone",
+        "summary": "D1 — totals, per-day series and (D17) real callers per channel, in the workspace timezone",
         "tags": [
           "calls"
         ],
@@ -35245,6 +36105,175 @@
         "x-client": false
       }
     },
+    "/widget/{key}": {
+      "get": {
+        "description": "Spec §11.5.",
+        "operationId": "getWidgetConfig",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/widgetConfig"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [],
+        "summary": "D17 public — what the embedded button shows (business and agent name, language)",
+        "tags": [
+          "widget"
+        ],
+        "x-auth": "public"
+      }
+    },
+    "/widget/{key}/call": {
+      "post": {
+        "description": "Spec §11.5.",
+        "operationId": "startWidgetCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/widgetCallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/widgetCallResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {ORIGIN_NOT_ALLOWED}",
+            "x-error-codes": [
+              "ORIGIN_NOT_ALLOWED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WIDGET_UNAVAILABLE}",
+            "x-error-codes": [
+              "WIDGET_UNAVAILABLE"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {RATE_LIMITED}",
+            "x-error-codes": [
+              "RATE_LIMITED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [],
+        "summary": "D17 public — a website visitor starts a browser call with the published agent",
+        "tags": [
+          "widget"
+        ],
+        "x-auth": "public"
+      }
+    },
     "/workspace": {
       "get": {
         "operationId": "getWorkspace",
@@ -36090,6 +37119,9 @@
     },
     {
       "name": "webhooks"
+    },
+    {
+      "name": "widget"
     },
     {
       "name": "workspaces"

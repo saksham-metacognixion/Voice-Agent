@@ -3,7 +3,7 @@ import { Prisma, adminDb } from '@portal/db';
 import type { AdminFunnelResponse, AdminKpisResponse, AdminRange } from '@portal/schemas';
 import { REDIS, RedisCache, type RedisLike, redisKeys, workspaceOfActiveKey } from '../redis';
 import { parseActiveHash, platformConcurrencyLimit } from '../calls';
-import { AT_RISK_AFTER_MS, DAY_MS, num, rangeWindow } from './admin.helpers';
+import { AT_RISK_AFTER_MS, DAY_MS, median, num, rangeWindow } from './admin.helpers';
 
 /**
  * The wizard steps as SA1 draws the funnel (W1 → W7 → paid → live). W4 (knowledge) is
@@ -247,13 +247,11 @@ export class AdminKpisService {
       { key: 'paid', label: 'Paid', count: paidSet.size },
       { key: 'live', label: 'Live', count: cohort.filter((t) => t.onboardingCompletedAt).length },
     ];
-    const minutesToLive = cohort
-      .filter((t) => t.onboardingCompletedAt)
-      .map((t) => (t.onboardingCompletedAt!.getTime() - t.createdAt.getTime()) / 60_000)
-      .sort((a, b) => a - b);
-    const median = minutesToLive.length
-      ? Math.round(minutesToLive[Math.floor(minutesToLive.length / 2)]! * 10) / 10
-      : null;
+    const minutesToLive = median(
+      cohort
+        .filter((t) => t.onboardingCompletedAt)
+        .map((t) => (t.onboardingCompletedAt!.getTime() - t.createdAt.getTime()) / 60_000),
+    );
     const stuck = new Map<number, number>();
     for (const t of cohort)
       if (!t.onboardingCompletedAt)
@@ -266,7 +264,7 @@ export class AdminKpisService {
       activation_rate: cohort.length
         ? Math.round((paidSet.size / cohort.length) * 1000) / 1000
         : null,
-      median_minutes_to_live: median,
+      median_minutes_to_live: minutesToLive === null ? null : Math.round(minutesToLive * 10) / 10,
       stuck_by_step: [...stuck.entries()]
         .sort((a, b) => a[0] - b[0])
         .map(([step, count]) => ({ step, count })),

@@ -1,5 +1,5 @@
 import { Body, Controller, HttpCode, Param, Post } from '@nestjs/common';
-import { type TestWebCallResponse, testWebCallRequest, uuid } from '@portal/schemas';
+import { type TestPhoneCallResponse, type TestWebCallResponse, testPhoneCallRequest, testWebCallRequest, uuid } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { Ctx, RequireEmailVerified, Roles } from '../auth';
 import type { WorkspaceContext } from '../auth';
@@ -22,5 +22,16 @@ export class TestCallController {
     const agentId = uuid.safeParse(id);
     if (!agentId.success) throw AppError.notFound('Agent');
     return this.tests.startWebCall(ctx, agentId.data, testWebCallRequest.parse(body ?? {}).version_no);
+  }
+
+  /** D17 "Call my phone" (W5, Phase 2): the same roles and the same verified email. */
+  @Post(':id/test/phone')
+  @HttpCode(201)
+  @Roles('owner', 'admin', 'editor')
+  @RequireEmailVerified()
+  startPhone(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<TestPhoneCallResponse> {
+    const agentId = uuid.safeParse(id);
+    if (!agentId.success) throw AppError.notFound('Agent');
+    return this.tests.startPhoneCall(ctx, agentId.data, testPhoneCallRequest.parse(body ?? {}));
   }
 }

@@ -543,6 +543,12 @@ model Agent {
   /// transaction open, so exclusion lives here: claimed by a conditional UPDATE, cleared
   /// in a finally, and expiring after two minutes so a dead worker unblocks itself.
   publishingSince  DateTime?   @map("publishing_since")
+  /// D17 §11.5 website widget: the public key in the embed snippet (`wk_` + 32 hex), whether
+  /// it answers, and the sites allowed to show it (empty = any). The key identifies the
+  /// widget and authorises nothing: the agent must be live and the wallet must cover the call.
+  widgetKey        String?     @unique @map("widget_key")
+  widgetEnabled    Boolean     @default(false) @map("widget_enabled")
+  widgetOrigins    String[]    @default([]) @map("widget_origins")
   createdAt        DateTime    @default(now()) @map("created_at")
 
   tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -735,6 +741,9 @@ model PhoneNumber {
   /// The re-verify lease: claimed by a conditional UPDATE, cleared when the check ends,
   /// expiring on its own so a dead request cannot lock the number for good.
   sipVerifyStartedAt  DateTime?         @map("sip_verify_started_at")
+  /// P2 (D17) the last "Test forwarding" of an Option B number (`forwardingTest` in @portal/schemas):
+  /// status, times and how the forwarded call showed up. Never a call id or platform payload.
+  forwardingTestJson  Json?             @map("forwarding_test_json")
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
 

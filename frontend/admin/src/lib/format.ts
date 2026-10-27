@@ -82,6 +82,22 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${h > 0 ? `${h}:` : ''}${mm}:${String(r).padStart(2, '0')}`;
 }
 
+/** Minutes → "45 min", "3 h 20 min", or "25.8 days" from a day up — for durations too long for `m:ss`. */
+export function formatMinutes(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined || !Number.isFinite(minutes)) return '–';
+  const m = Math.max(0, minutes);
+  if (m > 0 && m < 0.5) return '< 1 min';
+  const whole = Math.round(m);
+  if (whole < 60) return `${whole} min`;
+  if (whole < 1440) {
+    const h = Math.floor(whole / 60);
+    const r = whole % 60;
+    return r ? `${h} h ${r} min` : `${h} h`;
+  }
+  const days = Math.round((whole / 1440) * 10) / 10;
+  return `${formatNumber(days, 1)} ${days === 1 ? 'day' : 'days'}`;
+}
+
 export function formatNumber(value: number | null | undefined, maxFractionDigits = 2): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '–';
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: maxFractionDigits }).format(value);

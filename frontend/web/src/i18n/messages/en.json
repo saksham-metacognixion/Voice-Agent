@@ -309,7 +309,15 @@
       "numberRejected": "Your phone number settings were not accepted. Check the number options and try again."
     },
     "SIP_VERIFY_IN_PROGRESS": "This number is already being checked. Wait for that check to finish.",
-    "NOT_SIP_NUMBER": "Only a number connected from your own phone system can be checked."
+    "NOT_SIP_NUMBER": "Only a number connected from your own phone system can be checked.",
+    "PURCHASE_REQUIRED": "Buy a pack first. The free trial is for browser test calls only.",
+    "DESTINATION_COUNTRY": "We can only ring a phone in your workspace’s country or your number’s country.",
+    "DESTINATION_TYPE": "That kind of number cannot be called for a test. Use a mobile or a landline.",
+    "DESTINATION_IS_AGENT": "That number is answered by an agent, directly or by forwarding. Use a mobile or landline that rings a person.",
+    "NO_NUMBER": "Your workspace has no live number to call from yet.",
+    "NOT_FORWARDING_NUMBER": "Only a number your existing line forwards to can be tested this way.",
+    "FORWARDING_TEST_IN_PROGRESS": "A forwarding test is already ringing for this number.",
+    "WIDGET_UNAVAILABLE": "This assistant is not available right now. Please try again later."
   },
   "validation": {
     "required": "Required",
@@ -897,6 +905,14 @@
         "doneTitle": "Version {version} is ready",
         "doneBody": "Your agent was updated.",
         "testAgain": "Call again to hear the difference."
+      },
+      "callMyPhone": {
+        "title": "Call my phone",
+        "body": "Hear your agent on a real phone. We ring the number you enter from one of your numbers. It uses credits like any call.",
+        "placeholder": "+1 416 555 0123",
+        "call": "Call my phone",
+        "placed": "Calling {to} from {from}. Answer it to talk to your agent.",
+        "invalid": "Enter your own mobile or landline with its country code, for example +1 416 555 0123."
       }
     },
     "w6": {
@@ -1239,7 +1255,10 @@
         "minutes": "Minutes",
         "credits": "Credits used",
         "avgDuration": "Avg. length",
-        "answered": "Answered"
+        "answered": "Answered",
+        "phoneCalls": "Phone",
+        "websiteCalls": "Website",
+        "channelMinutes": "{minutes} min"
       },
       "agents": {
         "title": "Agents",
@@ -1325,7 +1344,7 @@
       },
       "channel": {
         "phone": "Phone",
-        "web": "Browser"
+        "web": "Website"
       },
       "declineReason": {
         "balance": "Declined: the balance was too low.",
@@ -1357,9 +1376,9 @@
         "agent": "Agent",
         "anyAgent": "Any agent",
         "channel": "Channel",
-        "anyChannel": "Phone and browser",
+        "anyChannel": "Phone and website",
         "phone": "Phone",
-        "web": "Browser",
+        "web": "Website",
         "test": "Test calls",
         "testAny": "Include tests",
         "testHide": "Hide tests",
@@ -1515,7 +1534,8 @@
         "invalid": "This number looks incomplete ({digits} digits). Check the transcript before calling back.",
         "heard": "The caller said: <num>{numbers}</num>",
         "summary": "The summary may repeat a phone number the caller did not say. Use the checked number under “{captured}”."
-      }
+      },
+      "websiteVisitor": "Website visitor"
     },
     "agents": {
       "title": "Agents",
@@ -1553,7 +1573,8 @@
         "knowledge": "Knowledge",
         "test": "Test",
         "versions": "Versions",
-        "settings": "Settings"
+        "settings": "Settings",
+        "website": "Website"
       },
       "detail": {
         "back": "All agents",
@@ -1779,6 +1800,38 @@
         "deleted": "Agent deleted.",
         "inUse": "Release its phone numbers first.",
         "adminOnly": "Your role cannot pause or delete agents."
+      },
+      "website": {
+        "title": "Website button",
+        "body": "Add a “Talk to us” button to your website. Visitors talk to your live agent in their browser, with no phone needed. Calls use credits like phone calls and show in Calls as Website.",
+        "notLive": "Your agent is not live yet. Until it is, the button tells visitors it is unavailable.",
+        "enabled": "Show the button",
+        "enabledHint": "Turn it off to hide the button everywhere it is installed.",
+        "adminOnly": "Only owners and admins can change these settings.",
+        "turnedOn": "The website button is on.",
+        "turnedOff": "The website button is off.",
+        "snippet": {
+          "title": "Add it to your site",
+          "body": "Paste this line into your website’s HTML, just before the closing body tag, on every page where the button should appear.",
+          "preview": "Preview",
+          "rotate": "New key",
+          "off": "The button is off, so the snippet shows nothing until you turn it back on."
+        },
+        "origins": {
+          "title": "Where it may appear",
+          "body": "List your website addresses so nobody can put your button on another site. Leave it empty to allow any site.",
+          "placeholder": "https://example.com",
+          "any": "Any website can show this button.",
+          "invalid": "Not a website address: {sites}",
+          "saved": "Saved."
+        },
+        "rotate": {
+          "title": "Replace the key?",
+          "body": "You will get a new snippet to paste on your site.",
+          "consequence": "The button stops working on every site that uses the old snippet until you paste the new one.",
+          "confirm": "Replace key",
+          "done": "New key ready. Paste the new snippet on your site."
+        }
       }
     },
     "numbers": {
@@ -1918,7 +1971,30 @@
         "confirm": "I have switched forwarding on",
         "confirmHint": "Tell us once your carrier forwards the calls, so we stop reminding you.",
         "confirmed": "Marked as forwarding.",
-        "unconfirm": "Mark as not forwarding yet"
+        "unconfirm": "Mark as not forwarding yet",
+        "test": {
+          "title": "Test forwarding",
+          "body": "We call {from} from this number. If your carrier forwards it, the call comes straight back here and we know it works.",
+          "start": "Test forwarding",
+          "again": "Test again",
+          "calling": "Calling…",
+          "ringing": "Calling your line. This takes up to a minute and a half.",
+          "never": "Not tested yet.",
+          "testedAt": "Tested {when}",
+          "status": {
+            "calling": "Calling",
+            "landed": "Working",
+            "not_landed": "Not forwarded",
+            "failed": "Could not call"
+          },
+          "notLandedHint": "The call did not come back. Check the forwarding code for your carrier above, and that nobody answered your phone first, then test again.",
+          "callerIdOriginal": "Your carrier shows forwarded calls with your own line as the caller, so the real caller may not appear in your call log.",
+          "cost": "If someone answers your phone during the test, the agent talks for up to a minute, which uses credits.",
+          "toast": {
+            "landed": "Forwarding works: the call reached your agent.",
+            "notLanded": "The test call was not forwarded."
+          }
+        }
       },
       "sip": {
         "title": "SIP connection",
@@ -2540,7 +2616,8 @@
       "newCall": "New inbound call",
       "missedCall": "Missed call",
       "from": "From {number}",
-      "view": "View"
+      "view": "View",
+      "fromWebsite": "From your website"
     },
     "alerts": {
       "loadFailed": "Alerts could not be loaded",
@@ -2617,5 +2694,23 @@
     "exit": "Exit view",
     "exiting": "Ending…",
     "ended": "The view-as session has ended."
+  },
+  "embed": {
+    "talk": "Talk to {business}",
+    "connecting": "Connecting…",
+    "live": "On the call with {business}",
+    "speaking": "{agent} is speaking",
+    "hangUp": "Hang up",
+    "ended": "Call ended. Thank you!",
+    "again": "Call again",
+    "preview": "Preview: this is the button visitors see on your website. Calls start only from your website; to talk to your agent, use the Test tab.",
+    "missing": "This button is not set up.",
+    "errors": {
+      "micDenied": "Allow the microphone to talk.",
+      "micMissing": "No microphone found.",
+      "busy": "Too many calls just now. Try again soon.",
+      "unavailable": "Not available right now. Try again later.",
+      "connection": "Could not connect. Try again."
+    }
   }
 }
