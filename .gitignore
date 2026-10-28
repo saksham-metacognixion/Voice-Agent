@@ -60,3 +60,6 @@ backend/api/test/fixtures/*/*-20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*.json
 
 # wizard end-to-end run output (frontend/web/scripts/e2e-wizard.mjs)
 frontend/web/.e2e/
+
+# scratch output written into the repo by mistake (a relative /tmp path)
+tmp/
