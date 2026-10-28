@@ -42,6 +42,8 @@ export interface AuthUser {
    * `amr` containing `mfa` on the sign-in that enrolled it (the claim is read before it).
    */
   mfa: boolean;
+  /** The identity provider's session id (`sid`), so Settings → Security can mark this device. */
+  sessionId: string | null;
 }
 
 export interface LoginOptions {
@@ -92,6 +94,7 @@ function toUser(u: User | undefined): AuthUser | null {
     picture: u.picture ?? null,
     emailVerified: u.email_verified === true,
     mfa: u[CLAIM_MFA_ENROLLED] === true || amr.includes('mfa'),
+    sessionId: typeof u.sid === 'string' ? u.sid : null,
   };
 }
 
@@ -142,7 +145,7 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
     const stored = impersonationStore.get();
     if (stored) {
       setImpersonating(stored);
-      setUser({ id: `impersonation:${stored.session}`, email: null, name: null, picture: null, emailVerified: true, mfa: true });
+      setUser({ id: `impersonation:${stored.session}`, email: null, name: null, picture: null, emailVerified: true, mfa: true, sessionId: null });
       setStatus('authenticated');
       return;
     }

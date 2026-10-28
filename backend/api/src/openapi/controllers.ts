@@ -42,6 +42,7 @@ import { DataRequestsController } from '../modules/data-requests/data-requests.c
 import { WalletController } from '../modules/wallet/wallet.controller';
 import { WebhooksController } from '../modules/webhooks/webhooks.controller';
 import { WorkspacesController } from '../modules/workspaces/workspaces.controller';
+import { SessionsController } from '../modules/workspaces/sessions.controller';
 
 /**
  * Every controller the API serves in staging and prod, for route discovery. The one
@@ -54,6 +55,7 @@ export const CONTROLLERS = [
   HealthController,
   ConfigController,
   WorkspacesController,
+  SessionsController,
   AgentsController,
   TemplatesController,
   PromptingController,

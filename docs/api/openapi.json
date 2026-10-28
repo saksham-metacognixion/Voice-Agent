@@ -78,6 +78,60 @@
         ],
         "type": "object"
       },
+      "accountSessionsResponse": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "sessions": {
+            "items": {
+              "properties": {
+                "created_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "expires_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "ip": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "last_active_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "user_agent": {
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "created_at",
+                "last_active_at",
+                "expires_at",
+                "user_agent",
+                "ip"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "sessions"
+        ],
+        "type": "object"
+      },
       "activateRequest": {
         "properties": {
           "version_no": {
@@ -14990,6 +15044,21 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "endSessionResponse": {
+        "properties": {
+          "ended": {
+            "type": "boolean"
+          },
+          "refresh_tokens_revoked": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ended",
+          "refresh_tokens_revoked"
+        ],
         "type": "object"
       },
       "endedResponse": {
@@ -40954,6 +41023,166 @@
           "config"
         ],
         "x-auth": "public"
+      }
+    },
+    "/sessions": {
+      "get": {
+        "description": "Spec §6.2.",
+        "operationId": "listSessions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/accountSessionsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 Security — where you are signed in: your own sessions, any workspace",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
+      }
+    },
+    "/sessions/{id}": {
+      "delete": {
+        "description": "Spec §6.2.",
+        "operationId": "endSession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/endSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED, UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "NOT_CONFIGURED",
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 Security — sign one of your sessions out and revoke its refresh tokens",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
       }
     },
     "/stats": {

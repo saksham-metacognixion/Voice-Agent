@@ -42,11 +42,15 @@ In the tenant's dashboard:
    | users (session revoke, and the probe user in `verify:auth0`) | `read:users` `create:users` `update:users` `delete:users`                                   |
    | **staff tenant only** — MFA (admin §2.1)                     | `read:guardian_factors` `update:guardian_factors` `read:mfa_policies` `update:mfa_policies` |
    | **customer tenant** — console SA3 (D12): reset MFA, force logout | `delete:guardian_enrollments` `delete:sessions` `delete:refresh_tokens`                  |
+   | **customer tenant** — portal Settings → Security (§6.2): list and end your own sessions | `read:sessions` `read:refresh_tokens` (plus the two `delete:` above) |
 
    Grant them under the application's **API Access** tab → Auth0 Management API → **Edit** on the
    **Client Access** side (the User-delegated side reading "All permissions granted" is a different
    policy). Without them the console's Reset MFA answers 503, and Force logout ends the session in
-   the API but reports `provider: failed`. Verified on the dev tenant 28 Sep (28 scopes).
+   the API but reports `provider: failed`. Without `read:sessions` the portal's "Where you are
+   signed in" card answers "could not load"; without `read:refresh_tokens` signing a device out
+   fails before its refresh tokens are revoked. Verified on the dev tenant 28 Sep (28 scopes;
+   the two `read:` scopes were added 28 Oct and need granting on each tenant).
 
    No `delete:` scopes for clients, connections or resource servers: the wrapper runs with
    `AUTH0_ALLOW_DELETE=false` and nothing in this repo removes an Auth0 object.

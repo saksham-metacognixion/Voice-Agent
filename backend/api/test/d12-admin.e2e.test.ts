@@ -1339,6 +1339,16 @@ describe('read-only impersonation (admin §7.4)', () => {
     expect(workspace.body.id).toBe(ws.workspaceId);
     const mine = await call('GET', '/workspaces', key);
     expect(mine.body).toEqual([{ id: ws.workspaceId, name: expect.any(String), role: 'owner' }]);
+    // §6.2 sessions are the owner's own devices and addresses, not the workspace's: refused, both ways.
+    const auth0 = h.app.get(Auth0ManagementService);
+    const listSpy = vi.spyOn(auth0, 'listSessions');
+    const endSpy = vi.spyOn(auth0, 'endSession');
+    expect((await call('GET', '/sessions', key)).body.code).toBe('IMPERSONATION_READ_ONLY');
+    expect((await call('DELETE', '/sessions/s1', key)).body.code).toBe('IMPERSONATION_READ_ONLY');
+    expect(listSpy).not.toHaveBeenCalled();
+    expect(endSpy).not.toHaveBeenCalled();
+    listSpy.mockRestore();
+    endSpy.mockRestore();
     expect((await call('GET', '/agents', key, undefined, wsHeader)).status).toBe(200);
     expect((await call('GET', '/wallet', key, undefined, wsHeader)).body.balance).toBe(495);
     const context = await call('GET', '/impersonation', key);
@@ -1691,6 +1701,41 @@ describe('SA8 call actions and SA12 reconciliation', () => {
     const listed = await call('GET', '/admin/reconciliations?limit=100', staff.readOnly.token);
     expect((listed.body.items as Array<{ id: string }>).map((r) => r.id)).toContain(ran.body.id);
     await adminDb.reconciliationRun.deleteMany({ where: { windowStart: start } });
+  });
+});
+
+// --------------------------------------------------------------------------- customer sessions (§6.2)
+
+describe('the customer’s own sign-in sessions (§6.2 Settings → Security)', () => {
+  it('lists and ends only the caller’s sessions, from any workspace or none', async () => {
+    const auth0 = h.app.get(Auth0ManagementService);
+    const token = await h.customerTenant.mint(ws.sub);
+
+    // A box without the Management API says so; it never pretends there are no sessions.
+    const off = await call('GET', '/sessions', token);
+    expect(off.status).toBe(200);
+    expect(off.body).toEqual({ available: false, sessions: [] });
+    expect((await call('DELETE', '/sessions/s1', token)).body.code).toBe('NOT_CONFIGURED');
+
+    const session = { id: 's1', created_at: '2026-10-01T10:00:00.000Z', last_active_at: '2026-10-28T09:00:00.000Z', expires_at: null, user_agent: 'Mozilla/5.0', ip: '203.0.113.7' };
+    const list = vi.spyOn(auth0, 'listSessions').mockResolvedValue([session]);
+    const end = vi.spyOn(auth0, 'endSession').mockImplementation(async (_sub, id) => (id === 's1' ? { outcome: 'ended', refreshTokensRevoked: 1 } : { outcome: 'not_found', refreshTokensRevoked: 0 }));
+    try {
+      const listed = await call('GET', '/sessions', token);
+      expect(listed.body).toEqual({ available: true, sessions: [session] });
+      expect(list).toHaveBeenCalledWith(ws.sub);
+
+      expect(await call('DELETE', '/sessions/s1', token)).toMatchObject({ status: 200, body: { ended: true, refresh_tokens_revoked: 1 } });
+      expect(end).toHaveBeenLastCalledWith(ws.sub, 's1');
+      expect((await call('DELETE', '/sessions/somebody-elses', token)).status).toBe(404);
+      expect((await call('DELETE', '/sessions/bad%20id', token)).status).toBe(404);
+
+      list.mockRejectedValueOnce(new Error('Auth0 Management API answered 403'));
+      expect((await call('GET', '/sessions', token)).body.code).toBe('UPSTREAM_UNAVAILABLE');
+    } finally {
+      list.mockRestore();
+      end.mockRestore();
+    }
   });
 });
 

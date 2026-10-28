@@ -2486,7 +2486,22 @@
         "passwordSocial": "Si vous vous connectez avec Google, votre mot de passe est géré par Google.",
         "signOutTitle": "Se déconnecter",
         "signOutBody": "Vous déconnecte d’Oraly sur cet appareil.",
-        "signOut": "Se déconnecter"
+        "signOut": "Se déconnecter",
+        "sessionsTitle": "Appareils connectés",
+        "sessionsBody": "Chaque navigateur connecté à votre compte, peu importe l’espace de travail ouvert. Déconnectez ceux que vous ne reconnaissez pas.",
+        "sessionsUnavailable": "Vos connexions ne peuvent pas être affichées dans cet environnement.",
+        "sessionsNone": "Aucune connexion trouvée.",
+        "thisDevice": "Cet appareil",
+        "device": "{browser} sur {os}",
+        "deviceUnknown": "Appareil inconnu",
+        "lastActive": "Dernière activité : {when}",
+        "ip": "Adresse IP {ip}",
+        "endSession": "Déconnecter",
+        "endTitle": "Déconnecter {device}?",
+        "endBody": "La personne qui l’utilise devra se reconnecter.",
+        "endWindow": "Il peut continuer de fonctionner jusqu’à deux heures, le temps que l’accès qu’il détient déjà expire.",
+        "endConfirm": "Déconnecter l’appareil",
+        "ended": "Appareil déconnecté"
       },
       "dataRequests": {
         "exportTitle": "Exporter vos données",

@@ -4,6 +4,7 @@ import { RuntimeCacheModule } from '../runtime-cache';
 import { WalletModule } from '../wallet';
 import { MembersService } from './members.service';
 import { WorkspacesController } from './workspaces.controller';
+import { SessionsController } from './sessions.controller';
 import { WorkspacesService } from './workspaces.service';
 
 /**
@@ -19,7 +20,7 @@ import { WorkspacesService } from './workspaces.service';
  */
 @Module({
   imports: [WalletModule, RuntimeCacheModule, NotificationsModule],
-  controllers: [WorkspacesController],
+  controllers: [WorkspacesController, SessionsController],
   providers: [WorkspacesService, MembersService],
   exports: [WorkspacesService, MembersService],
 })

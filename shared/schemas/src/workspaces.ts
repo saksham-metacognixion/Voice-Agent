@@ -197,6 +197,36 @@ export type AcceptInviteResponse = z.infer<typeof acceptInviteResponse>;
 export const updateMemberRequest = z.object({ role: assignableRole });
 export type UpdateMemberRequest = z.infer<typeof updateMemberRequest>;
 
+/**
+ * §6.2 Settings → Security: where you are signed in. One row per sign-in session on the
+ * identity provider — the device it was opened on and when it was last used. Your own
+ * sessions only, whichever workspace you are looking from.
+ */
+export const accountSession = z.object({
+  id: z.string(),
+  created_at: isoDateTime.nullable(),
+  last_active_at: isoDateTime.nullable(),
+  expires_at: isoDateTime.nullable(),
+  /** The browser's own description of itself, last seen; the portal turns it into "Chrome on macOS". */
+  user_agent: z.string().nullable(),
+  ip: z.string().nullable(),
+});
+export type AccountSession = z.infer<typeof accountSession>;
+
+/** GET /sessions. `available` is false where the identity provider cannot be asked (a local dev box). */
+export const accountSessionsResponse = z.object({
+  available: z.boolean(),
+  sessions: z.array(accountSession),
+});
+export type AccountSessionsResponse = z.infer<typeof accountSessionsResponse>;
+
+/** DELETE /sessions/:id — the session is ended and the refresh tokens it holds are revoked. */
+export const endSessionResponse = z.object({
+  ended: z.boolean(),
+  refresh_tokens_revoked: z.number().int(),
+});
+export type EndSessionResponse = z.infer<typeof endSessionResponse>;
+
 /** POST /workspace/transfer-ownership — owner only, target must already be a member. */
 export const transferOwnershipRequest = z.object({ user_id: uuid });
 export type TransferOwnershipRequest = z.infer<typeof transferOwnershipRequest>;

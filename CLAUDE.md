@@ -1169,7 +1169,16 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   issued before that second (401), so a logout ends the session already in a browser, provider
   or no provider; the portal signs out on a 401. Force logout revokes locally **first**; an
   identity-provider failure is `200 {provider: 'failed'}`, not a 503. The customer M2M app needs
-  `delete:guardian_enrollments` `delete:sessions` `delete:refresh_tokens` (runbook §1).
+  `delete:guardian_enrollments` `delete:sessions` `delete:refresh_tokens` (runbook §1), and since
+  28 Oct `read:sessions` `read:refresh_tokens` for the portal's own-session list.
+- **§6.2 "Where you are signed in"** (`GET /sessions`, `DELETE /sessions/:id`, `@NoWorkspace()`, any
+  role): the caller's own sessions from the customer tenant's Management API, by their `sub` only —
+  ending one first reads the session and answers 404 unless it is the caller's, then deletes it
+  and revokes the refresh tokens issued in it (`Auth0ManagementService.endSession`). Unconfigured
+  answers `available: false`, never an empty list. A view-as credential is refused on both
+  (`@NoWorkspace()` skips the guard that makes view-as read-only). The portal marks this device by
+  the ID token's `sid` (`AuthUser.sessionId`) and names the device with `sessionDevice()`. A signed-out
+  device keeps the access token it holds, up to the 2 h SPA token lifetime; the copy says so.
 - Credit adjustments take an `idempotency_key` (the console makes one per opened dialog; it is
   the adjustment id): a double click, a retry or a second tab moves credits once. A ticket number
   is linked only when `support_tickets` holds it and is otherwise kept in the audit row. The

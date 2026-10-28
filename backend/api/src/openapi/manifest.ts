@@ -67,6 +67,28 @@ export const MANIFEST: readonly EndpointSpec[] = [
     response: { schema: 'readinessResponse' },
   },
 
+  // ------------------------------------------------------------------ account sessions (§6.2)
+  {
+    method: 'GET',
+    path: '/sessions',
+    operationId: 'listSessions',
+    summary: 'D6 Security — where you are signed in: your own sessions, any workspace',
+    tag: 'workspaces',
+    spec: '§6.2',
+    response: { schema: 'accountSessionsResponse' },
+    errors: ['UPSTREAM_UNAVAILABLE', 'IMPERSONATION_READ_ONLY'],
+  },
+  {
+    method: 'DELETE',
+    path: '/sessions/:id',
+    operationId: 'endSession',
+    summary: 'D6 Security — sign one of your sessions out and revoke its refresh tokens',
+    tag: 'workspaces',
+    spec: '§6.2',
+    response: { schema: 'endSessionResponse' },
+    errors: ['NOT_FOUND', 'UPSTREAM_UNAVAILABLE', 'NOT_CONFIGURED', 'IMPERSONATION_READ_ONLY'],
+  },
+
   // ------------------------------------------------------------------ config (§13.12)
   {
     method: 'GET',

@@ -1,19 +1,22 @@
 'use client';
 
-import { updateNotificationSettings, updateWorkspace, useApi, useGetNotificationSettings } from '@portal/api-client';
-import type { NewMessageMode, NotificationSettingsResponse, WorkspaceResponse } from '@portal/schemas';
+import { endSession, updateNotificationSettings, updateWorkspace, useApi, useGetNotificationSettings, useListSessions } from '@portal/api-client';
+import type { AccountSession, NewMessageMode, NotificationSettingsResponse, WorkspaceResponse } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, RadioCard, RadioGroup, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Textarea, toast } from '@portal/ui';
-import { KeyRound, LogOut, Mail, ShieldCheck } from 'lucide-react';
+import { KeyRound, LogOut, Mail, MonitorSmartphone, ShieldCheck } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { requestPasswordReset, useAuth } from '@/src/auth/auth-provider';
+import { ConfirmDialog } from '@/src/components/dashboard/confirm-dialog';
 import { LoadError } from '@/src/components/dashboard/query-states';
 import { usePlanGate } from '@/src/dashboard/use-plan-gate';
 import { DataRequestsCards } from '@/src/components/dashboard/settings/data-requests';
+import { sessionDevice } from '@/src/dashboard/session-device';
 import { errorMessage } from '@/src/lib/errors';
+import { formatDateTime } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 
@@ -161,6 +164,7 @@ export function SecurityTab() {
           <p className="text-xs text-muted-foreground">{t('passwordSocial')}</p>
         </CardContent>
       </Card>
+      <SessionsCard />
       <Card className="lg:col-span-2">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -175,6 +179,93 @@ export function SecurityTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/**
+ * §6.2 "where you are signed in": the person's own sessions on the identity provider, this
+ * device first and marked, each other one with a sign-out. Sessions are the person's, not
+ * the workspace's, so every role sees the card. Unavailable (a dev box) is said, not hidden.
+ */
+function SessionsCard() {
+  const t = useTranslations('dashboard.settings.sec');
+  const api = useApi();
+  const auth = useAuth();
+  const queryClient = useQueryClient();
+  // A staff view-as tab is not the owner's browser: the API refuses it, so the card is not shown at all.
+  const sessions = useListSessions(api, { enabled: !auth.impersonating });
+  const [ending, setEnding] = React.useState<AccountSession | null>(null);
+  const current = auth.user?.sessionId ?? null;
+
+  const label = (s: AccountSession) => {
+    const d = sessionDevice(s.user_agent);
+    if (d.browser && d.os) return t('device', { browser: d.browser, os: d.os });
+    return d.browser ?? d.os ?? t('deviceUnknown');
+  };
+  const rows = [...(sessions.data?.sessions ?? [])].sort((a, b) => Number(b.id === current) - Number(a.id === current) || (b.last_active_at ?? '').localeCompare(a.last_active_at ?? ''));
+
+  async function end() {
+    if (!ending) return;
+    await endSession(api, { id: ending.id });
+    track('session_ended', {});
+    await queryClient.invalidateQueries({ queryKey: ['listSessions'] });
+    toast.success(t('ended'), { description: t('endWindow') });
+  }
+
+  if (auth.impersonating) return null;
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MonitorSmartphone className="size-4 text-primary" aria-hidden /> {t('sessionsTitle')}
+        </CardTitle>
+        <CardDescription>{t('sessionsBody')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {sessions.isPending ? (
+          <Skeleton className="h-24" />
+        ) : sessions.isError ? (
+          <LoadError error={sessions.error} onRetry={() => void sessions.refetch()} />
+        ) : !sessions.data.available ? (
+          <p className="text-sm text-muted-foreground">{t('sessionsUnavailable')}</p>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('sessionsNone')}</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {rows.map((s) => (
+              <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                    {label(s)}
+                    {s.id === current ? <Badge variant="success">{t('thisDevice')}</Badge> : null}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {s.last_active_at ? t('lastActive', { when: formatDateTime(s.last_active_at) }) : null}
+                    {s.last_active_at && s.ip ? ' · ' : null}
+                    {s.ip ? <span dir="ltr">{t('ip', { ip: s.ip })}</span> : null}
+                  </span>
+                </div>
+                {s.id === current ? null : (
+                  <Button variant="outline" size="sm" onClick={() => setEnding(s)}>
+                    {t('endSession')}
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+      <ConfirmDialog
+        open={Boolean(ending)}
+        onOpenChange={(open) => (open ? undefined : setEnding(null))}
+        title={ending ? t('endTitle', { device: label(ending) }) : ''}
+        description={t('endBody')}
+        consequences={[t('endWindow')]}
+        confirmLabel={t('endConfirm')}
+        onConfirm={end}
+      />
+    </Card>
   );
 }
 

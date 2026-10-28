@@ -2486,7 +2486,22 @@
         "passwordSocial": "If you sign in with Google, your password is managed by Google.",
         "signOutTitle": "Sign out",
         "signOutBody": "Signs you out of Oraly on this device.",
-        "signOut": "Sign out"
+        "signOut": "Sign out",
+        "sessionsTitle": "Where you are signed in",
+        "sessionsBody": "Every browser signed in to your account, whichever workspace it was opened in. Sign out any you do not recognise.",
+        "sessionsUnavailable": "Your sign-ins cannot be listed in this environment.",
+        "sessionsNone": "No sign-ins found.",
+        "thisDevice": "This device",
+        "device": "{browser} on {os}",
+        "deviceUnknown": "Unknown device",
+        "lastActive": "Last active {when}",
+        "ip": "IP address {ip}",
+        "endSession": "Sign out",
+        "endTitle": "Sign out {device}?",
+        "endBody": "Anyone using it will have to sign in again.",
+        "endWindow": "It can keep working for up to two hours, until the access it already holds expires.",
+        "endConfirm": "Sign out device",
+        "ended": "Device signed out"
       },
       "dataRequests": {
         "exportTitle": "Export your data",

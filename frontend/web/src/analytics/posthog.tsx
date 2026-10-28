@@ -108,6 +108,7 @@ export type AnalyticsEvent =
   | 'forwarding_confirmed'
   | 'mfa_enrol_started'
   | 'password_reset_requested'
+  | 'session_ended'
   | 'theme_changed'
   // D10 dashboard
   | 'calls_filtered'
