@@ -6,6 +6,8 @@ import { phoneNumberStatus } from './numbers.js';
 import { callSummary } from './calls.js';
 import { jobStatus } from './agents.js';
 import { ledgerEntryResponse, purchaseStatus } from './wallet.js';
+import { isTimeZone } from './business-hours.js';
+import { assignableRole, countryCode } from './workspaces.js';
 
 /*
  * Admin console (admin spec §4, §9 — D12). Every shape a staff route reads or answers
@@ -360,17 +362,48 @@ export const IMPERSONATE_NOTE_MAX = 500;
 /** Pricing publish and rollback notes; the console's dialogs read the same number (QA-053). */
 export const PRICING_NOTE_MAX = 500;
 
-export const staffActionRequest = z
-  .object({
-    reason_code: reasonCode,
-    note: z.string().trim().min(1).max(STAFF_NOTE_MAX).optional(),
-    ticket_id: z.number().int().positive().optional(),
-  })
-  .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {
-    message: 'A note is required with reason "other".',
-    path: ['note'],
-  });
+/** The reason fields, for a request that carries its own payload beside them. */
+const staffActionFields = {
+  reason_code: reasonCode,
+  note: z.string().trim().min(1).max(STAFF_NOTE_MAX).optional(),
+  ticket_id: z.number().int().positive().optional(),
+};
+const noteWithOther = (v: { reason_code: string; note?: string }): boolean =>
+  v.reason_code !== 'other' || Boolean(v.note);
+const noteWithOtherIssue = { message: 'A note is required with reason "other".', path: ['note'] };
+
+export const staffActionRequest = z.object(staffActionFields).refine(noteWithOther, noteWithOtherIssue);
 export type StaffActionRequest = z.infer<typeof staffActionRequest>;
+
+/**
+ * PATCH /admin/customers/:id — SA2 "Edit profile" (admin §9). The fields a customer
+ * cannot fix alone or asks support to: name, country, timezone, website. Plan, caps and
+ * credits have their own routes; at least one field must change.
+ */
+export const adminCustomerUpdateRequest = z
+  .object({
+    ...staffActionFields,
+    name: z.string().trim().min(2).max(80).optional(),
+    country: countryCode.optional(),
+    timezone: z.string().min(1).max(64).refine(isTimeZone, 'Not a time zone we recognise').optional(),
+    website: z.string().url().max(300).nullable().optional(),
+  })
+  .refine(noteWithOther, noteWithOtherIssue)
+  .refine(
+    (v) => v.name !== undefined || v.country !== undefined || v.timezone !== undefined || v.website !== undefined,
+    { message: 'Change at least one field.', path: ['name'] },
+  );
+export type AdminCustomerUpdateRequest = z.infer<typeof adminCustomerUpdateRequest>;
+
+/**
+ * PATCH /admin/customers/:id/members/:mid — a member's role, as the customer's own
+ * PATCH /members/:id: admin, editor or viewer. The owner is never changed here; ownership
+ * moves only by the owner's transfer (§6.1).
+ */
+export const adminMemberUpdateRequest = z
+  .object({ ...staffActionFields, role: assignableRole })
+  .refine(noteWithOther, noteWithOtherIssue);
+export type AdminMemberUpdateRequest = z.infer<typeof adminMemberUpdateRequest>;
 
 export const adminCreditAdjustRequest = z
   .object({

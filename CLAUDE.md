@@ -1381,7 +1381,10 @@ throws and never waits past its budget (ADR 0010 §6).
   streamed CSV of the same filters, 10 000 rows, itself audited as `audit.exported`; `staff` /
   `customer` match part of an email or name, or an id exactly — the console never shows a staff id);
   `/admin/customers` (+ `:id`, `/members`, `/wallet`, `/purchases`, `/agents`, `/numbers`,
-  `/calls`, `/jobs`, `/webhook-events`, `/audit`, `POST …/pause|resume|credits/adjust|impersonate`);
+  `/calls`, `/jobs`, `/webhook-events`, `/audit`, `POST …/pause|resume|credits/adjust|impersonate`,
+  `PATCH :id` — name/country/timezone/website, only changed fields audited — and
+  `PATCH|DELETE :id/members/:mid` — role admin/editor/viewer or removal, never the owner (409);
+  ownership moves only by the owner's own transfer);
   `/admin/impersonations` (+ `DELETE :id`); `/admin/users` (+ `POST :id/verify-email|reset-mfa|lock|unlock|force-logout`);
   `/admin/agents` and `/admin/numbers` (+ `POST :id/pause|resume`); `/admin/calls`;
   `/admin/jobs` (+ `POST :id/retry|discard`); `/admin/webhook-events` (+ `POST :id/replay`);

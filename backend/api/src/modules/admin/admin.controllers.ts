@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Put,
   Query,
@@ -50,6 +51,7 @@ import {
   type EndedResponse,
   type ImpersonationResponse,
   type Page,
+  type RemovedResponse,
   type StaffMeResponse,
   adminAgentsQuery,
   adminAuditFilters,
@@ -57,10 +59,12 @@ import {
   adminCallsQuery,
   adminCreditAdjustRequest,
   adminCustomerAuditQuery,
+  adminCustomerUpdateRequest,
   adminCustomersQuery,
   adminImpersonateRequest,
   adminJobsQuery,
   adminKpisQuery,
+  adminMemberUpdateRequest,
   adminNumbersQuery,
   adminPricingDraftRequest,
   adminPricingPublishRequest,
@@ -261,6 +265,44 @@ export class AdminCustomersController {
     @Query() query: Record<string, unknown>,
   ): Promise<Page<AdminCustomerAuditEntry>> {
     return this.customers.customerAudit(id, adminCustomerAuditQuery.parse(query));
+  }
+
+  /** SA2 "Edit profile" (admin §9): name, country, timezone, website, with a reason. */
+  @Patch(':id')
+  @StaffRoles(...MUTATE)
+  update(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminCustomerDetail> {
+    return this.customers.updateProfile(staff, id, adminCustomerUpdateRequest.parse(body), request);
+  }
+
+  /** A member's role (admin §9 `PATCH /admin/customers/:id/members/:mid`); never the owner's. */
+  @Patch(':id/members/:mid')
+  @StaffRoles(...MUTATE)
+  updateMember(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Param('mid') mid: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminMemberResponse> {
+    return this.customers.updateMember(staff, id, mid, adminMemberUpdateRequest.parse(body), request);
+  }
+
+  /** Removes a member; never the owner. A body on a DELETE, as for flags: it carries the reason. */
+  @Delete(':id/members/:mid')
+  @StaffRoles(...MUTATE)
+  removeMember(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Param('mid') mid: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<RemovedResponse> {
+    return this.customers.removeMember(staff, id, mid, staffActionRequest.parse(body ?? {}), request);
   }
 
   @Post(':id/pause')

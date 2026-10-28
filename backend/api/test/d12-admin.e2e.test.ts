@@ -1407,6 +1407,85 @@ describe('read-only impersonation (admin §7.4)', () => {
   });
 });
 
+// --------------------------------------------------------------------------- SA2 profile and members
+
+describe('SA2 profile and member edits', () => {
+  it('edits the profile with a reason, writing and auditing only the fields that change', async () => {
+    const before = await adminDb.tenant.findUniqueOrThrow({ where: { id: ws.workspaceId } });
+    const name = `${before.name} Clinic`;
+    const res = await call('PATCH', `/admin/customers/${ws.workspaceId}`, staff.support.token, {
+      ...reason,
+      name,
+      country: 'us',
+      timezone: 'America/Vancouver',
+      website: 'https://clinic.example.test',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ name, country: 'US', timezone: 'America/Vancouver', website: 'https://clinic.example.test' });
+
+    const audit = await lastAudit('customer.updated');
+    expect(audit).toMatchObject({ staffId: staff.support.id, tenantId: ws.workspaceId, reasonCode: 'service_issue' });
+    expect(audit?.beforeJson).toEqual({ name: before.name, country: before.country, timezone: before.timezone, website: before.website });
+    expect(audit?.afterJson).toEqual({ name, country: 'US', timezone: 'America/Vancouver', website: 'https://clinic.example.test' });
+    const customerRow = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'workspace.updated' }, orderBy: { createdAt: 'desc' } });
+    expect(customerRow?.actorUserId).toBeNull();
+    expect(customerRow?.metaJson).toMatchObject({ by: 'staff', fields: ['name', 'country', 'timezone', 'website'] });
+
+    // The same values again change nothing, so nothing is written.
+    const rows = await adminDb.staffAuditLog.count({ where: { action: 'customer.updated', tenantId: ws.workspaceId } });
+    expect((await call('PATCH', `/admin/customers/${ws.workspaceId}`, staff.support.token, { ...reason, timezone: 'America/Vancouver' })).status).toBe(200);
+    expect(await adminDb.staffAuditLog.count({ where: { action: 'customer.updated', tenantId: ws.workspaceId } })).toBe(rows);
+  });
+
+  it('refuses a bad profile edit and the roles the matrix does not allow', async () => {
+    const path = `/admin/customers/${ws.workspaceId}`;
+    expect((await call('PATCH', path, staff.support.token, { ...reason, timezone: 'Mars/Olympus' })).status).toBe(422);
+    expect((await call('PATCH', path, staff.support.token, { ...reason })).status).toBe(422);
+    expect((await call('PATCH', path, staff.support.token, { timezone: 'UTC' })).status).toBe(422);
+    expect((await call('PATCH', path, staff.finance.token, { ...reason, timezone: 'UTC' })).status).toBe(403);
+    expect((await call('PATCH', path, staff.readOnly.token, { ...reason, timezone: 'UTC' })).status).toBe(403);
+    expect((await call('PATCH', `/admin/customers/${randomUUID()}`, staff.support.token, { ...reason, timezone: 'UTC' })).status).toBe(404);
+  });
+
+  it('changes a member’s role and removes a member, never the owner, with both audit rows', async () => {
+    const run = randomUUID().slice(0, 8);
+    const user = await adminDb.user.create({ data: { authProviderId: `auth0|d12-member-${run}`, email: `d12-member-${run}@example.test` } });
+    const member = await adminDb.membership.create({ data: { tenantId: ws.workspaceId, userId: user.id, role: 'editor' } });
+    const owner = await adminDb.membership.findFirstOrThrow({ where: { tenantId: ws.workspaceId, role: 'owner' } });
+    const base = `/admin/customers/${ws.workspaceId}/members`;
+
+    const changed = await call('PATCH', `${base}/${member.id}`, staff.ops.token, { ...reason, role: 'viewer' });
+    expect(changed.status).toBe(200);
+    expect(changed.body).toMatchObject({ id: member.id, role: 'viewer', email: user.email });
+    expect((await lastAudit('member.role_changed'))?.afterJson).toEqual({ user_id: user.id, role: 'viewer' });
+    const customerRow = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'member.role_changed' }, orderBy: { createdAt: 'desc' } });
+    expect(customerRow).toMatchObject({ targetId: user.id, actorUserId: null });
+    expect(customerRow?.metaJson).toMatchObject({ by: 'staff', from: 'editor', to: 'viewer' });
+
+    // The owner is never changed or removed here, and nobody is made owner.
+    const toOwner = await call('PATCH', `${base}/${member.id}`, staff.ops.token, { ...reason, role: 'owner' });
+    expect(toOwner.status).toBe(422);
+    const ownerChange = await call('PATCH', `${base}/${owner.id}`, staff.ops.token, { ...reason, role: 'admin' });
+    expect(ownerChange.status).toBe(409);
+    expect(ownerChange.body.code).toBe('CONFLICT');
+    expect((await call('DELETE', `${base}/${owner.id}`, staff.ops.token, reason)).status).toBe(409);
+    expect((await adminDb.membership.findUniqueOrThrow({ where: { id: owner.id } })).role).toBe('owner');
+
+    // A member of another workspace is not found through this one.
+    const foreign = await adminDb.membership.findFirst({ where: { tenantId: { not: ws.workspaceId } } });
+    expect((await call('PATCH', `${base}/${foreign?.id ?? randomUUID()}`, staff.ops.token, { ...reason, role: 'viewer' })).status).toBe(404);
+
+    expect((await call('DELETE', `${base}/${member.id}`, staff.readOnly.token, reason)).status).toBe(403);
+    expect((await call('DELETE', `${base}/${member.id}`, staff.ops.token, {})).status).toBe(422);
+    const removed = await call('DELETE', `${base}/${member.id}`, staff.ops.token, reason);
+    expect(removed.status).toBe(200);
+    expect(removed.body).toEqual({ removed: true });
+    expect(await adminDb.membership.findUnique({ where: { id: member.id } })).toBeNull();
+    expect((await lastAudit('member.removed'))?.beforeJson).toEqual({ user_id: user.id, email: user.email, role: 'viewer' });
+    expect((await call('DELETE', `${base}/${member.id}`, staff.ops.token, reason)).status).toBe(404);
+  });
+});
+
 // --------------------------------------------------------------------------- audit
 
 describe('SA14 audit log', () => {

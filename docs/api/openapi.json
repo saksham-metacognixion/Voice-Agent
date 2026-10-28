@@ -1588,6 +1588,63 @@
         ],
         "type": "object"
       },
+      "adminCustomerUpdateRequest": {
+        "properties": {
+          "country": {
+            "pattern": "^[A-Za-z]{2}$",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 2,
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "timezone": {
+            "maxLength": 64,
+            "minLength": 1,
+            "type": "string"
+          },
+          "website": {
+            "format": "uri",
+            "maxLength": 300,
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "type": "object"
+      },
       "adminCustomerWallet": {
         "properties": {
           "adjustments": {
@@ -2683,6 +2740,52 @@
           "mfa_enabled",
           "locked_at",
           "joined_at"
+        ],
+        "type": "object"
+      },
+      "adminMemberUpdateRequest": {
+        "properties": {
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "editor",
+              "viewer"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code",
+          "role"
         ],
         "type": "object"
       },
@@ -19341,6 +19444,112 @@
           "admin-customers"
         ],
         "x-auth": "staff"
+      },
+      "patch": {
+        "description": "Spec admin §9.",
+        "operationId": "adminUpdateCustomer",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminCustomerUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminCustomerDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Edit the workspace profile — name, country, timezone, website — with a reason",
+        "tags": [
+          "admin-customers"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
       }
     },
     "/admin/customers/{id}/agents": {
@@ -20301,6 +20510,262 @@
           "admin-customers"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/customers/{id}/members/{mid}": {
+      "delete": {
+        "description": "Spec admin §9.",
+        "operationId": "adminRemoveMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "mid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/removedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Remove a member from the workspace, with a reason; never the owner",
+        "tags": [
+          "admin-customers"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
+      },
+      "patch": {
+        "description": "Spec admin §9.",
+        "operationId": "adminUpdateMember",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "mid",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminMemberUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminMemberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Change a member’s role (admin, editor, viewer); never the owner’s",
+        "tags": [
+          "admin-customers"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
       }
     },
     "/admin/customers/{id}/numbers": {

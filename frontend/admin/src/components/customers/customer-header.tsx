@@ -4,7 +4,7 @@ import { useAdminImpersonate, useAdminPauseCustomer, useAdminResumeCustomer, use
 import { IMPERSONATE_NOTE_MAX, type AdminCustomerDetail, type StaffActionRequest } from '@portal/schemas';
 import { Badge, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
-import { Eye } from 'lucide-react';
+import { Eye, Pencil } from 'lucide-react';
 import * as React from 'react';
 import { PageHeader } from '@/src/components/shell/page-header';
 import { Copyable } from '@/src/components/common/copyable';
@@ -13,12 +13,13 @@ import { StaffActionDialog } from '@/src/components/common/staff-action-dialog';
 import { CustomerStatusBadge, PlanBadge } from '@/src/components/common/status-badges';
 import { BalanceCell } from '@/src/components/customers/customers-table';
 import { AdjustCreditsDialog } from '@/src/components/customers/adjust-credits-dialog';
+import { EditProfileDialog } from '@/src/components/customers/edit-profile-dialog';
 import { config } from '@/src/config';
 import { formatDate } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 import { useStaff } from '@/src/staff/staff-provider';
 
-/** SA2 header: identity, plan, balance, status, and the three quick actions. */
+/** SA2 header: identity, plan, balance, status, and the quick actions. */
 export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
   const api = useApi();
   const queryClient = useQueryClient();
@@ -27,6 +28,7 @@ export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
   const resume = useAdminResumeCustomer(api);
   const impersonate = useAdminImpersonate(api);
   const [adjusting, setAdjusting] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
   const [pausing, setPausing] = React.useState(false);
   const [resuming, setResuming] = React.useState(false);
   const [viewing, setViewing] = React.useState(false);
@@ -88,6 +90,9 @@ export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
         }
         actions={
           <>
+            <PermissionButton variant="outline" size="sm" denied={can.supportActions()} onClick={() => setEditing(true)}>
+              <Pencil /> Edit profile
+            </PermissionButton>
             <PermissionButton variant="outline" size="sm" denied={can.viewAs()} onClick={() => setViewing(true)} loading={impersonate.isPending}>
               <Eye /> View as
             </PermissionButton>
@@ -106,6 +111,7 @@ export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
           </>
         }
       />
+      {editing ? <EditProfileDialog c={c} onClose={() => setEditing(false)} /> : null}
       {adjusting ? <AdjustCreditsDialog customerId={c.id} customerName={c.name} balance={c.balance} onClose={() => setAdjusting(false)} /> : null}
       <StaffActionDialog
         open={pausing}

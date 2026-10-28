@@ -5,6 +5,7 @@ import { Prisma, adminDb } from '@portal/db';
 import type {
   AdminCreditAdjustRequest,
   AdminCreditAdjustResponse,
+  AdminCustomerUpdateRequest,
   AdminCustomerAuditEntry,
   AdminCustomerAuditQuery,
   AdminCustomerDetail,
@@ -12,10 +13,12 @@ import type {
   AdminCustomersQuery,
   AdminCustomerWallet,
   AdminMemberResponse,
+  AdminMemberUpdateRequest,
   AdminPurchaseResponse,
   AdminTenantStatusResponse,
   Page,
   PaginationQuery,
+  RemovedResponse,
   StaffActionRequest,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
@@ -30,6 +33,9 @@ import { StaffLimitsService } from './staff-limits.service';
 
 /** The list computes status and balance in memory, so it reads at most this many rows. */
 const LIST_SCAN_MAX = 500;
+
+const OWNER_UNCHANGED =
+  "The owner's role cannot be changed here. The owner first makes someone else the owner in the portal (Settings → Team → Make owner); then this member can be changed or removed.";
 
 interface TenantFacts {
   balance: number;
@@ -506,6 +512,165 @@ export class AdminCustomersService {
       this.log.log(`workspace ${id} resumed by ${staff.email}`);
     }
     return this.status(id);
+  }
+
+  // ------------------------------------------------------------------ profile and members (admin §9 PATCH /admin/customers/:id, …/members/:mid)
+
+  /**
+   * SA2 "Edit profile": name, country, timezone, website — what a customer asks support to
+   * fix. Only the fields that change are written and audited; a request that changes
+   * nothing writes nothing. The name and the timezone are baked into `num:{e164}` (the
+   * hours check), so the runtime cache is refreshed after, as the customer's own PATCH does.
+   */
+  async updateProfile(
+    staff: StaffContext,
+    idRaw: string,
+    body: AdminCustomerUpdateRequest,
+    request: FastifyRequest,
+  ): Promise<AdminCustomerDetail> {
+    const id = uuidParam(idRaw, 'Customer');
+    const tenant = await this.exists(id);
+    const before: Record<string, string | null> = {};
+    const after: Record<string, string | null> = {};
+    const change = (field: 'name' | 'country' | 'timezone' | 'website', current: string | null, next: string | null | undefined) => {
+      if (next === undefined || next === current) return;
+      before[field] = current;
+      after[field] = next;
+    };
+    change('name', tenant.name, body.name);
+    change('country', tenant.country, body.country);
+    change('timezone', tenant.timezone, body.timezone);
+    change('website', tenant.website, body.website);
+
+    if (Object.keys(after).length) {
+      await adminDb.$transaction(async (tx) => {
+        // `after` holds only the four profile columns, each validated by `adminCustomerUpdateRequest`.
+        await tx.tenant.update({ where: { id }, data: after as Prisma.TenantUpdateInput });
+        await tx.auditLog.create({
+          data: {
+            tenantId: id,
+            action: 'workspace.updated',
+            targetType: 'workspace',
+            targetId: id,
+            metaJson: { by: 'staff', reason_code: body.reason_code, fields: Object.keys(after) },
+          },
+        });
+        await this.audit.record(
+          {
+            staff,
+            action: 'customer.updated',
+            targetType: 'tenant',
+            targetId: id,
+            tenantId: id,
+            reasonCode: body.reason_code,
+            note: body.note,
+            before,
+            after,
+            request,
+          },
+          tx,
+        );
+      });
+      await this.afterTenantChange(id);
+      this.log.log(`workspace ${id} profile (${Object.keys(after).join(', ')}) changed by ${staff.email}`);
+    }
+    return this.detail(id);
+  }
+
+  /**
+   * A member's role, by staff. Same rules as the customer's PATCH /members/:id: admin,
+   * editor or viewer, and never the owner's — ownership moves only by the owner's own
+   * transfer, which keeps `memberships_one_owner_idx` the only way a workspace changes hands.
+   * The row is re-read inside the transaction, so a transfer that lands first is seen.
+   */
+  async updateMember(
+    staff: StaffContext,
+    idRaw: string,
+    memberIdRaw: string,
+    body: AdminMemberUpdateRequest,
+    request: FastifyRequest,
+  ): Promise<AdminMemberResponse> {
+    const id = uuidParam(idRaw, 'Customer');
+    const memberId = uuidParam(memberIdRaw, 'Member');
+    await this.exists(id);
+    await adminDb.$transaction(async (tx) => {
+      const member = await tx.membership.findFirst({ where: { id: memberId, tenantId: id } });
+      if (!member) throw AppError.notFound('Member');
+      if (member.role === 'owner') throw new AppError('CONFLICT', OWNER_UNCHANGED);
+      if (member.role === body.role) return;
+      await tx.membership.update({ where: { id: memberId }, data: { role: body.role } });
+      await tx.auditLog.create({
+        data: {
+          tenantId: id,
+          action: 'member.role_changed',
+          targetType: 'membership',
+          targetId: member.userId,
+          metaJson: { by: 'staff', reason_code: body.reason_code, from: member.role, to: body.role },
+        },
+      });
+      await this.audit.record(
+        {
+          staff,
+          action: 'member.role_changed',
+          targetType: 'membership',
+          targetId: memberId,
+          tenantId: id,
+          reasonCode: body.reason_code,
+          note: body.note,
+          before: { user_id: member.userId, role: member.role },
+          after: { user_id: member.userId, role: body.role },
+          request,
+        },
+        tx,
+      );
+    });
+    const member = (await this.members(id)).find((m) => m.id === memberId);
+    if (!member) throw AppError.notFound('Member');
+    return member;
+  }
+
+  /** Removes a member, by staff. Never the owner (transfer first, as the customer's DELETE /members/:id says). */
+  async removeMember(
+    staff: StaffContext,
+    idRaw: string,
+    memberIdRaw: string,
+    body: StaffActionRequest,
+    request: FastifyRequest,
+  ): Promise<RemovedResponse> {
+    const id = uuidParam(idRaw, 'Customer');
+    const memberId = uuidParam(memberIdRaw, 'Member');
+    await this.exists(id);
+    await adminDb.$transaction(async (tx) => {
+      const member = await tx.membership.findFirst({ where: { id: memberId, tenantId: id }, include: { user: { select: { email: true } } } });
+      if (!member) throw AppError.notFound('Member');
+      if (member.role === 'owner') throw new AppError('CONFLICT', OWNER_UNCHANGED);
+      await tx.membership.delete({ where: { id: memberId } });
+      await tx.auditLog.create({
+        data: {
+          tenantId: id,
+          action: 'member.removed',
+          targetType: 'membership',
+          targetId: member.userId,
+          metaJson: { by: 'staff', reason_code: body.reason_code, role: member.role },
+        },
+      });
+      await this.audit.record(
+        {
+          staff,
+          action: 'member.removed',
+          targetType: 'membership',
+          targetId: memberId,
+          tenantId: id,
+          reasonCode: body.reason_code,
+          note: body.note,
+          before: { user_id: member.userId, email: member.user.email, role: member.role },
+          request,
+        },
+        tx,
+      );
+    });
+    this.log.warn(`workspace ${id}: member ${memberId} removed by ${staff.email} (${body.reason_code})`);
+    return { removed: true };
   }
 
   async status(id: string): Promise<AdminTenantStatusResponse> {
