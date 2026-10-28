@@ -44,7 +44,7 @@ function Calls() {
 
   return (
     <>
-      <PageHeader title="Calls" crumbs={[{ label: 'Calls' }]} description="Every call across workspaces, newest first (SA8)." />
+      <PageHeader title="Calls" crumbs={[{ label: 'Calls' }]} description="Every call across workspaces, newest first." />
       <FilterBar>
         <SearchBox value={q} onChange={setQ} placeholder="Customer, number, call id…" />
         <FilterSelect label="Status" value={status} onChange={(v) => setQuery((n) => setParam(n, 'status', v))} options={STATUSES.map((s) => ({ value: s, label: s === 'missed' ? 'Missed (declined)' : humanize(s) }))} />

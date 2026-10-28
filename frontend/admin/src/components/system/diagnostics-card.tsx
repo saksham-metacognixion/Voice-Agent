@@ -42,7 +42,7 @@ export function DiagnosticsCard() {
       toast.error('The API answered without an error — the route is not doing its job.');
     } catch (error) {
       if (error instanceof ApiError && error.status === 500) {
-        toast.success('Server test error raised', { description: 'Look for "D14 diagnostics: controlled test error" in Sentry (API project).' });
+        toast.success('Server test error raised', { description: 'Look for "Admin diagnostics: controlled test error" in Sentry (API project).' });
       } else {
         toast.error(errorMessage(error));
       }
@@ -55,7 +55,7 @@ export function DiagnosticsCard() {
     // Thrown outside React's call stack on purpose: this is the uncaught-error path the
     // global handler reports, the one a real bug in an event handler would take.
     window.setTimeout(() => {
-      throw new Error('D14 diagnostics: controlled browser test error');
+      throw new Error('Admin diagnostics: controlled browser test error');
     }, 0);
     toast.success('Browser test error thrown', { description: 'Look for it in Sentry (console project).' });
   };

@@ -33,7 +33,7 @@ const BOOLEAN: Array<{ key: BooleanKey; label: string }> = [
   { key: 'can_publish_agent_stack', label: 'Publish the agent stack' },
   { key: 'can_manage_flags', label: 'Flags and kill switches' },
   { key: 'can_view_as_customer', label: 'View as a customer' },
-  { key: 'can_act_as_customer', label: 'Act as a customer (P2)' },
+  { key: 'can_act_as_customer', label: 'Act as a customer (not available yet)' },
   { key: 'can_delete_customer_data', label: 'Delete customer data' },
   { key: 'can_manage_staff', label: 'Manage staff' },
   { key: 'can_export', label: 'Export' },
@@ -137,7 +137,7 @@ function LimitsGrid({ matrix, updatedAt }: { matrix: StaffLimitsMatrix; updatedA
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          Enforced server-side on every write (admin §2.2, §10). A blank cap means no ceiling. Your column ({ROLE_LABELS[me.role]}) is highlighted.
+          Enforced server-side on every write. A blank cap means no ceiling. Your column ({ROLE_LABELS[me.role]}) is highlighted.
           {updatedAt ? <span className="block text-xs">Last changed {formatDateTime(updatedAt)}.</span> : null}
         </p>
         <div className="flex gap-2">

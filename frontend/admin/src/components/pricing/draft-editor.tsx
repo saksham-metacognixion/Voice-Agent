@@ -216,7 +216,7 @@ function Editor({ initial, meta }: { initial: PricingConfig; meta: Meta }) {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Recurring (§5.3)</CardTitle>
+              <CardTitle className="text-sm">Recurring charges</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Field id="rc-rent" label="Number rental (credits / month)" error={errors['recurring.number_rental_credits']}>
@@ -236,7 +236,7 @@ function Editor({ initial, meta }: { initial: PricingConfig; meta: Meta }) {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm">Wallet policy (§5.4)</CardTitle>
+              <CardTitle className="text-sm">Wallet policy</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Field id="w-trial" label="Trial credits" error={errors['wallet_policy.trial_credits']}>

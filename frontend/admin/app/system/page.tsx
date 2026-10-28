@@ -41,7 +41,7 @@ function System() {
   const close = () => setQuery((n) => setParam(n, 'id', null), 'replace');
   return (
     <>
-      <PageHeader title="System" crumbs={[{ label: 'System' }]} description="Health, queues, webhooks, flags and kill switches (SA12)." />
+      <PageHeader title="System" crumbs={[{ label: 'System' }]} description="Health, queues, webhooks, flags and kill switches." />
       <Tabs value={tab} onValueChange={(v) => setQuery((n) => { setParam(n, 'tab', v === 'health' ? null : v); setParam(n, 'id', null); setParam(n, 'status', null); setParam(n, 'q', null); })}>
         <TabsList>
           <TabsTrigger value="health">Health</TabsTrigger>

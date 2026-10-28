@@ -99,7 +99,7 @@ function ConcurrencyView({ c, refreshing }: { c: AdminConcurrencyResponse; refre
       )}
       {c.tenants.some((t) => t.pct_of_cap !== null && t.pct_of_cap >= 100) ? (
         <p className="text-xs text-muted-foreground">
-          <Badge variant="danger">at cap</Badge> A workspace at its cap answers the next inbound call with a busy tone (§13.9); a larger pack raises the cap.
+          <Badge variant="danger">at cap</Badge> A workspace at its cap answers the next inbound call with a busy tone; a larger pack raises the cap.
         </p>
       ) : null}
     </div>

@@ -24,9 +24,9 @@ import { StaffLimitsService } from './staff-limits.service';
 export const KILL_SWITCH_DESCRIPTIONS: Record<KillSwitchKey, string> = {
   reject_inbound:
     'Decline every new inbound call platform-wide (busy tone, no cost). For a platform incident or maintenance. Takes effect on the next call.',
-  pause_web_tests: 'Refuse browser test calls (W5 / D3 "Test"). Live phone numbers keep answering.',
+  pause_web_tests: 'Refuse browser test calls (the setup wizard and an agent’s Test tab). Live phone numbers keep answering.',
   pause_purchases:
-    'Refuse new Checkout sessions (W7 / D5 "Buy credits"). Pending sessions and webhooks still settle.',
+    'Refuse new Checkout sessions (the setup wizard’s payment step and Wallet → "Buy credits"). Pending sessions and webhooks still settle.',
   pause_generation:
     'Refuse brief → script generation and feedback (an LLM outage). Publishing and calls are unaffected.',
 };

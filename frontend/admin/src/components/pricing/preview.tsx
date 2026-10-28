@@ -98,7 +98,7 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-sm">Margins (admin §5.4)</CardTitle>
+          <CardTitle className="text-sm">Margins</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto rounded-md border border-border">
@@ -228,7 +228,7 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Publish pricing v{preview.next_version}</DialogTitle>
-          <DialogDescription>A new version, then the Stripe price sync, then it takes effect and every cache drops (admin §5.2).</DialogDescription>
+          <DialogDescription>A new version, then the Stripe price sync, then it takes effect and every cache drops.</DialogDescription>
         </DialogHeader>
         {stripeFailed ? (
           <Alert variant="danger" title="Stripe sync failed — the version is NOT in effect">

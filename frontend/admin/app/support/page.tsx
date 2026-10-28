@@ -74,7 +74,7 @@ function Support() {
       <PageHeader
         title="Support"
         crumbs={[{ label: 'Support' }]}
-        description="Tickets across every workspace, with the SLA clocks (SA4)."
+        description="Tickets across every workspace, with the SLA clocks."
         actions={
           <PermissionButton size="sm" denied={can.supportTickets()} onClick={() => setCreating(true)}>
             <Plus /> New ticket

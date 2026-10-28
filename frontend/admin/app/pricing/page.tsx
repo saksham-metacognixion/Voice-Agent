@@ -24,7 +24,7 @@ function Pricing() {
   const go = (t: string) => setQuery((n) => setParam(n, 'tab', t === 'draft' ? null : t));
   return (
     <>
-      <PageHeader title="Pricing" crumbs={[{ label: 'Pricing' }]} description="Packs, rates, recurring charges and wallet policy — versioned, previewed, then published with a Stripe sync (SA5, admin §5)." />
+      <PageHeader title="Pricing" crumbs={[{ label: 'Pricing' }]} description="Packs, rates, recurring charges and wallet policy — versioned, previewed, then published with a Stripe sync." />
       <Tabs value={tab} onValueChange={go}>
         <TabsList>
           <TabsTrigger value="draft">Draft</TabsTrigger>

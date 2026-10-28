@@ -44,7 +44,7 @@ function Billing() {
       <PageHeader
         title="Billing"
         crumbs={[{ label: 'Billing' }]}
-        description="Purchases, refunds, failed auto top-ups and the revenue report (SA9)."
+        description="Purchases, refunds, failed auto top-ups and the revenue report."
         actions={
           tab === 'revenue' ? (
             <div role="tablist" aria-label="Range" className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs">

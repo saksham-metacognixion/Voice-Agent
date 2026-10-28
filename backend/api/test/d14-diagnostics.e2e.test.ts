@@ -83,7 +83,7 @@ describe('POST /admin/system/test-error', () => {
     const res = await post('/admin/system/test-error', tokens.superAdmin);
     expect(res.statusCode).toBe(500);
     expect(res.json()).toEqual({ code: 'INTERNAL', message: 'Something went wrong on our side.' });
-    expect(res.body).not.toMatch(/D14 diagnostics|at .*\.ts/);
+    expect(res.body).not.toMatch(/diagnostics: controlled|at .*\.ts/);
   });
 });
 

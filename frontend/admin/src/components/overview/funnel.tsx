@@ -4,7 +4,7 @@ import type { AdminFunnelResponse } from '@portal/schemas';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@portal/ui';
 import { formatMinutes, formatNumber, formatPercent } from '@/src/lib/format';
 
-const STEP_NAMES: Record<number, string> = { 1: 'W1 Template', 2: 'W2 Brief', 3: 'W3 Voice', 4: 'W4 Knowledge', 5: 'W5 Test', 6: 'W6 Phone', 7: 'W7 Activate' };
+const STEP_NAMES: Record<number, string> = { 1: 'Template', 2: 'Brief', 3: 'Voice', 4: 'Knowledge', 5: 'Test call', 6: 'Phone number', 7: 'Checkout' };
 
 /** SA1 funnel: sign-up → live as horizontal bars, % of the cohort. */
 export function Funnel({ f }: { f: AdminFunnelResponse }) {

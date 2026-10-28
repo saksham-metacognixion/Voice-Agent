@@ -210,7 +210,7 @@ export class AdminPricingService {
     for (const m of margins)
       if (m.below_floor)
         blockers.push(
-          `${m.tier} margin ${m.margin_pct}% is under the ${m.floor_pct}% floor (admin §5.4); a super admin can override with a note.`,
+          `${m.tier} margin ${m.margin_pct}% is under the ${m.floor_pct}% floor; a super admin can override with a note.`,
         );
     const nextIds = new Set(next.packs.filter((p) => p.active).map((p) => p.id));
     const removed = current.packs.filter((p) => p.active && !nextIds.has(p.id)).map((p) => p.id);
@@ -226,7 +226,7 @@ export class AdminPricingService {
       });
       for (const b of bought)
         blockers.push(
-          `Pack "${b.packId}" was bought ${b._count._all} time(s) in the last 12 months and cannot be removed — deactivate it instead (admin §5.4).`,
+          `Pack "${b.packId}" was bought ${b._count._all} time(s) in the last 12 months and cannot be removed — deactivate it instead.`,
         );
     }
     return { margins, blockers };

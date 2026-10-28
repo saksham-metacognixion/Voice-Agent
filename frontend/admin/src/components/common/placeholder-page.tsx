@@ -9,7 +9,7 @@ export function PlaceholderPage({ title, description }: { title: string; descrip
   return (
     <>
       <PageHeader title={title} crumbs={[{ label: title }]} />
-      <EmptyState icon={<Construction />} title="Lands in P2 (admin §11)" description={description ?? `The ${title} section is scheduled after the MVP. The read models it needs are in the API; the screens are not built yet.`} />
+      <EmptyState icon={<Construction />} title="Not built yet" description={description ?? `The ${title} section is planned for a later release.`} />
     </>
   );
 }

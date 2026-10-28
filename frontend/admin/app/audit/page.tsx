@@ -58,7 +58,7 @@ function Audit() {
 
   return (
     <>
-      <PageHeader title="Audit" crumbs={[{ label: 'Audit' }]} description="Every customer-affecting staff write, newest first (SA14, admin §10)." />
+      <PageHeader title="Audit" crumbs={[{ label: 'Audit' }]} description="Every customer-affecting staff write, newest first." />
       <FilterBar>
         <Input value={action} onChange={(e) => setAction(e.target.value)} placeholder="Action prefix, e.g. customer.pause" className="w-full sm:w-60" aria-label="Action prefix" />
         <Input value={staff} onChange={(e) => setStaff(e.target.value)} placeholder="Staff id (uuid)" className="w-full sm:w-56" aria-label="Staff id" invalid={Boolean(staff.trim()) && !UUID.test(staff.trim())} />

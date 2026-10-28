@@ -37,7 +37,7 @@ function Telephony() {
   const close = () => setQuery((n) => setParam(n, 'id', null), 'replace');
   return (
     <>
-      <PageHeader title="Telephony" crumbs={[{ label: 'Telephony' }]} description="Numbers, agents, the provisioning queue and live concurrency across every workspace (SA7)." />
+      <PageHeader title="Telephony" crumbs={[{ label: 'Telephony' }]} description="Numbers, agents, the provisioning queue and live concurrency across every workspace." />
       <Tabs value={tab} onValueChange={(v) => setQuery((n) => { setParam(n, 'tab', v === 'numbers' ? null : v); setParam(n, 'id', null); setParam(n, 'status', null); setParam(n, 'q', null); setParam(n, 'overdue', null); })}>
         <TabsList>
           <TabsTrigger value="numbers">Numbers</TabsTrigger>

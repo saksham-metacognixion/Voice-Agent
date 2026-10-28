@@ -11,11 +11,11 @@ import { AT_RISK_AFTER_MS, DAY_MS, median, num, rangeWindow } from './admin.help
  */
 const FUNNEL_STEPS = [
   { key: 'signed_up', label: 'Signed up', step: 1 },
-  { key: 'brief', label: 'Brief (W2)', step: 2 },
-  { key: 'voice', label: 'Voice (W3)', step: 3 },
-  { key: 'test', label: 'Test call (W5)', step: 5 },
-  { key: 'phone', label: 'Phone (W6)', step: 6 },
-  { key: 'activate', label: 'Activate (W7)', step: 7 },
+  { key: 'brief', label: 'Brief', step: 2 },
+  { key: 'voice', label: 'Voice', step: 3 },
+  { key: 'test', label: 'Test call', step: 5 },
+  { key: 'phone', label: 'Phone number', step: 6 },
+  { key: 'activate', label: 'Checkout', step: 7 },
 ] as const;
 
 /**

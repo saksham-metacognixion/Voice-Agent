@@ -39,7 +39,7 @@ function Users() {
 
   return (
     <>
-      <PageHeader title="Users" crumbs={[{ label: 'Users' }]} description="Every sign-in across workspaces (SA3)." />
+      <PageHeader title="Users" crumbs={[{ label: 'Users' }]} description="Every sign-in across workspaces." />
       <FilterBar>
         <SearchBox value={q} onChange={setQ} placeholder="Email, name, user id…" />
       </FilterBar>

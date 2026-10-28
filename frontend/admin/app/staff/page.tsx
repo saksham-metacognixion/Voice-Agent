@@ -22,7 +22,7 @@ function Staff() {
   const tab = pickParam(params, 'tab', STAFF_TABS, 'members');
   return (
     <>
-      <PageHeader title="Staff" crumbs={[{ label: 'Staff' }]} description="Console access and the per-role limits (SA13)." />
+      <PageHeader title="Staff" crumbs={[{ label: 'Staff' }]} description="Console access and the per-role limits." />
       <Tabs value={tab} onValueChange={(v) => setQuery((n) => setParam(n, 'tab', v === 'members' ? null : v))}>
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>

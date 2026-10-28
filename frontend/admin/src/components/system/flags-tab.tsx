@@ -132,7 +132,7 @@ function KillSwitches({ switches }: { switches: AdminKillSwitch[] }) {
 
 const KILL_CONSEQUENCES: Record<string, string[]> = {
   reject_inbound: ['Every inbound call on every number gets a busy tone — before any other check.', 'Republished to the hot path immediately; no call is charged while it is on.'],
-  pause_web_tests: ['W5 and D3 test calls answer 409 TESTS_PAUSED.', 'Live phone calls are unaffected.'],
+  pause_web_tests: ['Browser test calls are refused, in the setup wizard and on an agent’s Test tab.', 'Live phone calls are unaffected.'],
   pause_purchases: ['Checkout and auto top-up refuse to start.', 'Purchases already in flight still settle.'],
   pause_generation: ['Generate, feedback and regenerate refuse; queued jobs are held.', 'Publishing an already generated version still works.'],
 };

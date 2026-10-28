@@ -737,7 +737,7 @@ export class AdminSystemController {
   @Post('test-error')
   @StaffRoles('super_admin', 'ops')
   testError(@StaffCtx() staff: StaffContext): never {
-    throw new Error(`D14 diagnostics: controlled test error requested by ${staff.email}`);
+    throw new Error(`Admin diagnostics: controlled test error requested by ${staff.email}`);
   }
 
   /** D14: one test ops alert through every sink; Slack is the webhook sink. */

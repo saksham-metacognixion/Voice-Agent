@@ -26,7 +26,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
             <span className="flex-1 truncate">{item.label}</span>
             {item.p2 ? (
               <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                P2
+                Soon
               </Badge>
             ) : null}
           </Link>

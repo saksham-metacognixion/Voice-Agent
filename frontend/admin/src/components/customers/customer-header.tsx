@@ -111,7 +111,7 @@ export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
         open={pausing}
         onOpenChange={setPausing}
         title={`Pause ${c.name}`}
-        description="Admin §4 SA2 — the workspace stops answering and stops changing."
+        description="The workspace stops answering calls and stops changing."
         consequences={['Every number declines inbound calls (busy tone, no charge).', 'Generate, feedback and publish refuse; test calls refuse.', 'Members can still sign in and read their dashboard.', 'The wallet, lots and rentals are untouched.']}
         confirmLabel="Pause workspace"
         destructive
@@ -124,7 +124,7 @@ export function CustomerHeader({ c }: { c: AdminCustomerDetail }) {
         open={viewing}
         onOpenChange={setViewing}
         title={`View ${c.name} as read-only`}
-        description="Admin §7.4 — the portal opens in a new tab as the workspace owner would see it."
+        description="The portal opens in a new tab as the workspace owner would see it."
         consequences={['Every screen is read-only; no write goes through, and recordings are refused.', 'The session lasts one hour and is audited at both ends, with this reason.', 'Exit from the banner when you are done.']}
         confirmLabel="Open portal"
         noteMax={IMPERSONATE_NOTE_MAX}
