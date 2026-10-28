@@ -1597,6 +1597,102 @@ describe('SA7 number actions and the provisioning retry', () => {
   });
 });
 
+// --------------------------------------------------------------------------- SA8 call refund and flag, SA12 reconciliation
+
+describe('SA8 call actions and SA12 reconciliation', () => {
+  const chargedCall = async (credits: number, transfer: number | null = null) => {
+    const id = `call_d12_${randomUUID().replace(/-/g, '').slice(0, 16)}`;
+    await adminDb.call.create({
+      data: {
+        id,
+        tenantId: ws.workspaceId,
+        agentId,
+        channel: 'phone',
+        direction: 'inbound',
+        status: 'ended',
+        fromNumber: '+14165550100',
+        toNumber: '+14505550199',
+        startedAt: new Date(Date.now() - 600_000),
+        endedAt: new Date(Date.now() - 450_000),
+        durationS: 150,
+        tier: 'standard',
+        rate: 1,
+        creditsCharged: credits,
+        transferCreditsCharged: transfer,
+      },
+    });
+    return id;
+  };
+
+  it('refunds both legs of a call once, whichever screen asks', async () => {
+    const callId = await chargedCall(2.5, 0.75);
+    const before = (await call('GET', `/admin/customers/${ws.workspaceId}`, staff.readOnly.token)).body.balance as number;
+
+    expect((await call('POST', `/admin/calls/${callId}/refund`, staff.readOnly.token, reason)).status).toBe(403);
+    const refunded = await call('POST', `/admin/calls/${callId}/refund`, staff.finance.token, reason);
+    expect(refunded.status).toBe(201);
+    expect(refunded.body).toMatchObject({ delta: 3.25 });
+    expect(refunded.body.balance_after).toBeCloseTo(before + 3.25, 2);
+    expect((await call('GET', `/admin/calls/${callId}`, staff.readOnly.token)).body.refunded_credits).toBe(3.25);
+
+    const again = await call('POST', `/admin/calls/${callId}/refund`, staff.ops.token, reason);
+    expect(again.status).toBe(409);
+    expect(again.body.message).toMatch(/already refunded/);
+    // The support desk's macro shares the key: a ticket about the same call is refused too.
+    const ticket = await call('POST', '/admin/tickets', staff.support.token, { tenant_id: ws.workspaceId, subject: 'Refund this call', body: 'Caller hung up', category: 'billing', priority: 'normal' });
+    expect(ticket.status).toBe(201);
+    const macro = await call('POST', `/admin/tickets/${ticket.body.id as number}/macros/refund_call`, staff.support.token, { ...reason, call_id: callId });
+    expect(macro.status).toBe(409);
+
+    const free = await chargedCall(0);
+    expect((await call('POST', `/admin/calls/${free}/refund`, staff.finance.token, reason)).status).toBe(409);
+  });
+
+  it('flags a call with a note, lists it under Flagged, and clears it', async () => {
+    const callId = await chargedCall(1);
+    const path = `/admin/calls/${callId}/flag`;
+    expect((await call('POST', path, staff.support.token, { reason_code: 'support_investigation', flagged: true })).status).toBe(422);
+    expect((await call('POST', path, staff.readOnly.token, { ...reason, flagged: true })).status).toBe(403);
+
+    const flagged = await call('POST', path, staff.support.token, { ...reason, flagged: true });
+    expect(flagged.status).toBe(200);
+    expect(flagged.body).toMatchObject({ id: callId, flag_note: 'd12 e2e' });
+    expect(flagged.body.flagged_at).toEqual(expect.any(String));
+    const listed = await call('GET', `/admin/calls?flagged=true&tenant_id=${ws.workspaceId}`, staff.readOnly.token);
+    expect((listed.body.items as Array<{ id: string }>).map((c) => c.id)).toContain(callId);
+    expect((await lastAudit('call.flagged'))?.afterJson).toEqual({ flagged: true, note: 'd12 e2e' });
+
+    const cleared = await call('POST', path, staff.support.token, { reason_code: 'support_investigation', flagged: false });
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.flagged_at).toBeNull();
+    const unlisted = await call('GET', `/admin/calls?flagged=true&tenant_id=${ws.workspaceId}`, staff.readOnly.token);
+    expect((unlisted.body.items as Array<{ id: string }>).map((c) => c.id)).not.toContain(callId);
+    expect((await lastAudit('call.unflagged'))?.targetId).toBe(callId);
+  });
+
+  it('reconciles an ended UTC day on demand, lists it, and refuses a day still running', async () => {
+    const day = '2001-02-03';
+    const start = new Date(`${day}T00:00:00.000Z`);
+    await adminDb.reconciliationRun.deleteMany({ where: { windowStart: start } });
+
+    expect((await call('POST', '/admin/reconciliations/run', staff.support.token, { ...reason, date: day })).status).toBe(403);
+    const today = new Date().toISOString().slice(0, 10);
+    expect((await call('POST', '/admin/reconciliations/run', staff.ops.token, { ...reason, date: today })).status).toBe(422);
+    expect((await call('POST', '/admin/reconciliations/run', staff.ops.token, { ...reason, date: '2001-02-30' })).status).toBe(422);
+
+    const ran = await call('POST', '/admin/reconciliations/run', staff.ops.token, { ...reason, date: day });
+    expect(ran.status).toBe(200);
+    expect(ran.body).toMatchObject({ window_start: start.toISOString(), window_end: '2001-02-04T00:00:00.000Z', missing_ids: [], extra_ids: [] });
+    expect(['ok', 'drift', 'partial', 'provider_error']).toContain(ran.body.status);
+    expect((await lastAudit('reconciliation.run_requested'))?.targetId).toBe(day);
+    expect((await lastAudit('reconciliation.ran'))?.targetId).toBe(ran.body.id);
+
+    const listed = await call('GET', '/admin/reconciliations?limit=100', staff.readOnly.token);
+    expect((listed.body.items as Array<{ id: string }>).map((r) => r.id)).toContain(ran.body.id);
+    await adminDb.reconciliationRun.deleteMany({ where: { windowStart: start } });
+  });
+});
+
 // --------------------------------------------------------------------------- audit
 
 describe('SA14 audit log', () => {

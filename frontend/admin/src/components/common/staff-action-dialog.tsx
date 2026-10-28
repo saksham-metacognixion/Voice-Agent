@@ -34,6 +34,8 @@ export interface StaffActionDialogProps {
   children?: React.ReactNode;
   /** Blocks the confirm until the extra fields are valid. */
   extraValid?: boolean;
+  /** The note is required whatever the reason (a call flag says why it was flagged). */
+  noteRequired?: boolean;
   onConfirm: (body: StaffActionRequest) => Promise<void>;
 }
 
@@ -50,6 +52,7 @@ export function StaffActionDialog({
   noteMax = STAFF_NOTE_MAX,
   children,
   extraValid = true,
+  noteRequired: noteAlwaysRequired = false,
   onConfirm,
 }: StaffActionDialogProps) {
   const [reason, setReason] = React.useState<ReasonCode | ''>('');
@@ -73,7 +76,8 @@ export function StaffActionDialog({
 
   const normalise = (v: string) => v.replace(/\s+/g, '').toLowerCase();
   const typedOk = !typeToConfirm || normalise(typed) === normalise(typeToConfirm);
-  const noteRequired = reason === 'other';
+  const noteRequired = noteAlwaysRequired || reason === 'other';
+  const noteOk = !noteRequired || Boolean(note.trim());
 
   function build(): StaffActionRequest | null {
     const ticketNum = ticket.trim() ? Number(ticket.trim()) : undefined;
@@ -93,7 +97,7 @@ export function StaffActionDialog({
   }
 
   async function confirm() {
-    if (busy || !typedOk || !extraValid || !reason) return;
+    if (busy || !typedOk || !extraValid || !reason || !noteOk) return;
     const body = build();
     if (!body) return;
     setBusy(true);
@@ -137,7 +141,7 @@ export function StaffActionDialog({
             </SelectContent>
           </Select>
         </Field>
-        <Field id="action-note" label="Note" required={noteRequired} optional={!noteRequired} error={fieldErrors.note} description={noteRequired ? 'A note is required with reason "Other".' : 'Goes in the staff audit log.'}>
+        <Field id="action-note" label="Note" required={noteRequired} optional={!noteRequired} error={fieldErrors.note} description={noteAlwaysRequired ? 'Required. Goes in the staff audit log.' : noteRequired ? 'A note is required with reason "Other".' : 'Goes in the staff audit log.'}>
           <Textarea id="action-note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={noteMax} rows={3} invalid={Boolean(fieldErrors.note)} />
         </Field>
         <Field id="action-ticket" label="Ticket number" optional error={fieldErrors.ticket_id}>
@@ -153,7 +157,7 @@ export function StaffActionDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button variant={destructive ? 'danger' : 'primary'} onClick={() => void confirm()} disabled={!reason || !typedOk || !extraValid || busy} loading={busy}>
+          <Button variant={destructive ? 'danger' : 'primary'} onClick={() => void confirm()} disabled={!reason || !typedOk || !extraValid || !noteOk || busy} loading={busy}>
             {confirmLabel}
           </Button>
         </DialogFooter>

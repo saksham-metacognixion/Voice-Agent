@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Prisma } from '@portal/db';
 import type { AdminCustomerStatus } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
@@ -109,4 +110,17 @@ export function rangeWindow(
 
 export function jsonValue(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
+}
+
+/**
+ * A uuid derived from a seed, so a macro's idempotency key is scoped to its ticket: the
+ * same client key on two tickets is two adjustments, and a refund is one per (ticket, call).
+ * `credit_adjustments.id` is a uuid column, which is why the seed cannot be the id itself.
+ */
+export function derivedUuid(seed: string): string {
+  const h = createHash('sha256').update(seed).digest('hex').slice(0, 32).split('');
+  h[12] = '4';
+  h[16] = '89ab'[parseInt(h[16] as string, 16) % 4] as string;
+  const s = h.join('');
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
 }

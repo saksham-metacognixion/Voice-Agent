@@ -1454,7 +1454,10 @@ throws and never waits past its budget (ADR 0010 §6).
   `/admin/impersonations` (+ `DELETE :id`); `/admin/users` (+ `POST :id/verify-email|reset-mfa|lock|unlock|force-logout`);
   `/admin/agents` and `/admin/numbers` (+ `POST :id/pause|resume`; numbers also `POST :id/release|resync|reprovision`
   through `NumberProvisioningService` and the `provision-number` job — release platform first, resync is `bind`'s
-  read-compare-update and answers `updated`, reprovision only from `failed`); `/admin/calls`;
+  read-compare-update and answers `updated`, reprovision only from `failed`); `/admin/calls` (+ `POST :id/refund` —
+  both legs, once per call: `AdminCallsService.refundCall` is the SA4 `refund_call` macro's path and key — and
+  `POST :id/flag`, `calls.flagged_at|flagged_by|flag_note`, `?flagged=true`); `/admin/reconciliations`
+  (+ `POST run {date?}`, one ended UTC day through the schedule's own `CallReconciliationService.run`);
   `/admin/jobs` (+ `POST :id/retry|discard`); `/admin/webhook-events` (+ `POST :id/replay`);
   `/admin/flags` (+ `PUT|DELETE :key`), `PUT /admin/kill-switches/:key`; `/admin/pricing/draft`
   (GET/PUT/DELETE), `/preview`, `POST /publish`, `/versions` (+ `:version`), `POST /rollback/:version`,

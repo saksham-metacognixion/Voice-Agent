@@ -70,7 +70,7 @@ export function staffPath(tab: StaffTab = 'members'): string {
   return tab === 'members' ? routes.staff : `${routes.staff}?tab=${tab}`;
 }
 
-export const SYSTEM_TABS = ['health', 'jobs', 'webhooks', 'flags'] as const;
+export const SYSTEM_TABS = ['health', 'jobs', 'webhooks', 'reconciliation', 'flags'] as const;
 export type SystemTab = (typeof SYSTEM_TABS)[number];
 
 export function systemPath(tab: SystemTab = 'health', id?: string): string {

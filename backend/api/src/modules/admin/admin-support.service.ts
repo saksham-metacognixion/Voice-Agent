@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { FastifyRequest } from 'fastify';
 import { Prisma, adminDb } from '@portal/db';
 import type {
@@ -31,7 +31,8 @@ import type { StaffContext } from '../auth';
 import { JOBS, JobRecordsService } from '../jobs';
 import { WalletService } from '../wallet';
 import { AdminCustomersService } from './admin-customers.service';
-import { iso, num, uuidParam } from './admin.helpers';
+import { AdminCallsService } from './admin-calls.service';
+import { derivedUuid, iso, num, uuidParam } from './admin.helpers';
 import { StaffAuditService } from './staff-audit.service';
 import { firstResponseDue, resolutionDue } from './support-sla';
 
@@ -68,6 +69,7 @@ export class AdminSupportService {
   constructor(
     private readonly audit: StaffAuditService,
     private readonly customers: AdminCustomersService,
+    private readonly calls: AdminCallsService,
     private readonly wallet: WalletService,
     private readonly activation: ActivationService,
     private readonly jobs: JobRecordsService,
@@ -387,52 +389,20 @@ export class AdminSupportService {
           throw new AppError('VALIDATION_FAILED', 'A call id is required for this macro.', [
             { field: 'call_id', message: 'Required' },
           ]);
-        const call = await adminDb.call.findFirst({
-          where: { id: body.call_id, tenantId: ticket.tenantId },
-          select: { id: true, creditsCharged: true, startedAt: true, createdAt: true },
-        });
-        if (!call) throw AppError.notFound('Call');
-        const charged = num(call.creditsCharged);
-        if (charged <= 0)
-          throw new AppError('CONFLICT', 'This call was not charged; there is nothing to refund.');
-        // Keyed on the call alone, not the ticket: a duplicate ticket about the same call
-        // must not refund it a second time (review, 28 Sep).
-        const key = derivedUuid(`refund-call-${ticket.tenantId}-${call.id}`);
-        const earlier = await adminDb.creditAdjustment.findUnique({
-          where: { id: key },
-          select: { ticketId: true },
-        });
-        if (earlier) throw alreadyRefunded(call.id, earlier.ticketId);
-        const when = (call.startedAt ?? call.createdAt)
-          .toISOString()
-          .slice(0, 16)
-          .replace('T', ' ');
-        const refund = await this.customers.adjustCreditsOnce(
+        // The Calls page's refund too: keyed on the call alone, so a duplicate ticket — or
+        // a refund from SA8 — does not refund it a second time (review, 28 Sep).
+        const refund = await this.calls.refundCall(
           staff,
-          ticket.tenantId,
-          {
-            delta: charged,
-            reason_code: body.reason_code,
-            note: [`Refund of call ${call.id}`, body.note].filter(Boolean).join(' — '),
-            customer_text: body.customer_text ?? `Refund for the call on ${when} UTC`,
-            ticket_id: id,
-            idempotency_key: key,
-          },
+          body.call_id,
+          { reason_code: body.reason_code, note: body.note, customer_text: body.customer_text, ticket_id: id },
           request,
+          ticket.tenantId,
         );
-        // Two tickets racing past the check above: the credits moved once, for the other one.
-        if (refund.replayed) {
-          const winner = await adminDb.creditAdjustment.findUnique({
-            where: { id: key },
-            select: { ticketId: true },
-          });
-          throw alreadyRefunded(call.id, winner?.ticketId ?? null);
-        }
         adjustment = refund.adjustment;
-        line = `Refunded ${fmt(charged)} credits for call ${call.id} (${body.reason_code}). Balance is now ${fmt(adjustment.balance_after)}.`;
+        line = `Refunded ${fmt(refund.credits)} credits for call ${body.call_id} (${body.reason_code}). Balance is now ${fmt(adjustment.balance_after)}.`;
         after = {
-          call_id: call.id,
-          credits: charged,
+          call_id: body.call_id,
+          credits: refund.credits,
           adjustment_id: adjustment.adjustment_id,
           balance_after: adjustment.balance_after,
         };
@@ -710,19 +680,6 @@ export function ticketParam(raw: string | number): number {
   return n;
 }
 
-/**
- * A uuid derived from a seed, so a macro's idempotency key is scoped to its ticket: the
- * same client key on two tickets is two adjustments, and a refund is one per (ticket, call).
- * `credit_adjustments.id` is a uuid column, which is why the seed cannot be the id itself.
- */
-export function derivedUuid(seed: string): string {
-  const h = createHash('sha256').update(seed).digest('hex').slice(0, 32).split('');
-  h[12] = '4';
-  h[16] = '89ab'[parseInt(h[16] as string, 16) % 4] as string;
-  const s = h.join('');
-  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
-}
-
 function snapshot(t: {
   status: string;
   priority: string;
@@ -769,11 +726,5 @@ function fmt(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
 
-function alreadyRefunded(callId: string, ticketId: number | null): AppError {
-  return new AppError(
-    'CONFLICT',
-    ticketId
-      ? `Call ${callId} was already refunded on ticket #${ticketId}.`
-      : `Call ${callId} was already refunded.`,
-  );
-}
+/** Moved to `admin.helpers` (the call refund derives its key too); kept here for its importers. */
+export { derivedUuid };

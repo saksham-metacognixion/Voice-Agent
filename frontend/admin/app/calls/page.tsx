@@ -33,14 +33,15 @@ function Calls() {
   const debouncedQ = useDebouncedValue(q.trim(), 300);
   const status = pickParam(params, 'status', STATUSES, '' as (typeof STATUSES)[number] | '') || undefined;
   const tenantId = params.get('tenant_id') || undefined;
+  const flagged = params.get('flagged') === 'true' ? ('true' as const) : undefined;
   const openId = params.get('id');
   React.useEffect(() => {
     setQuery((n) => setParam(n, 'q', debouncedQ), 'replace');
   }, [debouncedQ, setQuery]);
   const { reset } = pager;
-  React.useEffect(() => reset(), [debouncedQ, status, tenantId, reset]);
+  React.useEffect(() => reset(), [debouncedQ, status, tenantId, flagged, reset]);
 
-  const list = useAdminListCalls(api, { q: debouncedQ || undefined, status, tenant_id: tenantId, cursor: pager.cursor, limit: LIMIT }, { refetchInterval: 30_000 });
+  const list = useAdminListCalls(api, { q: debouncedQ || undefined, status, tenant_id: tenantId, flagged, cursor: pager.cursor, limit: LIMIT }, { refetchInterval: 30_000 });
 
   return (
     <>
@@ -48,6 +49,7 @@ function Calls() {
       <FilterBar>
         <SearchBox value={q} onChange={setQ} placeholder="Customer, number, call id…" />
         <FilterSelect label="Status" value={status} onChange={(v) => setQuery((n) => setParam(n, 'status', v))} options={STATUSES.map((s) => ({ value: s, label: s === 'missed' ? 'Missed (declined)' : humanize(s) }))} />
+        <FilterSelect label="Flag" allLabel="Flagged or not" value={flagged} onChange={(v) => setQuery((n) => setParam(n, 'flagged', v))} options={[{ value: 'true', label: 'Flagged only' }]} />
         {tenantId ? (
           <button type="button" className="text-xs text-primary underline" onClick={() => setQuery((n) => setParam(n, 'tenant_id', null))}>
             Clear customer filter

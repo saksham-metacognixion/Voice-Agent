@@ -41,6 +41,7 @@ import {
   type AdminPricingVersion,
   type AdminPricingVersionDetail,
   type AdminPurchaseResponse,
+  type AdminReconciliationRun,
   type AdminRetellCostsResponse,
   type AdminSearchResponse,
   type AdminSystemHealthResponse,
@@ -60,6 +61,8 @@ import {
   adminAgentsQuery,
   adminAuditFilters,
   adminAuditQuery,
+  adminCallFlagRequest,
+  adminCallRefundRequest,
   adminCallsQuery,
   adminCreditAdjustRequest,
   adminCustomerAuditQuery,
@@ -74,6 +77,8 @@ import {
   adminPricingDraftRequest,
   adminPricingPublishRequest,
   adminPricingRollbackRequest,
+  adminReconciliationRunRequest,
+  adminReconciliationsQuery,
   adminSearchQuery,
   adminSetKillSwitchRequest,
   adminUpsertFlagRequest,
@@ -98,6 +103,7 @@ import { AdminKpisService } from './admin-kpis.service';
 import { AdminNumbersService } from './admin-numbers.service';
 import { AdminOutboundService } from './admin-outbound.service';
 import { AdminPricingService } from './admin-pricing.service';
+import { AdminReconciliationService } from './admin-reconciliation.service';
 import { AdminSearchService } from './admin-search.service';
 import { AdminSystemService } from './admin-system.service';
 import { AdminUsersService } from './admin-users.service';
@@ -635,6 +641,31 @@ export class AdminNumbersController {
 export class AdminCallsController {
   constructor(private readonly calls: AdminCallsService) {}
 
+  /** Admin §9: give back what the call cost, once per call (the SA4 macro's path and key). */
+  @Post(':id/refund')
+  @StaffRoles(...MONEY)
+  async refund(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminCreditAdjustResponse> {
+    return (await this.calls.refundCall(staff, id, adminCallRefundRequest.parse(body), request)).adjustment;
+  }
+
+  /** Admin §9: flag the call for a second look (with a note), or clear the flag. */
+  @Post(':id/flag')
+  @HttpCode(200)
+  @StaffRoles(...MUTATE)
+  flag(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminCallResponse> {
+    return this.calls.flag(staff, id, adminCallFlagRequest.parse(body), request);
+  }
+
   @Get()
   list(@Query() query: Record<string, unknown>): Promise<Page<AdminCallResponse>> {
     return this.calls.list(adminCallsQuery.parse(query));
@@ -892,6 +923,24 @@ export class AdminSystemController {
       fields: { requested_by: staff.email, env: process.env.APP_ENV ?? null },
     });
     return { delivered };
+  }
+}
+
+/** SA12 "Reconciliation" (admin §9 `GET /admin/reconciliations`, `POST …/run`). */
+@Controller('admin/reconciliations')
+export class AdminReconciliationsController {
+  constructor(private readonly reconciliation: AdminReconciliationService) {}
+
+  @Get()
+  list(@Query() query: Record<string, unknown>): Promise<Page<AdminReconciliationRun>> {
+    return this.reconciliation.list(adminReconciliationsQuery.parse(query));
+  }
+
+  @Post('run')
+  @HttpCode(200)
+  @StaffRoles(...SYSTEM)
+  run(@StaffCtx() staff: StaffContext, @Body() body: unknown, @Req() request: FastifyRequest): Promise<AdminReconciliationRun> {
+    return this.reconciliation.run(staff, adminReconciliationRunRequest.parse(body ?? {}), request);
   }
 }
 

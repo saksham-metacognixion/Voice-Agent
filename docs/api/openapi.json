@@ -784,6 +784,89 @@
         ],
         "type": "object"
       },
+      "adminCallFlagRequest": {
+        "properties": {
+          "flagged": {
+            "type": "boolean"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code",
+          "flagged"
+        ],
+        "type": "object"
+      },
+      "adminCallRefundRequest": {
+        "properties": {
+          "customer_text": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "type": "object"
+      },
       "adminCallResponse": {
         "properties": {
           "agent_id": {
@@ -849,6 +932,15 @@
             "nullable": true,
             "type": "string"
           },
+          "flag_note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "flagged_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "from_number": {
             "nullable": true,
             "type": "string"
@@ -881,6 +973,10 @@
             "type": "string"
           },
           "rate": {
+            "type": "number"
+          },
+          "refunded_credits": {
+            "nullable": true,
             "type": "number"
           },
           "retell_cost_cents": {
@@ -959,7 +1055,10 @@
           "tenant_id",
           "tenant_name",
           "agent_name",
-          "retell_cost_cents"
+          "retell_cost_cents",
+          "flagged_at",
+          "flag_note",
+          "refunded_credits"
         ],
         "type": "object"
       },
@@ -6363,6 +6462,145 @@
           "invoice_url",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "adminReconciliationRun": {
+        "properties": {
+          "alerted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "drift_pct": {
+            "type": "number"
+          },
+          "error": {
+            "nullable": true,
+            "type": "string"
+          },
+          "extra_count": {
+            "type": "integer"
+          },
+          "extra_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "internal_calls": {
+            "type": "integer"
+          },
+          "internal_seconds": {
+            "type": "integer"
+          },
+          "matched_calls": {
+            "type": "integer"
+          },
+          "missing_count": {
+            "type": "integer"
+          },
+          "missing_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "provider_calls": {
+            "type": "integer"
+          },
+          "provider_seconds": {
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "drift",
+              "partial",
+              "provider_error"
+            ],
+            "type": "string"
+          },
+          "threshold_pct": {
+            "type": "number"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "window_end": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "window_start": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "window_start",
+          "window_end",
+          "status",
+          "provider_calls",
+          "internal_calls",
+          "matched_calls",
+          "missing_ids",
+          "missing_count",
+          "extra_ids",
+          "extra_count",
+          "provider_seconds",
+          "internal_seconds",
+          "drift_pct",
+          "threshold_pct",
+          "alerted_at",
+          "error",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "adminReconciliationRunRequest": {
+        "properties": {
+          "date": {
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code"
         ],
         "type": "object"
       },
@@ -20711,6 +20949,18 @@
               "minLength": 1,
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "flagged",
+            "required": false,
+            "schema": {
+              "enum": [
+                "true",
+                "false"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -20872,6 +21122,237 @@
           "admin-operations"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/calls/{id}/flag": {
+      "post": {
+        "description": "Spec admin §9.",
+        "operationId": "adminFlagCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminCallFlagRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminCallResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Flag a call for a second look, with a note, or clear the flag",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
+      }
+    },
+    "/admin/calls/{id}/refund": {
+      "post": {
+        "description": "Spec admin §9.",
+        "operationId": "adminRefundCall",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminCallRefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminCreditAdjustResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Give back what the call cost (both legs of a transfer), once per call — the SA4 refund_call macro’s path and key",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance",
+          "support"
+        ]
       }
     },
     "/admin/canned-responses": {
@@ -27391,6 +27872,215 @@
           "ops",
           "finance",
           "support"
+        ]
+      }
+    },
+    "/admin/reconciliations": {
+      "get": {
+        "description": "Spec admin §9, §14.2.",
+        "operationId": "adminListReconciliations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "ok",
+                "drift",
+                "partial",
+                "provider_error"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/adminReconciliationRun"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "SA12 — the nightly runs of our calls against the platform’s, newest day first",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/reconciliations/run": {
+      "post": {
+        "description": "Spec admin §9, §14.2.",
+        "operationId": "adminRunReconciliation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminReconciliationRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminReconciliationRun"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Reconcile one ended UTC day now (default yesterday); a rerun refreshes that day’s row",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
         ]
       }
     },

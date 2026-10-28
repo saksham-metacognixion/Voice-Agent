@@ -350,6 +350,8 @@ export const adminCallsQuery = paginationQuery.extend({
   tenant_id: uuid.optional(),
   status: z.enum(['registered', 'in_progress', 'ended', 'analyzed', 'missed']).optional(),
   q: z.string().trim().min(1).max(80).optional(),
+  /** Only calls staff flagged (admin §9 call flag). */
+  flagged: z.enum(['true', 'false']).optional(),
 });
 export type AdminCallsQuery = z.infer<typeof adminCallsQuery>;
 
@@ -359,6 +361,11 @@ export const adminCallResponse = callSummary.extend({
   tenant_name: z.string(),
   agent_name: z.string().nullable(),
   retell_cost_cents: z.number().int().nullable(),
+  /** Staff flagged the call for a second look, with this note (admin §9). */
+  flagged_at: isoDateTime.nullable(),
+  flag_note: z.string().nullable(),
+  /** Credits staff refunded for this call, once (`refund-call-…` adjustment), else null. */
+  refunded_credits: z.number().nullable(),
 });
 export type AdminCallResponse = z.infer<typeof adminCallResponse>;
 
@@ -470,6 +477,61 @@ export const adminOverridesRequest = z
   })
   .refine(noteWithOther, noteWithOtherIssue);
 export type AdminOverridesRequest = z.infer<typeof adminOverridesRequest>;
+
+/**
+ * POST /admin/calls/:id/refund — give back what the call cost (both legs of a transferred
+ * call), once per call however many tickets or screens ask: the same adjustment the SA4
+ * `refund_call` macro makes, under the same key.
+ */
+export const adminCallRefundRequest = z
+  .object({ ...staffActionFields, customer_text: z.string().trim().min(1).max(200).optional() })
+  .refine(noteWithOther, noteWithOtherIssue);
+export type AdminCallRefundRequest = z.infer<typeof adminCallRefundRequest>;
+
+/** POST /admin/calls/:id/flag — set or clear the flag. Flagging says why: the note is required. */
+export const adminCallFlagRequest = z
+  .object({ ...staffActionFields, flagged: z.boolean() })
+  .refine(noteWithOther, noteWithOtherIssue)
+  .refine((v) => !v.flagged || Boolean(v.note), { message: 'Say why the call is flagged.', path: ['note'] });
+export type AdminCallFlagRequest = z.infer<typeof adminCallFlagRequest>;
+
+// ---------------------------------------------------------------------------- reconciliation (SA12, §14.2)
+
+export const reconciliationStatus = z.enum(['ok', 'drift', 'partial', 'provider_error']);
+
+export const adminReconciliationsQuery = paginationQuery.extend({ status: reconciliationStatus.optional() });
+export type AdminReconciliationsQuery = z.infer<typeof adminReconciliationsQuery>;
+
+/** One `reconciliation_runs` row: a UTC day of the platform's calls against ours. */
+export const adminReconciliationRun = z.object({
+  id: uuid,
+  window_start: isoDateTime,
+  window_end: isoDateTime,
+  status: reconciliationStatus,
+  provider_calls: z.number().int(),
+  internal_calls: z.number().int(),
+  matched_calls: z.number().int(),
+  /** Platform calls we have no row for — each one never billed. First 50. */
+  missing_ids: z.array(z.string()),
+  missing_count: z.number().int(),
+  /** Our calls the platform does not know in the window. First 50. */
+  extra_ids: z.array(z.string()),
+  extra_count: z.number().int(),
+  provider_seconds: z.number().int(),
+  internal_seconds: z.number().int(),
+  drift_pct: z.number(),
+  threshold_pct: z.number(),
+  alerted_at: isoDateTime.nullable(),
+  error: z.string().nullable(),
+  updated_at: isoDateTime,
+});
+export type AdminReconciliationRun = z.infer<typeof adminReconciliationRun>;
+
+/** POST /admin/reconciliations/run — one UTC day (default yesterday), never today or the future. */
+export const adminReconciliationRunRequest = z
+  .object({ ...staffActionFields, date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'A day as YYYY-MM-DD').optional() })
+  .refine(noteWithOther, noteWithOtherIssue);
+export type AdminReconciliationRunRequest = z.infer<typeof adminReconciliationRunRequest>;
 
 export const adminCreditAdjustRequest = z
   .object({

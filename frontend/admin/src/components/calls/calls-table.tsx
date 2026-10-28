@@ -34,6 +34,8 @@ export function CallsTable({ rows, showCustomer = true, onOpen }: { rows: AdminC
           <CallStatusBadge status={r.status} />
           {r.decline_reason ? <Badge variant="outline">{r.decline_reason}</Badge> : null}
           {r.is_test ? <Badge variant="outline">test</Badge> : null}
+          {r.flagged_at ? <Badge variant="warning" title={r.flag_note ?? undefined}>flagged</Badge> : null}
+          {r.refunded_credits !== null ? <Badge variant="outline">refunded</Badge> : null}
         </span>
       ),
     },

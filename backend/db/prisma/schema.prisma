@@ -849,6 +849,10 @@ model Call {
   /// A row is re-asked on `RECOVER_RECHECK_MS`, an unanalysed one at most `RECOVER_ANALYSIS_MAX_CHECKS` times.
   recoveryCheckedAt   DateTime?      @map("recovery_checked_at")
   recoveryChecks      Int            @default(0) @map("recovery_checks")
+  /// Admin §9 call flag: staff marked it for a second look. History is in staff_audit_log.
+  flaggedAt           DateTime?      @map("flagged_at")
+  flaggedBy           String?        @map("flagged_by") @db.Uuid
+  flagNote            String?        @map("flag_note")
   /// P2 (D16) transfer leg, billed apart from the agent leg at `pricing.rates.transferred_leg_per_min`.
   /// `started` → `bridged` → `ended`, or `cancelled` (never bridged, never billed).
   transferStatus         String?   @map("transfer_status")

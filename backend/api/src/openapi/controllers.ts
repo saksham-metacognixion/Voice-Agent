@@ -12,6 +12,7 @@ import {
   AdminMeController,
   AdminNumbersController,
   AdminPricingController,
+  AdminReconciliationsController,
   AdminSearchController,
   AdminSystemController,
   AdminUsersController,
@@ -95,6 +96,7 @@ export const CONTROLLERS = [
   AdminPricingController,
   AdminSearchController,
   AdminSystemController,
+  AdminReconciliationsController,
   AdminAuditController,
   // D13 — SA9 billing & finance.
   AdminBillingController,
