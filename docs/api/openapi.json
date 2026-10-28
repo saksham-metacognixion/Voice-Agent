@@ -3074,6 +3074,117 @@
         ],
         "type": "object"
       },
+      "adminNumberResyncResponse": {
+        "properties": {
+          "agent_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "agent_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "caller_id_verified": {
+            "default": false,
+            "type": "boolean"
+          },
+          "caller_id_verified_via": {
+            "default": null,
+            "enum": [
+              "purchase",
+              "staff"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "calls_7d": {
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "e164": {
+            "nullable": true,
+            "type": "string"
+          },
+          "error": {
+            "nullable": true,
+            "type": "string"
+          },
+          "forwarding_status": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "next_rental_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "paused_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "rental_credits": {
+            "type": "integer"
+          },
+          "rental_overdue_since": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "provisioning",
+              "active",
+              "paused",
+              "releasing",
+              "released",
+              "failed"
+            ],
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "updated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "tenant_name",
+          "agent_id",
+          "agent_name",
+          "e164",
+          "type",
+          "status",
+          "paused_at",
+          "forwarding_status",
+          "rental_credits",
+          "next_rental_at",
+          "rental_overdue_since",
+          "error",
+          "calls_7d",
+          "created_at",
+          "updated"
+        ],
+        "type": "object"
+      },
       "adminOverridesRequest": {
         "properties": {
           "concurrency_cap": {
@@ -25457,6 +25568,276 @@
         ]
       }
     },
+    "/admin/numbers/{id}/release": {
+      "post": {
+        "description": "Spec admin §9.",
+        "operationId": "adminReleaseNumber",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminNumberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT, NUMBER_IN_USE}",
+            "x-error-codes": [
+              "CONFLICT",
+              "NUMBER_IN_USE"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Release the number for the customer: the platform first, the row kept as released",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
+      }
+    },
+    "/admin/numbers/{id}/reprovision": {
+      "post": {
+        "description": "Spec admin §9.",
+        "operationId": "adminReprovisionNumber",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminNumberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Start a failed number’s provisioning again; a number the failed run bought is adopted, not bought twice",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
+      }
+    },
     "/admin/numbers/{id}/resume": {
       "post": {
         "operationId": "adminResumeNumber",
@@ -25567,6 +25948,140 @@
           }
         ],
         "summary": "Resume a paused number",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "support"
+        ]
+      }
+    },
+    "/admin/numbers/{id}/resync": {
+      "post": {
+        "description": "Spec admin §9.",
+        "operationId": "adminResyncNumber",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminNumberResyncResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Re-point a drifted platform number at the agent and our inbound webhook; reports whether it had drifted",
         "tags": [
           "admin-operations"
         ],
@@ -26354,6 +26869,140 @@
           "admin-operations"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/provisioning/{jobId}/retry": {
+      "post": {
+        "description": "Spec admin §9 SA7.",
+        "operationId": "adminRetryProvisioning",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminJobResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Retry a failed job of the provisioning queue (the jobs retry, narrowed to its job types)",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
+        ]
       }
     },
     "/admin/purchases": {

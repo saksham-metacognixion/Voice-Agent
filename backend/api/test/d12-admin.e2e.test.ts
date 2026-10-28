@@ -6,7 +6,9 @@ import { type PricingConfig, pricingConfig } from '@portal/schemas';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
 import { PlatformConfigService } from '../src/modules/config';
-import { JOBS, JobQueues, JobRecordsService } from '../src/modules/jobs';
+import { Worker } from 'bullmq';
+import { JOBS, JobQueues, JobRecordsService, QUEUES, activationBullId, provisionNumberBullId } from '../src/modules/jobs';
+import { bullConnection, bullPrefix } from '../src/modules/jobs/jobs.connection';
 import { RedisCache, redisKeys } from '../src/modules/redis';
 import { WebhookEventsService, WebhookProcessingService } from '../src/modules/webhooks';
 import { Auth0ManagementService } from '../src/modules/auth';
@@ -1506,6 +1508,92 @@ describe('SA2 profile and member edits', () => {
     expect(await adminDb.membership.findUnique({ where: { id: member.id } })).toBeNull();
     expect((await lastAudit('member.removed'))?.beforeJson).toEqual({ user_id: user.id, email: user.email, role: 'viewer' });
     expect((await call('DELETE', `${base}/${member.id}`, staff.ops.token, reason)).status).toBe(404);
+  });
+});
+
+// --------------------------------------------------------------------------- SA7 number actions and the provisioning retry
+
+describe('SA7 number actions and the provisioning retry', () => {
+  const freshNumber = async (data: { e164?: string | null; status: 'active' | 'failed'; error?: string }) =>
+    adminDb.phoneNumber.create({
+      data: { tenantId: ws.workspaceId, agentId, type: 'retell_twilio', inboundToken: `tok_${randomUUID().replace(/-/g, '')}`, country: 'CA', e164: data.e164 ?? null, status: data.status, error: data.error ?? null },
+    });
+
+  it('re-syncs a drifted number, says when nothing drifted, and releases it platform first', async () => {
+    const platform = await h.retell.createPhoneNumber({ numberToken: 'tok_somewhere_else', agentId: 'agent_somebody_else', country: 'CA', nickname: `d12-${randomUUID().slice(0, 8)}` });
+    const row = await freshNumber({ e164: platform.phone_number, status: 'active' });
+    const ours = (await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } })).retellAgentId;
+    const path = `/admin/numbers/${row.id}`;
+
+    expect((await call('POST', `${path}/resync`, staff.readOnly.token, reason)).status).toBe(403);
+    const drifted = await call('POST', `${path}/resync`, staff.support.token, reason);
+    expect(drifted.status).toBe(200);
+    expect(drifted.body).toMatchObject({ id: row.id, status: 'active', updated: true });
+    const bound = await h.retell.getPhoneNumber(platform.phone_number);
+    expect(bound.inbound_agents?.[0]).toMatchObject({ agent_id: ours, agent_version: 'latest_published' });
+    expect((await call('POST', `${path}/resync`, staff.support.token, reason)).body.updated).toBe(false);
+    expect((await lastAudit('number.resynced'))?.afterJson).toEqual({ updated: false });
+
+    // Re-provision is for a failed number only.
+    expect((await call('POST', `${path}/reprovision`, staff.support.token, reason)).status).toBe(409);
+
+    const released = await call('POST', `${path}/release`, staff.support.token, reason);
+    expect(released.status).toBe(200);
+    expect(released.body.status).toBe('released');
+    expect(h.retell.phoneNumbers.has(platform.phone_number)).toBe(false);
+    expect((await lastAudit('number.release_requested'))?.targetId).toBe(row.id);
+    expect((await lastAudit('number.released'))?.afterJson).toEqual({ status: 'released' });
+    const customerRow = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'number.release_requested', targetId: row.id } });
+    expect(customerRow?.metaJson).toMatchObject({ by: 'staff' });
+    expect((await call('POST', `${path}/release`, staff.support.token, reason)).status).toBe(409);
+  });
+
+  it('re-provisions a failed number even while the failed run still holds its job id', async () => {
+    const row = await freshNumber({ status: 'failed', error: 'We could not get a number in that area.' });
+    const queues = h.app.get(JobQueues);
+    const bullId = provisionNumberBullId(row.id);
+    // The give-up path: the worker *returns*, so BullMQ keeps a completed job under the id.
+    await queues.queue(QUEUES.provisioning).add(JOBS.provisionNumber, { numberId: row.id, workspaceId: ws.workspaceId, userId: null }, { jobId: bullId, removeOnComplete: { age: 3_600 } });
+    const worker = new Worker(QUEUES.provisioning, async () => ({ outcome: 'failed' }), { connection: bullConnection(process.env.REDIS_URL, 'worker'), prefix: bullPrefix() });
+    try {
+      await vi.waitFor(async () => expect(await queues.stateOf(QUEUES.provisioning, bullId)).toBe('completed'), { timeout: 5_000, interval: 100 });
+    } finally {
+      await worker.close();
+    }
+
+    const res = await call('POST', `/admin/numbers/${row.id}/reprovision`, staff.support.token, reason);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ status: 'provisioning', error: null });
+    // A new job under the id, not the old completed one answering "exists".
+    expect(['waiting', 'delayed', 'prioritized']).toContain(await queues.stateOf(QUEUES.provisioning, bullId));
+    expect((await lastAudit('number.reprovision_requested'))?.beforeJson).toEqual({ status: 'failed', error: 'We could not get a number in that area.' });
+    expect((await call('POST', `/admin/numbers/${row.id}/reprovision`, staff.support.token, reason)).status).toBe(409);
+    await (await queues.queue(QUEUES.provisioning).getJob(bullId))?.remove();
+  });
+
+  it('retries a failed activation from the provisioning queue, rebuilding a payload the row never kept', async () => {
+    const records = h.app.get(JobRecordsService);
+    const steps = { agent_id: agentId, version_no: 1, requested_by: ws.userId, activation_status: 'failed' };
+    const jobId = await records.create({ workspaceId: ws.workspaceId, type: JOBS.activateAgent, steps });
+    await records.fail(jobId, 'bind: platform_error', steps, 0);
+    expect((await adminDb.job.findUniqueOrThrow({ where: { id: jobId } })).payloadJson).toBeNull();
+
+    const listed = await call('GET', `/admin/provisioning?tenant_id=${ws.workspaceId}&status=failed`, staff.readOnly.token);
+    expect((listed.body.items as Array<{ id: string; retryable: boolean }>).find((j) => j.id === jobId)?.retryable).toBe(true);
+
+    expect((await call('POST', `/admin/provisioning/${jobId}/retry`, staff.support.token, reason)).status).toBe(403);
+    const retried = await call('POST', `/admin/provisioning/${jobId}/retry`, staff.ops.token, reason);
+    expect(retried.status).toBe(200);
+    expect(retried.body.status).toBe('queued');
+    const queued = await h.app.get(JobQueues).queue(QUEUES.provisioning).getJob(activationBullId(jobId));
+    expect(queued?.data).toEqual({ jobId, workspaceId: ws.workspaceId, agentId, userId: ws.userId, versionNo: 1 });
+
+    // Only the provisioning queue's job types are reachable through this route.
+    const generate = await records.create({ workspaceId: ws.workspaceId, type: JOBS.generateAgent, steps: { agent_id: agentId } });
+    expect((await call('POST', `/admin/provisioning/${generate}/retry`, staff.ops.token, reason)).status).toBe(404);
+    await records.fail(generate, 'not this route', { agent_id: agentId }, 0);
+
+    expect((await call('POST', `/admin/jobs/${jobId}/discard`, staff.ops.token, reason)).body.status).toBe('failed');
   });
 });
 

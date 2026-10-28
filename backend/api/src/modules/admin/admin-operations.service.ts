@@ -16,6 +16,7 @@ import { concurrencyAlertPct, parseActiveHash, platformConcurrencyLimit } from '
 import { PlatformConfigService } from '../config';
 import { JOBS, queueOfJobType } from '../jobs';
 import { REDIS, RedisCache, type RedisLike, redisKeys, workspaceOfActiveKey } from '../redis';
+import { retryPayload } from './admin-jobs.service';
 import { record } from './admin.helpers';
 
 /** The `jobs` rows SA7 calls "the provisioning queue": every platform-facing step machine. */
@@ -123,7 +124,7 @@ export class AdminOperationsService {
       activation,
       created_at: r.createdAt.toISOString(),
       updated_at: r.updatedAt.toISOString(),
-      retryable: r.status === 'failed' && r.payloadJson !== null && queueOfJobType(r.type) !== null,
+      retryable: r.status === 'failed' && queueOfJobType(r.type) !== null && retryPayload(r) !== null,
     };
   }
 

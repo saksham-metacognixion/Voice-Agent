@@ -1,6 +1,6 @@
 'use client';
 
-import { useAdminProvisioning, useAdminRetryJob, useApi } from '@portal/api-client';
+import { useAdminProvisioning, useAdminRetryProvisioning, useApi } from '@portal/api-client';
 import { jobStatus, type AdminProvisioningJob, type JobStatus, type StaffActionRequest } from '@portal/schemas';
 import { Badge, Input, Progress, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -73,12 +73,12 @@ function ProvisioningTable({ rows }: { rows: AdminProvisioningJob[] }) {
   const queryClient = useQueryClient();
   const { can } = useStaff();
   const denied = can.operateQueues();
-  const retry = useAdminRetryJob(api);
+  const retry = useAdminRetryProvisioning(api);
   const [target, setTarget] = React.useState<AdminProvisioningJob | null>(null);
 
   async function run(body: StaffActionRequest) {
     if (!target) return;
-    await retry.mutateAsync({ params: { id: target.id }, body });
+    await retry.mutateAsync({ params: { jobId: target.id }, body });
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['adminProvisioning'] }),
       queryClient.invalidateQueries({ queryKey: ['adminListJobs'] }),
@@ -129,6 +129,10 @@ function ProvisioningTable({ rows }: { rows: AdminProvisioningJob[] }) {
         <CellActions>
           {r.retryable ? (
             <PermissionButton size="sm" variant="outline" denied={denied} onClick={() => setTarget(r)}>
+              Retry
+            </PermissionButton>
+          ) : r.status === 'failed' ? (
+            <PermissionButton size="sm" variant="outline" denied={r.number ? 'Re-provision the number from its page in Numbers.' : 'This job cannot be re-run from here.'}>
               Retry
             </PermissionButton>
           ) : null}

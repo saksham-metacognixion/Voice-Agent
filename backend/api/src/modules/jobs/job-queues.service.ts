@@ -50,6 +50,11 @@ export function promptingBullId(type: string, jobId: string): string | null {
   return null;
 }
 
+/** The BullMQ id of an off-wizard `provision-number` job: one per number row, so a double click is one purchase. */
+export function provisionNumberBullId(numberId: string): string {
+  return `provnum-${safeId(numberId)}`;
+}
+
 /** The BullMQ id of a §13.8 activation job, from its `jobs` row id. */
 export function activationBullId(jobId: string): string {
   return `activate-${safeId(jobId)}`;
@@ -279,7 +284,7 @@ export class JobQueues implements OnApplicationShutdown {
       QUEUES.provisioning,
       JOBS.provisionNumber,
       job,
-      { ...activationJobOptions(), jobId: `provnum-${safeId(job.numberId)}` },
+      { ...activationJobOptions(), jobId: provisionNumberBullId(job.numberId) },
       ENQUEUE_TIMEOUT_MS,
       true,
     );
@@ -375,6 +380,39 @@ export class JobQueues implements OnApplicationShutdown {
       ]);
     } catch (error) {
       this.log.warn(`stateOf ${queueName}/${jobId}: ${error instanceof Error ? error.message : String(error)}`);
+      return 'unknown';
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
+   * Frees a deterministic id held by a job that has finished, so a deliberate re-run (a
+   * staff retry, a re-provision) can take it. A step machine that gives up *returns* — BullMQ
+   * records it as completed and keeps the id for an hour (`removeOnComplete`) — and
+   * `add(…, verify)` only replaces a job that *failed* for good, so without this the re-run
+   * answered `exists` and nothing ran. A job still waiting, delayed or running is `busy` and
+   * left alone; Redis not answering is `unknown`, never "free".
+   */
+  async freeFinished(queueName: QueueName, jobId: string, timeoutMs = ENQUEUE_TIMEOUT_MS): Promise<'free' | 'freed' | 'busy' | 'unknown'> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        (async () => {
+          const job = await this.queue(queueName).getJob(jobId);
+          if (!job) return 'free' as const;
+          const state = await job.getState();
+          if (state !== 'completed' && state !== 'failed') return 'busy' as const;
+          await job.remove();
+          this.log.log(`freed ${queueName}/${jobId} (${state}) for a re-run`);
+          return 'freed' as const;
+        })(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`freeFinished timed out after ${timeoutMs} ms`)), timeoutMs);
+        }),
+      ]);
+    } catch (error) {
+      this.log.warn(`freeFinished ${queueName}/${jobId}: ${error instanceof Error ? error.message : String(error)}`);
       return 'unknown';
     } finally {
       if (timer) clearTimeout(timer);

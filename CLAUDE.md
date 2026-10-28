@@ -1217,7 +1217,11 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `activate-agent` / `provision-number` / `knowledge-sync` with the pure `activation-state`
   view) and `GET /admin/concurrency` (the `active:{ws}` hashes against `caps:{ws}`; `live:
   null` and `complete: false` on a Redis outage, never zero) are the Telephony page's two
-  extra tabs. Exit check: `test/d13-staff.e2e.test.ts` (14 cases).
+  extra tabs; `POST /admin/provisioning/:jobId/retry` is the jobs retry narrowed to those types. **A staff
+  re-run frees a finished job's id first** (`JobQueues.freeFinished`): a step machine that gives up *returns*,
+  BullMQ keeps it as completed for an hour, and `add(…, verify)` replaces only a job that *failed* — the retry
+  used to answer `exists` and run nothing. An activation row from before payloads were kept is retried with
+  the payload rebuilt from `steps_json` (`retryPayload`). Exit check: `test/d13-staff.e2e.test.ts` (14 cases).
 - Local console sign-in without Auth0: `pnpm dev:issuer:staff` (port 9998, stamps the MFA
   claim), API with `AUTH0_STAFF_DOMAIN=http://localhost:9998`, `pnpm db:seed` creates the
   matching super-admin row. Exit check: `pnpm --filter @portal/api test:e2e` →
@@ -1448,7 +1452,9 @@ throws and never waits past its budget (ADR 0010 §6).
   deal changes, the whole set replaced, null = the plan's, `caps:{ws}` rebuilt by the write;
   super admin, ops, finance = `STAFF_ROUTE_ROLES.commercial`);
   `/admin/impersonations` (+ `DELETE :id`); `/admin/users` (+ `POST :id/verify-email|reset-mfa|lock|unlock|force-logout`);
-  `/admin/agents` and `/admin/numbers` (+ `POST :id/pause|resume`); `/admin/calls`;
+  `/admin/agents` and `/admin/numbers` (+ `POST :id/pause|resume`; numbers also `POST :id/release|resync|reprovision`
+  through `NumberProvisioningService` and the `provision-number` job — release platform first, resync is `bind`'s
+  read-compare-update and answers `updated`, reprovision only from `failed`); `/admin/calls`;
   `/admin/jobs` (+ `POST :id/retry|discard`); `/admin/webhook-events` (+ `POST :id/replay`);
   `/admin/flags` (+ `PUT|DELETE :key`), `PUT /admin/kill-switches/:key`; `/admin/pricing/draft`
   (GET/PUT/DELETE), `/preview`, `POST /publish`, `/versions` (+ `:version`), `POST /rollback/:version`,

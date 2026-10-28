@@ -11,6 +11,7 @@ import { RetellModule } from '../retell';
 import { RuntimeCacheModule } from '../runtime-cache';
 import { WalletModule } from '../wallet';
 import { WebhooksModule } from '../webhooks';
+import { NumbersModule } from '../numbers';
 import { AdminAgentsService } from './admin-agents.service';
 import { AdminAuditService } from './admin-audit.service';
 import { AdminCallsService } from './admin-calls.service';
@@ -76,6 +77,7 @@ import { StaffLimitsService } from './staff-limits.service';
     RetellModule,
     AlertsModule,
     ActivationModule,
+    NumbersModule,
   ],
   controllers: [
     AdminMeController,

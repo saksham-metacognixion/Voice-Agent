@@ -326,6 +326,10 @@ export const adminNumberResponse = z.object({
 });
 export type AdminNumberResponse = z.infer<typeof adminNumberResponse>;
 
+/** POST /admin/numbers/:id/resync — the number, and whether the platform binding had drifted. */
+export const adminNumberResyncResponse = adminNumberResponse.extend({ updated: z.boolean() });
+export type AdminNumberResyncResponse = z.infer<typeof adminNumberResyncResponse>;
+
 export const adminNumbersQuery = paginationQuery.extend({
   q: z.string().trim().min(1).max(60).optional(),
   status: phoneNumberStatus.optional(),

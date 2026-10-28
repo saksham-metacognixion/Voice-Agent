@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallResponse, adminCallerIdRequest, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminKycDecisionRequest, adminKycResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumbersQuery, adminOverridesRequest, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callbackCheck, callbackRequest, callbackResponse, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deleteWorkspaceRequest, deletedResponse, dismissAlertResponse, dncAddRequest, dncEntryResponse, dncQuery, duplicateAgentRequest, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, kycDetails, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, outboundOverview, outboundSettings, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, saveVersionResponse, selectVersionRequest, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceDeletionRequest, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallResponse, adminCallerIdRequest, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminKycDecisionRequest, adminKycResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumberResyncResponse, adminNumbersQuery, adminOverridesRequest, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callbackCheck, callbackRequest, callbackResponse, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deleteWorkspaceRequest, deletedResponse, dismissAlertResponse, dncAddRequest, dncEntryResponse, dncQuery, duplicateAgentRequest, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, kycDetails, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, outboundOverview, outboundSettings, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, saveVersionResponse, selectVersionRequest, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceDeletionRequest, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -508,6 +508,24 @@ export function useAdminPauseNumber(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminPauseNumber(api, vars.params, vars.body) });
 }
 
+/** POST /admin/numbers/:id/release — Release the number for the customer: the platform first, the row kept as released (staff: super_admin, ops, support) — admin §9. */
+export function adminReleaseNumber(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/numbers/${enc(params.id)}/release`, body, adminNumberResponse);
+}
+
+export function useAdminReleaseNumber(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminReleaseNumber(api, vars.params, vars.body) });
+}
+
+/** POST /admin/numbers/:id/reprovision — Start a failed number’s provisioning again; a number the failed run bought is adopted, not bought twice (staff: super_admin, ops, support) — admin §9. */
+export function adminReprovisionNumber(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/numbers/${enc(params.id)}/reprovision`, body, adminNumberResponse);
+}
+
+export function useAdminReprovisionNumber(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminReprovisionNumber(api, vars.params, vars.body) });
+}
+
 /** POST /admin/numbers/:id/resume — Resume a paused number (staff: super_admin, ops, support). */
 export function adminResumeNumber(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
   return api.post(`/admin/numbers/${enc(params.id)}/resume`, body, adminNumberResponse);
@@ -515,6 +533,15 @@ export function adminResumeNumber(api: ApiClient, params: { id: string }, body: 
 
 export function useAdminResumeNumber(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminResumeNumber(api, vars.params, vars.body) });
+}
+
+/** POST /admin/numbers/:id/resync — Re-point a drifted platform number at the agent and our inbound webhook; reports whether it had drifted (staff: super_admin, ops, support) — admin §9. */
+export function adminResyncNumber(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/numbers/${enc(params.id)}/resync`, body, adminNumberResyncResponse);
+}
+
+export function useAdminResyncNumber(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminResyncNumber(api, vars.params, vars.body) });
 }
 
 /** DELETE /admin/pricing/draft — Discard the pricing draft (with a reason code) (staff: super_admin, finance). */
@@ -596,6 +623,15 @@ export function adminProvisioning(api: ApiClient, query?: z.input<typeof adminPr
 
 export function useAdminProvisioning(api: ApiClient, query?: z.input<typeof adminProvisioningQuery>, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['adminProvisioning', query ?? null], queryFn: () => adminProvisioning(api, query), ...options });
+}
+
+/** POST /admin/provisioning/:jobId/retry — Retry a failed job of the provisioning queue (the jobs retry, narrowed to its job types) (staff: super_admin, ops) — admin §9 SA7. */
+export function adminRetryProvisioning(api: ApiClient, params: { jobId: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/provisioning/${enc(params.jobId)}/retry`, body, adminJobResponse);
+}
+
+export function useAdminRetryProvisioning(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { jobId: string }; body: z.input<typeof staffActionRequest> }) => adminRetryProvisioning(api, vars.params, vars.body) });
 }
 
 /** GET /admin/purchases — SA9 — purchases across workspaces, newest first, with what is still refundable — admin §4 SA9. */

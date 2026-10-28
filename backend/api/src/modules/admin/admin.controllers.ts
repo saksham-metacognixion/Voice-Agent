@@ -35,6 +35,7 @@ import {
   type AdminKpisResponse,
   type AdminMemberResponse,
   type AdminNumberResponse,
+  type AdminNumberResyncResponse,
   type AdminPricingDraftResponse,
   type AdminPricingPreviewResponse,
   type AdminPricingVersion,
@@ -588,6 +589,45 @@ export class AdminNumbersController {
     @Req() request: FastifyRequest,
   ): Promise<AdminNumberResponse> {
     return this.numbers.resume(staff, id, staffActionRequest.parse(body), request);
+  }
+
+  /** Admin §9: release for the customer (platform first, row kept as `released`). */
+  @Post(':id/release')
+  @HttpCode(200)
+  @StaffRoles(...MUTATE)
+  release(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminNumberResponse> {
+    return this.numbers.release(staff, id, staffActionRequest.parse(body), request);
+  }
+
+  /** Admin §9: re-point a drifted platform binding at the agent and our inbound webhook. */
+  @Post(':id/resync')
+  @HttpCode(200)
+  @StaffRoles(...MUTATE)
+  resync(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminNumberResyncResponse> {
+    return this.numbers.resync(staff, id, staffActionRequest.parse(body), request);
+  }
+
+  /** Admin §9: start a failed number's provisioning again (look before you buy). */
+  @Post(':id/reprovision')
+  @HttpCode(200)
+  @StaffRoles(...MUTATE)
+  reprovision(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminNumberResponse> {
+    return this.numbers.reprovision(staff, id, staffActionRequest.parse(body), request);
   }
 }
 

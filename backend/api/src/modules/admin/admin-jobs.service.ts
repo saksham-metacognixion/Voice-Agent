@@ -79,7 +79,7 @@ export class AdminJobsService {
         `Only a failed job can be retried; this one is ${row.status}.`,
       );
     const queue = queueOfJobType(row.type);
-    const payload = row.payloadJson as Record<string, unknown> | null;
+    const payload = retryPayload(row);
     if (!queue || !payload)
       throw new AppError('CONFLICT', 'This job type cannot be retried from the console.');
     if (row.tenantId) {
@@ -93,6 +93,15 @@ export class AdminJobsService {
           'The workspace is paused; resume it before retrying its jobs.',
         );
     }
+
+    // A job that gave up holds its deterministic id (an activation *returns* on its last
+    // attempt, so BullMQ keeps it as completed for an hour); free it, or the enqueue below
+    // answers `exists` and nothing runs while the console says "retried".
+    const held = await this.queues.freeFinished(queue.queue, queue.bullId(id));
+    if (held === 'busy')
+      throw new AppError('CONFLICT', 'The queue still holds this job as waiting or running; let it finish first.');
+    if (held === 'unknown')
+      throw new AppError('UPSTREAM_UNAVAILABLE', 'The queue did not answer; try again in a moment.');
 
     // Re-open the row first: the partial unique index guarantees one active job per
     // (agent, type), so a customer who started a fresh one meanwhile collides here. The
@@ -280,9 +289,32 @@ export class AdminJobsService {
       queue_state: queueState,
       error: r.error,
       customer_reason: typeof steps.customer_reason === 'string' ? steps.customer_reason : null,
-      can_retry: r.status === 'failed' && Boolean(queue) && r.payloadJson !== null,
+      can_retry: r.status === 'failed' && Boolean(queue) && retryPayload(r) !== null,
       can_discard: r.status !== 'succeeded',
       steps: shown,
     };
   }
+}
+
+/**
+ * What a staff retry re-enqueues: the payload the enqueue site kept, else — for an
+ * activation queued before payloads were kept — the same payload rebuilt from the row.
+ * `steps_json` carries everything `ActivationService.start` put in it (the agent, the
+ * version asked for, who asked), so the rebuilt job is the one that was queued. Without
+ * this a failed activation from before the payload column showed no Retry at all (QA).
+ */
+export function retryPayload(row: { id: string; type: string; tenantId: string | null; payloadJson: unknown; stepsJson: unknown }): Record<string, unknown> | null {
+  const kept = record(row.payloadJson);
+  if (row.payloadJson !== null && Object.keys(kept).length) return kept;
+  if (row.type !== JOBS.activateAgent || !row.tenantId) return null;
+  const steps = record(row.stepsJson);
+  if (typeof steps.agent_id !== 'string') return null;
+  const job: ActivationJob = {
+    jobId: row.id,
+    workspaceId: row.tenantId,
+    agentId: steps.agent_id,
+    userId: typeof steps.requested_by === 'string' ? steps.requested_by : null,
+    ...(typeof steps.version_no === 'number' ? { versionNo: steps.version_no } : {}),
+  };
+  return job as unknown as Record<string, unknown>;
 }
