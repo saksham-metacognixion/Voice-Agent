@@ -4,7 +4,7 @@ import { OpsAlertService } from '../alerts';
 import { PlatformConfigService } from '../config';
 import { WorkspaceAlertsService } from '../notifications';
 import { REDIS, RedisCache, type RedisLike, redisKeys, workspaceOfActiveKey } from '../redis';
-import { concurrencyAlertPct, decideConcurrency, platformConcurrencyLimit } from './concurrency-monitor';
+import { decideConcurrency } from './concurrency-monitor';
 import { parseActiveHash } from './inbound.decide';
 
 export const CONCURRENCY_ALERT_KEY = 'concurrency';
@@ -49,7 +49,11 @@ export class ConcurrencyMonitorService {
     private readonly ops: OpsAlertService,
   ) {}
 
-  async tick(now = Date.now(), pct = concurrencyAlertPct(), platformLimit = platformConcurrencyLimit()): Promise<ConcurrencyTick> {
+  /** `pct` and `platformLimit` default to the platform settings (admin §9): console, else env var, else default. */
+  async tick(now = Date.now(), pctArg?: number, platformLimitArg?: number | null): Promise<ConcurrencyTick> {
+    const settings = pctArg === undefined || platformLimitArg === undefined ? (await this.config.settings()).settings : null;
+    const pct = pctArg ?? settings!.concurrency_alert_pct;
+    const platformLimit = platformLimitArg === undefined ? settings!.concurrency_platform_limit : platformLimitArg;
     const out: ConcurrencyTick = { workspaces: 0, totalLive: 0, opened: [], resolved: [], platform: platformLimit ? 'ok' : 'unmonitored' };
     const scan = await this.cache.scanKeys(redisKeys.activeCallsPattern);
     if (!scan) {

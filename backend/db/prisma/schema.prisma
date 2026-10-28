@@ -1186,6 +1186,17 @@ model Notification {
 /// Global — the voice platform has one workspace per environment, so the comparison is
 /// platform-wide with the per-workspace split in `details_json`. `alerted_at` is what
 /// stops a rerun of the same window raising the same incident twice.
+/// Admin §9 platform settings (QA, 28 Oct): the knobs that were env vars, set from the console.
+/// A key with no row falls back to its env var, then the default. Staff-only (RLS, no app policy).
+model PlatformSetting {
+  key       String   @id
+  value     Json
+  updatedBy String?  @map("updated_by") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
 model ReconciliationRun {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   windowStart       DateTime @map("window_start")

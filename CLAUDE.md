@@ -1276,6 +1276,12 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Publishing invalidates `pricing:current`, `stack:current`, `flags:*` and `caps:{ws}`; the portal
   re-reads within 60 s.
   Kill switch keys: `reject_inbound`, `pause_web_tests`, `pause_purchases`, `pause_generation`.
+- **Platform settings are rows, with the env var as fallback** (admin §9 `GET|PUT /admin/settings`, `PUT
+  /admin/concurrency/allowance`): `platform_settings` (staff-only, RLS) holds `concurrency_platform_limit`,
+  `concurrency_alert_pct` and `reconcile_drift_threshold_pct`; `PlatformConfigService.settings()` resolves a
+  console row over `CONCURRENCY_PLATFORM_LIMIT` / `CONCURRENCY_ALERT_PCT` / `RECONCILE_DRIFT_THRESHOLD_PCT` over the
+  default (`resolveSettings`, pure). A stored JSON `null` allowance is "not monitored" on purpose, not a fallback.
+  The concurrency monitor, the reconciliation, SA1 and SA7 read it; a box with no rows behaves as before.
 
 **Tenancy and staff access** (ADR 0006)
 
@@ -1350,6 +1356,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `num:{e164}`                 | number → workspace, agent, tier, **rate**, plan max, hours, transfer targets, paused flags                              |
 | `pricing:current`            | current pricing config snapshot                                                                                         |
 | `stack:current`              | current `agent_stack_configs` snapshot: tier stacks, §9.4 guardrails, §9.5 lint                                         |
+| `settings:platform`          | the resolved `platform_settings` (console row → env var → default), 60 s; dropped by every settings write              |
 | `flags:global`               | feature_flags + kill_switches rows                                                                                      |
 | `flags:{ws}`                 | `GET /flags` resolved for one workspace                                                                                 |
 | `kill:reject_inbound`        | the SA12 veto, `'1'`/`'0'`, for the hot path — outside `flags:` and its 60 s TTL                                        |

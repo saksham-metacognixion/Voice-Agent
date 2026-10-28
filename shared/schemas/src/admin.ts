@@ -495,6 +495,49 @@ export const adminCallFlagRequest = z
   .refine((v) => !v.flagged || Boolean(v.note), { message: 'Say why the call is flagged.', path: ['note'] });
 export type AdminCallFlagRequest = z.infer<typeof adminCallFlagRequest>;
 
+// ---------------------------------------------------------------------------- platform settings (admin §9 `PUT /admin/settings`)
+
+/**
+ * The platform knobs that were environment variables. A key set from the console wins over
+ * its env var; a key never set falls back to it, then to the default.
+ */
+export const platformSettings = z.object({
+  /** The voice platform's concurrent-call allowance for our account; null = not monitored. */
+  concurrency_platform_limit: z.number().int().min(1).max(100_000).nullable(),
+  /** Share of a concurrency cap (a workspace's, or the platform allowance) that raises the alert. */
+  concurrency_alert_pct: z.number().int().min(1).max(100),
+  /** Nightly reconciliation alerts above this drift. */
+  reconcile_drift_threshold_pct: z.number().min(0).max(100),
+});
+export type PlatformSettings = z.infer<typeof platformSettings>;
+export const platformSettingKey = platformSettings.keyof();
+export type PlatformSettingKey = z.infer<typeof platformSettingKey>;
+
+export const adminSettingsResponse = z.object({
+  settings: platformSettings,
+  /** Where each value comes from: set in the console, an environment variable, or the default. */
+  source: z.record(platformSettingKey, z.enum(['console', 'env', 'default'])),
+  updated_at: isoDateTime.nullable(),
+  updated_by_email: z.string().nullable(),
+});
+export type AdminSettingsResponse = z.infer<typeof adminSettingsResponse>;
+
+/** PUT /admin/settings — the keys sent are set; `reset` puts keys back on their env var / default. */
+export const adminSettingsUpdateRequest = z
+  .object({ ...staffActionFields, ...platformSettings.partial().shape, reset: z.array(platformSettingKey).max(3).optional() })
+  .refine(noteWithOther, noteWithOtherIssue)
+  .refine(
+    (v) => Object.keys(platformSettings.shape).some((k) => v[k as PlatformSettingKey] !== undefined) || Boolean(v.reset?.length),
+    { message: 'Change at least one setting.', path: ['concurrency_platform_limit'] },
+  );
+export type AdminSettingsUpdateRequest = z.infer<typeof adminSettingsUpdateRequest>;
+
+/** PUT /admin/concurrency/allowance — the one setting the Concurrency tab edits in place. */
+export const adminConcurrencyAllowanceRequest = z
+  .object({ ...staffActionFields, allowance: platformSettings.shape.concurrency_platform_limit })
+  .refine(noteWithOther, noteWithOtherIssue);
+export type AdminConcurrencyAllowanceRequest = z.infer<typeof adminConcurrencyAllowanceRequest>;
+
 // ---------------------------------------------------------------------------- reconciliation (SA12, §14.2)
 
 export const reconciliationStatus = z.enum(['ok', 'drift', 'partial', 'provider_error']);

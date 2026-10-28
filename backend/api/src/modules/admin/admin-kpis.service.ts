@@ -2,7 +2,8 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma, adminDb } from '@portal/db';
 import type { AdminFunnelResponse, AdminKpisResponse, AdminRange } from '@portal/schemas';
 import { REDIS, RedisCache, type RedisLike, redisKeys, workspaceOfActiveKey } from '../redis';
-import { parseActiveHash, platformConcurrencyLimit } from '../calls';
+import { parseActiveHash } from '../calls';
+import { PlatformConfigService } from '../config';
 import { AT_RISK_AFTER_MS, DAY_MS, median, num, rangeWindow } from './admin.helpers';
 
 /**
@@ -34,6 +35,7 @@ export class AdminKpisService {
   constructor(
     private readonly cache: RedisCache,
     @Inject(REDIS) private readonly redis: RedisLike,
+    private readonly config: PlatformConfigService,
   ) {}
 
   async kpis(range: AdminRange, now = new Date()): Promise<AdminKpisResponse> {
@@ -345,7 +347,7 @@ export class AdminKpisService {
 
   /** Live calls platform-wide from `active:*`, the same hashes the inbound checks read. Null when Redis did not answer. */
   async liveConcurrency(now = new Date()): Promise<AdminKpisResponse['concurrency']> {
-    const allowance = platformConcurrencyLimit() ?? null;
+    const allowance = (await this.config.settings()).settings.concurrency_platform_limit;
     const scan = await this.cache.scanKeys(redisKeys.activeCallsPattern);
     if (!scan) return { live: null, allowance };
     let live = 0;

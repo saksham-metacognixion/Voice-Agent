@@ -1337,6 +1337,52 @@
         ],
         "type": "object"
       },
+      "adminConcurrencyAllowanceRequest": {
+        "properties": {
+          "allowance": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 100000,
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code",
+          "allowance"
+        ],
+        "type": "object"
+      },
       "adminConcurrencyResponse": {
         "properties": {
           "alert_threshold_pct": {
@@ -7177,6 +7223,140 @@
         },
         "required": [
           "on",
+          "reason_code"
+        ],
+        "type": "object"
+      },
+      "adminSettingsResponse": {
+        "properties": {
+          "settings": {
+            "properties": {
+              "concurrency_alert_pct": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "concurrency_platform_limit": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100000,
+                "minimum": 1,
+                "nullable": true,
+                "type": "integer"
+              },
+              "reconcile_drift_threshold_pct": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "concurrency_platform_limit",
+              "concurrency_alert_pct",
+              "reconcile_drift_threshold_pct"
+            ],
+            "type": "object"
+          },
+          "source": {
+            "additionalProperties": {
+              "enum": [
+                "console",
+                "env",
+                "default"
+              ],
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "updated_by_email": {
+            "nullable": true,
+            "type": "string"
+          }
+        },
+        "required": [
+          "settings",
+          "source",
+          "updated_at",
+          "updated_by_email"
+        ],
+        "type": "object"
+      },
+      "adminSettingsUpdateRequest": {
+        "properties": {
+          "concurrency_alert_pct": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "concurrency_platform_limit": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 100000,
+            "minimum": 1,
+            "nullable": true,
+            "type": "integer"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "reconcile_drift_threshold_pct": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 100,
+            "minimum": 0,
+            "type": "number"
+          },
+          "reset": {
+            "items": {
+              "enum": [
+                "concurrency_platform_limit",
+                "concurrency_alert_pct",
+                "reconcile_drift_threshold_pct"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "type": "array"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
           "reason_code"
         ],
         "type": "object"
@@ -22001,6 +22181,90 @@
         "x-auth": "staff"
       }
     },
+    "/admin/concurrency/allowance": {
+      "put": {
+        "description": "Spec admin §9.",
+        "operationId": "adminSetConcurrencyAllowance",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminConcurrencyAllowanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminConcurrencyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Set the voice platform’s concurrent-call allowance (null = not monitored); answers the concurrency view",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
+        ]
+      }
+    },
     "/admin/customers": {
       "get": {
         "description": "Spec admin §4 SA2.",
@@ -29123,6 +29387,144 @@
           "admin"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/settings": {
+      "get": {
+        "description": "Spec admin §9.",
+        "operationId": "adminGetSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminSettingsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "The platform settings, and where each comes from (console, environment variable, default)",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff"
+      },
+      "put": {
+        "description": "Spec admin §9.",
+        "operationId": "adminUpdateSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminSettingsUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminSettingsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Set platform settings, or reset them to their environment variable / default",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
+        ]
       }
     },
     "/admin/staff": {

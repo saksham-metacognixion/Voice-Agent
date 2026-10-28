@@ -14,9 +14,12 @@ import {
   pricingConfig,
   pricingResponse,
   rateForTier,
+  type PlatformSettingKey,
+  platformSettings,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { RedisCache, redisKeys } from '../redis';
+import { type ResolvedSettings, resolveSettings } from './platform-settings';
 import { type FeatureFlagRow, type KillSwitchRow, isKillSwitchKey, killSwitchActive, resolveCaps, resolveFlags } from './config.resolve';
 
 /** The current pricing_configs row, parsed. */
@@ -37,6 +40,8 @@ interface GlobalFlags {
  * Redis rather than by remembering to call invalidate().
  */
 export const CONFIG_TTL_S = 60;
+
+export type PlatformSettingsSnapshot = ResolvedSettings & { updated_at: string | null; updated_by: string | null };
 /** Caps are re-derived on every mutating path anyway; the TTL only bounds a missed refresh. */
 export const CAPS_TTL_S = 300;
 /**
@@ -326,6 +331,35 @@ export class PlatformConfigService {
       this.cache.delPattern(redisKeys.flagsPattern),
       this.cache.delPattern(redisKeys.capsPattern),
     ]);
+  }
+
+  // ------------------------------------------------------------------ platform settings (admin §9)
+
+  /**
+   * The platform knobs (`platform_settings`): a console row over its env var over the
+   * default, cached like the rest of the config. Each row is re-validated on read, so a
+   * hand-edited value that would not parse falls back instead of reaching a schedule.
+   */
+  async settings(): Promise<PlatformSettingsSnapshot> {
+    const { value } = await this.cache.remember<PlatformSettingsSnapshot>(redisKeys.platformSettings, CONFIG_TTL_S, () => this.loadSettings());
+    return value;
+  }
+
+  async invalidateSettings(): Promise<void> {
+    await this.cache.del(redisKeys.platformSettings);
+  }
+
+  private async loadSettings(): Promise<PlatformSettingsSnapshot> {
+    const rows = await adminDb.platformSetting.findMany();
+    const valid = new Map<string, unknown>();
+    for (const row of rows) {
+      const schema = platformSettings.shape[row.key as PlatformSettingKey];
+      const parsed = schema?.safeParse(row.value);
+      if (parsed?.success) valid.set(row.key, parsed.data);
+      else this.log.warn(`platform_settings.${row.key} does not parse; falling back to its env var / default`);
+    }
+    const latest = rows.reduce<(typeof rows)[number] | null>((a, r) => (!a || r.updatedAt > a.updatedAt ? r : a), null);
+    return { ...resolveSettings(valid), updated_at: latest?.updatedAt.toISOString() ?? null, updated_by: latest?.updatedBy ?? null };
   }
 
   /** After a plan change, override edit, pause or purchase for one workspace. */

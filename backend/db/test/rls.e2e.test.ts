@@ -190,6 +190,9 @@ describe('D6/D7 tenant-scoped resources are isolated the same way', () => {
     await expect(asWorkspace(acme.tenantId, (db) => db.notification.create({ data: { tenantId: acme.tenantId, kind: 'x', dedupeKey: `x:${acme.tenantId}`, channel: 'email' } }))).rejects.toThrow(/permission denied/i);
     // reconciliation_runs: global, staff-only.
     await expect(withNoWorkspace((db) => db.$queryRawUnsafe('SELECT 1 FROM "reconciliation_runs" LIMIT 1'))).rejects.toThrow(/permission denied/i);
+    // platform_settings (admin §9): global, staff-only.
+    await expect(withNoWorkspace((db) => db.$queryRawUnsafe('SELECT 1 FROM "platform_settings" LIMIT 1'))).rejects.toThrow(/permission denied/i);
+    await expect(asWorkspace(acme.tenantId, (db) => db.$executeRawUnsafe(`INSERT INTO "platform_settings" (key, value) VALUES ('concurrency_alert_pct', '1')`))).rejects.toThrow(/permission denied/i);
   });
 });
 

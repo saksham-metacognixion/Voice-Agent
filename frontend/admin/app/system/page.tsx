@@ -13,6 +13,7 @@ import { DiagnosticsCard } from '@/src/components/system/diagnostics-card';
 import { FlagsTab } from '@/src/components/system/flags-tab';
 import { HealthCards } from '@/src/components/system/health-cards';
 import { ReconciliationTab } from '@/src/components/system/reconciliation-tab';
+import { SettingsTab } from '@/src/components/system/settings-tab';
 import { JobSheet, JobsTable } from '@/src/components/system/jobs-table';
 import { WebhookSheet, WebhooksTable } from '@/src/components/system/webhooks-table';
 import { humanize } from '@/src/lib/format';
@@ -42,7 +43,7 @@ function System() {
   const close = () => setQuery((n) => setParam(n, 'id', null), 'replace');
   return (
     <>
-      <PageHeader title="System" crumbs={[{ label: 'System' }]} description="Health, queues, webhooks, reconciliation, flags and kill switches." />
+      <PageHeader title="System" crumbs={[{ label: 'System' }]} description="Health, queues, webhooks, reconciliation, flags, kill switches and platform settings." />
       <Tabs value={tab} onValueChange={(v) => setQuery((n) => { setParam(n, 'tab', v === 'health' ? null : v); setParam(n, 'id', null); setParam(n, 'status', null); setParam(n, 'q', null); })}>
         <TabsList>
           <TabsTrigger value="health">Health</TabsTrigger>
@@ -50,6 +51,7 @@ function System() {
           <TabsTrigger value="webhooks">Webhooks</TabsTrigger>
           <TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
           <TabsTrigger value="flags">Flags</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === 'health' ? <HealthTab /> : null}
@@ -67,6 +69,7 @@ function System() {
       ) : null}
       {tab === 'reconciliation' ? <ReconciliationTab /> : null}
       {tab === 'flags' ? <FlagsTab /> : null}
+      {tab === 'settings' ? <SettingsTab /> : null}
     </>
   );
 }

@@ -1,8 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, adminDb } from '@portal/db';
 import { OpsAlertService } from '../alerts';
+import { PlatformConfigService } from '../config';
 import { RetellGateway } from '../retell';
-import { type InternalCallFacts, type ReconciliationMetrics, driftThresholdPct, previousUtcDay, reconcile } from './reconcile';
+import { type InternalCallFacts, type ReconciliationMetrics, previousUtcDay, reconcile } from './reconcile';
 
 export type ReconciliationStatus = 'ok' | 'drift' | 'partial' | 'provider_error';
 
@@ -39,9 +40,12 @@ export class CallReconciliationService {
   constructor(
     private readonly retell: RetellGateway,
     private readonly ops: OpsAlertService,
+    private readonly config: PlatformConfigService,
   ) {}
 
-  async run(now = new Date(), window = previousUtcDay(now), thresholdPct = driftThresholdPct()): Promise<ReconciliationOutcome> {
+  /** `thresholdPct` defaults to the platform settings (admin §9): console, else `RECONCILE_DRIFT_THRESHOLD_PCT`, else 5. */
+  async run(now = new Date(), window = previousUtcDay(now), thresholdArg?: number): Promise<ReconciliationOutcome> {
+    const thresholdPct = thresholdArg ?? (await this.config.settings()).settings.reconcile_drift_threshold_pct;
     const internal = await this.internalCalls(window.start, window.end);
     const persist = (data: Omit<Prisma.ReconciliationRunUncheckedCreateInput, 'windowStart' | 'windowEnd'>) =>
       adminDb.reconciliationRun.upsert({

@@ -8,6 +8,7 @@
  *   num:{e164}        number → workspace/agent/tier/hours/flags (D4, ADR 0011)
  *   pricing:current   current pricing_configs snapshot
  *   stack:current     current agent_stack_configs snapshot (§9.3–§9.5, admin SA6)
+ *   settings:platform  the resolved platform settings (admin §9 `PUT /admin/settings`)
  *   flags:*           feature flags and kill switches — global and per workspace
  *   kill:reject_inbound  the SA12 inbound kill switch, projected for the hot path
  *   lock:schedule:{name} one worker per running schedule tick (D7)
@@ -33,6 +34,7 @@ export const redisKeys = {
   pricingCurrent: 'pricing:current',
   /** Current agent_stack_configs snapshot: tier → model/voice, §9.4 guardrails, §9.5 lint. */
   agentStackCurrent: 'stack:current',
+  platformSettings: 'settings:platform',
   /** Global feature_flags + kill_switches rows, as one JSON document. */
   flagsGlobal: 'flags:global',
   /** GET /flags resolved for one workspace. */

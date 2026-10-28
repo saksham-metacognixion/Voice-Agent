@@ -16,6 +16,7 @@ import { AdminAgentsService } from './admin-agents.service';
 import { AdminAuditService } from './admin-audit.service';
 import { AdminReconciliationService } from './admin-reconciliation.service';
 import { AdminReportsService } from './admin-reports.service';
+import { AdminSettingsService } from './admin-settings.service';
 import { AdminCallsService } from './admin-calls.service';
 import { AdminCustomersService } from './admin-customers.service';
 import { AdminFlagsService } from './admin-flags.service';
@@ -117,6 +118,7 @@ import { StaffLimitsService } from './staff-limits.service';
     AdminAuditService,
     AdminReconciliationService,
     AdminReportsService,
+    AdminSettingsService,
     AdminCustomersService,
     AdminAgentsService,
     AdminNumbersService,

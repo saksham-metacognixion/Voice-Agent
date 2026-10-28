@@ -5,6 +5,7 @@ import { adminDb } from '@portal/db';
 import { type PricingConfig, pricingConfig } from '@portal/schemas';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
+import { CallReconciliationService } from '../src/modules/calls';
 import { PlatformConfigService } from '../src/modules/config';
 import { Worker } from 'bullmq';
 import { JOBS, JobQueues, JobRecordsService, QUEUES, activationBullId, provisionNumberBullId } from '../src/modules/jobs';
@@ -1690,6 +1691,57 @@ describe('SA8 call actions and SA12 reconciliation', () => {
     const listed = await call('GET', '/admin/reconciliations?limit=100', staff.readOnly.token);
     expect((listed.body.items as Array<{ id: string }>).map((r) => r.id)).toContain(ran.body.id);
     await adminDb.reconciliationRun.deleteMany({ where: { windowStart: start } });
+  });
+});
+
+// --------------------------------------------------------------------------- platform settings
+
+describe('platform settings and the concurrency allowance', () => {
+  it('sets, reads, applies and resets the settings that were environment variables', async () => {
+    const config = h.app.get(PlatformConfigService);
+    const clear = async () => {
+      await adminDb.platformSetting.deleteMany({});
+      await config.invalidateSettings();
+    };
+    await clear();
+    try {
+      const fresh = await call('GET', '/admin/settings', staff.readOnly.token);
+      expect(fresh.status).toBe(200);
+      expect(Object.values(fresh.body.source as Record<string, string>).every((s) => s !== 'console')).toBe(true);
+
+      expect((await call('PUT', '/admin/settings', staff.support.token, { ...reason, concurrency_alert_pct: 70 })).status).toBe(403);
+      expect((await call('PUT', '/admin/settings', staff.ops.token, { ...reason, concurrency_alert_pct: 0 })).status).toBe(422);
+      expect((await call('PUT', '/admin/settings', staff.ops.token, reason)).status).toBe(422);
+      expect((await call('PUT', '/admin/settings', staff.ops.token, { ...reason, concurrency_alert_pct: 70, reset: ['concurrency_alert_pct'] })).status).toBe(422);
+
+      const saved = await call('PUT', '/admin/settings', staff.ops.token, { ...reason, concurrency_alert_pct: 70, reconcile_drift_threshold_pct: 2.5 });
+      expect(saved.status).toBe(200);
+      expect(saved.body.settings).toMatchObject({ concurrency_alert_pct: 70, reconcile_drift_threshold_pct: 2.5 });
+      expect(saved.body.source).toMatchObject({ concurrency_alert_pct: 'console', reconcile_drift_threshold_pct: 'console' });
+      expect(saved.body.updated_by_email).toMatch(/^ops-/);
+      expect((await lastAudit('settings.updated'))?.afterJson).toEqual({ concurrency_alert_pct: 70, reconcile_drift_threshold_pct: 2.5 });
+
+      // The schedules read them: the reconciliation's threshold and the concurrency view's.
+      const window = { start: new Date('2001-03-04T00:00:00.000Z'), end: new Date('2001-03-05T00:00:00.000Z') };
+      const outcome = await h.app.get(CallReconciliationService).run(new Date(), window);
+      expect(outcome.thresholdPct).toBe(2.5);
+      await adminDb.reconciliationRun.deleteMany({ where: { windowStart: window.start } });
+
+      const allowance = await call('PUT', '/admin/concurrency/allowance', staff.ops.token, { ...reason, allowance: 25 });
+      expect(allowance.status).toBe(200);
+      expect(allowance.body).toMatchObject({ allowance: 25, alert_threshold_pct: 70 });
+      // null is a value — "not monitored" on purpose — not a fallback to the env var.
+      const off = await call('PUT', '/admin/concurrency/allowance', staff.ops.token, { ...reason, allowance: null });
+      expect(off.body.allowance).toBeNull();
+      expect((await call('GET', '/admin/settings', staff.readOnly.token)).body.source).toMatchObject({ concurrency_platform_limit: 'console' });
+
+      const reset = await call('PUT', '/admin/settings', staff.ops.token, { ...reason, reset: ['concurrency_platform_limit', 'concurrency_alert_pct', 'reconcile_drift_threshold_pct'] });
+      expect(reset.status).toBe(200);
+      expect(Object.values(reset.body.source as Record<string, string>).every((s) => s !== 'console')).toBe(true);
+      expect(await adminDb.platformSetting.count()).toBe(0);
+    } finally {
+      await clear();
+    }
   });
 });
 

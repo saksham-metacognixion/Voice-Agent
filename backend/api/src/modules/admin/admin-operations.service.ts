@@ -12,7 +12,7 @@ import { cursorArgs, toPage } from '../../common/pagination';
 // The pure step-machine mapping only — no Nest module of `activation` is imported, so
 // the module graph still ends at `activation` (CLAUDE.md: nothing depends on it).
 import { parseSteps, toView } from '../activation/activation-state';
-import { concurrencyAlertPct, parseActiveHash, platformConcurrencyLimit } from '../calls';
+import { parseActiveHash } from '../calls';
 import { PlatformConfigService } from '../config';
 import { JOBS, queueOfJobType } from '../jobs';
 import { REDIS, RedisCache, type RedisLike, redisKeys, workspaceOfActiveKey } from '../redis';
@@ -134,8 +134,7 @@ export class AdminOperationsService {
    * `complete` false: what was seen is still listed, but the total is not a total.
    */
   async concurrency(now = new Date()): Promise<AdminConcurrencyResponse> {
-    const allowance = platformConcurrencyLimit();
-    const pct = concurrencyAlertPct();
+    const { concurrency_platform_limit: allowance, concurrency_alert_pct: pct } = (await this.config.settings()).settings;
     const base = { allowance, alert_threshold_pct: pct, checked_at: now.toISOString() };
     const scan = await this.cache.scanKeys(redisKeys.activeCallsPattern);
     if (!scan) {

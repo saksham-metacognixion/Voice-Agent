@@ -1,15 +1,19 @@
 'use client';
 
-import { useAdminConcurrency, useApi } from '@portal/api-client';
-import type { AdminConcurrencyResponse } from '@portal/schemas';
-import { Alert, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Progress, Skeleton, cn } from '@portal/ui';
+import { useAdminConcurrency, useAdminSetConcurrencyAllowance, useApi } from '@portal/api-client';
+import type { AdminConcurrencyResponse, StaffActionRequest } from '@portal/schemas';
+import { Alert, Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Input, Progress, Skeleton, cn, toast } from '@portal/ui';
+import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import * as React from 'react';
 import { DataTable, type DataColumn } from '@/src/components/common/data-table';
+import { PermissionButton } from '@/src/components/common/permission-button';
+import { StaffActionDialog } from '@/src/components/common/staff-action-dialog';
 import { LoadError } from '@/src/components/common/query-states';
 import { HealthBadge, PlanBadge } from '@/src/components/common/status-badges';
 import { formatDateTime, formatNumber } from '@/src/lib/format';
 import { customerPath } from '@/src/routes';
+import { useStaff } from '@/src/staff/staff-provider';
 
 type Tenant = AdminConcurrencyResponse['tenants'][number];
 
@@ -69,7 +73,10 @@ function ConcurrencyView({ c, refreshing }: { c: AdminConcurrencyResponse; refre
               {refreshing ? ' · refreshing' : ''}.
             </CardDescription>
           </div>
-          <HealthBadge signal={c.signal} />
+          <div className="flex items-center gap-2">
+            <HealthBadge signal={c.signal} />
+            <AllowanceButton allowance={c.allowance} />
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 pt-4">
           {unreadable ? (
@@ -84,7 +91,7 @@ function ConcurrencyView({ c, refreshing }: { c: AdminConcurrencyResponse; refre
               </div>
               {pct !== null ? <Progress value={pct} className={cn(c.signal === 'down' ? '[&>div]:bg-danger' : c.signal === 'warn' ? '[&>div]:bg-warning' : undefined)} aria-label={`${pct}% of the platform allowance`} /> : null}
               <p className="text-xs text-muted-foreground">
-                {c.allowance === null ? 'Set CONCURRENCY_PLATFORM_LIMIT on the API to gauge against the platform plan.' : `Ops is paged at ${c.alert_threshold_pct}% of the allowance (${Math.ceil((c.allowance * c.alert_threshold_pct) / 100)} calls).`}
+                {c.allowance === null ? 'Set the allowance to gauge live calls against the voice platform plan.' : `Ops is paged at ${c.alert_threshold_pct}% of the allowance (${Math.ceil((c.allowance * c.alert_threshold_pct) / 100)} calls).`}
                 {' '}
                 {c.tenants.length} workspace{c.tenants.length === 1 ? '' : 's'} on a call.
               </p>
@@ -103,5 +110,52 @@ function ConcurrencyView({ c, refreshing }: { c: AdminConcurrencyResponse; refre
         </p>
       ) : null}
     </div>
+  );
+}
+
+/** Admin §9 `PUT /admin/concurrency/allowance`: the voice platform's concurrent-call allowance; blank = not monitored. */
+function AllowanceButton({ allowance }: { allowance: number | null }) {
+  const api = useApi();
+  const queryClient = useQueryClient();
+  const { can } = useStaff();
+  const save = useAdminSetConcurrencyAllowance(api);
+  const [open, setOpen] = React.useState(false);
+  const [value, setValue] = React.useState('');
+  const parsed = value.trim() === '' ? null : Number(value);
+  const valid = parsed === null || (Number.isInteger(parsed) && parsed >= 1 && parsed <= 100_000);
+
+  async function confirm(body: StaffActionRequest) {
+    await save.mutateAsync({ body: { ...body, allowance: parsed } });
+    await Promise.all(['adminConcurrency', 'adminGetSettings', 'adminKpis'].map((key) => queryClient.invalidateQueries({ queryKey: [key] })));
+    toast.success(parsed === null ? 'Allowance cleared: the platform total is no longer monitored' : `Allowance set to ${formatNumber(parsed, 0)} calls`);
+  }
+
+  return (
+    <>
+      <PermissionButton
+        size="sm"
+        variant="outline"
+        denied={can.operateQueues()}
+        onClick={() => {
+          setValue(allowance?.toString() ?? '');
+          setOpen(true);
+        }}
+      >
+        Edit allowance
+      </PermissionButton>
+      <StaffActionDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Platform concurrency allowance"
+        description="How many calls the voice platform plan lets us run at once. Ops is paged as live calls near it; leave it blank to stop monitoring."
+        confirmLabel="Save allowance"
+        extraValid={valid && parsed !== allowance}
+        onConfirm={confirm}
+      >
+        <Field id="allowance" label="Concurrent calls" optional error={valid ? undefined : 'A whole number from 1 to 100,000.'}>
+          <Input id="allowance" inputMode="numeric" value={value} onChange={(e) => setValue(e.target.value.replace(/[^\d]/g, ''))} placeholder="Not monitored" className="max-w-40" invalid={!valid} />
+        </Field>
+      </StaffActionDialog>
+    </>
   );
 }
