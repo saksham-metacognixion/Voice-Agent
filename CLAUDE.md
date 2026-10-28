@@ -128,7 +128,10 @@ platform do-not-call lists, prior contact, every-zone calling windows and a per-
 under a lock; voicemail per call (28 Oct), 0032 the 28 Oct QA batch — duplicate / discard draft /
 save version, denoise + PII add-ons on the version, editable analysis fields, the recording notice,
 the transfer-failed message, ledger export, the workspace zip and delete *request* (supersedes
-ADR 0019 §8), test-call versions, and the console's pinned actions and non-blocking health (28 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+ADR 0019 §8), test-call versions, and the console's pinned actions and non-blocking health (28 Oct), 0033 the
+admin P1 gaps — overrides, number release/resync/reprovision, the provisioning retry that frees a
+finished job's id, call refund/flag, reconciliation runs, COGS/deferred/breakage reports and the KB
+list, platform settings as rows over env vars, and the portal's own-session list (28 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
