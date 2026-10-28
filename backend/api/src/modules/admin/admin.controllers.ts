@@ -9,8 +9,10 @@ import {
   Put,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import { Readable } from 'node:stream';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { adminDb } from '@portal/db';
 import {
   type AdminAgentResponse,
@@ -50,6 +52,7 @@ import {
   type Page,
   type StaffMeResponse,
   adminAgentsQuery,
+  adminAuditFilters,
   adminAuditQuery,
   adminCallsQuery,
   adminCreditAdjustRequest,
@@ -73,11 +76,11 @@ import {
   STAFF_ROUTE_ROLES,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { cursorArgs, toPage } from '../../common/pagination';
 import { OpsAlertService } from '../alerts';
 import { StaffCtx, StaffRoles } from '../auth';
 import type { StaffContext } from '../auth';
 import { AdminAgentsService } from './admin-agents.service';
+import { AdminAuditService } from './admin-audit.service';
 import { AdminCallsService } from './admin-calls.service';
 import { AdminCustomersService } from './admin-customers.service';
 import { AdminFlagsService } from './admin-flags.service';
@@ -756,42 +759,35 @@ export class AdminSystemController {
 
 @Controller('admin/audit')
 export class AdminAuditController {
+  constructor(private readonly audit: AdminAuditService) {}
+
   @Get()
-  async list(@Query() raw: Record<string, unknown>): Promise<Page<AdminAuditEntry>> {
-    const query = adminAuditQuery.parse(raw);
-    const rows = await adminDb.staffAuditLog.findMany({
-      where: {
-        ...(query.staff_id ? { staffId: query.staff_id } : {}),
-        ...(query.tenant_id ? { tenantId: query.tenant_id } : {}),
-        ...(query.action ? { action: { startsWith: query.action } } : {}),
-        ...(query.target_id ? { targetId: query.target_id } : {}),
-      },
-      include: { staff: { select: { email: true } }, tenant: { select: { name: true } } },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      ...cursorArgs(query),
-    });
-    const page = toPage(rows, query);
-    return {
-      ...page,
-      items: page.items.map((r) => ({
-        id: r.id,
-        staff_id: r.staffId,
-        staff_email: r.staff.email,
-        action: r.action,
-        target_type: r.targetType,
-        target_id: r.targetId,
-        tenant_id: r.tenantId,
-        tenant_name: r.tenant?.name ?? null,
-        reason_code: r.reasonCode,
-        note: r.note,
-        before: r.beforeJson ?? null,
-        after: r.afterJson ?? null,
-        ip: r.ip,
-        impersonation_id: r.impersonationId,
-        request_id: r.requestId,
-        created_at: r.createdAt.toISOString(),
-      })),
-    };
+  list(@Query() raw: Record<string, unknown>): Promise<Page<AdminAuditEntry>> {
+    return this.audit.list(adminAuditQuery.parse(raw));
+  }
+
+  /**
+   * SA14 "Export" (admin §9 `GET /admin/audit/export`): the rows the filters select, as
+   * CSV, streamed as read. Same roles as the list. `@Res()` hands the reply to Fastify.
+   */
+  @Get('export')
+  async export(
+    @StaffCtx() staff: StaffContext,
+    @Query() raw: Record<string, unknown>,
+    @Req() request: FastifyRequest,
+    @Res() reply: FastifyReply,
+  ): Promise<void> {
+    const filters = adminAuditFilters.parse(raw);
+    await this.audit.recordExport(staff, filters, request);
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    void reply
+      .code(200)
+      .headers({
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="staff-audit-${stamp}.csv"`,
+        'cache-control': 'private, no-store',
+      })
+      .send(Readable.from(this.audit.exportCsv(filters)));
   }
 }
 

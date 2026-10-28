@@ -13,4 +13,4 @@ export { useWorkspaceEvents, type StreamState } from './hooks/events';
 export { useJobWatch, isJobDone, JOB_POLL_MS } from './hooks/job';
 export { useHealth } from './hooks/health';
 export * from './generated/endpoints';
-export { exportCalls } from './calls-export';
+export { exportAdminAudit, exportCalls } from './calls-export';

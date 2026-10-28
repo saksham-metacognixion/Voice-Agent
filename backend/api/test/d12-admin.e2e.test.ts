@@ -1447,4 +1447,57 @@ describe('SA14 audit log', () => {
       ),
     ).toBe(true);
   });
+
+  it('filters by what a person types: part of a staff email, part of a customer name, or a pasted id', async () => {
+    const ids = (body: Record<string, unknown>) => (body.items as Array<{ id: string }>).map((r) => r.id).sort();
+    const byId = await call('GET', `/admin/audit?tenant_id=${ws.workspaceId}&limit=100`, staff.readOnly.token);
+    const tenant = await adminDb.tenant.findUniqueOrThrow({ where: { id: ws.workspaceId }, select: { name: true } });
+
+    // Lower case, a fragment of the name: the same rows as the id.
+    const byName = await call('GET', `/admin/audit?customer=${encodeURIComponent(tenant.name.slice(4).toLowerCase())}&limit=100`, staff.readOnly.token);
+    expect(byName.status).toBe(200);
+    expect(ids(byName.body)).toEqual(ids(byId.body));
+    const byPastedId = await call('GET', `/admin/audit?customer=${ws.workspaceId}&limit=100`, staff.readOnly.token);
+    expect(ids(byPastedId.body)).toEqual(ids(byId.body));
+
+    const opsEmail = (await adminDb.staffUser.findUniqueOrThrow({ where: { id: staff.ops.id } })).email;
+    const byStaff = await call('GET', `/admin/audit?staff=${encodeURIComponent(opsEmail.split('@')[0]!.toUpperCase())}&limit=100`, staff.readOnly.token);
+    const staffRows = byStaff.body.items as Array<{ staff_id: string }>;
+    expect(staffRows.length).toBeGreaterThan(0);
+    expect(staffRows.every((r) => r.staff_id === staff.ops.id)).toBe(true);
+
+    // A value that matches nobody narrows to nothing; it is never dropped for the full list.
+    const none = await call('GET', `/admin/audit?staff=nobody-${randomUUID()}`, staff.readOnly.token);
+    expect(none.status).toBe(200);
+    expect(none.body.items).toEqual([]);
+  });
+
+  it('exports the filtered rows as CSV, and the export is itself audited', async () => {
+    const list = await call('GET', `/admin/audit?tenant_id=${ws.workspaceId}&limit=100`, staff.readOnly.token);
+    const res = await h.app.inject({
+      method: 'GET',
+      url: `/admin/audit/export?customer=${ws.workspaceId}`,
+      headers: { authorization: `Bearer ${staff.readOnly.token}` },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^text\/csv/);
+    expect(String(res.headers['content-disposition'])).toMatch(/^attachment; filename="staff-audit-.*\.csv"$/);
+    const lines = res.body.trimEnd().split('\r\n');
+    expect(lines[0]).toBe('created_at,staff_email,action,target_type,target_id,customer_id,customer_name,reason_code,note,ip,request_id,view_as_session,before,after');
+    // The list's rows, newest first (the export was recorded after the list was read, and has no customer).
+    expect(lines).toHaveLength((list.body.items as unknown[]).length + 1);
+    expect(lines[1]!.startsWith((list.body.items as Array<{ created_at: string }>)[0]!.created_at)).toBe(true);
+    expect(res.body).toContain(',credits.adjusted,');
+
+    const exported = await lastAudit('audit.exported');
+    expect(exported?.staffId).toBe(staff.readOnly.id);
+    expect(exported?.afterJson).toEqual({ filters: { customer: ws.workspaceId } });
+
+    const customer = await h.app.inject({
+      method: 'GET',
+      url: '/admin/audit/export',
+      headers: { authorization: `Bearer ${await h.customerTenant.mint(ws.sub)}` },
+    });
+    expect(customer.statusCode).toBe(401);
+  });
 });

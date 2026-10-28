@@ -11,6 +11,7 @@ export type { Decision, DecisionInput, DecisionWarning, ActiveCall, OpenReason }
 export { computeCharge, NOT_CONNECTED_REASONS } from './metering';
 export type { Charge, CallEndedFacts, ZeroChargeReason } from './metering';
 export { foldTransfer, computeTransferCharge } from './transfer';
+export { csvCell } from './csv';
 export type { TransferFacts, TransferEventFact, TransferCharge, TransferStatus } from './transfer';
 export { RecordingSigner, RECORDING_URL_TTL_S } from './recording';
 export type { RecordingClaims } from './recording';

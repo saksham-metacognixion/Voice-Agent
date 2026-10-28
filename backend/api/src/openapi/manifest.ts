@@ -1205,6 +1205,18 @@ export const MANIFEST: readonly EndpointSpec[] = [
   },
   {
     method: 'GET',
+    path: '/admin/audit/export',
+    operationId: 'adminAuditExport',
+    summary: 'SA14 — the filtered staff audit log as CSV, newest first, 10 000 rows at most',
+    tag: 'admin',
+    spec: 'admin §9, §10',
+    query: 'adminAuditFilters',
+    response: { stream: 'text/csv' },
+    client: false,
+    errors: ['VALIDATION_FAILED'],
+  },
+  {
+    method: 'GET',
     path: '/admin/customers',
     operationId: 'adminListCustomers',
     summary: 'SA2 — customers with status, balance, usage and owner',

@@ -898,13 +898,29 @@ export type AdminTestAlertResponse = z.infer<typeof adminTestAlertResponse>;
 
 // ---------------------------------------------------------------------------- audit (SA14)
 
-export const adminAuditQuery = paginationQuery.extend({
+/**
+ * The SA14 filters, shared by the list and the CSV export. `staff` and `customer` are what
+ * a person types — part of an email or a name, or a pasted id — because the console never
+ * shows a staff id and shows a workspace id only on the Customer 360 header (QA: audit
+ * filters needed a UUID). The `_id` forms stay for links.
+ */
+export const adminAuditFilters = z.object({
   staff_id: uuid.optional(),
+  /** Part of a staff email or name, case ignored; an id is matched exactly. */
+  staff: z.string().trim().min(1).max(120).optional(),
   tenant_id: uuid.optional(),
+  /** Part of a customer (workspace) name, case ignored; an id is matched exactly. */
+  customer: z.string().trim().min(1).max(120).optional(),
   action: z.string().trim().min(1).max(80).optional(),
   target_id: z.string().trim().min(1).max(120).optional(),
 });
+export type AdminAuditFilters = z.infer<typeof adminAuditFilters>;
+
+export const adminAuditQuery = paginationQuery.extend(adminAuditFilters.shape);
 export type AdminAuditQuery = z.infer<typeof adminAuditQuery>;
+
+/** GET /admin/audit/export — the filtered rows as CSV, newest first, at most this many. */
+export const ADMIN_AUDIT_EXPORT_MAX_ROWS = 10_000;
 
 export const adminAuditEntry = z.object({
   id: uuid,

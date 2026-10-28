@@ -1377,7 +1377,9 @@ throws and never waits past its budget (ADR 0010 §6).
   `application/octet-stream` to `audio/wav` (`recordingContentType`); Firefox refuses the
   former outright.
 - D12 routes (`docs/api/openapi.json`, tags `admin*`): `GET /admin/me`, `/admin/kpis`,
-  `/admin/kpis/funnel`, `/admin/search`, `/admin/system/health`, `/admin/audit`;
+  `/admin/kpis/funnel`, `/admin/search`, `/admin/system/health`, `/admin/audit` (+ `/export`,
+  streamed CSV of the same filters, 10 000 rows, itself audited as `audit.exported`; `staff` /
+  `customer` match part of an email or name, or an id exactly — the console never shows a staff id);
   `/admin/customers` (+ `:id`, `/members`, `/wallet`, `/purchases`, `/agents`, `/numbers`,
   `/calls`, `/jobs`, `/webhook-events`, `/audit`, `POST …/pause|resume|credits/adjust|impersonate`);
   `/admin/impersonations` (+ `DELETE :id`); `/admin/users` (+ `POST :id/verify-email|reset-mfa|lock|unlock|force-logout`);
