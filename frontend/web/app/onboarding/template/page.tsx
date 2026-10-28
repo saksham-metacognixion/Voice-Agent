@@ -70,6 +70,8 @@ function TemplateInner() {
   // dental practice — is said out loud with the template that would fit, and left to
   // the person: nothing is guessed from a business name and nothing is refused.
   const selectedTemplate = templates.data?.find((x) => x.id === selected) ?? null;
+  // The agent's own template, named in the reader's language (QA-059).
+  const existing = agent ? templates.data?.find((x) => x.id === agent.template_id) : undefined;
   const conflict = industryConflicts(selectedTemplate, industry);
   const fitting = React.useMemo(() => {
     if (!conflict || !industry) return [];
@@ -117,7 +119,7 @@ function TemplateInner() {
           <>
             {agent ? (
               <Alert variant="neutral">
-                {t('wizard.w1.existing', { template: templates.data.find((x) => x.id === agent.template_id)?.name ?? agent.name })}
+                {t('wizard.w1.existing', { template: existing ? copy.templateName(existing) : agent.name })}
               </Alert>
             ) : null}
             <TemplatePicker templates={templates.data} selected={selected} onSelect={(id) => setSelected(id as TemplateId)} disabled={busy} />

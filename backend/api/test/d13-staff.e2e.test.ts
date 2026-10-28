@@ -190,7 +190,7 @@ describe('SA13 staff members', () => {
       (await adminDb.staffUser.findUniqueOrThrow({ where: { id: invitedId } })).authProviderId,
     ).toBe(`${STAFF_INVITE_PREFIX}${invitedEmail}`);
 
-    const first = await h.staffTenant.mint(sub, { mfa: true, email: invitedEmail });
+    const first = await h.staffTenant.mint(sub, { mfa: true, email: invitedEmail, name: 'Provider Name' });
     const me = await call('GET', '/admin/me', first);
     expect(me.status).toBe(200);
     expect(me.body).toMatchObject({ id: invitedId, email: invitedEmail, role: 'support' });
@@ -202,6 +202,8 @@ describe('SA13 staff members', () => {
       bound: boolean;
     }>;
     expect(listed.find((r) => r.id === invitedId)?.bound).toBe(true);
+    // The inviter typed a name: the identity provider's does not replace it (QA-065).
+    expect((await adminDb.staffUser.findUniqueOrThrow({ where: { id: invitedId } })).name).toBe('New Colleague');
 
     const other = await h.staffTenant.mint(`google-oauth2|impostor-${run}`, {
       mfa: true,
@@ -213,6 +215,23 @@ describe('SA13 staff members', () => {
     expect(
       (await adminDb.staffUser.findUniqueOrThrow({ where: { id: invitedId } })).authProviderId,
     ).toBe(sub);
+  });
+
+  it('names an unnamed invite from the identity provider, and SA13 can correct it (QA-065)', async () => {
+    const email = `unnamed-${run}@${STAFF_DOMAIN}`;
+    const created = await call('POST', '/admin/staff', staff.superAdmin.token, { email, role: 'support' });
+    expect(created.status).toBe(201);
+    expect(created.body.name).toBeNull();
+    const id = created.body.id as string;
+
+    const token = await h.staffTenant.mint(`google-oauth2|unnamed-${run}`, { mfa: true, email, name: 'Padma V' });
+    expect((await call('GET', '/admin/me', token)).body).toMatchObject({ id, name: 'Padma V' });
+
+    const renamed = await call('PATCH', `/admin/staff/${id}`, staff.superAdmin.token, { name: 'Padmavathi' });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.name).toBe('Padmavathi');
+    expect((await lastAudit('staff.updated'))?.targetId).toBe(id);
+    expect((await call('GET', '/admin/me', token)).body.name).toBe('Padmavathi');
   });
 
   it('changes a role with before/after in the audit row', async () => {

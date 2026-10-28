@@ -144,6 +144,7 @@ export class SipVerificationService {
             action: 'number.sip_verified',
             targetType: 'phone_number',
             targetId: numberId,
+            ip: ctx.ip ?? null,
             // Outcome words and which fields changed — never a value of one.
             metaJson: {
               status,

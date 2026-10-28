@@ -1,7 +1,7 @@
 'use client';
 
 import { isApiError, useAdminPricingPreview, useAdminPublishPricing, useApi } from '@portal/api-client';
-import type { AdminPricingPreviewResponse, ReasonCode } from '@portal/schemas';
+import { PRICING_NOTE_MAX, type AdminPricingPreviewResponse, type ReasonCode } from '@portal/schemas';
 import {
   Alert, Badge, Button, Card, CardContent, CardHeader, CardTitle, Checkbox, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, EmptyState, Field, Input, Label, RadioGroup, RadioCard, Skeleton, Textarea, cn, toast,
 } from '@portal/ui';
@@ -271,7 +271,7 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
           </Select>
         </Field>
         <Field id="pub-note" label="Note" required={noteRequired} optional={!noteRequired} description={noteRequired ? (reason === 'other' ? 'Required with reason "Other".' : 'Required to override the margin floor.') : 'Goes in the staff audit log.'}>
-          <Textarea id="pub-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={500} className="min-h-16" />
+          <Textarea id="pub-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={PRICING_NOTE_MAX} className="min-h-16" />
         </Field>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="pub-typed">

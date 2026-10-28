@@ -43,7 +43,7 @@ export function NumbersList() {
 
   const columns: Array<DataColumn<PhoneNumberResponse>> = [
     { key: 'number', header: t('columns.number'), card: 'title', cell: (n) => <span className="font-medium"><NumberLabel number={n} /></span> },
-    { key: 'label', header: t('columns.label'), card: 'subtitle', cell: (n) => n.nickname ?? <span className="text-muted-foreground">–</span> },
+    { key: 'label', header: t('columns.label'), card: 'subtitle', cell: (n) => (n.nickname ? <span dir="auto">{n.nickname}</span> : <span className="text-muted-foreground">–</span>) },
     { key: 'type', header: t('columns.type'), cell: (n) => <NumberTypeBadge number={n} /> },
     { key: 'country', header: t('columns.country'), className: 'hidden md:table-cell', cell: (n) => n.country ?? '–' },
     { key: 'agent', header: t('columns.agent'), cell: (n) => (n.agent_id ? (agents.name(n.agent_id) ?? t('unknownAgent')) : <span className="text-muted-foreground">{t('noAgent')}</span>) },

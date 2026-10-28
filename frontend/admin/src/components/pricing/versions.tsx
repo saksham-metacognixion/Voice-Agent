@@ -1,7 +1,7 @@
 'use client';
 
 import { useAdminGetPricingVersion, useAdminPricingVersions, useAdminRollbackPricing, useApi } from '@portal/api-client';
-import type { AdminPricingVersion } from '@portal/schemas';
+import { PRICING_NOTE_MAX, type AdminPricingVersion } from '@portal/schemas';
 import { Badge, Checkbox, Skeleton, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
@@ -81,6 +81,7 @@ export function PricingVersions() {
         confirmLabel="Roll back"
         destructive
         typeToConfirm="ROLLBACK"
+        noteMax={PRICING_NOTE_MAX}
         onConfirm={async (body) => {
           if (!rolling) return;
           const v = await rollback.mutateAsync({ params: { version: String(rolling.version) }, body: { ...body, override_margin: override } });

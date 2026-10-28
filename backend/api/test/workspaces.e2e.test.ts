@@ -270,6 +270,23 @@ describe('POST /workspace/onboarding-step (QA-005)', () => {
     expect(row.onboardingStep).toBe(5);
   });
 
+  it('is not rewound through PATCH /workspace, even by the owner (QA-058)', async () => {
+    const owner = await createWorkspace('rewind');
+    const headers = await auth(owner.sub, owner.workspaceId);
+    await post('/workspace/onboarding-step', headers, { step: 5 });
+
+    const res = await app.inject({
+      method: 'PATCH',
+      url: '/workspace',
+      headers: { ...headers, 'content-type': 'application/json' },
+      payload: JSON.stringify({ name: 'Rewind test', onboarding_step: 1 }),
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().onboarding_step).toBe(5);
+    const row = await adminDb.tenant.findUniqueOrThrow({ where: { id: owner.workspaceId } });
+    expect(row.onboardingStep).toBe(5);
+  });
+
   it('is closed to a viewer and refuses a step outside 1–7', async () => {
     const owner = await createWorkspace('advance-viewer');
     const viewer = await addMember(owner.workspaceId, 'advance-viewer-v', 'viewer');
@@ -337,6 +354,8 @@ describe('members and roles (§6.1)', () => {
       where: { tenantId: owner.workspaceId, action: 'member.role_changed' },
     });
     expect(audit?.metaJson).toMatchObject({ from: 'editor', to: 'viewer' });
+    // Every audit row a request writes carries its address, not only the settings ones (QA-074).
+    expect(audit?.ip).toBeTruthy();
   });
 
   it('refuses to change the owner’s role, even for the owner', async () => {
@@ -564,7 +583,8 @@ describe('invites (A8)', () => {
     expect(res.statusCode).toBe(400);
     // Its own code since QA-016, so the join screen can say "wrong address", not "invalid".
     expect(res.json().code).toBe('INVITE_WRONG_EMAIL');
-    expect(res.json().message).toContain(intended.email);
+    // The invited address is never told to another account (QA-060).
+    expect(res.json().message).not.toContain(intended.email);
     expect(await adminDb.membership.count({ where: { tenantId: owner.workspaceId } })).toBe(1);
   });
 

@@ -11,6 +11,7 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
+import { areaCodeSubstitute } from '@/src/dashboard/numbers-view';
 import { LiveGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
@@ -43,6 +44,7 @@ function LiveInner({ agent }: { agent: AgentDetail }) {
 
   if (activation.isPending) return <PageLoader label={t('common.loading')} />;
   const e164 = number.data?.e164 ?? activation.data?.e164 ?? null;
+  const substitute = number.data ? areaCodeSubstitute(number.data) : null;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 py-4">
@@ -70,6 +72,7 @@ function LiveInner({ agent }: { agent: AgentDetail }) {
                 {e164}
               </a>
             ) : null}
+            {substitute ? <Alert variant="neutral">{tl('areaCodeNote', substitute)}</Alert> : null}
             {number.data?.forwarding ? <Forwarding number={number.data} /> : null}
           </CardContent>
         </Card>

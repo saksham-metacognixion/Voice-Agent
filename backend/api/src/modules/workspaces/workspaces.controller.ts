@@ -173,7 +173,7 @@ export class WorkspacesController {
     if (!token || token.length < 16 || token.length > 200) {
       throw new AppError('INVITE_INVALID', 'That invite link is not valid.');
     }
-    return this.members.acceptInvite(authOf(request), token);
+    return this.members.acceptInvite(authOf(request), token, request.ip);
   }
 }
 

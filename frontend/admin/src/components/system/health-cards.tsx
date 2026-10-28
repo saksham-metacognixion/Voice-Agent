@@ -17,7 +17,12 @@ function HealthCard({ title, check, children }: { title: string; check: { signal
         <HealthBadge signal={check.signal} />
       </CardHeader>
       <CardContent className="flex flex-col gap-1 pt-3 text-sm">
-        <p className={cn('text-muted-foreground', check.signal === 'down' && 'text-danger')}>{check.detail ?? 'No detail'}</p>
+        {check.detail ? (
+          <p className={cn('text-muted-foreground', check.signal === 'down' && 'text-danger')}>{check.detail}</p>
+        ) : check.signal === 'ok' ? null : (
+          // Only a check that could not report has nothing to say; a healthy one says nothing (QA-067).
+          <p className={cn('text-muted-foreground', check.signal === 'down' && 'text-danger')}>No detail</p>
+        )}
         {check.latency_ms !== null ? <p className="text-xs tabular-nums text-muted-foreground">{formatNumber(check.latency_ms, 0)} ms</p> : null}
         {children}
       </CardContent>

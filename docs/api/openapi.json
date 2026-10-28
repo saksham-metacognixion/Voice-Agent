@@ -13998,6 +13998,11 @@
               "rental_credits": {
                 "type": "integer"
               },
+              "requested_area_code": {
+                "default": null,
+                "nullable": true,
+                "type": "string"
+              },
               "sip": {
                 "nullable": true,
                 "properties": {
@@ -14395,6 +14400,11 @@
           },
           "rental_credits": {
             "type": "integer"
+          },
+          "requested_area_code": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
           },
           "sip": {
             "nullable": true,
@@ -17066,13 +17076,6 @@
             "maxLength": 80,
             "minLength": 2,
             "type": "string"
-          },
-          "onboarding_step": {
-            "exclusiveMaximum": false,
-            "exclusiveMinimum": false,
-            "maximum": 7,
-            "minimum": 1,
-            "type": "integer"
           },
           "recording_default": {
             "type": "boolean"

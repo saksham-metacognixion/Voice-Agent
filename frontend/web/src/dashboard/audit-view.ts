@@ -142,10 +142,14 @@ const ROLES = new Set<string>(memberRole.options);
 const TIERS = new Set<string>(planTier.options);
 const REASONS = new Set<string>(reasonCode.options);
 
-/** The message key that words an id-valued fact (a role, a pack, a reason code), else null. */
-function valueKey(key: string, value: string): string | null {
-  if ((key === 'role' || key === 'from' || key === 'to') && ROLES.has(value)) return `common.role.${value}`;
-  if (key === 'pack_id' && TIERS.has(value)) return `common.tier.${value}`;
+/**
+ * The message key that words an id-valued fact (a role, a pack, a reason code), else null.
+ * Built at runtime, so `messages.test.ts` cannot see it; `audit-view.test.ts` resolves every
+ * key this can return against each catalogue (QA-070).
+ */
+export function valueKey(key: string, value: string): string | null {
+  if ((key === 'role' || key === 'from' || key === 'to') && ROLES.has(value)) return `shell.role.${value}`;
+  if (key === 'pack_id' && TIERS.has(value)) return `shell.tier.${value}`;
   if (key === 'reason_code' && REASONS.has(value)) return `dashboard.settings.audit.reasons.${value}`;
   return null;
 }
@@ -155,7 +159,7 @@ export interface AuditMetaPair {
   key: string;
   /** A boolean is left for the table to word (yes/no is copy); everything else is data. */
   value: string | boolean;
-  /** Set when the value is an id the message file words (`common.role.admin`); the table shows that instead. */
+  /** Set when the value is an id the message file words (`shell.role.admin`); the table shows that instead. */
   valueKey?: string;
 }
 

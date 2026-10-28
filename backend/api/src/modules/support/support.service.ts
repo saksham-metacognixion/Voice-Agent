@@ -101,6 +101,7 @@ export class SupportService {
           action: 'support.ticket_opened',
           targetType: 'ticket',
           targetId: String(ticket.id),
+          ip: ctx.ip ?? null,
           metaJson: { subject: body.subject, category: body.category ?? null },
         },
       });

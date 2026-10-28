@@ -21,6 +21,12 @@ export type SaveState = 'idle' | 'dirty' | 'saving' | 'saved' | 'error';
  * the screen, not what was on it 1.5 s ago. Leaving the page sends a pending save rather
  * than dropping it, and closing the tab with one pending asks first (QA-007). An emptied
  * field is sent as `null` — "clear it" — by `briefDiff` (QA-006).
+ *
+ * A save is sent to the workspace the edit was typed in: switching workspace selects the
+ * new one before this page unmounts, and the unmount flush would otherwise PATCH the agent
+ * under the new workspace's header and fail as not found (QA-056). A failed save makes
+ * `flush()` throw, so Continue and Generate stop on it instead of moving on with the brief
+ * from before (QA-057).
  */
 export function useBriefAutosave(agentId: string | null, initial: Brief | undefined) {
   const api = useApi();
@@ -32,6 +38,8 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
   const latest = React.useRef<Brief | undefined>(initial);
   const inFlight = React.useRef<Promise<void> | null>(null);
   const queued = React.useRef(false);
+  const workspaceId = React.useRef<string | null>(null);
+  const failure = React.useRef<unknown>(null);
   // A save flushed by unmount lands after the page is gone; the next screen must not
   // read the brief from before it.
   const mounted = React.useRef(true);
@@ -64,14 +72,18 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
     setState('saving');
     const run = (async () => {
       try {
-        await api.patch(`/agents/${encodeURIComponent(agentId)}/draft`, { brief: patch }, agentDetail);
+        await api.patch(`/agents/${encodeURIComponent(agentId)}/draft`, { brief: patch }, agentDetail, {
+          workspaceId: workspaceId.current ?? undefined,
+        });
         lastSaved.current = snapshot;
+        failure.current = null;
         setFieldErrors({});
         setError(null);
         setState('saved');
         track('brief_field_saved', { agent_id: agentId, fields: Object.keys(patch).length });
         if (!mounted.current) void queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agentId }] });
       } catch (e) {
+        failure.current = e;
         setError(e);
         setState('error');
         if (isApiError(e) && e.body.fields) {
@@ -96,21 +108,24 @@ export function useBriefAutosave(agentId: string | null, initial: Brief | undefi
   const onChange = React.useCallback(
     (brief: Brief) => {
       latest.current = brief;
+      workspaceId.current = api.options.getWorkspaceId();
       setState('dirty');
       debounced.call();
     },
-    [debounced],
+    [api, debounced],
   );
 
   const flush = React.useCallback(async () => {
     debounced.cancel();
     await save();
     if (inFlight.current) await inFlight.current;
+    if (failure.current) throw failure.current;
     await queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agentId }] });
   }, [debounced, save, queryClient, agentId]);
 
   const retry = React.useCallback(() => void save(), [save]);
-  const isDirty = state === 'dirty' || state === 'saving';
+  // An unsaved failure is still unsaved: closing the tab on it asks first (QA-057).
+  const isDirty = state === 'dirty' || state === 'saving' || state === 'error';
   useBeforeUnload(isDirty, debounced.flush);
 
   return { state, error, fieldErrors, onChange, flush, retry, isDirty };

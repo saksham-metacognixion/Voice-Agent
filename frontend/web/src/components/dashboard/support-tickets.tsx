@@ -179,7 +179,7 @@ function TicketRow({ ticket, open, onToggle }: { ticket: SupportTicketResponse; 
         <span className="flex min-w-0 flex-col">
           <span className="truncate text-sm font-medium">
             <span className="me-1.5 font-mono text-xs text-muted-foreground">#{ticket.id}</span>
-            {ticket.subject}
+            <span dir="auto">{ticket.subject}</span>
           </span>
           <span className="text-xs text-muted-foreground">{t('updated', { when: formatDateTime(ticket.last_message_at ?? ticket.created_at, tz), who: ticket.assignee_name })}</span>
         </span>

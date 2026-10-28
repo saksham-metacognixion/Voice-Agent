@@ -259,7 +259,13 @@ export const phoneNumberResponse = z.object({
   /** `bought` (A/B) or `sip` (C). The telephony vendor behind `bought` is never named. */
   kind: z.enum(['bought', 'sip']),
   country: z.string().nullable(),
+  /** The code bought. */
   area_code: z.string().nullable(),
+  /**
+   * The code W6 / D4 asked for. Differs from `area_code` when it had no stock and the
+   * closest available was bought (QA-076); null for SIP and for "any".
+   */
+  requested_area_code: z.string().nullable().default(null),
   toll_free: z.boolean(),
   status: phoneNumberStatus,
   paused: z.boolean(),

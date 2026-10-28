@@ -1,6 +1,9 @@
+import { memberRole, planTier, reasonCode } from '@portal/schemas';
 import { describe, expect, it } from 'vitest';
+import ar from '../i18n/messages/ar.json';
 import en from '../i18n/messages/en.json';
-import { AUDIT_AREAS, KNOWN_AUDIT_ACTIONS, KNOWN_AUDIT_META, auditActionKey, auditActorKind, auditMetaPairs, humaniseAction } from './audit-view';
+import frCA from '../i18n/messages/fr-CA.json';
+import { AUDIT_AREAS, KNOWN_AUDIT_ACTIONS, KNOWN_AUDIT_META, auditActionKey, auditActorKind, auditMetaPairs, humaniseAction, valueKey } from './audit-view';
 
 describe('audit actions', () => {
   it('names the actions the message file knows', () => {
@@ -53,14 +56,14 @@ describe('what the support team does (QA-032)', () => {
 
   it('shows a role change from → to, worded through the role names', () => {
     expect(auditMetaPairs({ from: 'editor', to: 'admin' })).toEqual([
-      { key: 'from', value: 'editor', valueKey: 'common.role.editor' },
-      { key: 'to', value: 'admin', valueKey: 'common.role.admin' },
+      { key: 'from', value: 'editor', valueKey: 'shell.role.editor' },
+      { key: 'to', value: 'admin', valueKey: 'shell.role.admin' },
     ]);
   });
 
   it('shows the auto top-up settings and a staff write’s reason and credits', () => {
     expect(auditMetaPairs({ pack_id: 'growth', threshold: 50, card_last4: '4242', by: 'staff' })).toEqual([
-      { key: 'pack_id', value: 'growth', valueKey: 'common.tier.growth' },
+      { key: 'pack_id', value: 'growth', valueKey: 'shell.tier.growth' },
       { key: 'threshold', value: '50' },
       { key: 'card_last4', value: '4242' },
     ]);
@@ -80,5 +83,26 @@ describe('what the support team does (QA-032)', () => {
     expect(auditActorKind({ actor: null, meta: { e164: '+14165550100' } })).toBe('system');
     expect(auditActorKind({ actor: null, meta: null })).toBe('system');
     expect(auditActorKind({ actor: { name: 'Sam' }, meta: { by: 'staff' } })).toBe('member');
+  });
+});
+
+describe('valueKey', () => {
+  // Built at runtime, so the catalogue check cannot see these keys (QA-070: `common.role.viewer`).
+  const resolve = (messages: unknown, key: string) => key.split('.').reduce<unknown>((node, part) => (node && typeof node === 'object' ? (node as Record<string, unknown>)[part] : undefined), messages);
+  const keys = [
+    ...memberRole.options.flatMap((r) => ['role', 'from', 'to'].map((k) => valueKey(k, r))),
+    ...planTier.options.map((t) => valueKey('pack_id', t)),
+    ...reasonCode.options.map((r) => valueKey('reason_code', r)),
+  ];
+
+  it.each([
+    ['en', en],
+    ['ar', ar],
+    ['fr-CA', frCA],
+  ])('resolves every key it can build in %s', (_, messages) => {
+    for (const key of keys) {
+      expect(key).not.toBeNull();
+      expect(typeof resolve(messages, key as string), key as string).toBe('string');
+    }
   });
 });

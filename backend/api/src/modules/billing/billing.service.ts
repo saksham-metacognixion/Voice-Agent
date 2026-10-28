@@ -154,7 +154,7 @@ export class BillingService {
     const returnUrl = `${this.stripe.config.portalUrl}${returnPath ?? '/app/wallet'}`;
     const url = await this.stripe.createPortalSession(tenant.stripeCustomerId, returnUrl);
     await withWorkspace(ctx, (db) =>
-      db.auditLog.create({ data: { tenantId: ctx.workspaceId, actorUserId: ctx.userId, action: 'billing.portal_session', targetType: 'workspace', targetId: ctx.workspaceId } }),
+      db.auditLog.create({ data: { tenantId: ctx.workspaceId, actorUserId: ctx.userId, action: 'billing.portal_session', targetType: 'workspace', targetId: ctx.workspaceId, ip: ctx.ip ?? null } }),
     ).catch(() => undefined);
     return { url };
   }

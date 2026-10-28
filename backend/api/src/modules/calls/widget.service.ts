@@ -97,6 +97,7 @@ export class WidgetService {
           action: 'agent.widget_updated',
           targetType: 'agent',
           targetId: agentId,
+          ip: ctx.ip ?? null,
           metaJson: { enabled, origins: origins.length, key_rotated: Boolean(patch.rotate_key) && Boolean(agent.widgetKey) },
         },
       });

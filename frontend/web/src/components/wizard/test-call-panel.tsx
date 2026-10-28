@@ -61,9 +61,12 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
           <StatusPill status={state.status} agentTalking={state.agentTalking} />
         </div>
         <CardDescription>
-          {agent.published_version
-            ? tt('subtitleLive', { version: draft?.version_no ?? '–', live: agent.published_version })
-            : tt('subtitle', { version: draft?.version_no ?? '–' })}
+          {/* Paused first: a paused agent answers no calls, live version or not (QA-073). */}
+          {agent.status === 'paused'
+            ? tt('subtitlePaused', { version: draft?.version_no ?? '–' })
+            : agent.published_version
+              ? tt('subtitleLive', { version: draft?.version_no ?? '–', live: agent.published_version })
+              : tt('subtitle', { version: draft?.version_no ?? '–' })}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">

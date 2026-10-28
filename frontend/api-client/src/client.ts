@@ -47,6 +47,11 @@ export interface RequestOptions {
   signal?: AbortSignal;
   /** Send no X-Workspace-Id even when one is selected (`GET /workspaces`, invite accept). */
   noWorkspace?: boolean;
+  /**
+   * Send this X-Workspace-Id instead of the selected one: a write that belongs to the
+   * workspace it was made in, sent after a switch (the W2 autosave's unmount flush, QA-056).
+   */
+  workspaceId?: string;
   /** A DELETE with a body (a staff write that carries its reason code); `del` sends it as JSON. */
   body?: unknown;
 }
@@ -81,7 +86,7 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     const headers: Record<string, string> = { Accept: 'application/json' };
     const token = await opts.getToken();
     if (token) headers.Authorization = `Bearer ${token}`;
-    const ws = ro.noWorkspace ? null : opts.getWorkspaceId();
+    const ws = ro.noWorkspace ? null : (ro.workspaceId ?? opts.getWorkspaceId());
     if (ws) headers['X-Workspace-Id'] = ws;
     if (body !== undefined) headers['Content-Type'] = 'application/json';
 

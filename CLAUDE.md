@@ -607,7 +607,9 @@ job settles.
   both, then any local number at both. Only that 404 (`isNoNumberStock`) moves on; a 404
   buys nothing, so the walk cannot buy twice. Toll-free is never widened to local. The row
   records the carrier (`retell_telnyx` / `retell_twilio`) and the code actually bought;
-  all exhausted is `area_code_unavailable`, permanent, on attempt one.
+  `requested_area_code`, written once at creation, keeps the one asked for, and W7's live
+  page and D4 say so when they differ (`areaCodeSubstitute`, QA-076). All exhausted is
+  `area_code_unavailable`, permanent, on attempt one.
 - `phone_numbers.e164` is **nullable** until the platform answers; anything keyed on it
   (`num:{e164}`) skips a row without one. `NumberProvisioningService.{provision,bind,release}`
   are the only code that changes a platform number, and `bind` is read-compare-update.
@@ -802,7 +804,8 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `k ≤ onboarding_step`; the portal advances the step with `POST /workspace/onboarding-step`
   (editor and up — editors build, test and route the agent; `PATCH /workspace` is settings,
   owner/admin, and its 403 used to bounce an editor back to W1, QA-005), never backwards
-  (the server's conditional update refuses to as well), single-flight; a guard never redirects while the workspace row is refetching.
+  (the server's conditional update refuses to as well, and `PATCH /workspace` no longer
+  takes `onboarding_step` at all, QA-058), single-flight; a guard never redirects while the workspace row is refetching.
   `LAST_IMPLEMENTED_STEP` is 7 since D9, so `/app` opens only once `onboarding_completed_at`
   is set (the activation job's `mark_live`). **W4 is after payment** (ADR 0024):
   `ONBOARDING_STEPS` is 1, 2, 3, 5, 6, 7 (4 unused, `stepPath(4)` → W5), W3 advances to 5,
@@ -1210,7 +1213,8 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 
 - Every request carries `Authorization: Bearer <jwt>` and `X-Workspace-Id`. Middleware verifies the JWT
   against the JWKS for that route namespace, loads the membership, and attaches
-  `ctx = {userId, workspaceId, role}`. Postgres RLS is the second guard, not the first.
+  `ctx = {userId, workspaceId, role, ip}`. Postgres RLS is the second guard, not the first.
+  Every `audit_log` row a request writes takes `ip: ctx.ip ?? null` (QA-074); worker rows have none.
 - **There are exactly two ways to reach Postgres.** `withWorkspace(ctx.workspaceId, db => …)` on the
   customer request path, and `adminDb` for work that legitimately crosses workspaces — webhooks (the
   workspace is only known after the payload is parsed), scheduled jobs, workspace creation, `/admin/*`.

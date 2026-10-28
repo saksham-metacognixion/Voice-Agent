@@ -23,6 +23,8 @@ export function qs(query: Record<string, unknown> | undefined): string {
 export interface QueryHookOptions {
   enabled?: boolean;
   staleTime?: number;
+  /** How long an unobserved result is kept; `0` drops it when the last reader goes (a logged read, QA-055). */
+  gcTime?: number;
   refetchInterval?: number | false;
   /** Overrides the client’s default retry rule; `false` for a probe whose error is the answer. */
   retry?: boolean | number;

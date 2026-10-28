@@ -80,6 +80,7 @@ export class NumbersService {
           type: 'retell_twilio',
           country: input.country,
           areaCode: input.area_code ?? null,
+          requestedAreaCode: input.area_code ?? null,
           tollFree: input.toll_free,
           nickname: input.nickname ?? null,
           inboundToken: newInboundToken(),
@@ -281,7 +282,7 @@ export class NumbersService {
 
   private async audit(db: WorkspaceDb, ctx: WorkspaceContext, action: string, targetId: string, meta: Record<string, unknown>): Promise<void> {
     await db.auditLog.create({
-      data: { tenantId: ctx.workspaceId, actorUserId: ctx.userId, action, targetType: 'phone_number', targetId, metaJson: meta as Prisma.InputJsonValue },
+      data: { tenantId: ctx.workspaceId, actorUserId: ctx.userId, action, targetType: 'phone_number', targetId, ip: ctx.ip ?? null, metaJson: meta as Prisma.InputJsonValue },
     });
   }
 }

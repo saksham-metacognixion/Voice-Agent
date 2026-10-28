@@ -34,7 +34,7 @@ const ROLE_HINTS: Record<StaffRole, string> = {
   read_only: 'Sees everything, changes nothing.',
 };
 
-/** SA13 Members: every staff row, an Invite dialog, and per-row role and activation changes. */
+/** SA13 Members: every staff row, an Invite dialog, and per-row name, role and activation changes. */
 export function MembersTab() {
   const api = useApi();
   const { me, can } = useStaff();
@@ -43,6 +43,7 @@ export function MembersTab() {
   const [inviting, setInviting] = React.useState(false);
   const [roleTarget, setRoleTarget] = React.useState<StaffMemberResponse | null>(null);
   const [activeTarget, setActiveTarget] = React.useState<StaffMemberResponse | null>(null);
+  const [nameTarget, setNameTarget] = React.useState<StaffMemberResponse | null>(null);
 
   const columns: Array<DataColumn<StaffMemberResponse>> = [
     {
@@ -75,6 +76,9 @@ export function MembersTab() {
         const selfDenied = self ? 'You cannot change your own role or deactivate yourself.' : null;
         return (
           <CellActions>
+            <PermissionButton size="sm" variant="outline" denied={denied} onClick={() => setNameTarget(r)}>
+              Edit name
+            </PermissionButton>
             <PermissionButton size="sm" variant="outline" denied={denied ?? selfDenied} onClick={() => setRoleTarget(r)}>
               Change role
             </PermissionButton>
@@ -101,6 +105,7 @@ export function MembersTab() {
       {inviting ? <InviteDialog onClose={() => setInviting(false)} /> : null}
       <ChangeRoleDialog member={roleTarget} onClose={() => setRoleTarget(null)} />
       <ToggleActiveDialog member={activeTarget} onClose={() => setActiveTarget(null)} />
+      <EditNameDialog member={nameTarget} onClose={() => setNameTarget(null)} />
     </div>
   );
 }
@@ -244,6 +249,42 @@ function ChangeRoleDialog({ member, onClose }: { member: StaffMemberResponse | n
         <Textarea id="role-note" value={note} onChange={(e) => setNote(e.target.value)} rows={2} maxLength={1000} />
       </Field>
       {!changed ? <p className="text-xs text-muted-foreground">Pick a different role to continue.</p> : null}
+    </ConfirmDialog>
+  );
+}
+
+// ---------------------------------------------------------------------------- name
+
+/**
+ * The display name the console shows (account menu, assignee, audit). It comes from the
+ * invite, or the identity provider's when the invite had none, and is corrected here
+ * (QA-065). Audited as `staff.updated`; one's own name is editable too.
+ */
+function EditNameDialog({ member, onClose }: { member: StaffMemberResponse | null; onClose: () => void }) {
+  const update = useStaffUpdate();
+  const [name, setName] = React.useState('');
+  React.useEffect(() => {
+    if (member) setName(member.name ?? '');
+  }, [member]);
+  const next = name.trim();
+  const changed = member ? next !== (member.name ?? '') : false;
+  return (
+    <ConfirmDialog
+      open={Boolean(member)}
+      onOpenChange={(o) => (o ? undefined : onClose())}
+      title={`Edit name · ${member?.email ?? ''}`}
+      description="Shown in the account menu, on tickets they are assigned and in the audit log. Leave empty to show the email."
+      confirmLabel="Save name"
+      confirmDisabled={!changed}
+      onConfirm={async () => {
+        if (!member || !changed) return;
+        await update(member.id, { name: next || null });
+        toast.success(next ? `${member.email} is now shown as ${next}` : `${member.email} has no display name`);
+      }}
+    >
+      <Field id="staff-name" label="Name">
+        <Input id="staff-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoComplete="off" />
+      </Field>
     </ConfirmDialog>
   );
 }

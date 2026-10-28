@@ -312,6 +312,7 @@ export class ActivationWorker {
       nickname: plan.nickname,
       country: plan.country,
       areaCode: plan.areaCode,
+      requestedAreaCode: isSip ? null : plan.areaCode,
       tollFree: plan.tollFree,
       rentalCredits: isSip ? 0 : Math.round(pricing.recurring.number_rental_credits),
       hoursMode: plan.hoursMode,

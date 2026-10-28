@@ -165,7 +165,6 @@ export class WorkspacesService {
     if (input.website !== undefined) data.website = input.website;
     if (input.recording_default !== undefined) data.recordingDefault = input.recording_default;
     if (input.retention_days !== undefined) data.retentionDays = input.retention_days;
-    if (input.onboarding_step !== undefined) data.onboardingStep = input.onboarding_step;
     if (input.business_hours !== undefined) {
       data.businessHoursJson =
         input.business_hours === null

@@ -108,6 +108,11 @@ export class AuthGuard implements CanActivate {
       });
       if (bound.count === 1) {
         this.logger.log(`staff invite for ${verified.email} bound to ${verified.subject}`);
+        // An invite sent without a name takes the identity provider's (QA-065); a name
+        // the inviter typed is kept, and SA13 can correct either.
+        if (verified.name) {
+          await adminDb.staffUser.updateMany({ where: { authProviderId: verified.subject, name: null }, data: { name: verified.name } });
+        }
       }
       staff = await adminDb.staffUser.findUnique({ where: { authProviderId: verified.subject }, select });
     }

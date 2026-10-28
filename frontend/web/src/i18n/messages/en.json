@@ -257,7 +257,7 @@
     "INVITE_EXPIRED": "This invitation has expired.",
     "INVITE_USED": "This invitation has already been used.",
     "INVITE_WRONG_EMAIL": "This invitation was sent to a different email address.",
-    "ALREADY_MEMBER": "You are already a member of this workspace.",
+    "ALREADY_MEMBER": "That person is already a member of this workspace.",
     "PLAN_LIMIT": "Your plan does not include that.",
     "DOCUMENT_UNREADABLE": "We could not read any text in that file. For a photo, try a sharper, straight-on picture; for a scan, export it as text or PDF.",
     "INTERNAL": "Something went wrong on our side. Try again.",
@@ -827,6 +827,7 @@
         "title": "Talk to your agent",
         "subtitle": "You are testing draft version {version}. Nothing is live yet.",
         "subtitleLive": "You are testing draft version {version}. Callers still reach live version {live}.",
+        "subtitlePaused": "You are testing draft version {version}. This agent is paused: phone calls are not answered, browser tests still work.",
         "timer": "Time",
         "rate": "Rate",
         "perMin": "{credits}/min",
@@ -1216,6 +1217,7 @@
       "numberTitle": "Your agent's number",
       "numberBody": "Calls to this number reach your agent.",
       "numberPending": "Your number is being finalised. It appears here and in Numbers shortly.",
+      "areaCodeNote": "No numbers were available in area code {requested}, so we chose the closest we could get: {bought}.",
       "dashboard": "Go to the dashboard",
       "calls": "See calls",
       "forwarding": {
@@ -1295,13 +1297,13 @@
         "table": "View as a table",
         "day": "Day",
         "missed": "Missed",
-        "tooltip": "{calls} calls · {missed} missed · {minutes} min · {credits} credits"
+        "tooltip": "{calls, plural, one {# call} other {# calls}} · {missed} missed · {minutes} min · {credits} credits"
       }
     },
     "calls": {
       "title": "Calls",
       "empty": "No calls yet. Once your agent is live, every call shows up here with a transcript and summary.",
-      "count": "{n} calls",
+      "count": "{n, plural, one {# call} other {# calls}}",
       "loadFailed": "Unable to load calls. Try again.",
       "emptyFiltered": "No calls match these filters.",
       "browserTest": "Browser test",
@@ -1395,7 +1397,7 @@
         "markHandled": "Mark handled",
         "export": "Export selected",
         "clear": "Clear",
-        "done": "{n} calls marked handled"
+        "done": "{n, plural, one {# call marked handled} other {# calls marked handled}}"
       },
       "export": {
         "button": "Export CSV",
@@ -1541,11 +1543,11 @@
     "agents": {
       "title": "Agents",
       "empty": "No agents yet.",
-      "count": "{n} agents",
+      "count": "{n, plural, one {# agent} other {# agents}}",
       "emptyHint": "Start one from a template and it will be ready to test in minutes.",
       "version": "Version {n}",
       "notPublished": "Not published yet",
-      "numbers": "{n} numbers",
+      "numbers": "{n, plural, one {# number} other {# numbers}}",
       "numbersLabel": "Numbers",
       "unpublished": "Unpublished changes",
       "live": "Live",
@@ -1758,7 +1760,7 @@
         "lintOk": "Checks pass",
         "lintErrors": "Has errors",
         "diffTitle": "v{a} → v{b}",
-        "diffSummary": "{added} lines added, {removed} removed",
+        "diffSummary": "{added, plural, one {# line} other {# lines}} added, {removed} removed",
         "sources": {
           "generated": "Generated",
           "feedback": "Feedback",
@@ -1878,6 +1880,7 @@
       "rentalValue": "{credits} cr/mo",
       "rentalNone": "—",
       "nextRental": "Next rental {date}",
+      "areaCodeNote": "No numbers were available in area code {requested}, so we chose the closest we could get: {bought}.",
       "noAgent": "No agent",
       "unknownAgent": "Removed agent",
       "releasedNote": "This number was released. It no longer answers calls and nothing is charged for it.",
@@ -2106,7 +2109,7 @@
         "plan": "{tier} plan · {concurrency, plural, one {# call} other {# calls}} at once · {kb, plural, =0 {no agent knowledge} one {knowledge for # agent} other {knowledge for # agents}}",
         "expiring": "Expiring next: {credits} on {date}",
         "nothingExpiring": "Nothing expiring soon.",
-        "minutes": "About {minutes} minutes on a standard agent",
+        "minutes": "About {minutes, plural, one {# minute} other {# minutes}} on a standard agent",
         "buy": "Buy credits",
         "live": "Updates live"
       },
@@ -2631,7 +2634,7 @@
       },
       "rentalOverdue": {
         "title": "The rental for {number} is overdue",
-        "body": "{days} days overdue. Add credits to keep the number."
+        "body": "{days, plural, one {# day} other {# days}} overdue. Add credits to keep the number."
       },
       "numberReleased": {
         "title": "{number} was released",
@@ -2640,7 +2643,7 @@
       },
       "concurrency": {
         "title": "Callers are hitting your concurrency limit",
-        "body": "{live} calls at once against a limit of {cap}. A bigger pack raises the limit.",
+        "body": "{live, plural, one {# call} other {# calls}} at once against a limit of {cap}. A bigger pack raises the limit.",
         "cta": "See packs"
       },
       "autoTopupFailed": {

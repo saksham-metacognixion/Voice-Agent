@@ -8,6 +8,18 @@ export function numberType(n: Pick<PhoneNumberResponse, 'kind' | 'forwarding'>):
   return n.forwarding ? 'forward' : 'new';
 }
 
+/**
+ * The area code asked for and the one bought, when they differ: W6 / D4's code had no
+ * stock and the closest available was bought (`purchase-attempts.ts`). Null when there is
+ * nothing to say — SIP, toll-free, no code asked for, not bought yet, or the same code (QA-076).
+ */
+export function areaCodeSubstitute(
+  n: Pick<PhoneNumberResponse, 'kind' | 'toll_free' | 'e164' | 'area_code' | 'requested_area_code'>,
+): { requested: string; bought: string } | null {
+  if (n.kind === 'sip' || n.toll_free || !n.e164 || !n.requested_area_code || !n.area_code) return null;
+  return n.requested_area_code === n.area_code ? null : { requested: n.requested_area_code, bought: n.area_code };
+}
+
 /** A released (or releasing) number is history: listed, never edited. */
 export function isNumberEditable(n: Pick<PhoneNumberResponse, 'status'>): boolean {
   return n.status !== 'released' && n.status !== 'releasing';

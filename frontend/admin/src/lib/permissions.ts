@@ -65,7 +65,8 @@ export function can(me: StaffMeResponse | null | undefined) {
     refundCap: (): number | null => limits?.refund_max_cents ?? null,
     /** SA9 top-up actions: the same MONEY matrix. */
     topupActions: (): Denied => needsRole(role, R.money),
-    editCosts: (): Denied => needsRole(role, R.pricingEdit),
+    /** SA5 cost inputs: the draft's matrix and limit — the server asserts `can_edit_pricing_draft` (QA-054). */
+    editCosts: (): Denied => needsRole(role, R.pricingEdit) ?? (limits ? needsLimit(limits, 'can_edit_pricing_draft', 'edit the cost inputs') : missing),
     /** SA4 tickets: open, reply, assign, change status — everyone but read-only (finance runs the money macros). */
     supportTickets: (): Denied => needsRole(role, ['super_admin', 'ops', 'support', 'finance']),
     /** SA4 `rerun_activation`: the support trio, not finance. */

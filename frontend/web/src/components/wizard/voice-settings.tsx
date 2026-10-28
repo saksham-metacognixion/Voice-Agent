@@ -1,11 +1,12 @@
 'use client';
 
-import { isApiError, useApi, useListVoices, useUpdateAgentDraft } from '@portal/api-client';
-import type { AgentDetail, AgentLanguage, VoiceResponse } from '@portal/schemas';
+import { isApiError, useApi, useListVoices, useUpdateAgentDraft, type ApiClient } from '@portal/api-client';
+import { agentDetail, type agentDraftPatch, type AgentDetail, type AgentLanguage, type VoiceResponse } from '@portal/schemas';
 import { Alert, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Button, Field, Slider, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
+import type { z } from 'zod';
 import { track } from '@/src/analytics/posthog';
 import { LanguagePicker } from '@/src/components/wizard/language-picker';
 import { VoicePicker, type VoiceFilters } from '@/src/components/wizard/voice-picker';
@@ -100,12 +101,14 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
   const catalogue = useListVoices(api, {}, { staleTime: 5 * 60_000, enabled: Boolean(voiceId) && !known && !voices.isPending });
   const selectedVoice = known ?? catalogue.data?.items.find((v) => v.id === voiceId) ?? null;
 
-  async function save(body: Parameters<typeof patch.mutateAsync>[0]['body']) {
+  /** `workspaceId` pins a deferred save to the workspace it was made in (QA-056). */
+  async function save(body: Parameters<typeof patch.mutateAsync>[0]['body'], workspaceId?: string) {
     setError(null);
     inFlight.current += 1;
     setSaving(true);
     try {
-      await patch.mutateAsync({ params: { id: agent.id }, body });
+      if (workspaceId) await updateAgentDraftIn(api, agent.id, body, workspaceId);
+      else await patch.mutateAsync({ params: { id: agent.id }, body });
       await queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agent.id }] });
       void queryClient.invalidateQueries({ queryKey: ['listAgents'] });
     } catch (e) {
@@ -135,15 +138,19 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
     if (settings && voice.tier !== settings.tier) toast.info(tw('tierChange', { tier: t(`common.${voice.tier}`) }));
     void save({ voice_id: voice.id, tier: voice.tier }).catch(() => setVoiceId(previous));
   }
+  // The unmount flush of a workspace switch runs after the new workspace is selected, so
+  // the dial save carries the workspace it was dialled in (QA-056).
+  const tuningWorkspace = React.useRef<string | null>(null);
   const saveTuning = useDebouncedCallback(
     (s: number, temp: number) => {
       setTuningPending(false);
-      void save({ voice_speed: s, voice_temperature: temp }).catch(() => undefined);
+      void save({ voice_speed: s, voice_temperature: temp }, tuningWorkspace.current ?? undefined).catch(() => undefined);
     },
     600,
     { flushOnUnmount: true },
   );
   const tune = (s: number, temp: number) => {
+    tuningWorkspace.current = api.options.getWorkspaceId();
     setTuningPending(true);
     saveTuning.call(s, temp);
   };
@@ -251,4 +258,8 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
       </aside>
     </div>
   );
+}
+
+function updateAgentDraftIn(api: ApiClient, agentId: string, body: z.input<typeof agentDraftPatch>, workspaceId: string) {
+  return api.patch(`/agents/${encodeURIComponent(agentId)}/draft`, body, agentDetail, { workspaceId });
 }

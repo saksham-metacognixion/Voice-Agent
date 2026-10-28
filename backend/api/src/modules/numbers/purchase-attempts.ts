@@ -70,3 +70,9 @@ export function purchaseAttempts(input: {
     ...any,
   ];
 }
+
+/** The area code of a North American number (`+1NXXNXXXXXX`), else null. */
+export function nanpAreaCode(e164: string | null | undefined): string | null {
+  const m = /^\+1([2-9]\d{2})[2-9]\d{6}$/.exec(e164 ?? '');
+  return m ? m[1]! : null;
+}

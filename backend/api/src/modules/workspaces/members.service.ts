@@ -358,7 +358,7 @@ export class MembersService {
    * Idempotent: a second accept by the same user returns the same membership rather than
    * an error, because a double-clicked link is not a mistake worth a red page.
    */
-  async acceptInvite(user: AuthenticatedUser, token: string): Promise<AcceptInviteResponse> {
+  async acceptInvite(user: AuthenticatedUser, token: string, ip?: string): Promise<AcceptInviteResponse> {
     const tokenHash = hashToken(token);
 
     return adminDb.$transaction(async (tx) => {
@@ -373,10 +373,8 @@ export class MembersService {
         throw new AppError('INVITE_EXPIRED', 'That invite has expired. Ask for a new one.');
       }
       if (invite.email.toLowerCase() !== user.email.toLowerCase()) {
-        throw new AppError(
-          'INVITE_WRONG_EMAIL',
-          `That invite was sent to ${invite.email}. Sign in with that address to accept it.`,
-        );
+        // The preview's wording: the wrong account learns nothing about the address (QA-060).
+        throw new AppError('INVITE_WRONG_EMAIL', 'That invite was sent to a different email address. Sign in with that address to accept it.');
       }
 
       const existing = await tx.membership.findUnique({
@@ -401,6 +399,7 @@ export class MembersService {
           action: 'invite.accepted',
           targetType: 'membership',
           targetId: invite.id,
+          ip: ip ?? null,
           metaJson: { email: invite.email, role: invite.role } as Prisma.InputJsonValue,
         },
       });
@@ -424,6 +423,7 @@ export class MembersService {
         action,
         targetType: 'membership',
         targetId,
+        ip: ctx.ip ?? null,
         metaJson: meta as Prisma.InputJsonValue,
       },
     });

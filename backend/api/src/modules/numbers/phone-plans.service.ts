@@ -66,6 +66,7 @@ export class PhonePlansService {
           action: existing ? 'phone_plan.updated' : 'phone_plan.created',
           targetType: 'phone_plan',
           targetId: saved.id,
+          ip: ctx.ip ?? null,
           metaJson: { agent_id: agentId, option: input.option, has_sip_password: input.option === 'sip' && Boolean(input.sip.password) } as Prisma.InputJsonValue,
         },
       });

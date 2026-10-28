@@ -78,7 +78,7 @@ export function BalanceCard() {
               >
                 {formatCreditsValue(wallet.data.balance)} <span className="text-base font-normal text-muted-foreground">{t('credits')}</span>
               </p>
-              {standardRate && wallet.data.balance > 0 ? <p className="mt-1 text-xs text-muted-foreground">{t('minutes', { minutes: formatNumber(wallet.data.balance / standardRate, 0) })}</p> : null}
+              {standardRate && wallet.data.balance > 0 ? <p className="mt-1 text-xs text-muted-foreground">{t('minutes', { minutes: Math.round(wallet.data.balance / standardRate) })}</p> : null}
             </div>
             <p className="text-sm text-muted-foreground">
               {t('plan', { tier: tc(`shell.tier.${wallet.data.plan_tier}`), concurrency: wallet.data.concurrency_cap, kb: wallet.data.kb_allowance })}

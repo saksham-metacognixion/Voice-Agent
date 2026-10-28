@@ -140,7 +140,8 @@ function TicketDetail({ t }: { t: AdminTicketDetail }) {
         </Fact>
       </FactGrid>
 
-      <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-3">
+      {/* Status and priority side by side, the assignee on a row of its own: a name beside its button needs the width (QA-069). */}
+      <div className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-card p-3 sm:grid-cols-2">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ticket-status">Status</Label>
           <Select value={t.status} onValueChange={(v) => void patch({ status: v as TicketStatus }, `Ticket ${humanize(v).toLowerCase()}`)} disabled={Boolean(denied) || update.isPending}>
@@ -171,10 +172,12 @@ function TicketDetail({ t }: { t: AdminTicketDetail }) {
             </SelectContent>
           </Select>
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 sm:col-span-2">
           <Label>Assignee</Label>
           <div className="flex items-center gap-2">
-            <span className="min-w-0 flex-1 truncate text-sm">{t.assignee ? (t.assignee.name ?? t.assignee.email) : <span className="text-muted-foreground">Unassigned</span>}</span>
+            <span className="min-w-0 flex-1 break-words text-sm" title={t.assignee?.email}>
+              {t.assignee ? (t.assignee.name ?? t.assignee.email) : <span className="text-muted-foreground">Unassigned</span>}
+            </span>
             {t.assignee?.id === me.id ? (
               <PermissionButton size="sm" variant="ghost" denied={denied} disabled={update.isPending} onClick={() => void patch({ assignee_staff_id: null }, 'Unassigned')}>
                 Unassign

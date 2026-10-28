@@ -43,4 +43,6 @@ exports.onExecutePostLogin = async (event, api) => {
   // first request, matched on this claim — the only email claim the API trusts, as on the
   // customer tenant. Lower-cased here so the match is exact.
   api.accessToken.setCustomClaim('https://portal/email', email);
+  // The display name an invite without one is filled from at that first request (QA-065).
+  if (event.user.name) api.accessToken.setCustomClaim('https://portal/name', event.user.name);
 };

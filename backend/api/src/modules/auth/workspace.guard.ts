@@ -69,7 +69,7 @@ export class WorkspaceGuard implements CanActivate {
       throw new AppError('NOT_A_MEMBER', 'You do not have access to that workspace.');
     }
 
-    request.ctx = { userId: auth.userId, workspaceId, role: membership.role };
+    request.ctx = { userId: auth.userId, workspaceId, role: membership.role, ip: request.ip ?? null };
 
     this.assertRole(host, membership.role);
     return true;
@@ -99,7 +99,7 @@ export class WorkspaceGuard implements CanActivate {
     if (workspaceId && workspaceId !== imp.tenantId) {
       throw new AppError('NOT_A_MEMBER', 'This view-as session is limited to one workspace.');
     }
-    request.ctx = { userId: request.auth!.userId, workspaceId: imp.tenantId, role: 'owner' };
+    request.ctx = { userId: request.auth!.userId, workspaceId: imp.tenantId, role: 'owner', ip: request.ip ?? null };
     this.assertRole(host, 'owner');
     return true;
   }

@@ -6,7 +6,7 @@ import { RetellGateway, isRetellNotFound, type PhoneNumberFacts } from '../retel
 import { RuntimeCacheService } from '../runtime-cache';
 import { addMonths } from '../wallet/wallet.service';
 import { ProvisioningError, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
-import { purchaseAttempts } from './purchase-attempts';
+import { nanpAreaCode, purchaseAttempts } from './purchase-attempts';
 
 /**
  * The tag every number wears on the platform; the retry's lookup key after a lost write.
@@ -112,7 +112,9 @@ export class NumberProvisioningService {
       data: {
         e164: facts.phone_number,
         type: facts.phone_number_type === 'retell-telnyx' ? 'retell_telnyx' : 'retell_twilio',
-        areaCode: facts.area_code ? String(facts.area_code) : row.areaCode,
+        // The code actually sold, which the requested one is compared with (QA-076); the
+        // number itself says so when the platform's answer does not.
+        areaCode: facts.area_code ? String(facts.area_code) : (nanpAreaCode(facts.phone_number) ?? row.areaCode),
         retellMetaJson: metaOf(facts),
         error: null,
       },

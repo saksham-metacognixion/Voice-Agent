@@ -42,7 +42,7 @@ export function AuditTab() {
       cell: (e) =>
         e.actor ? (
           <span className="flex min-w-0 flex-col">
-            <span className="break-words">{e.actor.name ?? e.actor.email}</span>
+            <span className="break-words" dir="auto">{e.actor.name ?? e.actor.email}</span>
             {e.actor.name ? <span className="break-all text-xs text-muted-foreground">{e.actor.email}</span> : null}
           </span>
         ) : (

@@ -137,8 +137,9 @@ export function WebhookSheet({ id, onClose }: { id: string | null; onClose: () =
   const denied = can.operateQueues();
   const payloadDenied = can.viewWebhookPayload();
   // Every open is an audited payload view (QA-033), so it is read once per open, not on
-  // every window focus; a replay still invalidates it.
-  const event = useAdminGetWebhookEvent(api, { id: id ?? '' }, { enabled: Boolean(id) && !payloadDenied, staleTime: Infinity });
+  // every window focus; a replay still invalidates it. `gcTime: 0` drops the body when the
+  // sheet closes, so opening the same event again is a new read and a new audit row (QA-055).
+  const event = useAdminGetWebhookEvent(api, { id: id ?? '' }, { enabled: Boolean(id) && !payloadDenied, staleTime: Infinity, gcTime: 0 });
   const { setTarget, dialog } = useReplay();
   const e = event.data;
   return (

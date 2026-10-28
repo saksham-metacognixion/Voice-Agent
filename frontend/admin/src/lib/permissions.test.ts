@@ -41,4 +41,10 @@ describe('can() — route roles and limits together (QA-048)', () => {
     expect(can(me('finance', { can_edit_pricing_draft: true })).editPricingDraft()).toBeNull();
     expect(can(me('support')).pauseTenant()).toBeNull();
   });
+
+  it('gates the SA5 cost inputs on the draft limit the server asserts (QA-054)', () => {
+    expect(can(me('finance', { can_edit_pricing_draft: false })).editCosts()).toMatch(/cannot edit the cost inputs/);
+    expect(can(me('finance')).editCosts()).toBeNull();
+    expect(can(me('support')).editCosts()).toMatch(/Needs/);
+  });
 });

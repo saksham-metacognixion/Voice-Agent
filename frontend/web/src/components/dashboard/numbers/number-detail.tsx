@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { LoadError } from '@/src/components/dashboard/query-states';
-import { isNumberEditable, numberType } from '@/src/dashboard/numbers-view';
+import { areaCodeSubstitute, isNumberEditable, numberType } from '@/src/dashboard/numbers-view';
 import { formatDate } from '@/src/lib/format';
 import { NUMBER_TABS, routes, type NumberTab } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
@@ -66,6 +66,7 @@ export function NumberDetail({ id, tab, onTab }: { id: string; tab: string | nul
   const tabs = tabsFor(n);
   const active = (tabs as string[]).includes(tab ?? '') ? (tab as NumberTab) : 'routing';
   const editable = isNumberEditable(n);
+  const substitute = areaCodeSubstitute(n);
   const agentName = n.agent_id ? (agents.name(n.agent_id) ?? t('unknownAgent')) : t('noAgent');
 
   return (
@@ -89,9 +90,9 @@ export function NumberDetail({ id, tab, onTab }: { id: string; tab: string | nul
             <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <NumberStatusBadge status={n.status} />
               <NumberTypeBadge number={n} />
-              {n.nickname ? <span className="break-words">{n.nickname}</span> : null}
+              {n.nickname ? <span className="break-words" dir="auto">{n.nickname}</span> : null}
               <span aria-hidden>·</span>
-              <span className="break-words">{agentName}</span>
+              <span className="break-words" dir="auto">{agentName}</span>
               {n.next_rental_at && n.rental_credits > 0 && editable ? (
                 <>
                   <span aria-hidden>·</span>
@@ -109,6 +110,7 @@ export function NumberDetail({ id, tab, onTab }: { id: string; tab: string | nul
       </div>
 
       {n.status === 'released' ? <Alert variant="neutral">{t('releasedNote')}</Alert> : null}
+      {substitute && editable ? <Alert variant="neutral">{t('areaCodeNote', substitute)}</Alert> : null}
       {n.status === 'failed' && n.error ? <Alert variant="danger">{t('failedNote', { reason: n.error })}</Alert> : null}
       {!canEdit && editable ? <Alert variant="neutral">{t('readOnly')}</Alert> : null}
 

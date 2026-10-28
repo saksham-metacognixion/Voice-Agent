@@ -357,6 +357,8 @@ export type AdminCallResponse = z.infer<typeof adminCallResponse>;
 export const STAFF_NOTE_MAX = 1000;
 /** View-as notes are shorter: they are shown on the customer-side banner record. */
 export const IMPERSONATE_NOTE_MAX = 500;
+/** Pricing publish and rollback notes; the console's dialogs read the same number (QA-053). */
+export const PRICING_NOTE_MAX = 500;
 
 export const staffActionRequest = z
   .object({
@@ -724,7 +726,7 @@ export const adminPricingPublishRequest = z
     /** Publish past a margin-floor blocker (super admin, with a note). */
     override_margin: z.boolean().default(false),
     reason_code: reasonCode,
-    note: z.string().trim().min(1).max(500).optional(),
+    note: z.string().trim().min(1).max(PRICING_NOTE_MAX).optional(),
     ticket_id: z.number().int().positive().optional(),
   })
   .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {
@@ -738,7 +740,7 @@ export const adminPricingRollbackRequest = z
   .object({
     override_margin: z.boolean().default(false),
     reason_code: reasonCode,
-    note: z.string().trim().min(1).max(500).optional(),
+    note: z.string().trim().min(1).max(PRICING_NOTE_MAX).optional(),
     ticket_id: z.number().int().positive().optional(),
   })
   .refine((v) => v.reason_code !== 'other' || Boolean(v.note), {

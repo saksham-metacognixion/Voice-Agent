@@ -121,7 +121,14 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
   }, [generation.state.stage, advance]);
 
   async function next() {
-    await autosave.flush();
+    setGenError(null);
+    try {
+      await autosave.flush();
+    } catch (e) {
+      // A brief that did not save stays on this page (QA-057).
+      setGenError(errorMessage(e, t));
+      return;
+    }
     await advance(3, 'brief');
     router.push(routes.onboarding.voice);
   }

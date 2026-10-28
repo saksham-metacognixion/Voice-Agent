@@ -585,7 +585,7 @@ export class AgentsService {
   /** An `audit_log` row. Append-only in Postgres; never updated, never deleted (§6.2). */
   async audit(
     db: WorkspaceDb | Prisma.TransactionClient,
-    ctx: Pick<WorkspaceContext, 'workspaceId' | 'userId'>,
+    ctx: Pick<WorkspaceContext, 'workspaceId' | 'userId' | 'ip'>,
     action: string,
     targetId: string,
     meta: Record<string, unknown> = {},
@@ -597,6 +597,7 @@ export class AgentsService {
         action,
         targetType: 'agent',
         targetId,
+        ip: ctx.ip ?? null,
         metaJson: meta as Prisma.InputJsonValue,
       },
     });

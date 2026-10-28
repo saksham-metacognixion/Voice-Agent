@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { overlayCodes, purchaseAttempts } from './purchase-attempts';
+import { nanpAreaCode, overlayCodes, purchaseAttempts } from './purchase-attempts';
 
 describe('purchaseAttempts', () => {
   it('647: both carriers for 647, then the Toronto overlay, then any Canadian number', () => {
@@ -36,5 +36,18 @@ describe('overlayCodes', () => {
 
   it('an unknown code has none', () => {
     expect(overlayCodes('CA', 999)).toEqual([]);
+  });
+});
+
+describe('nanpAreaCode (QA-076)', () => {
+  it('reads the code a North American number was bought in', () => {
+    expect(nanpAreaCode('+12365550100')).toBe('236');
+    expect(nanpAreaCode('+16475550100')).toBe('647');
+  });
+
+  it('answers null for anything else', () => {
+    expect(nanpAreaCode('+442071234567')).toBeNull();
+    expect(nanpAreaCode('+1123')).toBeNull();
+    expect(nanpAreaCode(null)).toBeNull();
   });
 });

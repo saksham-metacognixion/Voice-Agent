@@ -72,7 +72,7 @@ export function TeamTab() {
             <AvatarFallback>{initials(m.name ?? m.email)}</AvatarFallback>
           </Avatar>
           <span className="min-w-0 break-words font-medium">
-            {nameOf(m)}
+            <span dir="auto">{nameOf(m)}</span>
             {m.email.toLowerCase() === me ? <span className="ms-1.5 text-xs font-normal text-muted-foreground">({t('you')})</span> : null}
           </span>
         </span>
@@ -195,6 +195,10 @@ function InviteCard() {
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [created, setCreated] = React.useState<InviteResponse | null>(null);
+  // The link stays only while its row does: a resend or a revoke below replaces or removes
+  // the row, and the link shown here then no longer works (QA-063).
+  const invites = useListInvites(api, { staleTime: 30_000 });
+  const shown = created && (!invites.data || invites.data.some((i) => i.id === created.id)) ? created : null;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -255,7 +259,7 @@ function InviteCard() {
         </form>
         <p className="text-xs text-muted-foreground">{t(`roleHints.${role}`)}</p>
         {error ? <Alert variant="danger">{error}</Alert> : null}
-        {created ? <InviteLink invite={created} /> : null}
+        {shown ? <InviteLink invite={shown} /> : null}
       </CardContent>
     </Card>
   );

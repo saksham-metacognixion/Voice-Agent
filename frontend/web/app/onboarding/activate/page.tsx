@@ -95,10 +95,16 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
       if (res.credited) track('checkout_confirmed', { agent_id: agent.id, purchase_id: res.purchase_id });
       if (res.status === 'paid') refetchActivation.current();
     } catch (e) {
-      // NOT_FOUND: a link for a purchase that is not this workspace's. The webhook path still stands.
-      if (!isApiError(e, 'NOT_FOUND')) setConfirmError(errorMessage(e, t));
-      // No purchase time to compare with: show the latest activation rather than none.
-      setSince((s) => (s === 'pending' ? null : s));
+      if (isApiError(e, 'NOT_FOUND')) {
+        // A link for a purchase that is not this workspace's: there is no purchase time to
+        // compare with, so the latest activation is shown rather than none. The webhook path
+        // still stands.
+        setSince((s) => (s === 'pending' ? null : s));
+      } else {
+        // Stripe could not be asked. The activation stays held, so an older failure is not
+        // passed off as this payment's, and the error says so with "Check again" (QA-061).
+        setConfirmError(errorMessage(e, t));
+      }
     } finally {
       confirming.current = false;
     }
@@ -211,7 +217,18 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
                 ) : undefined,
               }}
             />
-            {confirmError && !view ? <Alert variant="warning">{confirmError}</Alert> : null}
+            {confirmError && !view ? (
+              <Alert
+                variant="warning"
+                actions={
+                  <Button size="sm" variant="outline" onClick={() => void confirm()}>
+                    {tw('confirm.check')}
+                  </Button>
+                }
+              >
+                {confirmError}
+              </Alert>
+            ) : null}
             {retryError && !view ? <Alert variant="danger">{retryError}</Alert> : null}
             {view?.status === 'failed' || (patienceOver && !view) ? (
               <p className="text-sm text-muted-foreground">

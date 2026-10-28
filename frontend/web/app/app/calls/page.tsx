@@ -142,7 +142,7 @@ export default function CallsPage() {
     <>
       <PageHeader
         title={t('title')}
-        description={total !== undefined ? t('count', { n: formatNumber(total, 0) }) : undefined}
+        description={total !== undefined ? t('count', { n: total }) : undefined}
         actions={
           <>
             <LiveDot state={stream} />

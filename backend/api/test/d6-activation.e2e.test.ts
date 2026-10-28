@@ -298,7 +298,11 @@ describe('retries and failure', () => {
     expect(asked[8]).toMatchObject({ provider: 'twilio', areaCode: undefined });
     const numbers = await adminDb.phoneNumber.findMany({ where: { agentId } });
     expect(numbers).toHaveLength(1);
-    expect(numbers[0]).toMatchObject({ status: 'active', type: 'retell_twilio' });
+    expect(numbers[0]).toMatchObject({ status: 'active', type: 'retell_twilio', requestedAreaCode: '647' });
+    // The customer is told the number is not in the code they asked for (QA-076).
+    const shown = (await call('GET', `/numbers/${numbers[0]!.id}`, headers)).body;
+    expect(shown.requested_area_code).toBe('647');
+    expect(shown.area_code).not.toBe('647');
   }, 60_000);
 
   it('no stock anywhere fails once, says so, and a retry after W6 picks another code buys in the new one', async () => {

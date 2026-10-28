@@ -39,8 +39,8 @@ export const updateWorkspaceRequest = z.object({
   recording_default: z.boolean().optional(),
   /** §17 retention, 7–365 days. */
   retention_days: z.number().int().min(7).max(365).optional(),
-  /** Resume from a paused state is a staff action (SA12), never this route. */
-  onboarding_step: z.number().int().min(1).max(7).optional(),
+  // No `onboarding_step`: the wizard pointer moves forward only, through
+  // POST /workspace/onboarding-step. Sent here it is stripped, never written (QA-058).
 });
 export type UpdateWorkspaceRequest = z.infer<typeof updateWorkspaceRequest>;
 

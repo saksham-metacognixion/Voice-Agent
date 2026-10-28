@@ -11,6 +11,7 @@ type NumberRow = {
   type: string;
   country: string | null;
   areaCode: string | null;
+  requestedAreaCode?: string | null;
   tollFree: boolean;
   status: string;
   pausedAt: Date | null;
@@ -52,6 +53,7 @@ export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.ca
     kind: row.type === 'custom_sip' ? 'sip' : 'bought',
     country: row.country,
     area_code: row.areaCode,
+    requested_area_code: row.requestedAreaCode ?? null,
     toll_free: row.tollFree,
     status: row.status as PhoneNumberResponse['status'],
     paused: row.pausedAt !== null || row.status === 'paused',

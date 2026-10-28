@@ -15,6 +15,12 @@ export interface WorkspaceContext {
   userId: string;
   workspaceId: string;
   role: MemberRole;
+  /**
+   * The client address, set once by `WorkspaceGuard` from the request, so every
+   * `audit_log` row a request writes carries it (QA-074). Absent off the request path
+   * (workers, schedules): those rows have no IP.
+   */
+  ip?: string | null;
 }
 
 /** Admin §2.1 — ctx.staff = {id, role}. Never coexists with a WorkspaceContext. */

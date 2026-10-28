@@ -141,7 +141,7 @@ export class AutoTopupService {
   }
 
   private async saveSettings(ctx: WorkspaceContext, value: AutoTopup, action: string): Promise<void> {
-    await withWorkspace(ctx, (db) => this.writeSettings(db, ctx.workspaceId, value, action, { actorUserId: ctx.userId }));
+    await withWorkspace(ctx, (db) => this.writeSettings(db, ctx.workspaceId, value, action, { actorUserId: ctx.userId, ip: ctx.ip ?? null }));
   }
 
   /**
@@ -156,7 +156,7 @@ export class AutoTopupService {
     workspaceId: string,
     value: AutoTopup,
     action: string,
-    who: { actorUserId: string | null; meta?: Record<string, unknown> },
+    who: { actorUserId: string | null; ip?: string | null; meta?: Record<string, unknown> },
   ): Promise<void> {
     await db.tenant.update({ where: { id: workspaceId }, data: { autoTopupJson: value as unknown as Prisma.InputJsonValue } });
     await db.auditLog.create({
@@ -166,6 +166,7 @@ export class AutoTopupService {
         action: `auto_topup.${action}`,
         targetType: 'workspace',
         targetId: workspaceId,
+        ip: who.ip ?? null,
         metaJson: { pack_id: value.pack_id, threshold: value.threshold, card_last4: value.card_last4, ...(who.meta ?? {}) } as Prisma.InputJsonValue,
       },
     });

@@ -707,7 +707,11 @@ model PhoneNumber {
   nickname            String?
   type                PhoneNumberType
   country             String?           @db.Char(2)
+  /// The code bought (overwritten by provisioning); `requestedAreaCode` is the one asked for.
   areaCode            String?           @map("area_code")
+  /// QA-076: what W6 / D4 asked for, written once at creation. Differs from `areaCode` when
+  /// the requested code had no stock and a neighbour was bought (purchase-attempts.ts).
+  requestedAreaCode   String?           @map("requested_area_code")
   tollFree            Boolean           @default(false) @map("toll_free")
   hoursMode           HoursMode         @default(always) @map("hours_mode")
   hoursOverrideJson   Json?             @map("hours_override_json")
