@@ -248,6 +248,16 @@ describe('the transfer and list rules', () => {
     expect(TRANSFER_RULE).toMatch(/When a hand-off rule says to transfer/);
   });
 
+  // QA-083: the number's own message, per call, word for word; the old words when blank.
+  it('reads the number\'s transfer-failed message word for word, and keeps the old words without one', () => {
+    expect(TRANSFER_RULE).toContain('<<{{transfer_fail_message}}>>');
+    expect(TRANSFER_RULE).toMatch(/does not go through, read the transfer-failed message to the caller word for word when there is one/);
+    expect(TRANSFER_RULE).toMatch(/otherwise say the team cannot take the call right now/);
+    expect(TRANSFER_RULE).toMatch(/empty or in curly braces means there is none/);
+    // The variable is never asked of a phone number: the rule still forbids saying one.
+    expect(TRANSFER_RULE.indexOf('Never say a phone number')).toBe(0);
+  });
+
   it('caps a category answer at three or four items with an offer of more', () => {
     expect(LIST_RULE).toMatch(/at most three or four items/);
     expect(LIST_RULE).toMatch(/ask whether they would like to hear more/);

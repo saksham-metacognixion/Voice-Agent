@@ -12,11 +12,25 @@ import { AdminKpisService } from './admin-kpis.service';
 import { DAY_MS } from './admin.helpers';
 
 const PROBE_TIMEOUT_MS = 2_500;
-/** Provider probes are cached: the strip polls every 30 s from every open console tab. */
-const PROVIDER_PROBE_TTL_S = 60;
+/**
+ * Provider probes are cached: the strip polls every 30 s from every open console tab. An
+ * answer older than a minute is still served while a fresh probe runs behind it, so no
+ * page waits on the voice platform or Stripe (QA-072: up to 2.5 s once a minute, on
+ * whichever navigation hit the expiry). Ten minutes without a refresh and it is dropped.
+ */
+const PROVIDER_PROBE_FRESH_MS = 60_000;
+const PROVIDER_PROBE_KEEP_S = 10 * 60;
 const PROVIDER_PROBE_KEY = (name: string) => `admin:health:${name}`;
 
 type Check = AdminSystemHealthResponse['api'];
+type CachedCheck = Check & { checked_at?: number };
+
+/** What `provider()` does with what the cache holds: answer from it, answer and refresh behind it, or wait for a probe. */
+export function probeAction(cached: CachedCheck | null, now: number): 'use' | 'use_and_refresh' | 'probe' {
+  if (!cached) return 'probe';
+  const age = now - (cached.checked_at ?? 0);
+  return age >= 0 && age < PROVIDER_PROBE_FRESH_MS ? 'use' : 'use_and_refresh';
+}
 
 /**
  * Admin §3 "Health strip" (D12 §17): Postgres, Redis, the worker heartbeat (the same
@@ -28,6 +42,8 @@ type Check = AdminSystemHealthResponse['api'];
 @Injectable()
 export class AdminSystemService {
   private readonly log = new Logger(AdminSystemService.name);
+  /** One probe per provider in flight per process, however many tabs poll. */
+  private readonly probing = new Map<string, Promise<Check>>();
 
   constructor(
     private readonly cache: RedisCache,
@@ -143,15 +159,28 @@ export class AdminSystemService {
     const configured =
       name === 'retell' ? this.retell.config.configured : this.stripe.config.configured;
     if (!configured) return { signal: 'unknown', detail: 'not configured', latency_ms: null };
-    const cached = await this.cache.getJson<Check>(PROVIDER_PROBE_KEY(name));
-    if (cached) return cached;
-    const result = await timed(probe);
-    const check: Check = {
-      ...result,
-      detail: result.signal === 'ok' ? null : (result.detail ?? '').slice(0, 80) || 'unreachable',
-    };
-    await this.cache.setJson(PROVIDER_PROBE_KEY(name), check, PROVIDER_PROBE_TTL_S);
+    const cached = await this.cache.getJson<CachedCheck>(PROVIDER_PROBE_KEY(name));
+    const action = probeAction(cached, Date.now());
+    if (action === 'probe' || !cached) return this.probe(name, probe);
+    if (action === 'use_and_refresh') void this.probe(name, probe);
+    const { checked_at: _checkedAt, ...check } = cached;
     return check;
+  }
+
+  private probe(name: 'retell' | 'stripe', probe: () => Promise<void>): Promise<Check> {
+    const running = this.probing.get(name);
+    if (running) return running;
+    const run = (async () => {
+      const result = await timed(probe);
+      const check: Check = {
+        ...result,
+        detail: result.signal === 'ok' ? null : (result.detail ?? '').slice(0, 80) || 'unreachable',
+      };
+      await this.cache.setJson(PROVIDER_PROBE_KEY(name), { ...check, checked_at: Date.now() }, PROVIDER_PROBE_KEEP_S);
+      return check;
+    })().finally(() => this.probing.delete(name));
+    this.probing.set(name, run);
+    return run;
   }
 
   private async webhooks(

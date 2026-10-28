@@ -77,6 +77,19 @@ export const ledgerQuery = paginationQuery.extend({
 });
 export type LedgerQuery = z.infer<typeof ledgerQuery>;
 
+/**
+ * POST /wallet/ledger/export (QA-080, D5 "Export CSV"): the credit history narrowed the
+ * way the list is, streamed as `text/csv`. A POST like `POST /calls/export`, so a filter
+ * set can grow without changing the method.
+ */
+export const ledgerExportRequest = z.object({
+  reason: ledgerReason.optional(),
+});
+export type LedgerExportRequest = z.infer<typeof ledgerExportRequest>;
+
+/** The most rows one credit-history export may carry — the call export's cap. */
+export const LEDGER_EXPORT_MAX_ROWS = 10_000;
+
 /** POST /wallet/checkout (§13.7, §16 example). */
 export const checkoutRequest = z.object({
   pack_id: z.string().min(1),

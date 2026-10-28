@@ -180,8 +180,8 @@ export function numberPath(numberId: string, tab: NumberTab = 'routing'): string
   return `${routes.app.numbers}?${query.toString()}`;
 }
 
-/** D6 sub-pages (spec p. 39), in the order the spec lists them. `/app/settings/*` → `?tab=`. */
-export const SETTINGS_TABS = ['workspace', 'team', 'notifications', 'security', 'privacy', 'audit'] as const;
+/** D6 sub-pages (spec p. 39), in the order the spec lists them, plus D18's Outbound calling. `/app/settings/*` → `?tab=`. */
+export const SETTINGS_TABS = ['workspace', 'team', 'notifications', 'security', 'privacy', 'outbound', 'audit'] as const;
 export type SettingsTab = (typeof SETTINGS_TABS)[number];
 
 export function settingsPath(tab: SettingsTab = 'workspace'): string {

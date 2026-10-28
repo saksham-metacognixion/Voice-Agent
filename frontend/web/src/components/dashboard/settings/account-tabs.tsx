@@ -2,7 +2,7 @@
 
 import { updateNotificationSettings, updateWorkspace, useApi, useGetNotificationSettings } from '@portal/api-client';
 import type { NewMessageMode, NotificationSettingsResponse, WorkspaceResponse } from '@portal/schemas';
-import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, RadioCard, RadioGroup, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, toast } from '@portal/ui';
+import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, RadioCard, RadioGroup, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Textarea, toast } from '@portal/ui';
 import { KeyRound, LogOut, Mail, ShieldCheck } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
@@ -11,7 +11,8 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { requestPasswordReset, useAuth } from '@/src/auth/auth-provider';
 import { LoadError } from '@/src/components/dashboard/query-states';
-import { config } from '@/src/config';
+import { usePlanGate } from '@/src/dashboard/use-plan-gate';
+import { DataRequestsCards } from '@/src/components/dashboard/settings/data-requests';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
@@ -182,9 +183,13 @@ const RETENTION = [30, 90, 365];
 
 /**
  * D6 Data & privacy (spec p. 39): the recording default for new agents and the retention
- * window, both `PATCH /workspace` (owner/admin). Export and deletion have no customer
- * route — deletion is an anonymisation job run by staff (§17, ADR 0006) — so the page
- * says how to ask for them instead of offering a button that cannot work.
+ * window, both `PATCH /workspace` (owner/admin). Since QA-081 also the PII-removal default
+ * for new agents (plan gate `pii_removal`) and the recording notice a recording agent
+ * says before its greeting — ours in the agent's language, or the business's own line.
+ * The notice is added at the platform sync, so it reaches a live agent at its next
+ * publish. "Export all data" and "Delete workspace" are `DataRequestsCards` (QA-081):
+ * the export a zip streamed by the API, the deletion a request staff carry out as the
+ * §17 anonymisation job — the owner asks, with the workspace name typed.
  */
 export function PrivacyTab({ workspace }: { workspace: WorkspaceResponse }) {
   const t = useTranslations('dashboard.settings.privacy');
@@ -194,17 +199,29 @@ export function PrivacyTab({ workspace }: { workspace: WorkspaceResponse }) {
   const { canAdmin } = useRole();
   const [recording, setRecording] = React.useState(workspace.recording_default);
   const [retention, setRetention] = React.useState(workspace.retention_days);
+  const [piiDefault, setPiiDefault] = React.useState(workspace.pii_removal_default);
+  const [notice, setNotice] = React.useState(workspace.recording_notice);
+  const [noticeText, setNoticeText] = React.useState(workspace.recording_notice_text ?? '');
+  const piiGate = usePlanGate('pii_removal');
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setRecording(workspace.recording_default);
     setRetention(workspace.retention_days);
-  }, [workspace.recording_default, workspace.retention_days]);
+    setPiiDefault(workspace.pii_removal_default);
+    setNotice(workspace.recording_notice);
+    setNoticeText(workspace.recording_notice_text ?? '');
+  }, [workspace.recording_default, workspace.retention_days, workspace.pii_removal_default, workspace.recording_notice, workspace.recording_notice_text]);
 
   const options = RETENTION.includes(workspace.retention_days) ? RETENTION : [...RETENTION, workspace.retention_days].sort((a, b) => a - b);
-  const dirty = recording !== workspace.recording_default || retention !== workspace.retention_days;
-  const mailto = `mailto:${config.support.email}?subject=${encodeURIComponent(t('requestsSubject', { workspace: workspace.name }))}`;
+  const noticeChanged = noticeText.trim() !== (workspace.recording_notice_text ?? '');
+  const dirty =
+    recording !== workspace.recording_default ||
+    retention !== workspace.retention_days ||
+    piiDefault !== workspace.pii_removal_default ||
+    notice !== workspace.recording_notice ||
+    noticeChanged;
 
   async function save() {
     if (busy || !dirty) return;
@@ -214,6 +231,9 @@ export function PrivacyTab({ workspace }: { workspace: WorkspaceResponse }) {
       const updated = await updateWorkspace(api, {
         ...(recording !== workspace.recording_default ? { recording_default: recording } : {}),
         ...(retention !== workspace.retention_days ? { retention_days: retention } : {}),
+        ...(piiDefault !== workspace.pii_removal_default ? { pii_removal_default: piiDefault } : {}),
+        ...(notice !== workspace.recording_notice ? { recording_notice: notice } : {}),
+        ...(noticeChanged ? { recording_notice_text: noticeText.trim() || null } : {}),
       });
       queryClient.setQueryData(['getWorkspace'], updated);
       track('workspace_settings_saved', { fields: 1 });
@@ -235,6 +255,21 @@ export function PrivacyTab({ workspace }: { workspace: WorkspaceResponse }) {
         <CardContent className="flex flex-col gap-5">
           <Field id="privacy-recording" label={t('recording')} description={t('recordingHint')}>
             <Switch id="privacy-recording" checked={recording} onCheckedChange={setRecording} disabled={!canAdmin || busy} />
+          </Field>
+          <Field id="privacy-notice" label={t('notice')} description={t('noticeHint')}>
+            <Switch id="privacy-notice" checked={notice} onCheckedChange={setNotice} disabled={!canAdmin || busy} />
+          </Field>
+          {notice ? (
+            <Field id="privacy-notice-text" label={t('noticeText')} description={t('noticeTextHint')} optional optionalLabel={tc('common.optional')}>
+              <Textarea id="privacy-notice-text" value={noticeText} maxLength={200} rows={2} dir="auto" placeholder={t('noticePlaceholder')} onChange={(e) => setNoticeText(e.target.value)} disabled={!canAdmin || busy} />
+            </Field>
+          ) : null}
+          <Field
+            id="privacy-pii"
+            label={t('pii')}
+            description={piiGate.locked ? `${t('piiHint')} ${piiGate.packName ? tc('dashboard.planGate.lockedPack', { pack: piiGate.packName }) : tc('dashboard.planGate.lockedGeneric')}` : t('piiHint')}
+          >
+            <Switch id="privacy-pii" checked={piiDefault} onCheckedChange={setPiiDefault} disabled={!canAdmin || busy || (piiGate.locked && !piiDefault)} />
           </Field>
           <Field id="privacy-retention" label={t('retention')} description={t('retentionHint')} className="sm:max-w-xs">
             <Select value={String(retention)} onValueChange={(v) => setRetention(Number(v))} disabled={!canAdmin || busy}>
@@ -260,19 +295,7 @@ export function PrivacyTab({ workspace }: { workspace: WorkspaceResponse }) {
           ) : null}
         </CardContent>
       </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('requestsTitle')}</CardTitle>
-          <CardDescription>{t('requestsBody')}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button variant="outline" asChild>
-            <a href={mailto}>
-              <Mail /> {t('requestsCta', { email: config.support.email })}
-            </a>
-          </Button>
-        </CardContent>
-      </Card>
+      <DataRequestsCards workspace={workspace} />
     </div>
   );
 }

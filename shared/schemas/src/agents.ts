@@ -458,6 +458,33 @@ export const createAgentRequest = z.object({
 });
 export type CreateAgentRequest = z.infer<typeof createAgentRequest>;
 
+/** The longest agent name `createAgentRequest` and `duplicateAgentRequest` accept. */
+export const AGENT_NAME_MAX = 60;
+
+/**
+ * POST /agents/:id/duplicate {name?} — D3's list menu "Duplicate" (QA-078). Without a
+ * name the copy is called `copyAgentName(source)`; the portal sends the localised one.
+ */
+export const duplicateAgentRequest = z.object({
+  name: z.string().trim().min(2).max(AGENT_NAME_MAX).optional(),
+});
+export type DuplicateAgentRequest = z.infer<typeof duplicateAgentRequest>;
+
+/**
+ * "Front desk" → "Front desk (copy)", inside the 60-character name limit: the *source*
+ * name is shortened, never the suffix, so a long name still reads as a copy. `format`
+ * is the suffix pattern (the portal passes its translated one); a pattern longer than
+ * the limit on its own is cut, since a name that fails validation helps no one.
+ */
+export function copyAgentName(name: string, format: (name: string) => string = (n) => `${n} (copy)`): string {
+  const base = name.trim();
+  const whole = format(base);
+  if (whole.length <= AGENT_NAME_MAX) return whole;
+  const overhead = whole.length - base.length;
+  const room = Math.max(0, AGENT_NAME_MAX - overhead);
+  return format(base.slice(0, room).trimEnd()).slice(0, AGENT_NAME_MAX);
+}
+
 /**
  * The agent-level settings a version carries (`agent_versions.settings_json`): tier,
  * voice, languages, duration ceiling, recording. They travel *with the version* for the
@@ -577,6 +604,23 @@ export const agentSettings = z.object({
   /** D3 Settings: 3–30 minutes. Also caps `max_call_duration_ms` on every call. */
   max_call_duration_s: z.number().int().min(180).max(1_800),
   recording_enabled: z.boolean(),
+  /**
+   * D3 Settings (QA-079): the stronger noise filter, which also drops background
+   * speech. Plan gate `denoise`. Defaulted, like the two below, so a version written
+   * before the field existed still parses.
+   */
+  denoise: z.boolean().default(false),
+  /**
+   * D3 Settings (QA-079): scrub sensitive identifiers (card, account, ID numbers…) from
+   * the transcript and the recording once the call ends. Plan gate `pii_removal`.
+   */
+  pii_removal: z.boolean().default(false),
+  /**
+   * Written by the server, never by a request: true once the customer has edited this
+   * version's analysis fields (QA-079). A regenerate then keeps the list as it is
+   * instead of rebuilding it from the template and the model's additions.
+   */
+  analysis_fields_edited: z.boolean().default(false),
 });
 export type AgentSettings = z.infer<typeof agentSettings>;
 
@@ -591,6 +635,9 @@ export function defaultAgentSettings(tier: z.infer<typeof agentTier> = 'standard
     voice_temperature: null,
     max_call_duration_s: 600,
     recording_enabled: true,
+    denoise: false,
+    pii_removal: false,
+    analysis_fields_edited: false,
   };
 }
 
@@ -619,7 +666,18 @@ export const agentDraftPatch = z.object({
   /** D3 Settings: 3–30 minutes. Also caps `max_call_duration_ms` on every call. */
   max_call_duration_s: z.number().int().min(180).max(1_800).optional(),
   recording_enabled: z.boolean().optional(),
-  analysis_fields: analysisSchema.optional(),
+  /** D3 Settings, plan gate `denoise` (QA-079). Turning it on without the gate is `PLAN_LIMIT`. */
+  denoise: z.boolean().optional(),
+  /** D3 Settings, plan gate `pii_removal` (QA-079). */
+  pii_removal: z.boolean().optional(),
+  /**
+   * The D3 Brief tab's analysis-fields editor (§9.8, plan gate `analysis_fields`): the
+   * whole list, replacing the version's. Names are unique — the platform keys the
+   * captured values by name.
+   */
+  analysis_fields: analysisSchema
+    .refine((fields) => new Set(fields.map((f) => f.name)).size === fields.length, 'Each field needs its own name')
+    .optional(),
 });
 export type AgentDraftPatch = z.infer<typeof agentDraftPatch>;
 
@@ -670,6 +728,21 @@ export const feedbackRequest = z.object({
   base_version: z.number().int().min(1).optional(),
 });
 export type FeedbackRequest = z.infer<typeof feedbackRequest>;
+
+/**
+ * POST /agents/:id/versions — the D3 Brief tab's "Save as new version" (QA-079).
+ *
+ * `saved_version` is the version that now holds the draft as it was (frozen, listed under
+ * Versions, restorable with "Restore as draft"); `draft_version` is the one edits go to
+ * next. `created` is false when there was nothing to save — the draft was already frozen
+ * (published, or a version the customer restored) — and then the two are the same.
+ */
+export const saveVersionResponse = z.object({
+  saved_version: z.number().int(),
+  draft_version: z.number().int(),
+  created: z.boolean(),
+});
+export type SaveVersionResponse = z.infer<typeof saveVersionResponse>;
 
 /** POST /agents/:id/draft/select {version_no} — Undo, and "Restore as draft" in D3. */
 export const selectVersionRequest = z.object({

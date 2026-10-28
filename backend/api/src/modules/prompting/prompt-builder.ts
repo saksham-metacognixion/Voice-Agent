@@ -246,9 +246,12 @@ export function transferSection(brief: Pick<Brief, 'handoff_rules'>): string[] {
     `number for a transfer. Fill {transfer_targets} with who the caller reaches — "${STAFF_LABEL}",`,
     '"the team", "the manager" — never digits. Write each transfer as an offer:',
     '"Would you like me to transfer you to our staff?", and transfer only once the caller agrees.',
-    'If the transfer is not available or does not go through, the agent says the team cannot take',
-    'the call right now and offers to take a message. The agent never reads out a staff phone',
-    'number, when offering, retrying or explaining.',
+    // QA-083: the words for a failed transfer belong to the phone number (D4 Hand-off) and
+    // reach the call through the platform rules, so the script must not fix its own.
+    'If the transfer is not available or does not go through, the agent reads the phone line\'s own',
+    'transfer-failed message when one is set (the platform rules carry it; do not write one), and',
+    'otherwise says the team cannot take the call right now; either way it then offers to take a',
+    'message. The agent never reads out a staff phone number, when offering, retrying or explaining.',
   ];
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { anyProvisioning, areaCodeSubstitute, isNumberEditable, maskSecretish, numberType, parseBlocklist, sortNumbers } from './numbers-view';
 
-const base = { id: 'n', agent_id: null, e164: '+15145550100', nickname: null, kind: 'bought' as const, country: 'CA', area_code: '514', requested_area_code: null, toll_free: false, status: 'active' as const, paused: false, hours_mode: 'always' as const, hours_override: null, transfer_targets: [], allowed_countries: [], blocklist: [], forwarding: null, sip: null, calls_7d: 0, rental_credits: 15, next_rental_at: null, error: null, created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' };
+const base = { id: 'n', agent_id: null, e164: '+15145550100', nickname: null, kind: 'bought' as const, country: 'CA', area_code: '514', requested_area_code: null, toll_free: false, status: 'active' as const, paused: false, hours_mode: 'always' as const, hours_override: null, transfer_targets: [], transfer_fail_message: null, allowed_countries: [], blocklist: [], forwarding: null, sip: null, calls_7d: 0, rental_credits: 15, next_rental_at: null, error: null, created_at: '2026-09-01T00:00:00Z', updated_at: '2026-09-01T00:00:00Z' };
 
 describe('numberType (D4 list)', () => {
   it('names New, Forward target and SIP', () => {

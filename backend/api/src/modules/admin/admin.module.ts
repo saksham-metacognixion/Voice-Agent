@@ -19,6 +19,7 @@ import { AdminFlagsService } from './admin-flags.service';
 import { AdminJobsService } from './admin-jobs.service';
 import { AdminKpisService } from './admin-kpis.service';
 import { AdminNumbersService } from './admin-numbers.service';
+import { AdminOutboundService } from './admin-outbound.service';
 import { AdminOperationsController } from './admin-operations.controller';
 import { AdminOperationsService } from './admin-operations.service';
 import { AdminPricingService } from './admin-pricing.service';
@@ -111,6 +112,7 @@ import { StaffLimitsService } from './staff-limits.service';
     AdminCustomersService,
     AdminAgentsService,
     AdminNumbersService,
+    AdminOutboundService,
     AdminCallsService,
     AdminUsersService,
     AdminJobsService,

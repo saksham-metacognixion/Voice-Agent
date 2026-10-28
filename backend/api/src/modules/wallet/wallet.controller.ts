@@ -1,4 +1,6 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query, Res } from '@nestjs/common';
+import type { FastifyReply } from 'fastify';
+import { Readable } from 'node:stream';
 import {
   type CheckoutConfirmResponse,
   type CheckoutResponse,
@@ -9,6 +11,7 @@ import {
   type WalletResponse,
   checkoutConfirmRequest,
   checkoutRequest,
+  ledgerExportRequest,
   ledgerQuery,
 } from '@portal/schemas';
 import { z } from 'zod';
@@ -45,6 +48,28 @@ export class WalletController {
   @Get('ledger')
   ledger(@Ctx() ctx: WorkspaceContext, @Query() query: LedgerQuery): Promise<Page<LedgerEntryResponse>> {
     return this.wallet.ledger(ctx, ledgerQuery.parse(query));
+  }
+
+  /**
+   * D5 ledger "Export CSV" (QA-080, spec p. 38): the credit history narrowed by reason,
+   * streamed as it is read, like `POST /calls/export`. Owner/admin: every role may look at
+   * the ledger one page at a time, but a file of the workspace's whole billing history is
+   * billing, which §6.1 gives to the owner and admins.
+   */
+  @Post('ledger/export')
+  @HttpCode(200)
+  @Roles('owner', 'admin')
+  exportLedger(@Ctx() ctx: WorkspaceContext, @Body() body: unknown, @Res() reply: FastifyReply): void {
+    const request = ledgerExportRequest.parse(body ?? {});
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    void reply
+      .code(200)
+      .headers({
+        'content-type': 'text/csv; charset=utf-8',
+        'content-disposition': `attachment; filename="credit-history-${stamp}.csv"`,
+        'cache-control': 'private, no-store',
+      })
+      .send(Readable.from(this.wallet.exportLedgerCsv(ctx, request)));
   }
 
   /** §13.7 step 1. Returns the hosted Checkout URL; credits arrive via the webhook. */

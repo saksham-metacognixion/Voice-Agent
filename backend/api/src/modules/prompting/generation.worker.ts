@@ -208,10 +208,15 @@ export class GenerationWorker {
     // The strict gate: the model's `analysis_fields` are lenient on the wire and become
     // `AnalysisField[]` here. A field it could not repair is dropped and named, never
     // carried forward as `choices: []` for Retell to reject at publish (§9.8).
-    const { fields: analysisFields, dropped: droppedAnalysisFields } = normaliseAnalysisFields(
-      [...(template?.analysis_fields ?? []), ...generated.analysis_fields],
-      stack.prompts.alwaysAnalysisFields,
-    );
+    //
+    // Unless the customer has edited the list (D3 Brief, QA-079): then it is theirs, kept
+    // exactly as the base version has it — no template field put back, no addition.
+    const { fields: analysisFields, dropped: droppedAnalysisFields } = context.settings.analysis_fields_edited
+      ? { fields: parseAnalysisFields(context.baseVersion.analysisSchemaJson), dropped: [] as string[] }
+      : normaliseAnalysisFields(
+          [...(template?.analysis_fields ?? []), ...generated.analysis_fields],
+          stack.prompts.alwaysAnalysisFields,
+        );
     if (droppedAnalysisFields.length > 0) {
       this.log.warn(
         `agent ${data.agentId}: dropped ${droppedAnalysisFields.length} invalid analysis field(s): ${droppedAnalysisFields.join(', ')}`,

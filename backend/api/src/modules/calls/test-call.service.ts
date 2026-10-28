@@ -3,6 +3,7 @@ import { type Agent, type AgentVersion, adminDb, withWorkspace } from '@portal/d
 import type { AgentTier, TestPhoneCallRequest, TestPhoneCallResponse, TestWebCallResponse } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { AgentDraftSyncService, settingsOf } from '../agents';
+import { numberTransferVariables } from '../prompting/staff-transfer';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { REDIS, RedisCache, type RedisLike } from '../redis';
@@ -136,7 +137,7 @@ export class TestCallService {
         db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }),
         db.phoneNumber.findMany({
           where: { tenantId: ctx.workspaceId, status: 'active', pausedAt: null, e164: { not: null } },
-          select: { id: true, e164: true, country: true, agentId: true },
+          select: { id: true, e164: true, country: true, agentId: true, transferFailMessage: true, transferTargetsJson: true },
           orderBy: { createdAt: 'asc' },
         }),
       ]);
@@ -179,6 +180,9 @@ export class TestCallService {
         agentVersion: ready.retellAgentVersion,
         metadata: { tenant_id: ctx.workspaceId, agent_id: agent.id, version_no: version.versionNo, tier: ready.tier, test: true, number_id: from.id },
         maxCallDurationMs: ready.maxMs,
+        // QA-083: the calling number's transfer targets and D4 "message if the transfer
+        // fails", as an inbound call to it would carry — so the test hears what a caller would.
+        dynamicVariables: numberTransferVariables(from, version.briefJson),
       })
       .catch(async (error: unknown) => {
         await slot.release();
@@ -233,6 +237,14 @@ export class TestCallService {
       // Nothing to ring yet: the brief has not been turned into a script. Distinct from a
       // version that has one and is still reaching the platform (VERSION_SYNCING below).
       if (!version.promptText) throw new AppError('AGENT_NOT_GENERATED', 'Generate the agent before testing it.');
+      // The platform keeps one editable draft and every sync rewrites it, so an older
+      // draft's platform copy now holds a newer script: ringing it would test the wrong
+      // words. The current draft (re-synced in `ready()`) and versions that were published
+      // (immutable on the platform) are what can be tested — the W5 selector offers
+      // exactly those (QA-082, `testableVersions` in the portal).
+      if (version.publishedAt === null && version.versionNo !== agent.draftVersion) {
+        throw new AppError('VERSION_NOT_TESTABLE', 'That version can no longer be tested. Restore it as the draft first, or pick another.');
+      }
       return { agent, version };
     });
   }

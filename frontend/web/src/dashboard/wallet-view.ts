@@ -35,6 +35,15 @@ export function usageSummary(points: ActivityPoint[]): { total: number; perDay: 
 /** Ledger reasons in the order the D5 filter lists them. */
 export const LEDGER_REASONS: LedgerReason[] = ['call', 'transfer', 'purchase', 'topup', 'rental', 'kb', 'trial', 'adjustment', 'refund', 'expiry'];
 
+/**
+ * D5 keeps the ledger's reason filter in the URL (`?reason=`, QA-080) like D2 keeps its
+ * filters: a reload, a pasted link or the back button shows the same history. Anything
+ * that is not a reason the filter offers reads as "everything".
+ */
+export function ledgerReasonParam(value: string | null | undefined): LedgerReason | null {
+  return value && (LEDGER_REASONS as string[]).includes(value) ? (value as LedgerReason) : null;
+}
+
 /** A call row links to its D2 detail (spec p. 38); nothing else has a customer page. */
 export function ledgerLink(entry: Pick<LedgerEntryResponse, 'reason' | 'ref_id'>): string | null {
   // D16: a transferred leg is a call's second ledger row, keyed on the same call id.

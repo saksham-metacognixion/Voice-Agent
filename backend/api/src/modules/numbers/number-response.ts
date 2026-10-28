@@ -18,6 +18,7 @@ type NumberRow = {
   hoursMode: string;
   hoursOverrideJson: unknown;
   transferTargetsJson: unknown;
+  transferFailMessage?: string | null;
   allowedCountries: string[];
   blocklist: string[];
   forwardingFrom: string | null;
@@ -60,6 +61,7 @@ export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.ca
     hours_mode: row.hoursMode as PhoneNumberResponse['hours_mode'],
     hours_override: parseHours(row.hoursOverrideJson),
     transfer_targets: parseTargets(row.transferTargetsJson),
+    transfer_fail_message: row.transferFailMessage ?? null,
     allowed_countries: row.allowedCountries,
     blocklist: row.blocklist,
     forwarding: row.forwardingFrom

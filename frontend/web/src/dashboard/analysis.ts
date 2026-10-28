@@ -78,6 +78,15 @@ export function transcriptTurns(json: unknown, text: string | null | undefined):
   return turns;
 }
 
+/**
+ * The transcript as plain text for the clipboard (D2 "Copy transcript", QA-077): one
+ * line per turn, each prefixed with the speaker as the drawer names them, so a pasted
+ * transcript reads the same as the one on screen.
+ */
+export function transcriptPlainText(turns: TranscriptTurn[], labels: { agent: string; caller: string }): string {
+  return turns.map((turn) => `${turn.role === 'agent' ? labels.agent : labels.caller}: ${turn.content}`).join('\n');
+}
+
 /** `snake_case_name` → `Snake case name`. */
 export function humanise(name: string): string {
   const s = name.replace(/[_-]+/g, ' ').trim();

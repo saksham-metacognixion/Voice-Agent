@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallResponse, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumbersQuery, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deletedResponse, dismissAlertResponse, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, selectVersionRequest, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallResponse, adminCallerIdRequest, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminKycDecisionRequest, adminKycResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumbersQuery, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callbackCheck, callbackRequest, callbackResponse, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deleteWorkspaceRequest, deletedResponse, dismissAlertResponse, dncAddRequest, dncEntryResponse, dncQuery, duplicateAgentRequest, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, kycDetails, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, outboundOverview, outboundSettings, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, saveVersionResponse, selectVersionRequest, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceDeletionRequest, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -25,7 +25,8 @@ export interface QueryHookOptions {
   staleTime?: number;
   /** How long an unobserved result is kept; `0` drops it when the last reader goes (a logged read, QA-055). */
   gcTime?: number;
-  refetchInterval?: number | false;
+  /** A function decides per result, e.g. stop polling a record that answered 404 (QA-071). */
+  refetchInterval?: number | false | ((query: { state: { status: string } }) => number | false);
   /** Overrides the client’s default retry rule; `false` for a probe whose error is the answer. */
   retry?: boolean | number;
 }
@@ -235,6 +236,24 @@ export function adminCustomerJobs(api: ApiClient, params: { id: string }, query?
 
 export function useAdminCustomerJobs(api: ApiClient, params: { id: string }, query?: z.input<typeof paginationQuery>, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['adminCustomerJobs', params, query ?? null], queryFn: () => adminCustomerJobs(api, params, query), ...options });
+}
+
+/** GET /admin/customers/:id/kyc — D18 — the business verification the customer submitted for outbound calling — ADR 0031 §1. */
+export function adminGetKyc(api: ApiClient, params: { id: string }) {
+  return api.get(`/admin/customers/${enc(params.id)}/kyc`, adminKycResponse);
+}
+
+export function useAdminGetKyc(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetKyc', params], queryFn: () => adminGetKyc(api, params), ...options });
+}
+
+/** POST /admin/customers/:id/kyc — D18 — approve, reject or withdraw the business verification (compliance) (staff: super_admin, ops) — ADR 0031 §1. */
+export function adminDecideKyc(api: ApiClient, params: { id: string }, body: z.input<typeof adminKycDecisionRequest>) {
+  return api.post(`/admin/customers/${enc(params.id)}/kyc`, body, adminKycResponse);
+}
+
+export function useAdminDecideKyc(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminKycDecisionRequest> }) => adminDecideKyc(api, vars.params, vars.body) });
 }
 
 /** GET /admin/customers/:id/members — SA2 Members tab. */
@@ -460,6 +479,15 @@ export function adminGetNumber(api: ApiClient, params: { id: string }) {
 
 export function useAdminGetNumber(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['adminGetNumber', params], queryFn: () => adminGetNumber(api, params), ...options });
+}
+
+/** POST /admin/numbers/:id/caller-id — D18 — verify a number as an outbound caller ID, or revoke it (compliance) (staff: super_admin, ops) — ADR 0031 §1. */
+export function adminSetCallerId(api: ApiClient, params: { id: string }, body: z.input<typeof adminCallerIdRequest>) {
+  return api.post(`/admin/numbers/${enc(params.id)}/caller-id`, body, adminNumberResponse);
+}
+
+export function useAdminSetCallerId(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof adminCallerIdRequest> }) => adminSetCallerId(api, vars.params, vars.body) });
 }
 
 /** POST /admin/numbers/:id/pause — Pause a number (inbound declines) (staff: super_admin, ops, support). */
@@ -912,6 +940,15 @@ export function useUpdateAgentDraft(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof agentDraftPatch> }) => updateAgentDraft(api, vars.params, vars.body) });
 }
 
+/** POST /agents/:id/draft/discard — D3 — discard the draft: point it back at the published version (roles: owner, admin, editor). */
+export function discardAgentDraft(api: ApiClient, params: { id: string }) {
+  return api.post(`/agents/${enc(params.id)}/draft/discard`, {}, agentDetail);
+}
+
+export function useDiscardAgentDraft(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string } }) => discardAgentDraft(api, vars.params) });
+}
+
 /** POST /agents/:id/draft/select — §13.5 Undo / restore a version as the draft (roles: owner, admin, editor). */
 export function selectAgentDraft(api: ApiClient, params: { id: string }, body: z.input<typeof selectVersionRequest>) {
   return api.post(`/agents/${enc(params.id)}/draft/select`, body, agentDetail);
@@ -919,6 +956,15 @@ export function selectAgentDraft(api: ApiClient, params: { id: string }, body: z
 
 export function useSelectAgentDraft(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof selectVersionRequest> }) => selectAgentDraft(api, vars.params, vars.body) });
+}
+
+/** POST /agents/:id/duplicate — D3 — a new agent whose v1 is this agent’s draft (brief, settings, script) (roles: owner, admin, editor). */
+export function duplicateAgent(api: ApiClient, params: { id: string }, body: z.input<typeof duplicateAgentRequest>) {
+  return api.post(`/agents/${enc(params.id)}/duplicate`, body, agentDetail);
+}
+
+export function useDuplicateAgent(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof duplicateAgentRequest> }) => duplicateAgent(api, vars.params, vars.body) });
 }
 
 /** POST /agents/:id/feedback — §9.6 feedback patch, as a job (202) (roles: owner, admin, editor). */
@@ -1047,6 +1093,15 @@ export function useListAgentVersions(api: ApiClient, params: { id: string }, opt
   return useQuery({ queryKey: ['listAgentVersions', params], queryFn: () => listAgentVersions(api, params), ...options });
 }
 
+/** POST /agents/:id/versions — D3 Brief — save the draft as a new version and keep editing a copy (roles: owner, admin, editor) — §9.9. */
+export function saveAgentVersion(api: ApiClient, params: { id: string }) {
+  return api.post(`/agents/${enc(params.id)}/versions`, {}, saveVersionResponse);
+}
+
+export function useSaveAgentVersion(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string } }) => saveAgentVersion(api, vars.params) });
+}
+
 /** GET /agents/:id/versions/:v — One version with its prompt. */
 export function getAgentVersion(api: ApiClient, params: { id: string; v: string }) {
   return api.get(`/agents/${enc(params.id)}/versions/${enc(params.v)}`, agentVersionDetail);
@@ -1155,6 +1210,24 @@ export function useUpdateCall(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof callPatch> }) => updateCall(api, vars.params, vars.body) });
 }
 
+/** GET /calls/:id/callback — D18 — whether the other party of this call may be called back now, and if not why (the POST's checks, placing nothing) — ADR 0031. */
+export function getCallbackCheck(api: ApiClient, params: { id: string }) {
+  return api.get(`/calls/${enc(params.id)}/callback`, callbackCheck);
+}
+
+export function useGetCallbackCheck(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['getCallbackCheck', params], queryFn: () => getCallbackCheck(api, params), ...options });
+}
+
+/** POST /calls/:id/callback — D18 — click-to-call: the agent on this call rings its other party from a verified number, behind every compliance gate (roles: owner, admin, editor) — ADR 0031. */
+export function startCallback(api: ApiClient, params: { id: string }, body: z.input<typeof callbackRequest>) {
+  return api.post(`/calls/${enc(params.id)}/callback`, body, callbackResponse);
+}
+
+export function useStartCallback(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof callbackRequest> }) => startCallback(api, vars.params, vars.body) });
+}
+
 /** GET /calls/:id/recording — A signed one-hour link to the recording stream (roles: owner, admin, editor) — ADR 0011 §5. */
 export function getCallRecording(api: ApiClient, params: { id: string }) {
   return api.get(`/calls/${enc(params.id)}/recording`, recordingResponse);
@@ -1162,6 +1235,33 @@ export function getCallRecording(api: ApiClient, params: { id: string }) {
 
 export function useGetCallRecording(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getCallRecording', params], queryFn: () => getCallRecording(api, params), ...options });
+}
+
+/** GET /dnc — D18 — the workspace's do-not-call list, newest first — ADR 0031 §3. */
+export function listDnc(api: ApiClient, query?: z.input<typeof dncQuery>) {
+  return api.get(`/dnc${qs(query)}`, paginated(dncEntryResponse));
+}
+
+export function useListDnc(api: ApiClient, query?: z.input<typeof dncQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['listDnc', query ?? null], queryFn: () => listDnc(api, query), ...options });
+}
+
+/** POST /dnc — D18 — add a number, or the other party of a call, to the do-not-call list (roles: owner, admin, editor) — ADR 0031 §3. */
+export function addDnc(api: ApiClient, body: z.input<typeof dncAddRequest>) {
+  return api.post(`/dnc`, body, dncEntryResponse);
+}
+
+export function useAddDnc(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof dncAddRequest> }) => addDnc(api, vars.body) });
+}
+
+/** DELETE /dnc/:id — D18 — take a number off the do-not-call list (roles: owner, admin) — ADR 0031 §3. */
+export function removeDnc(api: ApiClient, params: { id: string }) {
+  return api.del(`/dnc/${enc(params.id)}`, deletedResponse);
+}
+
+export function useRemoveDnc(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string } }) => removeDnc(api, vars.params) });
 }
 
 /** GET /flags — Feature gates, flags, kill switches and caps for the workspace — admin §5.3. */
@@ -1407,6 +1507,33 @@ export function useImportNumber(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { body: z.input<typeof importNumberRequest> }) => importNumber(api, vars.body) });
 }
 
+/** GET /outbound — D18 — the D6 Outbound calling tab: business verification, voicemail setting, caller IDs, today's use — ADR 0031. */
+export function getOutboundOverview(api: ApiClient) {
+  return api.get(`/outbound`, outboundOverview);
+}
+
+export function useGetOutboundOverview(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['getOutboundOverview'], queryFn: () => getOutboundOverview(api), ...options });
+}
+
+/** POST /outbound/kyc — D18 — submit the business details for verification (moves the workspace to pending) (roles: owner, admin) — ADR 0031 §1. */
+export function submitKyc(api: ApiClient, body: z.input<typeof kycDetails>) {
+  return api.post(`/outbound/kyc`, body, outboundOverview);
+}
+
+export function useSubmitKyc(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof kycDetails> }) => submitKyc(api, vars.body) });
+}
+
+/** PUT /outbound/settings — D18 — what an outbound call does at a voicemail box (roles: owner, admin) — ADR 0031 §5. */
+export function updateOutboundSettings(api: ApiClient, body: z.input<typeof outboundSettings>) {
+  return api.put(`/outbound/settings`, body, outboundOverview);
+}
+
+export function useUpdateOutboundSettings(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof outboundSettings> }) => updateOutboundSettings(api, vars.body) });
+}
+
 /** GET /pricing — Current pricing config: packs, rates, recurring charges, wallet policy — §5, §13.12. */
 export function getPricing(api: ApiClient, query?: z.input<typeof pricingQuery>) {
   return api.get(`/pricing${qs(query)}`, pricingResponse);
@@ -1578,7 +1705,7 @@ export function useGetWorkspace(api: ApiClient, options: QueryHookOptions = {}) 
   return useQuery({ queryKey: ['getWorkspace'], queryFn: () => getWorkspace(api), ...options });
 }
 
-/** PATCH /workspace — D6 Settings — name, timezone, hours, recording defaults (roles: owner, admin). */
+/** PATCH /workspace — D6 Settings — name, timezone, hours, recording and privacy defaults (roles: owner, admin). */
 export function updateWorkspace(api: ApiClient, body: z.input<typeof updateWorkspaceRequest>) {
   return api.patch(`/workspace`, body, workspaceResponse);
 }
@@ -1594,6 +1721,33 @@ export function getWorkspaceChecklist(api: ApiClient) {
 
 export function useGetWorkspaceChecklist(api: ApiClient, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getWorkspaceChecklist'], queryFn: () => getWorkspaceChecklist(api), ...options });
+}
+
+/** DELETE /workspace/delete-request — D6 — withdraw the open deletion request before staff carry it out (QA-081) (roles: owner) — §17. */
+export function withdrawWorkspaceDeletion(api: ApiClient) {
+  return api.del(`/workspace/delete-request`, revokedResponse);
+}
+
+export function useWithdrawWorkspaceDeletion(api: ApiClient) {
+  return useMutation({ mutationFn: (_vars: void) => withdrawWorkspaceDeletion(api) });
+}
+
+/** GET /workspace/delete-request — D6 — the open request to delete this workspace, or null (QA-081) — §17. */
+export function getWorkspaceDeletionRequest(api: ApiClient) {
+  return api.get(`/workspace/delete-request`, workspaceDeletionRequest.nullable());
+}
+
+export function useGetWorkspaceDeletionRequest(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['getWorkspaceDeletionRequest'], queryFn: () => getWorkspaceDeletionRequest(api), ...options });
+}
+
+/** POST /workspace/delete-request — D6 — ask for this workspace to be deleted, with its name typed; staff carry it out (§17). The open request if one exists (QA-081) (roles: owner) — §17. */
+export function requestWorkspaceDeletion(api: ApiClient, body: z.input<typeof deleteWorkspaceRequest>) {
+  return api.post(`/workspace/delete-request`, body, workspaceDeletionRequest);
+}
+
+export function useRequestWorkspaceDeletion(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof deleteWorkspaceRequest> }) => requestWorkspaceDeletion(api, vars.body) });
 }
 
 /** GET /workspace/notification-settings — The caller’s effective notification preferences — §15. */

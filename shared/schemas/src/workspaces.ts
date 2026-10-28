@@ -39,6 +39,21 @@ export const updateWorkspaceRequest = z.object({
   recording_default: z.boolean().optional(),
   /** §17 retention, 7–365 days. */
   retention_days: z.number().int().min(7).max(365).optional(),
+  /** D6 Data & privacy (QA-081): new agents start with PII removal on. Plan gate `pii_removal`. */
+  pii_removal_default: z.boolean().optional(),
+  /**
+   * D6 Data & privacy (QA-081): an agent that records calls tells the caller so before
+   * its greeting. Added at the platform sync, never stored in the script.
+   */
+  recording_notice: z.boolean().optional(),
+  /** The notice in the business's own words; `null` (or blank) goes back to ours, in the agent's language. */
+  recording_notice_text: z
+    .string()
+    .trim()
+    .max(200)
+    .nullable()
+    .optional()
+    .transform((value) => (value === '' ? null : value)),
   // No `onboarding_step`: the wizard pointer moves forward only, through
   // POST /workspace/onboarding-step. Sent here it is stripped, never written (QA-058).
 });
@@ -66,6 +81,9 @@ export const workspaceResponse = z.object({
   business_hours: businessHours.nullable(),
   recording_default: z.boolean(),
   retention_days: z.number().int(),
+  pii_removal_default: z.boolean(),
+  recording_notice: z.boolean(),
+  recording_notice_text: z.string().nullable(),
   onboarding_step: z.number().int(),
   onboarding_completed_at: isoDateTime.nullable(),
   /** Set by staff (SA12). The D1 banner reads it; the inbound path declines on it. */

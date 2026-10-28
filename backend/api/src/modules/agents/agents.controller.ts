@@ -17,11 +17,13 @@ import {
   type AgentVersionSummary,
   type Page,
   type PublishResponse,
+  type SaveVersionResponse,
   type TemplateSummary,
   type LintResult,
   agentDraftPatch,
   agentsQuery,
   createAgentRequest,
+  duplicateAgentRequest,
   lintRequest,
   promptUpdate,
   publishRequest,
@@ -39,7 +41,8 @@ import { TemplatesService } from './templates.service';
  * D3 Agents and the W1–W3 wizard steps (§16).
  *
  * The §6.1 role matrix, applied per route rather than per controller:
- *   create / edit / publish / test   owner, admin, editor
+ *   create / duplicate / edit /      owner, admin, editor
+ *   discard draft / publish / test
  *   pause / delete                   owner, admin        (D3: "Delete — Owner/Admin")
  *   read                             every role, viewer included
  *
@@ -70,6 +73,17 @@ export class AgentsController {
     return this.agents.create(ctx, createAgentRequest.parse(body));
   }
 
+  /** D3 list menu "Duplicate" (QA-078): a new agent whose v1 is this one's draft. */
+  @Post(':id/duplicate')
+  @Roles('owner', 'admin', 'editor')
+  duplicate(
+    @Ctx() ctx: WorkspaceContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<AgentDetail> {
+    return this.agents.duplicate(ctx, agentId(id), duplicateAgentRequest.parse(body ?? {}));
+  }
+
   @Get(':id')
   get(@Ctx() ctx: WorkspaceContext, @Param('id') id: string): Promise<AgentDetail> {
     return this.agents.get(ctx, agentId(id));
@@ -97,9 +111,23 @@ export class AgentsController {
     return this.agents.selectDraft(ctx, agentId(id), selectVersionRequest.parse(body).version_no);
   }
 
+  /** D3 Overview "Discard draft" (QA-078): the draft pointer back on the published version. */
+  @Post(':id/draft/discard')
+  @Roles('owner', 'admin', 'editor')
+  discardDraft(@Ctx() ctx: WorkspaceContext, @Param('id') id: string): Promise<AgentDetail> {
+    return this.agents.discardDraft(ctx, agentId(id));
+  }
+
   @Get(':id/versions')
   versions(@Ctx() ctx: WorkspaceContext, @Param('id') id: string): Promise<AgentVersionSummary[]> {
     return this.agents.listVersions(ctx, agentId(id));
+  }
+
+  /** D3 Brief "Save as new version" (QA-079): freeze the draft, keep editing a copy. */
+  @Post(':id/versions')
+  @Roles('owner', 'admin', 'editor')
+  saveVersion(@Ctx() ctx: WorkspaceContext, @Param('id') id: string): Promise<SaveVersionResponse> {
+    return this.agents.saveVersion(ctx, agentId(id));
   }
 
   @Get(':id/versions/:v')

@@ -400,6 +400,21 @@ describe('dynamic variables handed to the agent (§9.7)', () => {
       transfer_number_2: '+14165555678',
     });
   });
+
+  // QA-083: the number's D4 "message if the transfer fails", from the same record.
+  it('carries the transfer-failed message, and an empty one when none is set', () => {
+    const withMessage = run({ number: number({ transfer_fail_message: 'Sorry, our team is with other patients. Please call back after 2 pm.' }) });
+    expect(withMessage.kind === 'allow' && withMessage.dynamicVariables.transfer_fail_message).toBe(
+      'Sorry, our team is with other patients. Please call back after 2 pm.',
+    );
+    const none = run({ number: number({ transfer_fail_message: null }) });
+    expect(none.kind === 'allow' && none.dynamicVariables.transfer_fail_message).toBe('');
+    // A record written before the field existed (no version bump): still supplied, empty.
+    const old = number();
+    delete (old as { transfer_fail_message?: unknown }).transfer_fail_message;
+    const legacy = run({ number: old });
+    expect(legacy.kind === 'allow' && legacy.dynamicVariables.transfer_fail_message).toBe('');
+  });
 });
 
 describe('what the atomic reservation re-checks', () => {

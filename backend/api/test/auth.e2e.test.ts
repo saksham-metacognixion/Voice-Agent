@@ -241,16 +241,18 @@ describe('the staff boundary', () => {
 });
 
 describe('workspace context', () => {
-  it('attaches ctx = {userId, workspaceId, role, ip}', async () => {
+  it('attaches ctx = {userId, workspaceId, role, ip, requestId}', async () => {
     const token = await customerTenant.mint(owner.sub);
     const { status, body } = await call('probe/workspace', { token, workspace: workspaceA });
     expect(status).toBe(200);
     // `ip` is what every audit_log row the request writes takes (QA-074); inject() is 127.0.0.1.
+    // `requestId` (D18) lets an audit row be matched to the log lines of its request.
     expect(body).toEqual({
       userId: owner.userId,
       workspaceId: workspaceA,
       role: 'owner',
       ip: '127.0.0.1',
+      requestId: expect.any(String),
     });
   });
 

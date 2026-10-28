@@ -66,6 +66,23 @@ export const transferTarget = z.object({
 });
 export type TransferTarget = z.infer<typeof transferTarget>;
 
+/** QA-083: the same ceiling as a brief hand-off rule's `read_message`. */
+export const TRANSFER_FAIL_MESSAGE_MAX_CHARS = 500;
+
+/**
+ * D4 Hand-off, "Read-out message if transfer fails" (spec p. 37, QA-083): what the agent
+ * reads word for word when a transfer from this number does not go through. Trimmed;
+ * blank is stored as null, which means the fixed transfer rule's own words ("the team
+ * cannot take the call right now", then offer to take a message). A NUL byte is refused
+ * here rather than by Postgres.
+ */
+export const transferFailMessage = z
+  .string()
+  .trim()
+  .max(TRANSFER_FAIL_MESSAGE_MAX_CHARS)
+  .refine((value) => !value.includes('\u0000'), 'The message contains a character that cannot be stored')
+  .transform((value) => (value === '' ? null : value));
+
 const sipHost = z
   .string()
   .trim()
@@ -241,6 +258,8 @@ export const updateNumberRequest = z
     hours_mode: hoursMode.optional(),
     hours_override: businessHoursInput.nullable().optional(),
     transfer_targets: z.array(transferTarget).max(5).optional(),
+    /** QA-083: null (or blank) clears it. */
+    transfer_fail_message: transferFailMessage.nullable().optional(),
     allowed_countries: z.array(countryCode).max(20).optional(),
     blocklist: z.array(e164).max(200).optional(),
     paused: z.boolean().optional(),
@@ -272,6 +291,8 @@ export const phoneNumberResponse = z.object({
   hours_mode: hoursMode,
   hours_override: businessHours.nullable(),
   transfer_targets: z.array(transferTarget),
+  /** QA-083: read word for word when a transfer fails; null = the fixed rule's own words. */
+  transfer_fail_message: z.string().nullable().default(null),
   allowed_countries: z.array(z.string()),
   blocklist: z.array(z.string()),
   forwarding: z

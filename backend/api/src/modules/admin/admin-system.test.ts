@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scrubDetail } from './admin-system.service';
+import { probeAction, scrubDetail } from './admin-system.service';
 
 describe('scrubDetail — the health strip shows no credential (admin §3)', () => {
   it('removes the key Stripe quotes back in its 401', () => {
@@ -18,5 +18,25 @@ describe('scrubDetail — the health strip shows no credential (admin §3)', () 
 
   it('leaves an ordinary message alone', () => {
     expect(scrubDetail('PING did not answer')).toBe('PING did not answer');
+  });
+});
+
+describe('probeAction — the health strip never waits on a provider it has an answer for (QA-072)', () => {
+  const ok = { signal: 'ok' as const, detail: null, latency_ms: 120 };
+  const now = 1_800_000_000_000;
+
+  it('probes only when nothing is cached', () => {
+    expect(probeAction(null, now)).toBe('probe');
+  });
+
+  it('answers from a fresh entry without probing', () => {
+    expect(probeAction({ ...ok, checked_at: now - 59_000 }, now)).toBe('use');
+  });
+
+  it('answers from a stale entry and refreshes it behind the response', () => {
+    expect(probeAction({ ...ok, checked_at: now - 60_000 }, now)).toBe('use_and_refresh');
+    // An entry written before checked_at existed, or by a clock ahead of ours, is refreshed too.
+    expect(probeAction(ok, now)).toBe('use_and_refresh');
+    expect(probeAction({ ...ok, checked_at: now + 5_000 }, now)).toBe('use_and_refresh');
   });
 });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { recordingDisposition } from './calls.controller';
 import { RECORDING_URL_TTL_S, RecordingSigner } from './recording';
 
 const SECRET = 'a-recording-secret-long-enough-to-be-used';
@@ -57,5 +58,28 @@ describe('RecordingSigner', () => {
     expect(weak.verify(token)).toMatchObject(claims);
     // A second process would have a different random secret, so the token does not travel.
     expect(new RecordingSigner({} as NodeJS.ProcessEnv).verify(token)).toBeNull();
+  });
+
+  it('keeps a playback link and a download link apart (QA-077)', () => {
+    const s = signer();
+    const play = s.sign(claims).token;
+    const download = s.sign(claims, new Date(), undefined, 'download').token;
+    expect(s.verify(download, new Date(), 'download')).toMatchObject(claims);
+    // An editor's playback token cannot be served as a download, and a download token
+    // is not a playback (or live-transcript) credential either.
+    expect(s.verify(play, new Date(), 'download')).toBeNull();
+    expect(s.verify(download)).toBeNull();
+    expect(s.verify(download, new Date(), 'live')).toBeNull();
+  });
+});
+
+describe('recordingDisposition', () => {
+  it('is inline for the player and an attachment for the D2 download (QA-077)', () => {
+    expect(recordingDisposition('call_abc123', 'mp3', false)).toBe('inline; filename="call-call_abc123.mp3"');
+    expect(recordingDisposition('call_abc123', 'wav', true)).toBe('attachment; filename="call-call_abc123.wav"');
+  });
+
+  it('cannot be broken out of by the id', () => {
+    expect(recordingDisposition('call_"; x=1\r\n', 'mp3', true)).toBe('attachment; filename="call-call_x1.mp3"');
   });
 });

@@ -1,12 +1,13 @@
 'use client';
 
 import { useAdminGetAgent, useAdminGetNumber, useApi } from '@portal/api-client';
-import { Skeleton } from '@portal/ui';
+import { Badge, Skeleton } from '@portal/ui';
 import Link from 'next/link';
 import { Copyable } from '@/src/components/common/copyable';
 import { DetailSheet } from '@/src/components/common/detail-sheet';
 import { Fact, FactGrid, LoadError } from '@/src/components/common/query-states';
 import { AgentStatusBadge, NumberStatusBadge, TierBadge } from '@/src/components/common/status-badges';
+import { callerIdLabel, callerIdVariant } from '@/src/lib/compliance';
 import { formatDateTime, formatNumber, formatPhone, humanize } from '@/src/lib/format';
 import { customerPath } from '@/src/routes';
 
@@ -69,6 +70,9 @@ export function NumberSheet({ id, onClose }: { id: string | null; onClose: () =>
           <Fact label="Type">{humanize(n.type)}</Fact>
           <Fact label="Forwarding">{n.forwarding_status ? humanize(n.forwarding_status) : '–'}</Fact>
           <Fact label="Agent">{n.agent_name ?? '–'}</Fact>
+          <Fact label="Caller ID">
+            <Badge variant={callerIdVariant(n)}>{callerIdLabel(n)}</Badge>
+          </Fact>
           <Fact label="Rental">{n.rental_credits} credits / month</Fact>
           <Fact label="Next rental">{formatDateTime(n.next_rental_at)}</Fact>
           <Fact label="Overdue since">{formatDateTime(n.rental_overdue_since)}</Fact>

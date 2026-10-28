@@ -285,8 +285,10 @@
     "PUBLISH_IN_PROGRESS": "La publication de cet agent est en cours. Réessayez dans un instant.",
     "VERSION_IMMUTABLE": "Cette version est publiée et ne peut plus être modifiée. Votre modification crée un nouveau brouillon.",
     "VERSION_SYNCING": "Vos dernières modifications sont encore en préparation pour les appels. Réessayez dans quelques secondes.",
+    "VERSION_NOT_TESTABLE": "Cette version ne peut plus être testée. Restaurez-la d’abord comme brouillon, ou choisissez une autre version.",
     "AGENT_NOT_GENERATED": "Votre agent n’a pas encore été rédigé. Générez-le d’abord à partir de votre fiche.",
     "AGENT_NOT_PUBLISHED": "Publiez d’abord cet agent, puis réessayez.",
+    "NO_DRAFT_CHANGES": "Le brouillon est déjà la version en service. Il n’y a rien à abandonner.",
     "stepUnavailable": "Impossible d’ouvrir cette étape de la configuration. Réessayez et, si le problème persiste, communiquez avec le soutien.",
     "serverReasons": {
       "briefUnreadable": "Nous n’avons pas pu lire votre fiche pour le moment. Vos réponses sont enregistrées — réessayez dans une minute.",
@@ -317,7 +319,20 @@
     "NO_NUMBER": "Votre espace de travail n’a pas encore de numéro en service d’où appeler.",
     "NOT_FORWARDING_NUMBER": "Seul un numéro vers lequel votre ligne actuelle est renvoyée peut être testé de cette façon.",
     "FORWARDING_TEST_IN_PROGRESS": "Un test de renvoi d’appel est déjà en cours pour ce numéro.",
-    "WIDGET_UNAVAILABLE": "Cet assistant n’est pas disponible pour le moment. Veuillez réessayer plus tard."
+    "WIDGET_UNAVAILABLE": "Cet assistant n’est pas disponible pour le moment. Veuillez réessayer plus tard.",
+    "OUTBOUND_DISABLED": "Les appels sortants ne sont pas encore offerts pour cet espace de travail.",
+    "KYC_REQUIRED": "Faites vérifier votre entreprise avant que votre agent rappelle qui que ce soit.",
+    "KYC_PENDING": "Nous examinons encore les renseignements sur votre entreprise. Les rappels seront possibles une fois la vérification terminée.",
+    "KYC_REJECTED": "La vérification de votre entreprise n’a pas été approuvée. Consultez la raison dans les paramètres, puis soumettez-la de nouveau.",
+    "OUTBOUND_NOT_CONFIGURED": "Votre réglage de messagerie vocale pour les rappels doit être revu. Vérifiez-le dans les paramètres.",
+    "CALLER_ID_REQUIRED": "Il vous faut un numéro vérifié d’où appeler. Les numéros achetés chez nous sont vérifiés automatiquement.",
+    "CALLER_ID_UNVERIFIED": "Ce numéro n’est pas vérifié pour les appels sortants. Communiquez avec le soutien pour le faire vérifier.",
+    "DESTINATION_INVALID": "Cet appel n’a aucun numéro de téléphone que nous pouvons rappeler.",
+    "DNC_LISTED": "Ce numéro figure sur votre liste de numéros exclus.",
+    "NO_PRIOR_CONTACT": "Votre agent peut seulement rappeler une personne qui vous a appelé récemment.",
+    "OUTSIDE_CALLING_WINDOW": "Nous sommes en dehors des heures d’appel permises là où vit cette personne.",
+    "OUTBOUND_DAILY_CAP": "Vous avez fait aujourd’hui tous les rappels que votre formule permet. Réessayez demain.",
+    "OUTBOUND_IN_PROGRESS": "Ce rappel est déjà en cours. Patientez un instant."
   },
   "validation": {
     "required": "Obligatoire",
@@ -823,11 +838,25 @@
       "title": "Testez votre agent",
       "subtitle": "Parlez à votre agent dans le navigateur, voyez ce qu’il a noté et dites-lui quoi changer. Les appels tests utilisent vos crédits.",
       "continue": "Continuer",
+      "happy": "Je suis satisfait de la façon dont mon agent s’exprime",
+      "happyHint": "Cochez cette case pour continuer.",
+      "skip": "Passer le test",
+      "skipTitle": "Continuer sans tester?",
+      "skipBody": "Votre agent répondra à de vrais appelants avec un script que vous n’avez pas entendu. Un appel test repère les mauvaises heures, les mauvais noms ou les mauvais prix avant un appelant. Vous pourrez quand même le tester plus tard à partir du tableau de bord.",
+      "skipConfirm": "Passer et continuer",
       "call": {
         "title": "Parlez à votre agent",
         "subtitle": "Vous testez la version brouillon {version}. Rien n’est encore en service.",
         "subtitleLive": "Vous testez la version brouillon {version}. Les appelants joignent toujours la version en service {live}.",
         "subtitlePaused": "Vous testez la version brouillon {version}. Cet agent est en pause : il ne répond pas aux appels téléphoniques, mais les tests dans le navigateur fonctionnent toujours.",
+        "subtitleTestingLive": "Vous testez la version en service {version}, celle que joignent les appelants.",
+        "subtitleEarlier": "Vous testez la version antérieure {version}. Les appelants joignent la version en service {live}.",
+        "version": "Version à tester",
+        "versionKind": {
+          "draft": "v{n} · brouillon",
+          "live": "v{n} · en service",
+          "published": "v{n} · publiée auparavant"
+        },
         "timer": "Durée",
         "rate": "Tarif",
         "perMin": "{credits}/min",
@@ -1233,6 +1262,10 @@
     }
   },
   "dashboard": {
+    "planGate": {
+      "lockedPack": "Inclus à partir du forfait {pack}.",
+      "lockedGeneric": "Inclus dans un forfait supérieur."
+    },
     "home": {
       "title": "Accueil",
       "welcome": "Bienvenue dans {workspace}",
@@ -1409,7 +1442,8 @@
         "unavailable": "L’enregistrement n’est pas disponible.",
         "expired": "Le lien de l’enregistrement a expiré. Chargez-le de nouveau.",
         "playbackError": "L’enregistrement n’a pas pu être lu.",
-        "noAudioSupport": "Votre navigateur ne peut pas lire l’audio ici."
+        "noAudioSupport": "Votre navigateur ne peut pas lire l’audio ici.",
+        "download": "Télécharger l’enregistrement"
       },
       "transcript": {
         "agent": "Agent",
@@ -1457,6 +1491,14 @@
         "notePlaceholder": "Qu’est-ce qui s’est passé ensuite?",
         "noteViewer": "Aucune note.",
         "noteSaved": "Note enregistrée",
+        "copyNumber": "Copier le numéro",
+        "numberCopied": "Numéro copié.",
+        "callFromPhone": "Appeler de votre téléphone",
+        "callFromPhoneHint": "Ouvre l’application téléphone pour que vous appeliez le {number} vous-même.",
+        "copyTranscript": "Copier la transcription",
+        "transcriptCopied": "Transcription copiée.",
+        "copyFailed": "Impossible de copier. Sélectionnez le texte et copiez-le plutôt.",
+        "reportProblem": "Signaler un problème",
         "chargedAgentLeg": "Crédits facturés (agent)",
         "chargedTotal": "Total des crédits",
         "transfer": {
@@ -1486,6 +1528,35 @@
           "sourceHits": "{hits, plural, one {# réponse} other {# réponses}}",
           "website": "Une page du site web",
           "removed": "Une source supprimée depuis"
+        },
+        "callback": {
+          "title": "Rappeler",
+          "body": "Votre agent rappelle le <num>{number}</num> à partir du <num>{from}</num>.",
+          "button": "Rappeler le <num>{number}</num>",
+          "voicemail": {
+            "hang_up": "Si une boîte vocale répond, votre agent raccroche.",
+            "leave_message": "Si une boîte vocale répond, votre agent laisse votre message.",
+            "off": "Votre agent parle à quiconque répond, boîte vocale comprise."
+          },
+          "usage": "Rappels aujourd’hui : {used} sur {cap}",
+          "viewerNote": "Seul un propriétaire, un administrateur ou un éditeur peut faire un rappel.",
+          "placed": "Appel au {number} en cours.",
+          "view": "Ouvrir l’appel",
+          "earliest": "Heure la plus tôt permise pour ce numéro : {when}, dans le fuseau horaire de votre espace de travail.",
+          "openSettings": "Ouvrir les paramètres d’appels sortants",
+          "openWallet": "Aller au portefeuille",
+          "rule": "Les rappels vont seulement aux personnes qui vous ont appelé dans les {days, plural, one {# dernier jour} other {# derniers jours}}, pendant les heures d’appel permises là où elles vivent.",
+          "dnc": {
+            "add": "Ajouter à la liste de numéros exclus",
+            "title": "Ajouter le <num>{number}</num> à votre liste de numéros exclus?",
+            "body": "Vos agents ne rappelleront pas ce numéro. Un propriétaire ou un administrateur peut le retirer de la liste dans les paramètres.",
+            "confirm": "Ajouter à la liste",
+            "added": "Le {number} est sur votre liste de numéros exclus."
+          },
+          "reasons": {
+            "DESTINATION_COUNTRY": "Nous ne pouvons pas encore appeler de numéros dans ce pays.",
+            "DESTINATION_IS_AGENT": "Un agent répond à ce numéro, pas une personne."
+          }
         }
       },
       "fields": {
@@ -1607,7 +1678,20 @@
         "alreadyLive": "La version {n} était déjà en service.",
         "blocked": "Corrigez ces points avant de publier",
         "warnings": "Publié avec des avertissements",
-        "saveFirst": "Enregistrez d’abord les modifications de votre script. La publication envoie la dernière version enregistrée, pas le contenu de l’éditeur."
+        "saveFirst": "Enregistrez d’abord les modifications de votre script. La publication envoie la dernière version enregistrée, pas le contenu de l’éditeur.",
+        "discard": "Abandonner le brouillon",
+        "discardTitle": "Abandonner le brouillon v{n}?",
+        "discardBody": "Le brouillon revient à la version en service, v{live}. Rien ne change sur vos numéros.",
+        "discardEdits": "Les modifications faites depuis la mise en service de v{live} ne seront plus dans le brouillon.",
+        "discardKept": "Le brouillon v{n} reste dans l’onglet Versions; vous pourrez le restaurer plus tard.",
+        "discarded": "Brouillon abandonné. Le brouillon est de nouveau v{n}."
+      },
+      "menu": {
+        "label": "Autres actions pour {name}",
+        "duplicate": "Dupliquer",
+        "copyName": "{name} (copie)",
+        "duplicated": "{name} a été créé. Il reste un brouillon jusqu’à ce que vous le publiiez.",
+        "limit": "Votre formule ne permet pas d’ajouter un autre agent. Achetez un forfait plus grand ou supprimez d’abord un agent."
       },
       "overview": {
         "configuration": "Configuration",
@@ -1640,7 +1724,36 @@
         "viewerHint": "Vous pouvez lire la fiche; la modifier exige le rôle d’éditeur.",
         "regenerateTitle": "Réécrire le script",
         "regenerateBody": "Transforme la fiche en une nouvelle version brouillon. La version actuelle est conservée.",
-        "regenerated": "La version {n} a été rédigée à partir de votre fiche."
+        "regenerated": "La version {n} a été rédigée à partir de votre fiche.",
+        "saveVersion": "Enregistrer comme nouvelle version",
+        "versionSaved": "Enregistrée comme version {saved}. Vos modifications vont maintenant dans la version {draft}.",
+        "versionAlreadySaved": "La version {n} est déjà enregistrée. Votre prochaine modification commencera un nouveau brouillon.",
+        "fields": {
+          "title": "Ce que l’agent note",
+          "body": "Après chaque appel, ces renseignements sont tirés de la conversation et affichés sur la page de l’appel. Les changements sont mis en service à la prochaine publication. Une fois enregistrés ici, ils sont conservés quand le script est réécrit.",
+          "empty": "Rien n’est noté pour l’instant. Ajoutez un champ.",
+          "name": "Nom du champ",
+          "namePlaceholder": "p. ex. date_souhaitee",
+          "nameRule": "Lettres minuscules, chiffres et traits de soulignement, en commençant par une lettre.",
+          "duplicate": "Un autre champ porte déjà ce nom.",
+          "type": "Type",
+          "types": {
+            "text": "Texte",
+            "number": "Nombre",
+            "boolean": "Oui ou non",
+            "enum": "Un choix dans une liste"
+          },
+          "description": "Ce qu’il faut noter",
+          "descriptionPlaceholder": "p. ex. Le jour où l’appelant souhaite venir.",
+          "choices": "Choix",
+          "choicesPlaceholder": "Choix, séparés par des virgules",
+          "remove": "Retirer {name}",
+          "add": "Ajouter un champ",
+          "save": "Enregistrer les champs",
+          "saved": "Champs enregistrés dans le brouillon.",
+          "max": "Un agent peut noter jusqu’à {n} champs.",
+          "phoneHint": "Noté chiffre par chiffre, exactement comme l’appelant l’a dit."
+        }
       },
       "prompt": {
         "hint": "Modification du script du brouillon v{n}. Enregistrer crée une nouvelle version; l’ancienne est conservée.",
@@ -1725,7 +1838,7 @@
         }
       },
       "test": {
-        "hint": "Vous testez le brouillon v{n} dans le navigateur. Les appels test utilisent des crédits.",
+        "hint": "Les appels test se font dans le navigateur et utilisent des crédits.",
         "viewerHint": "Les appels test peuvent être faits par les éditeurs et les rôles supérieurs.",
         "noPrompt": "Générez le script à partir de l’onglet « Fiche » avant de tester."
       },
@@ -1802,7 +1915,12 @@
         "deleteBody": "Cette action est irréversible. Les appels qu’il a pris restent dans votre historique.",
         "deleted": "Agent supprimé.",
         "inUse": "Libérez d’abord ses numéros de téléphone.",
-        "adminOnly": "Votre rôle ne permet pas de mettre en pause ni de supprimer des agents."
+        "adminOnly": "Votre rôle ne permet pas de mettre en pause ni de supprimer des agents.",
+        "denoise": "Filtrer le bruit de fond",
+        "denoiseHint": "Un filtrage plus poussé qui retire aussi les voix en arrière-plan, pour les appelants dans un commerce, en voiture ou dans la rue.",
+        "pii": "Retirer les renseignements sensibles",
+        "piiHint": "Après chaque appel, les numéros de carte et de compte bancaire, les numéros d’identité et de compte, les mots de passe, les NIP et les dates de naissance sont retirés de la transcription et de l’enregistrement. Les noms et les numéros de téléphone sont conservés.",
+        "voicemail": "La détection de la boîte vocale s’applique aux rappels que vous faites. Réglez-la dans <link>Paramètres → Appels sortants</link>."
       },
       "website": {
         "title": "Bouton pour site web",
@@ -1932,7 +2050,11 @@
         "title": "Relais",
         "body": "Les personnes à qui votre agent peut transférer un appelant quand celui-ci demande à parler à quelqu’un ou que l’agent ne peut pas l’aider.",
         "save": "Enregistrer les relais",
-        "fix": "Corrigez d’abord les lignes en surbrillance."
+        "fix": "Corrigez d’abord les lignes en surbrillance.",
+        "failLabel": "Message si le transfert échoue",
+        "failHint": "Votre agent lit ce message mot pour mot quand un transfert n’aboutit pas. Laissez-le vide et votre agent dit que l’équipe ne peut pas prendre l’appel pour le moment, puis propose de prendre un message.",
+        "failPlaceholder": "Désolé, personne ne peut prendre votre appel pour le moment. Laissez votre nom et votre numéro, et nous vous rappellerons.",
+        "failCount": "{used} / {max}"
       },
       "callers": {
         "countriesTitle": "Pays des appelants autorisés",
@@ -2198,7 +2320,9 @@
           "topup": "Recharge automatique",
           "transfer": "Frais pour un appel transféré"
         },
-        "viewCall": "Voir l’appel"
+        "viewCall": "Voir l’appel",
+        "export": "Exporter en CSV",
+        "exportDone": "Votre exportation est en cours de téléchargement."
       },
       "invoices": {
         "title": "Factures",
@@ -2248,6 +2372,7 @@
         "notifications": "Notifications",
         "security": "Sécurité",
         "privacy": "Données et confidentialité",
+        "outbound": "Appels sortants",
         "audit": "Journal d’activité"
       },
       "adminOnly": "Seul un propriétaire ou un administrateur peut modifier ceci.",
@@ -2363,6 +2488,34 @@
         "signOutBody": "Vous déconnecte d’Oraly sur cet appareil.",
         "signOut": "Se déconnecter"
       },
+      "dataRequests": {
+        "exportTitle": "Exporter vos données",
+        "exportBody": "Téléchargez un fichier zip de cet espace de travail : ses paramètres, son équipe, les agents avec chaque version de leur script, les numéros, les appels, l’historique des crédits, les achats, les factures, ce que savent vos agents et le journal d’activité. Un historique très long est limité à ses lignes les plus récentes.",
+        "exportCta": "Exporter toutes les données",
+        "exportDone": "Votre exportation est en cours de téléchargement.",
+        "exportAdminOnly": "Seuls le propriétaire et les administrateurs peuvent exporter les données de cet espace de travail.",
+        "deleteTitle": "Supprimer l’espace de travail",
+        "deleteBody": "La suppression ferme cet espace de travail pour de bon. Notre équipe s’en charge dans un délai de {days, plural, one {# jour} other {# jours}} après votre demande, et vous pouvez retirer la demande d’ici là.",
+        "deleteCta": "Supprimer l’espace de travail",
+        "deleteOwnerOnly": "Seul le propriétaire de l’espace de travail peut le supprimer.",
+        "confirmTitle": "Supprimer {workspace}?",
+        "confirmDescription": "Une demande de suppression sera envoyée à notre équipe. Rien n’est supprimé aujourd’hui.",
+        "consequenceNumbers": "Tous les numéros de téléphone sont libérés et ne peuvent pas être récupérés.",
+        "consequenceCredits": "Les crédits restants sont perdus et ne sont pas remboursés.",
+        "consequenceData": "Les agents, les appels, les enregistrements et les accès de l’équipe sont supprimés pour de bon. Les dossiers de facturation que nous devons conserver sont anonymisés.",
+        "consequenceWhen": "Notre équipe s’en charge dans un délai de {days, plural, one {# jour} other {# jours}}. D’ici là, vous pouvez retirer la demande ici.",
+        "typeLabel": "Tapez {workspace} pour confirmer",
+        "confirmCta": "Demander la suppression",
+        "requestedToast": "Suppression demandée. Nous avons ouvert une demande de soutien à ce sujet.",
+        "requestedTitle": "Suppression demandée",
+        "requestedBy": "{who} a demandé la suppression de cet espace de travail le {date}. Notre équipe s’en chargera d’ici le {due}.",
+        "requestedAnon": "La suppression de cet espace de travail a été demandée le {date}. Notre équipe s’en chargera d’ici le {due}.",
+        "followTicket": "Suivez-la dans Mes demandes",
+        "withdraw": "Retirer la demande",
+        "withdrawTitle": "Retirer la demande de suppression?",
+        "withdrawDescription": "L’espace de travail reste tel quel. Nous en informons notre équipe dans la même demande.",
+        "withdrawn": "Demande de suppression retirée."
+      },
       "privacy": {
         "recordingTitle": "Enregistrements",
         "recording": "Enregistrer les appels des nouveaux agents",
@@ -2371,10 +2524,13 @@
         "retentionHint": "Les enregistrements et transcriptions plus anciens sont supprimés automatiquement.",
         "days": "{n, plural, one {# jour} other {# jours}}",
         "save": "Enregistrer les paramètres de confidentialité",
-        "requestsTitle": "Exporter ou supprimer vos données",
-        "requestsBody": "L’exportation complète de cet espace de travail, ou sa suppression, est prise en charge par notre équipe pour que rien de facturable ne soit perdu par erreur. La suppression libère tous les numéros et entraîne la perte des crédits restants.",
-        "requestsCta": "Écrire à {email}",
-        "requestsSubject": "Demande relative aux données de l’espace de travail {workspace}"
+        "notice": "Informer les appelants que l’appel est enregistré",
+        "noticeHint": "Un agent qui enregistre dit un court avis avant son message d’accueil. Les changements s’appliquent à chaque agent à sa prochaine publication.",
+        "noticeText": "Votre propre formulation",
+        "noticeTextHint": "Utilisée telle quelle pour tous les agents. Laissez vide pour utiliser la nôtre, dans la langue de chaque agent.",
+        "noticePlaceholder": "Veuillez noter que cet appel est enregistré.",
+        "pii": "Retirer les renseignements sensibles sur les nouveaux agents",
+        "piiHint": "Les nouveaux agents commencent avec le retrait des renseignements sensibles activé. Chaque agent peut encore le modifier dans ses propres paramètres."
       },
       "audit": {
         "title": "Journal d’activité",
@@ -2516,7 +2672,125 @@
         }
       },
       "language": "Langue",
-      "languageHint": "La langue d’affichage du portail dans ce navigateur. Votre agent garde ses propres langues, réglées dans son onglet « Voix »."
+      "languageHint": "La langue d’affichage du portail dans ce navigateur. Votre agent garde ses propres langues, réglées dans son onglet « Voix ».",
+      "outbound": {
+        "notEnabled": "Les appels sortants ne sont pas encore offerts pour cet espace de travail. Vous pouvez déjà faire vérifier votre entreprise pour être prêt quand ils le seront.",
+        "kyc": {
+          "title": "Vérification de l’entreprise",
+          "body": "Avant que votre agent appelle qui que ce soit, nous vérifions que votre entreprise existe bel et bien. Notre équipe examine les renseignements que vous envoyez.",
+          "status": {
+            "none": "Non soumise",
+            "pending": "En examen",
+            "verified": "Vérifiée",
+            "rejected": "Non approuvée"
+          },
+          "pending": "Soumise le {date}. Notre équipe l’examine.",
+          "verified": "Vérifiée le {date}.",
+          "rejectedTitle": "Non approuvée",
+          "rejectedNoReason": "Vérifiez les renseignements ci-dessous et soumettez-les de nouveau.",
+          "fields": {
+            "legal_name": "Dénomination sociale",
+            "registration_number": "Numéro d’enregistrement de l’entreprise",
+            "registration_numberHint": "Tel qu’il figure sur vos documents d’immatriculation ou de constitution.",
+            "registration_country": "Pays d’enregistrement",
+            "address": "Adresse du siège",
+            "contact_name": "Personne-ressource",
+            "dnc_registration": "Inscription à la liste nationale de numéros exclus",
+            "dnc_registrationHint": "Votre numéro d’inscription à la liste nationale de numéros exclus de votre pays, si vous en avez un."
+          },
+          "errors": {
+            "legal_name": "Entre 2 et 200 caractères.",
+            "registration_number": "Entre 2 et 60 caractères.",
+            "registration_country": "Choisissez un pays.",
+            "address": "Entre 5 et 300 caractères.",
+            "contact_name": "Entre 2 et 120 caractères.",
+            "dnc_registration": "60 caractères au maximum."
+          },
+          "submit": "Soumettre pour vérification",
+          "resubmit": "Soumettre de nouveau",
+          "submitted": "Envoyé. Notre équipe examinera votre entreprise."
+        },
+        "voicemail": {
+          "title": "Messagerie vocale",
+          "body": "Ce que fait votre agent quand un rappel tombe sur une boîte vocale.",
+          "options": {
+            "hang_up": {
+              "title": "Raccrocher",
+              "description": "Recommandé. Une boîte vocale n’est pas la personne qui a demandé à être rappelée, et chaque seconde est facturée."
+            },
+            "leave_message": {
+              "title": "Laisser un message",
+              "description": "Votre agent lit votre message après le bip, puis raccroche."
+            },
+            "off": {
+              "title": "Ne pas vérifier",
+              "description": "Votre agent parle à quiconque répond, boîte vocale comprise."
+            }
+          },
+          "message": "Message",
+          "messageHint": "Lu mot pour mot. Dites qui appelle et comment vous joindre.",
+          "messagePlaceholder": "Bonjour, nous vous rappelons. Rappelez-nous quand cela vous convient.",
+          "count": "{n}/{max}",
+          "messageError": "Écrivez le message que votre agent laisse.",
+          "save": "Enregistrer le réglage",
+          "saved": "Réglage de messagerie vocale enregistré."
+        },
+        "callerIds": {
+          "title": "Numéros affichés",
+          "body": "Les numéros d’où un rappel peut partir. Les numéros achetés chez nous sont vérifiés automatiquement; ceux de votre propre système téléphonique sont vérifiés par notre équipe.",
+          "label": "Numéros affichés",
+          "empty": "Aucun numéro pour l’instant. Achetez-en un ou apportez le vôtre dans Numéros.",
+          "columns": {
+            "number": "Numéro",
+            "status": "Statut",
+            "via": "Vérification"
+          },
+          "verified": "Vérifié",
+          "unverified": "Non vérifié",
+          "via": {
+            "purchase": "Acheté chez nous",
+            "staff": "Vérifié par notre équipe",
+            "contactSupport": "Communiquez avec le soutien pour faire vérifier ce numéro."
+          }
+        },
+        "today": {
+          "title": "Aujourd’hui",
+          "usage": "Rappels aujourd’hui : {used} sur {cap}",
+          "capNote": "Votre formule permet {cap, plural, one {# rappel} other {# rappels}} par jour, comptés dans le fuseau horaire de votre espace de travail.",
+          "capZero": "Les rappels commencent avec votre premier forfait.",
+          "rule": "Votre agent rappelle seulement une personne qui vous a appelé dans les {days, plural, one {# dernier jour} other {# derniers jours}}, et seulement pendant les heures d’appel permises là où elle vit, dans tous les fuseaux horaires de son pays.",
+          "countries": "Pays que vous pouvez appeler : {list}",
+          "countriesNone": "Aucun pays n’est encore ouvert aux rappels."
+        },
+        "dnc": {
+          "title": "Liste de numéros exclus",
+          "body": "Les numéros que vos agents ne rappellent jamais. Vous pouvez aussi ajouter l’autre partie d’un appel à partir de ses détails.",
+          "label": "Liste de numéros exclus",
+          "empty": "Aucun numéro sur la liste.",
+          "columns": {
+            "number": "Numéro",
+            "added": "Ajouté",
+            "source": "Origine",
+            "reason": "Raison",
+            "actions": "Actions"
+          },
+          "by": "par {name}",
+          "source": {
+            "call": "Un appel",
+            "manual": "Saisi à la main"
+          },
+          "remove": "Retirer",
+          "removeTitle": "Retirer le {number} de la liste?",
+          "removeBody": "Vos agents pourront de nouveau rappeler ce numéro, selon les règles habituelles.",
+          "removed": "Le {number} a été retiré de la liste.",
+          "numberLabel": "Numéro de téléphone",
+          "numberError": "Entrez un numéro de téléphone que nous pouvons reconnaître.",
+          "reasonLabel": "Raison",
+          "reasonPlaceholder": "A demandé de ne pas être appelé",
+          "add": "Ajouter à la liste",
+          "added": "Le {number} a été ajouté à la liste."
+        }
+      }
     },
     "help": {
       "title": "Aide",
@@ -2560,6 +2834,14 @@
       "reportSubject": "Signalement de l’appel {id}",
       "reportLine": "Appel {id} du {when}, de {caller}.",
       "reportPrompt": "Ce qui n’a pas fonctionné :",
+      "reportDialog": {
+        "title": "Signaler un problème avec cet appel",
+        "body": "Dites-nous ce qui n’a pas fonctionné. Le soutien reçoit cet appel avec votre message et vous répond dans Mes demandes, à la page Aide.",
+        "message": "Qu’est-ce qui n’a pas fonctionné?",
+        "placeholder": "Par exemple : l’agent a donné les mauvaises heures d’ouverture.",
+        "send": "Envoyer le signalement",
+        "sent": "Signalement envoyé : demande #{id}."
+      },
       "allCalls": "Tous les appels",
       "statusTitle": "État du service",
       "status": {

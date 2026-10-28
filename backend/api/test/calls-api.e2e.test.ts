@@ -459,6 +459,33 @@ describe('GET /calls/:id/recording — the signed proxy (§17)', () => {
     }
   });
 
+  it('gives an owner a download link that serves the file as an attachment, and an editor none (QA-077)', async () => {
+    const { url, download_url } = (await get(`/calls/${ids.ended}/recording`)).json();
+    expect(download_url).toContain(`/calls/${ids.ended}/recording/stream?token=`);
+    expect(download_url).toContain('&download=1');
+    expect(download_url).not.toContain('127.0.0.1:' + new URL(recordingUrl).port);
+    const file = await fetch(download_url.replace(/^https?:\/\/[^/]+/, baseUrl));
+    expect(file.status).toBe(200);
+    expect(file.headers.get('content-type')).toBe('audio/mpeg');
+    expect(file.headers.get('content-disposition')).toBe(`attachment; filename="call-${ids.ended}.mp3"`);
+    expect(Buffer.from(await file.arrayBuffer()).equals(AUDIO)).toBe(true);
+
+    // A playback token cannot be turned into a download, nor a download token into playback.
+    const play = new URL(url).searchParams.get('token')!;
+    const dl = new URL(download_url).searchParams.get('token')!;
+    expect((await fetch(`${baseUrl}/calls/${ids.ended}/recording/stream?token=${play}&download=1`)).status).toBe(401);
+    expect((await fetch(`${baseUrl}/calls/${ids.ended}/recording/stream?token=${dl}`)).status).toBe(401);
+
+    await adminDb.membership.update({ where: { tenantId_userId: { tenantId: ws.tenantId, userId: ws.userId } }, data: { role: 'editor' } });
+    try {
+      const editor = (await get(`/calls/${ids.ended}/recording`)).json();
+      expect(editor.url).toContain('/recording/stream?token=');
+      expect(editor.download_url).toBeNull();
+    } finally {
+      await adminDb.membership.update({ where: { tenantId_userId: { tenantId: ws.tenantId, userId: ws.userId } }, data: { role: 'owner' } });
+    }
+  });
+
   it('passes a Range request through so the player can seek', async () => {
     const { url } = (await get(`/calls/${ids.ended}/recording`)).json();
     const ranged = await fetch(url.replace(/^https?:\/\/[^/]+/, baseUrl), { headers: { range: 'bytes=0-9' } });

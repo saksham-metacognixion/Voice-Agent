@@ -1,3 +1,3 @@
 export { SupportModule } from './support.module';
-export { SupportService } from './support.service';
+export { SupportService, insertCustomerTicket, type NewCustomerTicket } from './support.service';
 export { SupportController } from './support.controller';

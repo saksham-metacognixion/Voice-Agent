@@ -4,8 +4,8 @@ import { Injectable, Logger } from '@nestjs/common';
 /** How long a minted recording link plays (CLAUDE.md, "signed 1-hour URLs"). */
 export const RECORDING_URL_TTL_S = 3_600;
 
-export type TokenPurpose = 'recording' | 'live';
-const PURPOSE_TAG: Record<TokenPurpose, number | string> = { recording: 1, live: 'live' };
+export type TokenPurpose = 'recording' | 'live' | 'download';
+const PURPOSE_TAG: Record<TokenPurpose, number | string> = { recording: 1, live: 'live', download: 'download' };
 
 export interface RecordingClaims {
   callId: string;
@@ -47,6 +47,8 @@ export class RecordingSigner {
    * `purpose` keeps the two credentials this signer mints apart: a recording link (tag
    * `1`, the original format, unchanged) and a live-transcript token for W5's relay (tag
    * `live`). Each `verify` accepts only its own, so one can never stand in for the other.
+   * A download link (tag `download`, QA-077) is the recording served as a file, minted
+   * for owner/admin only: an editor's playback token cannot be turned into one.
    */
   sign(claims: Omit<RecordingClaims, 'exp'>, now = new Date(), ttlS = RECORDING_URL_TTL_S, purpose: TokenPurpose = 'recording'): { token: string; expiresAt: Date } {
     const exp = Math.floor(now.getTime() / 1000) + ttlS;

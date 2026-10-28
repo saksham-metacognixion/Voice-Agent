@@ -8,6 +8,7 @@ import type {
   SupportTicketResponse,
   SupportTicketsQuery,
   TicketCategory,
+  TicketPriority,
   TicketStatus,
 } from '@portal/schemas';
 import { ticketCategory } from '@portal/schemas';
@@ -50,6 +51,56 @@ async function readTickets(
  * transaction: `staff_users` has no portal_app grant, so it is looked up on `adminDb` after
  * the tenant-scoped read closes — a name, never an email or an id.
  */
+/** A ticket the customer opens, from the Help form or on their behalf by another customer flow. */
+export interface NewCustomerTicket {
+  subject: string;
+  body: string;
+  category: TicketCategory | null;
+  priority?: TicketPriority;
+  linkedCallIds?: string[];
+  /** Defaults to the SA4 clock (`resolutionDue`); a request with its own deadline passes it. */
+  resolutionDue?: Date;
+}
+
+/**
+ * The ticket and its first message, inside the caller's `withWorkspace` transaction, so a
+ * flow that opens a ticket as part of something else (QA-081, the D6 deletion request)
+ * lands it atomically with its own rows. The caller writes its own audit row.
+ */
+export async function insertCustomerTicket(
+  db: Parameters<Parameters<typeof withWorkspace>[1]>[0],
+  ctx: WorkspaceContext,
+  input: NewCustomerTicket,
+  now: Date,
+): Promise<number> {
+  const priority = input.priority ?? 'normal';
+  const ticket = await db.supportTicket.create({
+    data: {
+      tenantId: ctx.workspaceId,
+      requesterUserId: ctx.userId,
+      subject: input.subject,
+      category: input.category,
+      priority,
+      status: 'open',
+      slaFirstResponseDue: firstResponseDue(now, priority),
+      slaResolutionDue: input.resolutionDue ?? resolutionDue(now),
+      linkedCallIds: input.linkedCallIds ?? [],
+      createdAt: now,
+    },
+    select: { id: true },
+  });
+  await db.ticketMessage.create({
+    data: {
+      ticketId: ticket.id,
+      authorType: 'customer',
+      authorId: ctx.userId,
+      body: input.body,
+      isInternal: false,
+    },
+  });
+  return ticket.id;
+}
+
 @Injectable()
 export class SupportService {
   private readonly log = new Logger(SupportService.name);
@@ -70,30 +121,14 @@ export class SupportService {
             { field: 'linked_call_id', message: 'Unknown call' },
           ]);
       }
-      const ticket = await db.supportTicket.create({
-        data: {
-          tenantId: ctx.workspaceId,
-          requesterUserId: ctx.userId,
+      const ticket = {
+        id: await insertCustomerTicket(db, ctx, {
           subject: body.subject,
-          category: body.category ?? null,
-          priority: 'normal',
-          status: 'open',
-          slaFirstResponseDue: firstResponseDue(now, 'normal'),
-          slaResolutionDue: resolutionDue(now),
-          linkedCallIds: body.linked_call_id ? [body.linked_call_id] : [],
-          createdAt: now,
-        },
-        select: { id: true },
-      });
-      await db.ticketMessage.create({
-        data: {
-          ticketId: ticket.id,
-          authorType: 'customer',
-          authorId: ctx.userId,
           body: body.body,
-          isInternal: false,
-        },
-      });
+          category: body.category ?? null,
+          linkedCallIds: body.linked_call_id ? [body.linked_call_id] : [],
+        }, now),
+      };
       await db.auditLog.create({
         data: {
           tenantId: ctx.workspaceId,

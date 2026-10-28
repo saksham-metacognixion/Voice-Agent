@@ -1,12 +1,16 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
+import { saveAgentVersion, useApi } from '@portal/api-client';
 import { brief as briefSchema, briefReadyForGeneration, type AgentDetail, type Brief } from '@portal/schemas';
-import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Progress } from '@portal/ui';
+import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Progress, toast } from '@portal/ui';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { useForm, type Resolver } from 'react-hook-form';
+import { track } from '@/src/analytics/posthog';
+import { AnalysisFieldsEditor } from '@/src/components/dashboard/agent/analysis-fields-editor';
 import { BriefCard } from '@/src/components/wizard/brief-card';
 import { BriefFields, SaveIndicator, storableBrief } from '@/src/components/wizard/brief-form';
 import { useBriefPlaceholders } from '@/src/components/wizard/template-context';
@@ -19,6 +23,11 @@ import { useGeneration } from '@/src/wizard/use-generation';
  * newest unpublished version (`PATCH /agents/:id/draft`, forking a frozen one — ADR 0012
  * §2), plus Regenerate (§13.3, a job with SSE + polling progress) to rewrite the script
  * from the edited brief. The generated brief card sits beside it.
+ *
+ * Below the brief, the analysis fields (QA-079, `AnalysisFieldsEditor`). "Save as new
+ * version" freezes the draft as it is (`POST /agents/:id/versions`) — the autosave
+ * otherwise keeps writing into the same draft — so the customer can come back to it
+ * from Versions with "Restore as draft".
  */
 export function BriefTab({ agent, canEdit }: { agent: AgentDetail; canEdit: boolean }) {
   const t = useTranslations('dashboard.agents.brief');
@@ -30,6 +39,9 @@ export function BriefTab({ agent, canEdit }: { agent: AgentDetail; canEdit: bool
   const generation = useGeneration(agent);
   const [genError, setGenError] = React.useState<string | null>(null);
   const placeholders = useBriefPlaceholders(agent);
+  const api = useApi();
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = React.useState(false);
 
   const form = useForm<Brief>({
     resolver: zodResolver(briefSchema) as unknown as Resolver<Brief>,
@@ -65,6 +77,26 @@ export function BriefTab({ agent, canEdit }: { agent: AgentDetail; canEdit: bool
     }
   }
 
+  async function saveAsVersion() {
+    setSaving(true);
+    try {
+      await autosave.flush();
+      const saved = await saveAgentVersion(api, { id: agent.id });
+      await queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agent.id }] });
+      void queryClient.invalidateQueries({ queryKey: ['listAgentVersions', { id: agent.id }] });
+      if (saved.created) {
+        toast.success(t('versionSaved', { saved: saved.saved_version, draft: saved.draft_version }));
+        track('agent_version_saved', { agent_id: agent.id, version_no: saved.saved_version });
+      } else {
+        toast.info(t('versionAlreadySaved', { n: saved.saved_version }));
+      }
+    } catch (e) {
+      toast.error(errorMessage(e, tc));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const stagePct: Record<string, number> = { idle: 0, queued: 8, started: 25, writing: 65, done: 100, failed: 100 };
 
   return (
@@ -72,9 +104,25 @@ export function BriefTab({ agent, canEdit }: { agent: AgentDetail; canEdit: bool
       <div className="flex flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">{canEdit ? t('hint', { n: version?.version_no ?? 1 }) : t('viewerHint')}</p>
-          <SaveIndicator state={autosave.state} error={autosave.error} onRetry={autosave.retry} />
+          <div className="flex flex-wrap items-center gap-3">
+            <SaveIndicator state={autosave.state} error={autosave.error} onRetry={autosave.retry} />
+            {canEdit ? (
+              <Button variant="outline" size="sm" onClick={() => void saveAsVersion()} loading={saving} disabled={busy || agent.draft_version === null || agent.draft_version === agent.published_version}>
+                {t('saveVersion')}
+              </Button>
+            ) : null}
+          </div>
         </div>
         <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} placeholders={placeholders} agentId={canEdit ? agent.id : null} />
+        <AnalysisFieldsEditor
+          // Remounted when the stored list changes (a save, a restored version), not on a
+          // version number alone: "Save as new version" copies the list unchanged, and
+          // unsaved edits in the editor must survive it.
+          key={JSON.stringify(version?.analysis_fields ?? [])}
+          agent={agent}
+          fields={version?.analysis_fields ?? []}
+          canEdit={canEdit && !generation.active}
+        />
       </div>
       <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
         {canEdit ? (

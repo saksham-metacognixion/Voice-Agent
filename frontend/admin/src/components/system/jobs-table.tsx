@@ -58,8 +58,10 @@ function useJobActions() {
   return { setTarget, dialog };
 }
 
-// As on the webhooks table: the queue state rides under the status, the error column
-// shows only when the table itself has room, and the customer reason is the sheet's.
+// As on the webhooks table: the queue state rides under the status, a type wraps, the
+// "updated" and error columns show only when the table itself has room, the customer
+// reason is the sheet's, and Retry / Discard are pinned to the end edge (QA-066).
+const UPDATED_COLUMN = 'hidden @min-[60rem]:table-cell';
 const ERROR_COLUMN = 'hidden @min-[75rem]:table-cell';
 
 export function JobsTable({ rows, showCustomer = true, onOpen }: { rows: AdminJobResponse[]; showCustomer?: boolean; onOpen: (id: string) => void }) {
@@ -69,7 +71,7 @@ export function JobsTable({ rows, showCustomer = true, onOpen }: { rows: AdminJo
 
   const columns: Array<DataColumn<AdminJobResponse>> = [
     { key: 'id', header: 'Job', cell: (r) => <Copyable value={r.id} /> },
-    { key: 'type', header: 'Type', cell: (r) => <code className="text-xs">{r.type}</code> },
+    { key: 'type', header: 'Type', cell: (r) => <code className="block max-w-48 break-all text-xs">{r.type}</code> },
     {
       key: 'status',
       header: 'Status',
@@ -97,13 +99,14 @@ export function JobsTable({ rows, showCustomer = true, onOpen }: { rows: AdminJo
         ]
       : []),
     { key: 'created', header: 'Created', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.created_at)}</span> },
-    { key: 'updated', header: 'Updated', cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{relativeTime(r.updated_at)}</span> },
+    { key: 'updated', header: 'Updated', className: UPDATED_COLUMN, cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{relativeTime(r.updated_at)}</span> },
     { key: 'attempts', header: 'Attempts', align: 'right', cell: (r) => r.attempts },
     { key: 'error', header: 'Error', className: ERROR_COLUMN, cell: (r) => (r.error ? <span className="block max-w-56 truncate text-xs text-danger" title={r.error}>{r.error}</span> : <span className="text-muted-foreground">–</span>) },
     {
       key: 'actions',
       header: '',
       align: 'right',
+      sticky: true,
       cell: (r) => (
         <CellActions>
           {r.can_retry ? (

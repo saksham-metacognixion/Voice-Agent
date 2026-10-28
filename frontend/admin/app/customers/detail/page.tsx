@@ -4,7 +4,7 @@ import { useAdminGetCustomer, useApi } from '@portal/api-client';
 import { EmptyState, Skeleton, Tabs, TabsList, TabsTrigger } from '@portal/ui';
 import Link from 'next/link';
 import { AdminShell } from '@/src/components/shell/admin-shell';
-import { LoadError } from '@/src/components/common/query-states';
+import { LoadError, pollUnlessError } from '@/src/components/common/query-states';
 import { CustomerHeader } from '@/src/components/customers/customer-header';
 import { AgentsTab, AuditTab, CallsTab, JobsTab, NumbersTab, WebhooksTab } from '@/src/components/customers/tabs/list-tabs';
 import { MembersTab } from '@/src/components/customers/tabs/members-tab';
@@ -30,11 +30,11 @@ function CustomerDetail() {
   const [params, setQuery] = useUrlQuery();
   const id = params.get('id') ?? '';
   const tab = pickParam(params, 'tab', CUSTOMER_TABS, 'overview');
-  const customer = useAdminGetCustomer(api, { id }, { enabled: Boolean(id), refetchInterval: 60_000 });
+  const customer = useAdminGetCustomer(api, { id }, { enabled: Boolean(id), refetchInterval: pollUnlessError(60_000) });
 
   if (!id) return <EmptyState title="No customer selected" action={<Link href={routes.customers} className="text-sm text-primary underline">Back to customers</Link>} />;
   if (customer.isPending) return <Skeleton className="h-48" aria-busy />;
-  if (customer.isError) return <LoadError error={customer.error} onRetry={() => void customer.refetch()} />;
+  if (customer.isError) return <LoadError error={customer.error} onRetry={() => void customer.refetch()} back={{ href: routes.customers, label: 'Back to customers' }} />;
   const c = customer.data;
 
   return (

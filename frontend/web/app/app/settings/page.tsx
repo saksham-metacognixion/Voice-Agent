@@ -4,6 +4,7 @@ import { PageLoader, Tabs, TabsContent, TabsList, TabsTrigger } from '@portal/ui
 import { useTranslations } from 'next-intl';
 import { NotificationsTab, PrivacyTab, SecurityTab } from '@/src/components/dashboard/settings/account-tabs';
 import { AuditTab } from '@/src/components/dashboard/settings/audit-tab';
+import { OutboundTab } from '@/src/components/dashboard/settings/outbound-tab';
 import { TeamTab } from '@/src/components/dashboard/settings/team-tab';
 import { WorkspaceTab } from '@/src/components/dashboard/settings/workspace-tab';
 import { PageHeader } from '@/src/components/shell/portal-shell';
@@ -14,8 +15,9 @@ import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /**
  * D6 Settings (spec p. 39): Workspace · Team · Notifications · Security · Data &
- * privacy · Audit log. `/app/settings/*` in the spec; one page with `?tab=` in the
- * export. The audit log is owner/admin only and is not offered to anyone else.
+ * privacy · Outbound calling (D18) · Audit log. `/app/settings/*` in the spec; one page
+ * with `?tab=` in the export. The audit log is owner/admin only and is not offered to
+ * anyone else; every member can read the outbound tab.
  */
 export default function SettingsPage() {
   const t = useTranslations('dashboard.settings');
@@ -62,6 +64,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="privacy">
             <PrivacyTab workspace={workspace} />
+          </TabsContent>
+          <TabsContent value="outbound">
+            <OutboundTab />
           </TabsContent>
           {canAdmin ? (
             <TabsContent value="audit">

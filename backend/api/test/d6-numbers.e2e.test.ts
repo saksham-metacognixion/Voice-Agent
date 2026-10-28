@@ -428,6 +428,31 @@ describe('PATCH and DELETE /numbers/:id', () => {
     expect(cachedAfterEdit?.blocklist).toContain('+15145550666');
     expect(cachedAfterEdit).toMatchObject({ hours_mode: 'custom', hours: { days: { mon: [{ open: '09:00', close: '17:00' }] } } });
 
+    // QA-083 (D4 Hand-off): the message if the transfer fails — trimmed, ≤ 500, cleared by
+    // null or blank, refused with a NUL byte, and carried in `num:{e164}` for the call.
+    expect(edited.body.transfer_fail_message).toBeNull();
+    const withMessage = await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: '  Sorry, nobody can take your call right now. Please call back after 2 pm.  ' });
+    expect(withMessage.status).toBe(200);
+    expect(withMessage.body.transfer_fail_message).toBe('Sorry, nobody can take your call right now. Please call back after 2 pm.');
+    expect((await call('GET', `/numbers/${row.id}`, headers)).body.transfer_fail_message).toBe('Sorry, nobody can take your call right now. Please call back after 2 pm.');
+    expect(await cache.getJson<{ transfer_fail_message: string | null }>(redisKeys.number(row.e164!))).toMatchObject({
+      transfer_fail_message: 'Sorry, nobody can take your call right now. Please call back after 2 pm.',
+    });
+    const tooLong = await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: 'x'.repeat(501) });
+    expect(tooLong.status).toBe(422);
+    expect(tooLong.body.code).toBe('VALIDATION_FAILED');
+    expect((await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: 'bad\u0000byte' })).status).toBe(422);
+    // Editor and up, like the other routing fields; a viewer cannot.
+    const editor = await addMember(ws.workspaceId, 'fail-msg-editor', 'editor');
+    expect((await call('PATCH', `/numbers/${row.id}`, await auth(editor.sub, ws.workspaceId), { transfer_fail_message: 'Back in a minute.' })).status).toBe(200);
+    const viewer = await addMember(ws.workspaceId, 'fail-msg-viewer', 'viewer');
+    expect((await call('PATCH', `/numbers/${row.id}`, await auth(viewer.sub, ws.workspaceId), { transfer_fail_message: 'Not mine to say.' })).status).toBe(403);
+    const cleared = await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: '   ' });
+    expect(cleared.body.transfer_fail_message).toBeNull();
+    expect(await cache.getJson<{ transfer_fail_message: string | null }>(redisKeys.number(row.e164!))).toMatchObject({ transfer_fail_message: null });
+    expect((await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: 'Back soon.' })).body.transfer_fail_message).toBe('Back soon.');
+    expect((await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: null })).body.transfer_fail_message).toBeNull();
+
     const paused = await call('PATCH', `/numbers/${row.id}`, headers, { paused: true });
     expect(paused.body).toMatchObject({ paused: true, status: 'paused' });
     expect(await cache.getJson<{ number_paused: boolean }>(redisKeys.number(row.e164!))).toMatchObject({ number_paused: true });

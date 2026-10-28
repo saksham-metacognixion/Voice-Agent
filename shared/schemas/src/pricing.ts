@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { type agentTier, planTier } from './enums.js';
+import { outboundPolicy } from './outbound.js';
 
 /**
  * The versioned pricing snapshot stored in `pricing_configs.config_json` (admin §5.1).
@@ -114,6 +115,8 @@ export const pricingConfig = z.object({
   recurring: pricingRecurring,
   wallet_policy: walletPolicy,
   trial: trialCaps,
+  /** P2 (D18) daily caps, the prior-contact window and the calling rules per country (ADR 0031). */
+  outbound: outboundPolicy.default({}),
 });
 export type PricingConfig = z.infer<typeof pricingConfig>;
 

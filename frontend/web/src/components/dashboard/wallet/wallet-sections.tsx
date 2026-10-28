@@ -1,14 +1,14 @@
 'use client';
 
 import {
-  createPortalSession, isApiError, updateAutoTopup, useApi, useGetFlags, useGetPricing, useGetStats, useGetWallet, useListCreditLots, useListInvoices, useListLedger,
+  createPortalSession, exportLedger, isApiError, updateAutoTopup, useApi, useGetFlags, useGetPricing, useGetStats, useGetWallet, useListCreditLots, useListInvoices, useListLedger,
 } from '@portal/api-client';
 import type { InvoiceResponse, LedgerEntryResponse, LedgerReason, WalletResponse } from '@portal/schemas';
 import {
   Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, EmptyState, Field, Input,
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, cn, toast,
 } from '@portal/ui';
-import { BarChart3, CalendarClock, Coins, CreditCard, ExternalLink, FileText, Receipt } from 'lucide-react';
+import { BarChart3, CalendarClock, Coins, CreditCard, Download, ExternalLink, FileText, Receipt } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -22,10 +22,12 @@ import { LoadError } from '@/src/components/dashboard/query-states';
 import { PackageSelector } from '@/src/components/wizard/package-selector';
 import { activitySeries } from '@/src/dashboard/activity-series';
 import { useDashboardLive } from '@/src/dashboard/use-dashboard-live';
-import { LEDGER_REASONS, autoTopupBody, balanceTone, expiringSoon, ledgerLink, usageSummary } from '@/src/dashboard/wallet-view';
+import { LEDGER_REASONS, autoTopupBody, balanceTone, expiringSoon, ledgerLink, ledgerReasonParam, usageSummary } from '@/src/dashboard/wallet-view';
+import { saveBlob } from '@/src/lib/download';
 import { errorMessage } from '@/src/lib/errors';
 import { formatCreditsValue, formatDate, formatDateTime, formatNumber } from '@/src/lib/format';
 import { useCursorPager } from '@/src/lib/use-cursor-pager';
+import { useUrlQuery } from '@/src/lib/use-url-query';
 import { formatMoney } from '@/src/wizard/plan-gates';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -361,14 +363,42 @@ export function UsageCard() {
 
 // ------------------------------------------------------------------ Ledger
 
-/** The append-only ledger (spec p. 38): paginated, filtered by reason, each call row a link to D2. */
+/**
+ * The append-only ledger (spec p. 38): paginated, filtered by reason, each call row a link
+ * to D2. The reason lives in the URL (`?reason=`, QA-080), and an owner or admin can take
+ * the filtered history away as CSV (`POST /wallet/ledger/export`).
+ */
 export function LedgerCard() {
   const t = useTranslations('dashboard.wallet.ledger');
+  const tc = useTranslations();
   const api = useApi();
   const ws = useWorkspace();
-  const [reason, setReason] = React.useState<LedgerReason | 'all'>('all');
+  const { canAdmin } = useRole();
+  const [params, setParams] = useUrlQuery();
+  const reasonParam = ledgerReasonParam(params.get('reason'));
+  const reason: LedgerReason | 'all' = reasonParam ?? 'all';
   const pager = useCursorPager();
+  const { reset } = pager;
+  // A cursor belongs to the filter that produced it: back to page one whenever the
+  // reason changes, including through the back button.
+  React.useEffect(() => reset(), [reasonParam, reset]);
   const ledger = useListLedger(api, { limit: 25, ...(reason !== 'all' ? { reason } : {}), ...(pager.cursor ? { cursor: pager.cursor } : {}) }, { staleTime: 15_000 });
+  const [exporting, setExporting] = React.useState(false);
+
+  async function download() {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const { blob, filename } = await exportLedger(api, reason !== 'all' ? { reason } : {});
+      saveBlob(blob, filename);
+      toast.success(t('exportDone'));
+      track('ledger_exported', { reason });
+    } catch (e) {
+      toast.error(errorMessage(e, tc));
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const columns: Array<DataColumn<LedgerEntryResponse>> = [
     { key: 'date', header: t('columns.date'), card: 'subtitle', cell: (e) => <span className="whitespace-nowrap tabular-nums">{formatDateTime(e.created_at, ws.workspace?.timezone)}</span> },
@@ -407,15 +437,18 @@ export function LedgerCard() {
           </CardTitle>
           <CardDescription>{t('body')}</CardDescription>
         </div>
-        <div className="w-full sm:w-48">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <Select
             value={reason}
             onValueChange={(v) => {
-              setReason(v as LedgerReason | 'all');
+              setParams((next) => {
+                if (v === 'all') next.delete('reason');
+                else next.set('reason', v);
+              });
               pager.reset();
             }}
           >
-            <SelectTrigger aria-label={t('filter')}>
+            <SelectTrigger aria-label={t('filter')} className="min-w-0 flex-1 sm:w-48 sm:flex-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -427,6 +460,11 @@ export function LedgerCard() {
               ))}
             </SelectContent>
           </Select>
+          {canAdmin ? (
+            <Button variant="outline" onClick={() => void download()} loading={exporting} disabled={exporting}>
+              <Download aria-hidden /> {t('export')}
+            </Button>
+          ) : null}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">

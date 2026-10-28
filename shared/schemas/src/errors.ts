@@ -66,6 +66,14 @@ export const ErrorCode = {
   EMAIL_DISPOSABLE: 'EMAIL_DISPOSABLE',
   /** §6.2 CSRF: a state-changing request whose `Origin` is not the portal or the console. */
   ORIGIN_NOT_ALLOWED: 'ORIGIN_NOT_ALLOWED',
+  /**
+   * D18 outbound (ADR 0031). The `outbound_calls` flag is off for this workspace, or its
+   * business verification is missing, waiting on review, or was not approved.
+   */
+  OUTBOUND_DISABLED: 'OUTBOUND_DISABLED',
+  KYC_REQUIRED: 'KYC_REQUIRED',
+  KYC_PENDING: 'KYC_PENDING',
+  KYC_REJECTED: 'KYC_REJECTED',
   // 404
   NOT_FOUND: 'NOT_FOUND',
   /** D16: re-verify is for a number imported from the customer's own SIP trunk. */
@@ -89,14 +97,36 @@ export const ErrorCode = {
   /** The version exists but its voice-platform copy is not ready yet (a test call right after Improve). Transient (QA-021). */
   VERSION_SYNCING: 'VERSION_SYNCING',
   /**
+   * A test call asked for an older draft: the voice platform keeps one editable draft, so
+   * that version's copy now carries a newer script. Only the current draft and versions
+   * that were published can be rung (QA-082).
+   */
+  VERSION_NOT_TESTABLE: 'VERSION_NOT_TESTABLE',
+  /**
    * The agent has no generated script yet — nothing to test, publish, activate or improve.
    * Not BRIEF_INCOMPLETE: that one means the brief itself is missing what generation needs (QA-021).
    */
   AGENT_NOT_GENERATED: 'AGENT_NOT_GENERATED',
   /** The operation needs a published agent (resume, point a number at it) and this one never was (QA-021). */
   AGENT_NOT_PUBLISHED: 'AGENT_NOT_PUBLISHED',
+  /** D3 "Discard draft": the draft already is the published version — there is nothing to throw away (QA-078). */
+  NO_DRAFT_CHANGES: 'NO_DRAFT_CHANGES',
   /** D17 "Call my phone": the workspace has no live number to place the call from. */
   NO_NUMBER: 'NO_NUMBER',
+  /**
+   * D18 outbound: no verified number to show as the caller ID / the one asked for is not a
+   * verified number of this workspace (another workspace's reads the same); the stored
+   * outbound settings are unusable; the destination is on a do-not-call list, has not
+   * called the workspace in the prior-contact window, or it is outside its calling hours;
+   * an attempt with this idempotency key is still being placed.
+   */
+  CALLER_ID_REQUIRED: 'CALLER_ID_REQUIRED',
+  CALLER_ID_UNVERIFIED: 'CALLER_ID_UNVERIFIED',
+  OUTBOUND_NOT_CONFIGURED: 'OUTBOUND_NOT_CONFIGURED',
+  DNC_LISTED: 'DNC_LISTED',
+  NO_PRIOR_CONTACT: 'NO_PRIOR_CONTACT',
+  OUTSIDE_CALLING_WINDOW: 'OUTSIDE_CALLING_WINDOW',
+  OUTBOUND_IN_PROGRESS: 'OUTBOUND_IN_PROGRESS',
   /** D17: a forwarding test is already ringing for this number. */
   FORWARDING_TEST_IN_PROGRESS: 'FORWARDING_TEST_IN_PROGRESS',
   /**
@@ -119,8 +149,12 @@ export const ErrorCode = {
   DESTINATION_COUNTRY: 'DESTINATION_COUNTRY',
   DESTINATION_TYPE: 'DESTINATION_TYPE',
   DESTINATION_IS_AGENT: 'DESTINATION_IS_AGENT',
+  /** D18: the other party of the call has no number we can dial (withheld, a browser call, not a real number). */
+  DESTINATION_INVALID: 'DESTINATION_INVALID',
   // 429
   TEST_RATE_LIMIT: 'TEST_RATE_LIMIT',
+  /** D18: the workspace placed as many outbound calls today (its local day) as its plan allows. */
+  OUTBOUND_DAILY_CAP: 'OUTBOUND_DAILY_CAP',
   RATE_LIMITED: 'RATE_LIMITED',
   // 5xx
   INTERNAL: 'INTERNAL',
@@ -167,6 +201,10 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   ACCOUNT_LOCKED: 403,
   EMAIL_DISPOSABLE: 403,
   ORIGIN_NOT_ALLOWED: 403,
+  OUTBOUND_DISABLED: 403,
+  KYC_REQUIRED: 403,
+  KYC_PENDING: 403,
+  KYC_REJECTED: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
   SIP_VERIFY_IN_PROGRESS: 409,
@@ -181,9 +219,18 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   ACTIVATION_IN_PROGRESS: 409,
   NUMBER_IN_USE: 409,
   VERSION_SYNCING: 409,
+  VERSION_NOT_TESTABLE: 409,
   AGENT_NOT_GENERATED: 409,
   AGENT_NOT_PUBLISHED: 409,
+  NO_DRAFT_CHANGES: 409,
   NO_NUMBER: 409,
+  CALLER_ID_REQUIRED: 409,
+  CALLER_ID_UNVERIFIED: 409,
+  OUTBOUND_NOT_CONFIGURED: 409,
+  DNC_LISTED: 409,
+  NO_PRIOR_CONTACT: 409,
+  OUTSIDE_CALLING_WINDOW: 409,
+  OUTBOUND_IN_PROGRESS: 409,
   FORWARDING_TEST_IN_PROGRESS: 409,
   WIDGET_UNAVAILABLE: 409,
   VALIDATION_FAILED: 422,
@@ -193,7 +240,9 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   DESTINATION_COUNTRY: 422,
   DESTINATION_TYPE: 422,
   DESTINATION_IS_AGENT: 422,
+  DESTINATION_INVALID: 422,
   TEST_RATE_LIMIT: 429,
+  OUTBOUND_DAILY_CAP: 429,
   RATE_LIMITED: 429,
   INTERNAL: 500,
   UPSTREAM_UNAVAILABLE: 503,

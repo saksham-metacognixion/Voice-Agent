@@ -1,5 +1,6 @@
 import type { Brief } from '@portal/schemas';
 import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
+import { cleanTransferFailMessage, transferFailVariables } from './transfer-fail-message';
 
 /**
  * Staff transfer numbers are for the phone system, never for the caller (BUG-005, 26 Oct:
@@ -70,4 +71,86 @@ export function redactTransferNumbers(text: string, numbers: readonly string[]):
     if (pattern) out = out.replace(new RegExp(pattern, 'g'), STAFF_LABEL);
   }
   return out;
+}
+
+/**
+ * QA-083: a number's "message if the transfer fails" as the call will read it, or null for
+ * none. Every number the call can transfer to is redacted out of it like the script — a
+ * staff transfer number never reaches what the model reads — while any other number the
+ * customer typed (a callback line, say) is theirs to have read out. Written into
+ * `num:{e164}` by the runtime cache and passed by "Call my phone" and the callback.
+ */
+export function spokenTransferFailMessage(
+  message: string | null | undefined,
+  targets: readonly string[],
+): string | null {
+  const clean = cleanTransferFailMessage(message);
+  return clean ? redactTransferNumbers(clean, targets) : null;
+}
+
+/**
+ * A number's `transfer_targets_json` as the numbers it transfers to: `{number}` entries and
+ * the plain strings an older row may hold. The one reader, so the runtime cache, "Call my
+ * phone" and the callback agree on what a number transfers to.
+ */
+export function numberTransferTargets(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out: string[] = [];
+  for (const item of value) {
+    if (typeof item === 'string') out.push(item);
+    else if (
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as { number?: unknown }).number === 'string'
+    ) {
+      out.push((item as { number: string }).number);
+    }
+  }
+  return out;
+}
+
+/**
+ * The transfer numbers a stored `brief_json` names (`transferTargets`), read leniently: they
+ * are the agent's `transfer_number_N` defaults, which a call keeps for every N its number
+ * does not set — so they can be dialled, and must be redacted, on any call.
+ */
+export function briefTransferNumbers(briefJson: unknown): string[] {
+  const rules =
+    typeof briefJson === 'object' && briefJson !== null
+      ? (briefJson as { handoff_rules?: unknown }).handoff_rules
+      : undefined;
+  if (!Array.isArray(rules)) return [];
+  const numbers = rules.flatMap((rule) => {
+    const r = (typeof rule === 'object' && rule !== null ? rule : {}) as {
+      action?: unknown;
+      transfer_number?: unknown;
+    };
+    return r.action === 'transfer' && typeof r.transfer_number === 'string' && r.transfer_number
+      ? [r.transfer_number]
+      : [];
+  });
+  return [...new Set(numbers)];
+}
+
+/**
+ * The per-call variables for a call on one of our numbers, as the inbound allow builds them
+ * from `num:{e164}`: the number's transfer targets as `transfer_number_N` and its fail
+ * message, with every number the call can reach — the number's and the brief's defaults —
+ * redacted out of the message.
+ */
+export function numberTransferVariables(
+  line: { transferTargetsJson: unknown; transferFailMessage: string | null },
+  briefJson: unknown,
+): Record<string, string> {
+  const targets = numberTransferTargets(line.transferTargetsJson);
+  const variables = transferFailVariables(
+    spokenTransferFailMessage(line.transferFailMessage, [
+      ...targets,
+      ...briefTransferNumbers(briefJson),
+    ]),
+  );
+  targets.forEach((number, i) => {
+    variables[`transfer_number_${i + 1}`] = number;
+  });
+  return variables;
 }

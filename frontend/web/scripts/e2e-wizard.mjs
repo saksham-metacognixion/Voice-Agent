@@ -169,6 +169,10 @@ try {
   const versionAfter = Number((await bodyText()).match(/draft version (\d+)/)?.[1] ?? 0);
   ok('W5 the new draft version is shown', versionAfter > versionBefore, `v${versionBefore} → v${versionAfter}`);
   await b.shot(`${S}/shot-w5-improved.png`, true);
+  // Spec W5 soft gate (QA-082): Continue waits for "I'm happy with how my agent sounds".
+  const gated = await b.evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Continue'))?.disabled === true`);
+  ok('W5 Continue waits for the happiness checkbox', gated === true);
+  await b.evaluate(`document.querySelector('#w5-happy')?.click()`); await sleep(200);
   await clickText('Continue'); const w6 = await waitFor(`location.pathname === '/onboarding/phone/'`, 10000);
   ok('→ W6', Boolean(w6), await path());
 

@@ -355,3 +355,219 @@ describe('generation follows the draft’s settings', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// QA-079 / QA-081: the D3 add-ons, the analysis-fields editor, "Save as new version" and
+// the D6 privacy settings. The plan gates come from a tenant override (admin §5.3), which
+// `GET /flags` and the API both read through `PlatformConfigService`.
+describe('denoise, PII removal and analysis fields travel with the version, behind their gates', () => {
+  const config = () => app.get(PlatformConfigService);
+
+  async function setGates(gates: Record<string, boolean> | null) {
+    if (gates === null) await adminDb.tenantOverride.deleteMany({ where: { tenantId: ws.workspaceId } });
+    else {
+      await adminDb.tenantOverride.upsert({
+        where: { tenantId: ws.workspaceId },
+        create: { tenantId: ws.workspaceId, gatesJson: gates, reason: 'e2e QA-079 gates' },
+        update: { gatesJson: gates },
+      });
+    }
+    await config().invalidateWorkspace(ws.workspaceId);
+  }
+
+  const FIELDS = [
+    { name: 'caller_name', type: 'text', description: 'The name the caller gave.' },
+    { name: 'callback_number', type: 'text', description: 'The number to call back on.' },
+    { name: 'preferred_day', type: 'enum', description: 'The day they would like to come in.', enum: ['weekday', 'weekend'] },
+  ];
+
+  afterAll(async () => {
+    await setGates(null);
+    await adminDb.tenant.update({
+      where: { id: ws.workspaceId },
+      data: { piiRemovalDefault: false, recordingNotice: true, recordingNoticeText: null },
+    });
+  });
+
+  it('refuses turning an add-on on, or editing the fields, without the plan gate — and changes nothing', async () => {
+    await setGates({ denoise: false, pii_removal: false, analysis_fields: false });
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id as string;
+
+    for (const body of [{ denoise: true }, { pii_removal: true }, { analysis_fields: FIELDS }]) {
+      const res = await req('PATCH', `/agents/${agentId}/draft`, body);
+      expect(res.statusCode).toBe(400);
+      expect(res.json().code).toBe('PLAN_LIMIT');
+      expect(res.json().fields?.[0]?.field).toBe(Object.keys(body)[0]);
+    }
+    // Turning one off never needs the gate.
+    expect((await req('PATCH', `/agents/${agentId}/draft`, { denoise: false })).statusCode).toBe(200);
+
+    const v1 = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: 1 } } });
+    expect(v1.settingsJson).toMatchObject({ denoise: false, pii_removal: false, analysis_fields_edited: false });
+    expect((v1.analysisSchemaJson as Array<{ name: string }>).map((f) => f.name)).not.toContain('preferred_day');
+  });
+
+  it('writes them into the draft, keeps the live agent as it is, and publish sends them to the platform', async () => {
+    await setGates({ denoise: true, pii_removal: true, analysis_fields: true });
+    const { agentId } = await liveAgentWithNumber();
+
+    const res = await req('PATCH', `/agents/${agentId}/draft`, { denoise: true, pii_removal: true, analysis_fields: FIELDS });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toMatchObject({ draft_version: 2, published_version: 1 });
+    expect(res.json().draft.settings).toMatchObject({ denoise: true, pii_removal: true, analysis_fields_edited: true });
+    expect(res.json().draft.analysis_fields).toEqual(FIELDS);
+    expect(res.json().published.settings).toMatchObject({ denoise: false, pii_removal: false });
+
+    retell.calls.length = 0;
+    const published = await req('POST', `/agents/${agentId}/publish`, {});
+    expect(published.statusCode).toBe(201);
+    const spec = retell.calls.find((c) => c.method === 'updateAgent')!.args[1] as {
+      denoisingMode: string;
+      piiRemoval: boolean;
+      postCallAnalysis: Array<{ name: string; description: string; choices?: string[] }>;
+    };
+    expect(spec.denoisingMode).toBe('noise-and-background-speech-cancellation');
+    expect(spec.piiRemoval).toBe(true);
+    expect(spec.postCallAnalysis.map((f) => f.name)).toEqual(['caller_name', 'callback_number', 'preferred_day']);
+    // A customer's phone field still gets the phone rule (PHONE_FIELD_RULE is by name).
+    expect(spec.postCallAnalysis[1]!.description).toContain('Copy the digits exactly');
+    expect(spec.postCallAnalysis[2]!.choices).toEqual(['weekday', 'weekend']);
+
+    const shown = (await req('GET', `/agents/${agentId}`)).json();
+    expect(shown.published.settings).toMatchObject({ denoise: true, pii_removal: true });
+    expect(shown.published.analysis_fields).toEqual(FIELDS);
+  });
+
+  it('sends an add-on off at the next publish once the plan has lost its gate, and the version keeps the choice', async () => {
+    await setGates({ denoise: true, pii_removal: true, analysis_fields: true });
+    const { agentId } = await liveAgentWithNumber();
+    await req('PATCH', `/agents/${agentId}/draft`, { denoise: true, pii_removal: true });
+    expect((await req('POST', `/agents/${agentId}/publish`, {})).statusCode).toBe(201);
+
+    await setGates({ denoise: false, pii_removal: false });
+    await req('PATCH', `/agents/${agentId}/draft`, { max_call_duration_s: 900 });
+    retell.calls.length = 0;
+    expect((await req('POST', `/agents/${agentId}/publish`, {})).statusCode).toBe(201);
+    const spec = retell.calls.find((c) => c.method === 'updateAgent')!.args[1] as { denoisingMode?: string; piiRemoval: boolean };
+    expect(spec.piiRemoval).toBe(false);
+    expect(spec.denoisingMode).not.toBe('noise-and-background-speech-cancellation');
+    const v3 = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: 3 } } });
+    expect(v3.settingsJson).toMatchObject({ denoise: true, pii_removal: true });
+  });
+
+  it('refuses two fields with one name', async () => {
+    await setGates({ analysis_fields: true });
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id as string;
+    const res = await req('PATCH', `/agents/${agentId}/draft`, { analysis_fields: [FIELDS[0], FIELDS[0]] });
+    expect(res.statusCode).toBe(422);
+  });
+
+  it('a regenerate keeps fields the customer edited instead of rebuilding them from the template', async () => {
+    await setGates({ analysis_fields: true });
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id as string;
+    await req('PATCH', `/agents/${agentId}/draft`, { brief: READY_BRIEF, analysis_fields: FIELDS });
+
+    const accepted = await req('POST', `/agents/${agentId}/generate`, {});
+    expect(accepted.statusCode).toBe(202);
+    expect((await waitForJob(accepted.json().job_id)).status).toBe('succeeded');
+
+    const v2 = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: 2 } } });
+    expect(v2.analysisSchemaJson).toEqual(FIELDS);
+    expect(v2.settingsJson).toMatchObject({ analysis_fields_edited: true });
+  });
+});
+
+describe('Save as new version (QA-079)', () => {
+  it('freezes the draft as it is and moves edits onto a copy', async () => {
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' })).json().id as string;
+    await req('PATCH', `/agents/${agentId}/draft`, { brief: { agent_name: 'Sophie' } });
+
+    const saved = await req('POST', `/agents/${agentId}/versions`);
+    expect(saved.statusCode).toBe(201);
+    expect(saved.json()).toEqual({ saved_version: 1, draft_version: 2, created: true });
+
+    // The next edit lands on the copy; v1 is history now and keeps what it had.
+    const edited = await req('PATCH', `/agents/${agentId}/draft`, { brief: { agent_name: 'Maya' } });
+    expect(edited.json().draft_version).toBe(2);
+    const [v1, v2] = await Promise.all(
+      [1, 2].map((versionNo) => adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo } } })),
+    );
+    expect(v1!.briefJson).toMatchObject({ agent_name: 'Sophie' });
+    expect(v2!.briefJson).toMatchObject({ agent_name: 'Maya' });
+    expect(v2!.settingsJson).toEqual(v1!.settingsJson);
+    expect(v2!.analysisSchemaJson).toEqual(v1!.analysisSchemaJson);
+
+    // v1 can be brought back, and saving a frozen draft writes nothing.
+    expect((await req('POST', `/agents/${agentId}/draft/select`, { version_no: 1 })).statusCode).toBe(201);
+    expect((await req('POST', `/agents/${agentId}/versions`)).json()).toEqual({ saved_version: 1, draft_version: 1, created: false });
+    expect(await adminDb.agentVersion.count({ where: { agentId } })).toBe(2);
+
+    const audit = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'agent.version_saved', targetId: agentId } });
+    expect(audit?.metaJson).toMatchObject({ version_no: 1, draft_version: 2 });
+  });
+});
+
+describe('D6 privacy: the recording notice and the PII default (QA-081)', () => {
+  const config = () => app.get(PlatformConfigService);
+
+  afterAll(async () => {
+    await adminDb.tenantOverride.deleteMany({ where: { tenantId: ws.workspaceId } });
+    await adminDb.tenant.update({
+      where: { id: ws.workspaceId },
+      data: { piiRemovalDefault: false, recordingNotice: true, recordingNoticeText: null },
+    });
+    await config().invalidateWorkspace(ws.workspaceId);
+  });
+
+  const beginMessage = () => {
+    const llm = retell.calls.filter((c) => c.method === 'createLlm' || c.method === 'updateLlm').at(-1)!;
+    return (llm.method === 'createLlm' ? llm.args[0] : llm.args[1]) as { beginMessage: string | null };
+  };
+
+  it('a recording agent says the notice before its greeting; the stored greeting never has it', async () => {
+    await liveAgentWithNumber();
+    expect(beginMessage().beginMessage).toBe('Just so you know, this call is recorded. Thank you for calling Maple Dental.');
+
+    const own = await req('PATCH', '/workspace', { recording_notice_text: '  This call is recorded for training.  ' });
+    expect(own.statusCode).toBe(200);
+    expect(own.json()).toMatchObject({ recording_notice: true, recording_notice_text: 'This call is recorded for training.' });
+    const { agentId } = await liveAgentWithNumber();
+    expect(beginMessage().beginMessage).toBe('This call is recorded for training. Thank you for calling Maple Dental.');
+    const v1 = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: 1 } } });
+    expect(v1.greeting).toBe('Thank you for calling Maple Dental.');
+
+    // Blank goes back to ours; off, or an agent that does not record, says nothing.
+    expect((await req('PATCH', '/workspace', { recording_notice_text: '' })).json().recording_notice_text).toBeNull();
+    await req('PATCH', `/agents/${agentId}/draft`, { recording_enabled: false });
+    retell.calls.length = 0;
+    await req('POST', `/agents/${agentId}/publish`, {});
+    expect(beginMessage().beginMessage).toBe('Thank you for calling Maple Dental.');
+
+    await req('PATCH', '/workspace', { recording_notice: false });
+    await liveAgentWithNumber();
+    expect(beginMessage().beginMessage).toBe('Thank you for calling Maple Dental.');
+  });
+
+  it('the PII default needs the plan, and a new agent then starts with PII removal on', async () => {
+    await adminDb.tenantOverride.deleteMany({ where: { tenantId: ws.workspaceId } });
+    await config().invalidateWorkspace(ws.workspaceId);
+    const refused = await req('PATCH', '/workspace', { pii_removal_default: true });
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().code).toBe('PLAN_LIMIT');
+
+    await adminDb.tenantOverride.upsert({
+      where: { tenantId: ws.workspaceId },
+      create: { tenantId: ws.workspaceId, gatesJson: { pii_removal: true }, reason: 'e2e QA-081' },
+      update: { gatesJson: { pii_removal: true } },
+    });
+    await config().invalidateWorkspace(ws.workspaceId);
+    expect((await req('PATCH', '/workspace', { pii_removal_default: true, recording_default: false })).json()).toMatchObject({
+      pii_removal_default: true,
+      recording_default: false,
+    });
+
+    const created = (await req('POST', '/agents', { template_id: 'receptionist' })).json();
+    expect(created.draft.settings).toMatchObject({ pii_removal: true, recording_enabled: false });
+    await req('PATCH', '/workspace', { recording_default: true });
+  });
+});

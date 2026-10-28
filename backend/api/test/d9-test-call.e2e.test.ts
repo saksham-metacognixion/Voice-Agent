@@ -122,6 +122,26 @@ describe('POST /agents/:id/test/web', () => {
     expect(retell.calls.filter((c) => c.method === 'createWebCall').length).toBe(before);
   });
 
+  it('refuses an older, never-published draft with 409 VERSION_NOT_TESTABLE — its platform copy now holds a newer script (QA-082)', async () => {
+    const ws = await trialWorkspace('tw-olddraft');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers, { publish: false });
+    const v1 = await adminDb.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo: 1 } } });
+    // A second draft on top of the first, as Improve would write it.
+    await adminDb.agentVersion.create({
+      data: { agentId, versionNo: 2, source: 'feedback', briefJson: v1.briefJson ?? {}, promptText: `${v1.promptText ?? ''}\nv2`, greeting: v1.greeting, settingsJson: v1.settingsJson ?? undefined, retellAgentVersion: v1.retellAgentVersion },
+    });
+    await adminDb.agent.update({ where: { id: agentId }, data: { draftVersion: 2 } });
+    const before = retell.countOf('createWebCall');
+
+    const res = await call('POST', `/agents/${agentId}/test/web`, headers, { version_no: 1 });
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('VERSION_NOT_TESTABLE');
+    expect(retell.countOf('createWebCall')).toBe(before);
+    // The current draft can still be tested.
+    expect((await call('POST', `/agents/${agentId}/test/web`, headers, { version_no: 2 })).status).toBe(201);
+  });
+
   it('answers 402 NO_CREDITS on an empty wallet and mints nothing', async () => {
     const ws = await trialWorkspace('tw-empty');
     const headers = await auth(ws.sub, ws.workspaceId);

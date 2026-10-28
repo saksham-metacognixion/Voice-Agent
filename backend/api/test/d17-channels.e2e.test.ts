@@ -88,6 +88,8 @@ describe('POST /agents/:id/test/phone — "Call my phone" (W5, Phase 2)', () => 
     const placed = lastArgs<{ fromNumber: string; toNumber: string; agentId: string; agentVersion: number; metadata: Record<string, unknown> }>('createPhoneCall');
     expect(placed).toMatchObject({ fromNumber: number.e164, toNumber: '+14165550123', agentId: agent.retellAgentId, agentVersion: version.retellAgentVersion });
     expect(placed.metadata).toEqual({ tenant_id: ws.workspaceId, agent_id: agentId, version_no: 1, tier: agent.tier, test: true, number_id: number.id });
+    // QA-083: the calling number's transfer-failed message rides along, as on an inbound call (none set = '').
+    expect((placed as { dynamicVariables?: Record<string, string> }).dynamicVariables).toEqual({ transfer_fail_message: '' });
     // The country, never the number, in the audit log every admin reads.
     const audit = await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'agent.test_phone_call' } });
     expect(audit.metaJson).toMatchObject({ to_country: 'CA' });

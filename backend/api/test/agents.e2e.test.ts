@@ -509,7 +509,9 @@ describe('POST /agents/:id/publish (§13.6)', () => {
     const createLlm = retell.calls.find((c) => c.method === 'createLlm');
     const spec = createLlm!.args[0] as { prompt: string; beginMessage: string };
     expect(spec.prompt).toContain('Never claim to be human');
-    expect(spec.beginMessage).toBe('Thank you for calling Maple Dental.');
+    // A recording agent says the workspace's recording notice first (QA-081), added at
+    // the sync — the stored greeting is unchanged.
+    expect(spec.beginMessage).toBe('Just so you know, this call is recorded. Thank you for calling Maple Dental.');
   });
 
   it('is idempotent — publishing the live version again changes nothing', async () => {
@@ -765,6 +767,217 @@ describe('pause, resume and delete', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+describe('POST /agents/:id/duplicate (D3, QA-078)', () => {
+  /** A workspace allowed `maxAgents` agents (SA tenant override), with a published source whose draft is ahead. */
+  async function workspaceWithSource(label: string, maxAgents: number) {
+    const owner = await createWorkspace(label);
+    await adminDb.tenantOverride.create({ data: { tenantId: owner.workspaceId, maxAgents } });
+    const auth = await headers(owner.sub, owner.workspaceId);
+    const created = await req('POST', '/agents', { template_id: 'receptionist', industry: 'dental', name: 'Laval clinic' }, auth);
+    const sourceId = created.json().id as string;
+    await adminDb.agentVersion.update({
+      where: { agentId_versionNo: { agentId: sourceId, versionNo: 1 } },
+      data: {
+        promptText: applyGuardrails('You are Sophie, the receptionist for Maple Dental. Greet the caller and take a message.'),
+        greeting: 'Thank you for calling Maple Dental.',
+        closing: 'Thanks for calling, goodbye.',
+      },
+    });
+    expect((await req('POST', `/agents/${sourceId}/publish`, {}, auth)).statusCode).toBe(201);
+    // The draft moves ahead of the live version: v2, a new goal, Premium, a longer ceiling.
+    const patched = await req('PATCH', `/agents/${sourceId}/draft`, { brief: { goal: 'Book cleanings for the Brossard clinic.' }, tier: 'premium', max_call_duration_s: 900 }, auth);
+    expect(patched.json().draft_version).toBe(2);
+    return { owner, auth, sourceId };
+  }
+
+  it('copies the draft — brief, settings and script — into v1 of a new draft agent, without a platform request', async () => {
+    const { owner, auth, sourceId } = await workspaceWithSource('dup-copy', 5);
+    const source = (await req('GET', `/agents/${sourceId}`, undefined, auth)).json();
+    retell.reset();
+
+    const res = await req('POST', `/agents/${sourceId}/duplicate`, {}, auth);
+    expect(res.statusCode).toBe(201);
+    const copy = res.json();
+    expect(copy.id).not.toBe(sourceId);
+    expect(copy).toMatchObject({
+      name: 'Laval clinic (copy)',
+      template_id: 'receptionist',
+      industry: 'dental',
+      status: 'draft',
+      draft_version: 1,
+      published_version: null,
+      numbers_attached: 0,
+      tier: 'premium',
+    });
+    expect(copy.published).toBeNull();
+    expect(copy.draft).toMatchObject({
+      version_no: 1,
+      source: 'manual',
+      prompt_text: source.draft.prompt_text,
+      greeting: source.draft.greeting,
+      closing: source.draft.closing,
+      has_prompt: true,
+    });
+    expect(copy.draft.brief).toEqual(source.draft.brief);
+    expect(copy.draft.brief.goal).toBe('Book cleanings for the Brossard clinic.');
+    expect(copy.draft.settings).toEqual(source.draft.settings);
+    expect(copy.draft.analysis_fields).toEqual(source.draft.analysis_fields);
+
+    // Platform objects are created lazily, as for W1 — by the copy's first test call or publish.
+    expect(retell.calls).toEqual([]);
+    const row = await adminDb.agent.findUniqueOrThrow({ where: { id: copy.id } });
+    expect(row).toMatchObject({ retellAgentId: null, retellLlmId: null, retellKbId: null, tenantId: owner.workspaceId });
+    expect(await adminDb.agentVersion.count({ where: { agentId: copy.id } })).toBe(1);
+    expect(await adminDb.knowledgeSource.count({ where: { agentId: copy.id } })).toBe(0);
+
+    // The source is untouched.
+    expect(await adminDb.agentVersion.count({ where: { agentId: sourceId } })).toBe(2);
+    expect((await adminDb.agent.findUniqueOrThrow({ where: { id: sourceId } })).publishedVersion).toBe(1);
+
+    const audit = await adminDb.auditLog.findFirst({ where: { tenantId: owner.workspaceId, action: 'agent.duplicated', targetId: copy.id } });
+    expect(audit?.metaJson).toMatchObject({ source_agent_id: sourceId, source_version: 2, template_id: 'receptionist' });
+    expect(audit?.actorUserId).toBe(owner.userId);
+  });
+
+  it('takes a name, and the copy can be published as it is', async () => {
+    const { auth, sourceId } = await workspaceWithSource('dup-named', 5);
+    const res = await req('POST', `/agents/${sourceId}/duplicate`, { name: '  Brossard clinic ' }, auth);
+    expect(res.statusCode).toBe(201);
+    expect(res.json().name).toBe('Brossard clinic');
+
+    const published = await req('POST', `/agents/${res.json().id}/publish`, {}, auth);
+    expect(published.statusCode).toBe(201);
+    expect(published.json()).toMatchObject({ version_no: 1, status: 'live' });
+  });
+
+  it('copies the draft, not a newer row the customer discarded', async () => {
+    const { auth, sourceId } = await workspaceWithSource('dup-discarded', 5);
+    expect((await req('POST', `/agents/${sourceId}/draft/discard`, undefined, auth)).statusCode).toBe(201);
+
+    const copy = (await req('POST', `/agents/${sourceId}/duplicate`, {}, auth)).json();
+    expect(copy.draft.brief.goal).not.toBe('Book cleanings for the Brossard clinic.');
+    expect(copy.draft.settings.tier).toBe('standard');
+  });
+
+  it('refuses past the plan’s agent limit, and counts only agents that were not deleted', async () => {
+    const { owner, auth, sourceId } = await workspaceWithSource('dup-limit', 2);
+    const first = await req('POST', `/agents/${sourceId}/duplicate`, {}, auth);
+    expect(first.statusCode).toBe(201);
+
+    const refused = await req('POST', `/agents/${sourceId}/duplicate`, {}, auth);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().code).toBe('PLAN_LIMIT');
+    expect(await adminDb.agent.count({ where: { tenantId: owner.workspaceId, deletedAt: null } })).toBe(2);
+
+    expect((await req('DELETE', `/agents/${first.json().id}`, undefined, auth)).statusCode).toBe(200);
+    expect((await req('POST', `/agents/${sourceId}/duplicate`, {}, auth)).statusCode).toBe(201);
+  });
+
+  it('two presses at once take the last slot once', async () => {
+    const { owner, auth, sourceId } = await workspaceWithSource('dup-race', 2);
+    const results = await Promise.all([0, 1, 2].map(() => req('POST', `/agents/${sourceId}/duplicate`, {}, auth)));
+    expect(results.map((r) => r.statusCode).sort()).toEqual([201, 400, 400]);
+    expect(await adminDb.agent.count({ where: { tenantId: owner.workspaceId, deletedAt: null } })).toBe(2);
+  });
+
+  it('refuses while the workspace is paused', async () => {
+    const { owner, auth, sourceId } = await workspaceWithSource('dup-paused', 5);
+    await adminDb.tenant.update({ where: { id: owner.workspaceId }, data: { pausedAt: new Date() } });
+    const res = await req('POST', `/agents/${sourceId}/duplicate`, {}, auth);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('WORKSPACE_PAUSED');
+    expect(await adminDb.agent.count({ where: { tenantId: owner.workspaceId } })).toBe(1);
+  });
+
+  it('is closed to a viewer, open to an editor', async () => {
+    const { owner, sourceId } = await workspaceWithSource('dup-roles', 5);
+    const viewer = await addMember(owner.workspaceId, 'dup-viewer', 'viewer');
+    const editor = await addMember(owner.workspaceId, 'dup-editor', 'editor');
+
+    const refused = await req('POST', `/agents/${sourceId}/duplicate`, {}, await headers(viewer.sub, owner.workspaceId));
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().code).toBe('FORBIDDEN_ROLE');
+
+    expect((await req('POST', `/agents/${sourceId}/duplicate`, {}, await headers(editor.sub, owner.workspaceId))).statusCode).toBe(201);
+  });
+
+  it('another workspace’s agent is a 404 and nothing is created', async () => {
+    const { sourceId } = await workspaceWithSource('dup-theirs', 5);
+    const before = await adminDb.agent.count({ where: { tenantId: other.workspaceId } });
+    const res = await req('POST', `/agents/${sourceId}/duplicate`, {}, await headers(other.sub, other.workspaceId));
+    expect(res.statusCode).toBe(404);
+    expect(await adminDb.agent.count({ where: { tenantId: other.workspaceId } })).toBe(before);
+  });
+
+  it('refuses a name under two characters', async () => {
+    const { auth, sourceId } = await workspaceWithSource('dup-badname', 5);
+    const res = await req('POST', `/agents/${sourceId}/duplicate`, { name: ' x ' }, auth);
+    expect(res.statusCode).toBe(422);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('POST /agents/:id/draft/discard (D3, QA-078)', () => {
+  it('points the draft back at the published version, writes no row, and audits it', async () => {
+    const agentId = await agentWithPrompt();
+    await req('POST', `/agents/${agentId}/publish`, {});
+    await req('PATCH', `/agents/${agentId}/draft`, { brief: { goal: 'A draft that went wrong.' } });
+    retell.reset();
+
+    const res = await req('POST', `/agents/${agentId}/draft/discard`);
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ draft_version: 1, published_version: 1, has_unpublished_changes: false });
+    expect(res.json().draft.brief.goal).not.toBe('A draft that went wrong.');
+    expect(retell.calls).toEqual([]);
+
+    // The discarded draft stays in history, untouched and restorable.
+    const versions = await adminDb.agentVersion.findMany({ where: { agentId }, orderBy: { versionNo: 'asc' } });
+    expect(versions.map((v) => v.versionNo)).toEqual([1, 2]);
+    expect((versions[1]!.briefJson as { goal?: string }).goal).toBe('A draft that went wrong.');
+
+    const audit = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'agent.draft_discarded', targetId: agentId } });
+    expect(audit?.metaJson).toMatchObject({ discarded_version: 2, version_no: 1 });
+  });
+
+  it('the next edit forks a fresh draft from the published version', async () => {
+    const agentId = await agentWithPrompt();
+    await req('POST', `/agents/${agentId}/publish`, {});
+    await req('PATCH', `/agents/${agentId}/draft`, { brief: { goal: 'A draft that went wrong.' }, tier: 'premium' });
+    await req('POST', `/agents/${agentId}/draft/discard`);
+
+    const res = await req('PATCH', `/agents/${agentId}/draft`, { brief: { agent_name: 'Chloé' } });
+    expect(res.json().draft_version).toBe(3);
+    expect(res.json().draft.brief).toMatchObject({ agent_name: 'Chloé' });
+    expect(res.json().draft.brief.goal).not.toBe('A draft that went wrong.');
+    expect(res.json().draft.settings.tier).toBe('standard');
+  });
+
+  it('is a 409 when there is nothing to discard', async () => {
+    const neverPublished = await agentWithPrompt();
+    const first = await req('POST', `/agents/${neverPublished}/draft/discard`);
+    expect(first.statusCode).toBe(409);
+    expect(first.json().code).toBe('AGENT_NOT_PUBLISHED');
+
+    const live = await agentWithPrompt();
+    await req('POST', `/agents/${live}/publish`, {});
+    const second = await req('POST', `/agents/${live}/draft/discard`);
+    expect(second.statusCode).toBe(409);
+    expect(second.json().code).toBe('NO_DRAFT_CHANGES');
+  });
+
+  it('is closed to a viewer', async () => {
+    const agentId = await agentWithPrompt();
+    await req('POST', `/agents/${agentId}/publish`, {});
+    await req('PATCH', `/agents/${agentId}/draft`, { brief: { goal: 'Kept.' } });
+    const viewer = await addMember(ws.workspaceId, 'discard-viewer', 'viewer');
+
+    const res = await req('POST', `/agents/${agentId}/draft/discard`, undefined, await headers(viewer.sub));
+    expect(res.statusCode).toBe(403);
+    expect((await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } })).draftVersion).toBe(2);
+  });
+});
+
 describe('the publish lease (ADR 0012 §3)', () => {
   it('is released only by the publisher that holds it — a stale holder cannot clear a takeover', async () => {
     const publishing = app.get(AgentPublishService);
@@ -835,6 +1048,8 @@ describe('cross-workspace isolation', () => {
       ['POST', `/agents/${theirs}/pause`, undefined],
       ['DELETE', `/agents/${theirs}`, undefined],
       ['PUT', `/agents/${theirs}/versions/1/prompt`, { prompt: 'x'.repeat(60) }],
+      ['POST', `/agents/${theirs}/duplicate`, {}],
+      ['POST', `/agents/${theirs}/draft/discard`, undefined],
     ] as const) {
       const res = await req(method, url, body, auth);
       expect(res.statusCode, `${method} ${url}`).toBe(404);
@@ -856,5 +1071,33 @@ describe('cross-workspace isolation', () => {
     const ids = res.json().items.map((a: { id: string }) => a.id);
     const mine = await adminDb.agent.findMany({ where: { tenantId: ws.workspaceId }, select: { id: true } });
     for (const agent of mine) expect(ids).not.toContain(agent.id);
+  });
+});
+
+// ---------------------------------------------------------------------------
+describe('POST /agents — room for one more (QA-078)', () => {
+  it('lets W1 re-pick a template during onboarding, and holds the plan’s limit once it is done', async () => {
+    const owner = await createWorkspace('create-limit');
+    await adminDb.tenantOverride.create({ data: { tenantId: owner.workspaceId, maxAgents: 1 } });
+    const auth = await headers(owner.sub, owner.workspaceId);
+
+    // Onboarding: each re-pick on W1 is a new draft agent, so the cap does not apply yet.
+    expect((await req('POST', '/agents', { template_id: 'receptionist' }, auth)).statusCode).toBe(201);
+    expect((await req('POST', '/agents', { template_id: 'afterhours' }, auth)).statusCode).toBe(201);
+
+    await adminDb.tenant.update({ where: { id: owner.workspaceId }, data: { onboardingCompletedAt: new Date() } });
+    const refused = await req('POST', '/agents', { template_id: 'receptionist' }, auth);
+    expect(refused.statusCode).toBe(400);
+    expect(refused.json().code).toBe('PLAN_LIMIT');
+    expect(await adminDb.agent.count({ where: { tenantId: owner.workspaceId, deletedAt: null } })).toBe(2);
+  });
+
+  it('creates nothing while the workspace is paused, onboarding or not', async () => {
+    const owner = await createWorkspace('create-paused');
+    await adminDb.tenant.update({ where: { id: owner.workspaceId }, data: { pausedAt: new Date() } });
+    const res = await req('POST', '/agents', { template_id: 'receptionist' }, await headers(owner.sub, owner.workspaceId));
+    expect(res.statusCode).toBe(403);
+    expect(res.json().code).toBe('WORKSPACE_PAUSED');
+    expect(await adminDb.agent.count({ where: { tenantId: owner.workspaceId } })).toBe(0);
   });
 });

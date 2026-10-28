@@ -29,8 +29,12 @@ export function useStaff(): StaffContextValue {
   return ctx;
 }
 
-/** The query behind the provider, exposed so the guard can render its states. */
+/**
+ * The query behind the provider, exposed so the guard can render its states. The 30 s
+ * poll keeps it current; a `staleTime` under the poll made every navigation (each page
+ * mounts its own shell) ask again (QA-072).
+ */
 export function useStaffMe() {
   const api = useApi();
-  return useAdminMe(api, { refetchInterval: 30_000, staleTime: 10_000, retry: false });
+  return useAdminMe(api, { refetchInterval: 30_000, staleTime: 5 * 60_000, retry: false });
 }

@@ -317,6 +317,27 @@ enum BlocklistType {
   @@map("blocklist_type")
 }
 
+/// P2 (D18): the business verification outbound calling requires (TCPA/CRTC).
+/// `pending` = submitted, waiting on staff; only `verified` may place a call.
+enum KycStatus {
+  none
+  pending
+  verified
+  rejected
+
+  @@map("kyc_status")
+}
+
+/// P2 (D18): an outbound attempt from D2. `pending` while the platform is asked; only
+/// `pending` and `placed` count toward the daily cap, a `failed` attempt never rang.
+enum OutboundCallStatus {
+  pending
+  placed
+  failed
+
+  @@map("outbound_call_status")
+}
+
 enum DataRequestType {
   delete
   export
@@ -379,8 +400,25 @@ model Tenant {
   pausedReason          String?   @map("paused_reason")
   recordingDefault      Boolean   @default(true) @map("recording_default")
   retentionDays         Int       @default(90) @map("retention_days")
+  /// D6 Data & privacy (QA-081): new agents start with PII removal on (plan gate `pii_removal`).
+  piiRemovalDefault     Boolean   @default(false) @map("pii_removal_default")
+  /// D6 Data & privacy (QA-081): a recording agent says so before its greeting. Added at the
+  /// platform sync (`recordingNotice()`), never stored in a version.
+  recordingNotice       Boolean   @default(true) @map("recording_notice")
+  /// The notice in the business's own words; null = ours, in the agent's language.
+  recordingNoticeText   String?   @map("recording_notice_text")
   /// admin §8 — negotiated pricing overrides the pack catalogue.
   customDealId          String?   @map("custom_deal_id") @db.Uuid
+  /// P2 (D18) business verification. Set to `pending` by the customer's submission and to
+  /// `verified` / `rejected` by staff only (admin, audited). `kyc_json` is what was submitted.
+  kycStatus             KycStatus @default(none) @map("kyc_status")
+  kycJson               Json?     @map("kyc_json")
+  kycSubmittedAt        DateTime? @map("kyc_submitted_at")
+  kycDecidedAt          DateTime? @map("kyc_decided_at")
+  /// The customer-facing sentence staff wrote with a rejection. Never an internal note.
+  kycReason             String?   @map("kyc_reason")
+  /// P2 (D18) `{voicemail_detection, voicemail_message}` (`outboundSettings` in @portal/schemas).
+  outboundSettingsJson  Json?     @map("outbound_settings_json")
   createdAt             DateTime  @default(now()) @map("created_at")
 
   memberships          Membership[]
@@ -411,6 +449,8 @@ model Tenant {
   dataRequests         DataRequest[]
   supportTickets       SupportTicket[]
   staffAuditLog        StaffAuditLog[]
+  outboundCalls        OutboundCall[]
+  dncEntries           DncEntry[]
 
   @@index([planTier])
   @@index([createdAt])
@@ -716,6 +756,9 @@ model PhoneNumber {
   hoursMode           HoursMode         @default(always) @map("hours_mode")
   hoursOverrideJson   Json?             @map("hours_override_json")
   transferTargetsJson Json?             @map("transfer_targets_json")
+  /// QA-083 (D4 Hand-off): what the agent reads word for word when a transfer fails; NULL =
+  /// the fixed rule's own words. Reaches the call as the `transfer_fail_message` variable.
+  transferFailMessage String?           @map("transfer_fail_message")
   allowedCountries    String[]          @default([]) @map("allowed_countries")
   blocklist           String[]          @default([])
   /// Path segment of POST /webhooks/retell/inbound/:number_token (§13.9). Unguessable.
@@ -749,13 +792,19 @@ model PhoneNumber {
   /// P2 (D17) the last "Test forwarding" of an Option B number (`forwardingTest` in @portal/schemas):
   /// status, times and how the forwarded call showed up. Never a call id or platform payload.
   forwardingTestJson  Json?             @map("forwarding_test_json")
+  /// P2 (D18) the number may be shown as the caller ID of an outbound call. A number bought
+  /// on the platform is verified when it is bound (`via = purchase`); a SIP import only by
+  /// staff (`via = staff`), who can also revoke either (verified_at NULL, via `staff`).
+  callerIdVerifiedAt  DateTime?         @map("caller_id_verified_at")
+  callerIdVerifiedVia String?           @map("caller_id_verified_via")
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @default(now()) @updatedAt @map("updated_at")
 
-  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  agent  Agent?     @relation(fields: [agentId], references: [id], onDelete: SetNull)
-  plan   PhonePlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
-  calls  Call[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  agent         Agent?         @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  plan          PhonePlan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  calls         Call[]
+  outboundCalls OutboundCall[]
 
   @@index([tenantId, status])
   @@index([nextRentalAt])
@@ -837,6 +886,58 @@ model Call {
 // ---------------------------------------------------------------------------
 
 /// Config table (spec §5.2, admin SA5). Prices/credits are defaults of the pricing config.
+/// P2 (D18): one row per outbound attempt that passed the compliance checks — the daily
+/// cap counts these, and `idempotency_key` makes a double click one call. A blocked attempt
+/// writes no row (an `audit_log` row instead); a placed one gets its `calls` row from the
+/// platform's call id, billed by `call_ended` like any other call.
+model OutboundCall {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String             @map("tenant_id") @db.Uuid
+  requestedBy    String?            @map("requested_by") @db.Uuid
+  idempotencyKey String             @map("idempotency_key") @db.Uuid
+  /// The D2 call being returned.
+  sourceCallId   String             @map("source_call_id")
+  /// The platform's call id once it answered. Unique: one attempt, one call.
+  callId         String?            @unique @map("call_id")
+  agentId        String?            @map("agent_id") @db.Uuid
+  numberId       String?            @map("number_id") @db.Uuid
+  toNumber       String             @map("to_number")
+  fromNumber     String             @map("from_number")
+  /// The workspace-local day the attempt counts toward (`tenants.timezone`).
+  localDay       DateTime           @map("local_day") @db.Date
+  status         OutboundCallStatus @default(pending)
+  voicemail      String
+  /// Why a `failed` attempt failed, in our words (`upstream`, `cap`, `balance`). Never a provider message.
+  failure        String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @default(now()) @updatedAt @map("updated_at")
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  number PhoneNumber? @relation(fields: [numberId], references: [id], onDelete: SetNull)
+
+  @@unique([tenantId, idempotencyKey])
+  @@index([tenantId, localDay])
+  @@map("outbound_calls")
+}
+
+/// P2 (D18): the workspace's own do-not-call list (47 CFR 64.1200(d), CRTC UTR Part II).
+/// Checked with the platform-wide `blocklists` (type `phone`) before every outbound call.
+model DncEntry {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  e164      String
+  /// `call` = added from a D2 call, `manual` = typed in Settings.
+  source    String
+  reason    String?
+  createdBy String?  @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, e164])
+  @@map("dnc_entries")
+}
+
 model Pack {
   id             String   @id
   name           String
@@ -1393,8 +1494,9 @@ model SupportTicket {
   tenant      Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   requester   User?              @relation(fields: [requesterUserId], references: [id], onDelete: SetNull)
   assignee    StaffUser?         @relation(fields: [assigneeStaffId], references: [id], onDelete: SetNull)
-  messages    TicketMessage[]
-  adjustments CreditAdjustment[]
+  messages     TicketMessage[]
+  adjustments  CreditAdjustment[]
+  dataRequests DataRequest[]
 
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([status, priority])
@@ -1568,11 +1670,18 @@ model DataRequest {
   dueAt       DateTime?       @map("due_at")
   executedAt  DateTime?       @map("executed_at")
   jobId       String?         @map("job_id") @db.Uuid
+  /// QA-081: the owner withdrew a deletion request before staff carried it out.
+  cancelledAt DateTime?       @map("cancelled_at")
+  /// QA-081: the support ticket a deletion request is worked from (SA4).
+  ticketId    Int?            @map("ticket_id")
   createdAt   DateTime        @default(now()) @map("created_at")
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  job    Job?   @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  job    Job?           @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  ticket SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
 
+  // One open deletion request per workspace: `data_requests_open_delete_idx`, a partial
+  // unique index written by hand in the migration (Prisma cannot express the WHERE).
   @@index([tenantId])
   @@map("data_requests")
 }

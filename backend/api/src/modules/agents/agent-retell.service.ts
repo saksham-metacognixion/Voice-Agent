@@ -5,10 +5,13 @@ import { isPhoneFieldName, transferTargets } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { languageBlock } from '../prompting/dialects';
 import { runtimePrompt } from '../prompting/documents';
+import { greetingWithNotice } from '../prompting/recording-notice';
 import { redactTransferNumbers, transferRoutes } from '../prompting/staff-transfer';
+import { transferFailVariables } from '../prompting/transfer-fail-message';
 import {
   RetellGateway,
   clampDuration,
+  denoisingModeFor,
   type AgentSpec,
   type LlmModel,
   type LlmSpec,
@@ -175,7 +178,13 @@ export class AgentRetellService {
       // An Arabic agent also gets its dialect, the live voice's gender and how to say a
       // number, in code like the rest of this tail (ADR 0027, `dialects.ts`).
       prompt: runtimePrompt(input.promptText, input.brief, input.guardrails, languageBlock(input.primaryLanguage, voiceGender)),
-      beginMessage: input.greeting === null ? null : redactTransferNumbers(input.greeting, transferTargets(input.brief)),
+      //
+      // A recording agent says so first (QA-081): the notice is put in front of the
+      // greeting here, at every sync, and never stored — `recording-notice.ts`.
+      beginMessage: greetingWithNotice(
+        input.greeting === null ? null : redactTransferNumbers(input.greeting, transferTargets(input.brief)),
+        input.recordingNotice,
+      ),
       // `agent_stack_configs` is data, so its model id is a string here and a union in the
       // SDK. Retell rejects an id it does not know, which is the check that matters — a
       // typo in SA6 fails at the gateway with a clear message rather than at compile time.
@@ -243,7 +252,10 @@ export class AgentRetellService {
       postCallAnalysis: toRetellAnalysisFields(input.analysisFields),
       postCallAnalysisModel: input.stack.post_call_analysis_model as
         PostCallAnalysisModel | undefined,
-      denoisingMode: input.stack.denoising_mode,
+      // The version's add-ons (QA-079), already cleared by the caller for a workspace
+      // whose plan no longer includes them (`runtimeAddOns`).
+      denoisingMode: denoisingModeFor(input.denoise, input.stack.denoising_mode),
+      piiRemoval: input.piiRemoval,
       // Arabic always transcribes `accurate`, whatever the tier says (ADR 0027).
       sttMode: sttModeFor(input.primaryLanguage, input.stack.stt_mode),
       timezone: input.timezone,
@@ -273,6 +285,9 @@ export class AgentRetellService {
       business_open: 'true',
       next_open_time: '',
       current_time: '',
+      // QA-083: always present, so the transfer rule's `{{transfer_fail_message}}` is never
+      // left as literal braces; empty = no message (a browser test, a number without one).
+      ...transferFailVariables(null),
     };
     transferTargets(input.brief).forEach((number, index) => {
       variables[`transfer_number_${index + 1}`] = number;
@@ -310,6 +325,12 @@ export interface RetellSyncInput {
    */
   stack: TierStack;
   guardrails: string[];
+  /** The version's `denoise` add-on, gate applied (QA-079). */
+  denoise: boolean;
+  /** The version's `pii_removal`, gate applied (QA-079). Always sent, so off clears it. */
+  piiRemoval: boolean;
+  /** Said before the greeting when the agent records (QA-081); null = nothing. */
+  recordingNotice: string | null;
 }
 
 export interface RetellSyncResult {

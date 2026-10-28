@@ -231,14 +231,23 @@ export class CallsQueryService {
    * (§17). The Retell URL is never handed to the browser: it is a bearer credential for
    * audio we are custodian of, and it outlives any check we would do here.
    */
-  async recordingLink(ctx: WorkspaceContext, callId: string, origin: string): Promise<{ url: string; expires_at: string }> {
+  async recordingLink(ctx: WorkspaceContext, callId: string, origin: string): Promise<{ url: string; expires_at: string; download_url: string | null }> {
     const row = await withWorkspace(ctx, (db) =>
       db.call.findFirst({ where: { id: callId, tenantId: ctx.workspaceId }, select: { id: true, recordingUrl: true } }),
     );
     if (!row) throw AppError.notFound('Call');
     if (!row.recordingUrl) throw AppError.notFound('Recording');
-    const { token, expiresAt } = this.signer.sign({ callId, workspaceId: ctx.workspaceId });
-    return { url: `${origin.replace(/\/+$/, '')}/calls/${encodeURIComponent(callId)}/recording/stream?token=${token}`, expires_at: expiresAt.toISOString() };
+    const now = new Date();
+    const stream = `${origin.replace(/\/+$/, '')}/calls/${encodeURIComponent(callId)}/recording/stream`;
+    const { token, expiresAt } = this.signer.sign({ callId, workspaceId: ctx.workspaceId }, now);
+    // Spec D2 "Download (Owner/Admin)" (QA-077): a separate token purpose, so the stream
+    // can tell a download an owner/admin was given from an editor's playback link.
+    const download = ctx.role === 'owner' || ctx.role === 'admin' ? this.signer.sign({ callId, workspaceId: ctx.workspaceId }, now, undefined, 'download').token : null;
+    return {
+      url: `${stream}?token=${token}`,
+      expires_at: expiresAt.toISOString(),
+      download_url: download ? `${stream}?token=${download}&download=1` : null,
+    };
   }
 
   /**
@@ -249,8 +258,8 @@ export class CallsQueryService {
    * Retell's stored URL is itself signed and expires (`opt_in_signed_url`), so a stale one
    * is refreshed from `get-call` — outside any transaction.
    */
-  async resolveRecording(callId: string, token: string | undefined): Promise<{ url: string }> {
-    const claims = this.signer.verify(token);
+  async resolveRecording(callId: string, token: string | undefined, purpose: 'recording' | 'download' = 'recording'): Promise<{ url: string }> {
+    const claims = this.signer.verify(token, undefined, purpose);
     if (!claims || claims.callId !== callId) throw new AppError('UNAUTHENTICATED', 'That recording link has expired.');
 
     const row = await withWorkspace(claims.workspaceId, (db) =>

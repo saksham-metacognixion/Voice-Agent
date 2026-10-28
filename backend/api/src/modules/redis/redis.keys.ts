@@ -18,6 +18,7 @@
  *   ratelimit:fwd-test:{number}  forwarding tests this hour, per number (D17)
  *   ratelimit:widget:{key}  website widget calls this hour, per widget (D17)
  *   ratelimit:widget-ip:{key}:{ip}  website widget calls from one visitor address (D17)
+ *   ratelimit:data-export:{ws}  D6 "Export all data" zips started this hour (QA-081)
  *   alert:platform_concurrency  the open platform-wide concurrency incident (D7)
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
  *
@@ -77,6 +78,8 @@ export const redisKeys = {
   widgetWindow: (key: string) => `ratelimit:widget:{${key}}`,
   /** D17 §11.5: website widget calls from one visitor address in the current window. */
   widgetIpWindow: (key: string, ip: string) => `ratelimit:widget-ip:{${key}}:${ip}`,
+  /** QA-081: D6 "Export all data" archives started in the current hour, per workspace — each reads every section. */
+  dataExportWindow: (workspaceId: string) => `ratelimit:data-export:{${workspaceId}}`,
   /** §6.2 / D14: API requests from one client IP in one fixed minute (`window` = epoch minute). */
   apiRequestWindow: (ip: string, window: number) => `ratelimit:api:${ip}:${window}`,
   /**

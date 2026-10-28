@@ -171,6 +171,7 @@ export class NumbersService {
       if (patch.hours_mode !== undefined) data.hoursMode = patch.hours_mode;
       if (patch.hours_override !== undefined) data.hoursOverrideJson = patch.hours_override ? (patch.hours_override as Prisma.InputJsonValue) : Prisma.DbNull;
       if (patch.transfer_targets !== undefined) data.transferTargetsJson = patch.transfer_targets as unknown as Prisma.InputJsonValue;
+      if (patch.transfer_fail_message !== undefined) data.transferFailMessage = patch.transfer_fail_message;
       if (patch.allowed_countries !== undefined) data.allowedCountries = patch.allowed_countries;
       if (patch.blocklist !== undefined) data.blocklist = patch.blocklist;
       if (patch.paused !== undefined) {

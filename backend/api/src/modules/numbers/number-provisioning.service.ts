@@ -230,6 +230,9 @@ export class NumberProvisioningService {
         nextRentalAt: row.nextRentalAt ?? (row.rentalCredits > 0 ? addMonths(new Date(), 1) : null),
         retellMetaJson: metaOf(correct ? facts : await this.retell.getPhoneNumber(row.e164)),
         error: null,
+        // D18: a number bought on the platform is ours to show as a caller ID. A SIP import
+        // waits for staff, and a staff decision (`via` set) is never overwritten here.
+        ...(row.type !== 'custom_sip' && row.callerIdVerifiedVia === null ? { callerIdVerifiedAt: new Date(), callerIdVerifiedVia: 'purchase' } : {}),
       },
     });
     if (!wasActive || !correct) await this.refresh(workspaceId, 'bind');

@@ -1,15 +1,17 @@
 'use client';
 
-import { isApiError, useApi, useGetPricing, useGetWallet } from '@portal/api-client';
+import { isApiError, useApi, useGetPricing, useGetWallet, useListAgentVersions } from '@portal/api-client';
 import type { AgentDetail } from '@portal/schemas';
-import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Spinner, cn } from '@portal/ui';
+import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, cn } from '@portal/ui';
 import { Mic, PhoneOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
+import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { CallMyPhone } from './call-my-phone';
 import { formatCredits } from '@/src/wizard/plan-gates';
 import { canTransfer, needsPhoneTransfer } from '@/src/wizard/test-scenarios';
+import { resolveTestVersion, testableVersions } from '@/src/wizard/test-versions';
 import { useTestCall, type TestCallFailure } from '@/src/wizard/use-test-call';
 import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
@@ -19,19 +21,37 @@ import { PRICING_STALE_MS } from '@/src/lib/pricing';
  * the credits — the rate for this draft's tier, the balance, and a running estimate.
  * The estimate is labelled as one: the charge itself is computed server-side from
  * `call_ended` and shows on the after-call card.
+ *
+ * Spec W5 "Version selector" (QA-082): the newest draft by default, or any version the
+ * API will ring — the draft and every version that was published (`testableVersions`).
+ * The browser test and "Call my phone" both use the version picked here.
  */
 export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded: (callId: string) => void }) {
   const tt = useTranslations('wizard.w5.call');
   const t = useTranslations();
   const api = useApi();
   const draft = agent.draft;
-  const { state, start, end } = useTestCall(agent.id, draft?.version_no ?? null);
+  const versions = useListAgentVersions(api, { id: agent.id }, { staleTime: 10_000 });
+  const { refetch: refetchVersions } = versions;
+  const options = React.useMemo(() => testableVersions(versions.data ?? []), [versions.data]);
+  const [picked, setPicked] = React.useState<number | null>(null);
+  // A new draft (Improve, a regenerate) is what the customer wants to hear next: the pick
+  // follows it, and the list is re-read so it is on offer.
+  React.useEffect(() => {
+    setPicked(null);
+    void refetchVersions();
+  }, [draft?.version_no, refetchVersions]);
+  const versionNo = resolveTestVersion(options, picked, draft?.version_no ?? null);
+  const testingDraft = versionNo !== null && versionNo === draft?.version_no;
+  const { state, start, end } = useTestCall(agent.id, versionNo);
   const wallet = useGetWallet(api, { staleTime: 15_000 });
   const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
   const transcriptEnd = React.useRef<HTMLDivElement>(null);
   const reported = React.useRef<string | null>(null);
 
-  const tier = draft?.settings.tier ?? agent.tier;
+  // The tier the picked version runs on, where the page has its settings; the mint's own
+  // rate replaces this estimate as soon as a call starts.
+  const tier = (testingDraft ? draft?.settings.tier : versionNo === agent.published?.version_no ? agent.published?.settings.tier : undefined) ?? agent.tier;
   const rate = state.mint?.rate ?? (pricing.data ? (tier === 'premium' ? pricing.data.rates.premium_per_min : pricing.data.rates.standard_per_min) : null);
   const balance = state.mint?.balance ?? wallet.data?.balance ?? null;
   const used = rate !== null ? Math.round(((state.elapsedS / 60) * rate) * 100) / 100 : null;
@@ -61,15 +81,48 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
           <StatusPill status={state.status} agentTalking={state.agentTalking} />
         </div>
         <CardDescription>
-          {/* Paused first: a paused agent answers no calls, live version or not (QA-073). */}
-          {agent.status === 'paused'
-            ? tt('subtitlePaused', { version: draft?.version_no ?? '–' })
-            : agent.published_version
-              ? tt('subtitleLive', { version: draft?.version_no ?? '–', live: agent.published_version })
-              : tt('subtitle', { version: draft?.version_no ?? '–' })}
+          {/* Another version picked (QA-082): say which, and what callers reach meanwhile. */}
+          {versionNo !== null && !testingDraft
+            ? versionNo === agent.published_version
+              ? tt('subtitleTestingLive', { version: versionNo })
+              : tt('subtitleEarlier', { version: versionNo, live: agent.published_version ?? '–' })
+            : /* Paused first: a paused agent answers no calls, live version or not (QA-073). */
+              agent.status === 'paused'
+              ? tt('subtitlePaused', { version: draft?.version_no ?? '–' })
+              : agent.published_version
+                ? tt('subtitleLive', { version: draft?.version_no ?? '–', live: agent.published_version })
+                : tt('subtitle', { version: draft?.version_no ?? '–' })}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
+        {options.length > 1 && versionNo !== null ? (
+          <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
+            <label htmlFor={`test-version-${agent.id}`} className="text-sm font-medium">
+              {tt('version')}
+            </label>
+            <Select
+              value={String(versionNo)}
+              disabled={inCall || busy}
+              onValueChange={(v) => {
+                const no = Number(v);
+                setPicked(no);
+                track('test_version_selected', { agent_id: agent.id, version_no: no, latest: no === draft?.version_no });
+              }}
+            >
+              <SelectTrigger id={`test-version-${agent.id}`} className="sm:w-64">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.version_no} value={String(o.version_no)}>
+                    {tt(`versionKind.${o.kind}`, { n: o.version_no })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+
         <dl className="grid grid-cols-3 gap-3 rounded-lg border border-border bg-muted/40 p-3 text-center">
           <Stat label={tt('timer')} value={`${clock(state.elapsedS)}${state.mint ? ` / ${clock(state.mint.max_call_duration_s)}` : ''}`} live={inCall} />
           <Stat label={tt('rate')} value={rate !== null ? tt('perMin', { credits: formatCredits(rate) }) : '–'} />
@@ -89,7 +142,7 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
               <PhoneOff /> {tt('end')}
             </Button>
           ) : (
-            <Button size="lg" onClick={() => void start()} disabled={busy || !draft || noCredits} loading={busy}>
+            <Button size="lg" onClick={() => void start()} disabled={busy || versionNo === null || noCredits} loading={busy}>
               {busy ? null : <Mic />} {state.status === 'mic' ? tt('askingMic') : state.status === 'connecting' ? tt('connecting') : state.status === 'ended' || state.status === 'failed' ? tt('again') : tt('start')}
             </Button>
           )}
@@ -116,7 +169,7 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
         </div>
 
         {/* D17: hidden until the first pack — the trial is browser test calls only (§5.4). */}
-        {wallet.data?.last_pack_credits != null && draft ? <CallMyPhone agentId={agent.id} versionNo={draft.version_no} onPlaced={onEnded} /> : null}
+        {wallet.data?.last_pack_credits != null && versionNo !== null ? <CallMyPhone agentId={agent.id} versionNo={versionNo} onPlaced={onEnded} /> : null}
 
         {/* A browser call has no phone line: a transfer to staff cannot complete here (BUG-006). */}
         {transfers ? <p className="text-xs text-muted-foreground">{tt('transferNote')}</p> : null}

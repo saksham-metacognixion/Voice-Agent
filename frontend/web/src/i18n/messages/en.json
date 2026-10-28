@@ -285,8 +285,10 @@
     "PUBLISH_IN_PROGRESS": "This agent is being published. Try again in a moment.",
     "VERSION_IMMUTABLE": "This version is published and can no longer be changed. Your edit starts a new draft.",
     "VERSION_SYNCING": "Your latest changes are still being prepared for calls. Try again in a few seconds.",
+    "VERSION_NOT_TESTABLE": "That version can no longer be tested. Restore it as the draft first, or pick another version.",
     "AGENT_NOT_GENERATED": "Your agent has not been written yet. Generate it from the brief first.",
     "AGENT_NOT_PUBLISHED": "Publish this agent first, then try again.",
+    "NO_DRAFT_CHANGES": "The draft is already the live version. There is nothing to discard.",
     "stepUnavailable": "We could not open this step of the setup. Try again, and if it keeps happening, contact support.",
     "serverReasons": {
       "briefUnreadable": "We could not read your brief just now. Your answers are saved — try again in a minute.",
@@ -317,7 +319,20 @@
     "NO_NUMBER": "Your workspace has no live number to call from yet.",
     "NOT_FORWARDING_NUMBER": "Only a number your existing line forwards to can be tested this way.",
     "FORWARDING_TEST_IN_PROGRESS": "A forwarding test is already ringing for this number.",
-    "WIDGET_UNAVAILABLE": "This assistant is not available right now. Please try again later."
+    "WIDGET_UNAVAILABLE": "This assistant is not available right now. Please try again later.",
+    "OUTBOUND_DISABLED": "Outbound calling is not available for this workspace yet.",
+    "KYC_REQUIRED": "Verify your business before your agent calls anyone back.",
+    "KYC_PENDING": "We are still reviewing your business details. Callbacks open once it is verified.",
+    "KYC_REJECTED": "Your business verification was not approved. See why in Settings, then submit it again.",
+    "OUTBOUND_NOT_CONFIGURED": "Your voicemail setting for callbacks needs a look. Review it in Settings.",
+    "CALLER_ID_REQUIRED": "You need a verified number to call from. Numbers you buy from us are verified automatically.",
+    "CALLER_ID_UNVERIFIED": "That number is not verified for outbound calls. Contact support to verify it.",
+    "DESTINATION_INVALID": "This call has no phone number we can call back.",
+    "DNC_LISTED": "This number is on your do-not-call list.",
+    "NO_PRIOR_CONTACT": "Your agent can only call back someone who called you recently.",
+    "OUTSIDE_CALLING_WINDOW": "It is outside the legal calling hours where this person lives.",
+    "OUTBOUND_DAILY_CAP": "You have placed every callback your plan allows today. Try again tomorrow.",
+    "OUTBOUND_IN_PROGRESS": "This callback is already being placed. Give it a moment."
   },
   "validation": {
     "required": "Required",
@@ -823,11 +838,25 @@
       "title": "Test your agent",
       "subtitle": "Talk to your agent in the browser, see what it captured, and tell it what to change. Test calls use your credits.",
       "continue": "Continue",
+      "happy": "I’m happy with how my agent sounds",
+      "happyHint": "Tick this to continue.",
+      "skip": "Skip testing",
+      "skipTitle": "Continue without testing?",
+      "skipBody": "Your agent will answer real callers with a script you have not heard. A test call catches wrong hours, names or prices before a caller does. You can still test it from the dashboard later.",
+      "skipConfirm": "Skip and continue",
       "call": {
         "title": "Talk to your agent",
         "subtitle": "You are testing draft version {version}. Nothing is live yet.",
         "subtitleLive": "You are testing draft version {version}. Callers still reach live version {live}.",
         "subtitlePaused": "You are testing draft version {version}. This agent is paused: phone calls are not answered, browser tests still work.",
+        "subtitleTestingLive": "You are testing live version {version}, the one callers reach.",
+        "subtitleEarlier": "You are testing earlier version {version}. Callers reach live version {live}.",
+        "version": "Version to test",
+        "versionKind": {
+          "draft": "v{n} · draft",
+          "live": "v{n} · live",
+          "published": "v{n} · published earlier"
+        },
         "timer": "Time",
         "rate": "Rate",
         "perMin": "{credits}/min",
@@ -1233,6 +1262,10 @@
     }
   },
   "dashboard": {
+    "planGate": {
+      "lockedPack": "Included from the {pack} pack.",
+      "lockedGeneric": "Included in a bigger pack."
+    },
     "home": {
       "title": "Home",
       "welcome": "Welcome to {workspace}",
@@ -1409,7 +1442,8 @@
         "unavailable": "The recording is not available.",
         "expired": "The recording link expired. Load it again.",
         "playbackError": "The recording could not be played.",
-        "noAudioSupport": "Your browser cannot play audio here."
+        "noAudioSupport": "Your browser cannot play audio here.",
+        "download": "Download recording"
       },
       "transcript": {
         "agent": "Agent",
@@ -1457,6 +1491,14 @@
         "notePlaceholder": "What happened next?",
         "noteViewer": "No note.",
         "noteSaved": "Note saved",
+        "copyNumber": "Copy number",
+        "numberCopied": "Number copied.",
+        "callFromPhone": "Call from your phone",
+        "callFromPhoneHint": "Opens your phone app so you can call {number} yourself.",
+        "copyTranscript": "Copy transcript",
+        "transcriptCopied": "Transcript copied.",
+        "copyFailed": "Could not copy. Select the text and copy it instead.",
+        "reportProblem": "Report a problem",
         "chargedAgentLeg": "Credits charged (agent)",
         "chargedTotal": "Total credits",
         "transfer": {
@@ -1486,6 +1528,35 @@
           "sourceHits": "{hits, plural, one {# answer} other {# answers}}",
           "website": "A website page",
           "removed": "A source since removed"
+        },
+        "callback": {
+          "title": "Call back",
+          "body": "Your agent calls <num>{number}</num> back from <num>{from}</num>.",
+          "button": "Call back <num>{number}</num>",
+          "voicemail": {
+            "hang_up": "If voicemail answers, your agent hangs up.",
+            "leave_message": "If voicemail answers, your agent leaves your message.",
+            "off": "Your agent talks to whatever answers, voicemail included."
+          },
+          "usage": "Callbacks today: {used} of {cap}",
+          "viewerNote": "Only an owner, admin or editor can place a callback.",
+          "placed": "Calling {number} now.",
+          "view": "Open the call",
+          "earliest": "Earliest time allowed for this number: {when}, in your workspace’s time zone.",
+          "openSettings": "Open outbound settings",
+          "openWallet": "Go to wallet",
+          "rule": "Callbacks go only to someone who called you in the last {days, plural, one {# day} other {# days}}, within the legal calling hours where they live.",
+          "dnc": {
+            "add": "Add to do-not-call list",
+            "title": "Add <num>{number}</num> to your do-not-call list?",
+            "body": "Your agents will not call this number back. An owner or admin can take it off the list in Settings.",
+            "confirm": "Add to list",
+            "added": "{number} is on your do-not-call list."
+          },
+          "reasons": {
+            "DESTINATION_COUNTRY": "We cannot call numbers in this country yet.",
+            "DESTINATION_IS_AGENT": "This number is answered by an agent, not a person."
+          }
         }
       },
       "fields": {
@@ -1607,7 +1678,20 @@
         "alreadyLive": "Version {n} was already live.",
         "blocked": "Fix these before publishing",
         "warnings": "Published with warnings",
-        "saveFirst": "Save your script edits first. Publishing sends the last saved version, not what is in the editor."
+        "saveFirst": "Save your script edits first. Publishing sends the last saved version, not what is in the editor.",
+        "discard": "Discard draft",
+        "discardTitle": "Discard draft v{n}?",
+        "discardBody": "The draft goes back to the live version, v{live}. Nothing changes on your numbers.",
+        "discardEdits": "Changes made since v{live} went live will no longer be in the draft.",
+        "discardKept": "Draft v{n} stays in the Versions tab, so you can restore it later.",
+        "discarded": "Draft discarded. The draft is v{n} again."
+      },
+      "menu": {
+        "label": "More actions for {name}",
+        "duplicate": "Duplicate",
+        "copyName": "{name} (copy)",
+        "duplicated": "{name} created. It stays a draft until you publish it.",
+        "limit": "Your plan has no room for another agent. Buy a larger pack, or delete an agent first."
       },
       "overview": {
         "configuration": "Configuration",
@@ -1640,7 +1724,36 @@
         "viewerHint": "You can read the brief; editing needs the editor role.",
         "regenerateTitle": "Rewrite the script",
         "regenerateBody": "Turns the brief into a new draft version. The current version is kept.",
-        "regenerated": "Version {n} was written from your brief."
+        "regenerated": "Version {n} was written from your brief.",
+        "saveVersion": "Save as new version",
+        "versionSaved": "Saved as version {saved}. Your edits now go into version {draft}.",
+        "versionAlreadySaved": "Version {n} is already saved. Your next edit starts a new draft.",
+        "fields": {
+          "title": "What the agent captures",
+          "body": "After every call, these details are taken from the conversation and shown on the call's page. Changes go live at the next publish. Once saved here, rewriting the script keeps them.",
+          "empty": "Nothing is captured yet. Add a field.",
+          "name": "Field name",
+          "namePlaceholder": "e.g. preferred_date",
+          "nameRule": "Lowercase letters, digits and underscores, starting with a letter.",
+          "duplicate": "Another field already has this name.",
+          "type": "Type",
+          "types": {
+            "text": "Text",
+            "number": "Number",
+            "boolean": "Yes or no",
+            "enum": "One of a list"
+          },
+          "description": "What to capture",
+          "descriptionPlaceholder": "e.g. The day the caller would like to come in.",
+          "choices": "Choices",
+          "choicesPlaceholder": "Choices, separated by commas",
+          "remove": "Remove {name}",
+          "add": "Add a field",
+          "save": "Save fields",
+          "saved": "Fields saved to the draft.",
+          "max": "An agent can capture up to {n} fields.",
+          "phoneHint": "Captured digit for digit, exactly as the caller said it."
+        }
       },
       "prompt": {
         "hint": "Editing the script of draft v{n}. Saving creates a new version; the old one is kept.",
@@ -1725,7 +1838,7 @@
         }
       },
       "test": {
-        "hint": "You are testing draft v{n} in the browser. Test calls use credits.",
+        "hint": "Test calls run in the browser and use credits.",
         "viewerHint": "Test calls can be made by editors and above.",
         "noPrompt": "Generate the script from the Brief tab before testing."
       },
@@ -1802,7 +1915,12 @@
         "deleteBody": "This cannot be undone. Calls it took stay in your history.",
         "deleted": "Agent deleted.",
         "inUse": "Release its phone numbers first.",
-        "adminOnly": "Your role cannot pause or delete agents."
+        "adminOnly": "Your role cannot pause or delete agents.",
+        "denoise": "Filter background noise",
+        "denoiseHint": "Stronger filtering that also drops voices in the background, for callers in a shop, a car or on the street.",
+        "pii": "Remove sensitive details",
+        "piiHint": "After each call, card and bank numbers, ID and account numbers, passwords, PINs and dates of birth are removed from the transcript and the recording. Names and phone numbers are kept.",
+        "voicemail": "Voicemail detection applies to callbacks you place. Set it in <link>Settings → Outbound calling</link>."
       },
       "website": {
         "title": "Website button",
@@ -1932,7 +2050,11 @@
         "title": "Hand-off",
         "body": "The people your agent can transfer a caller to when they ask for a person or the agent cannot help.",
         "save": "Save hand-off",
-        "fix": "Fix the highlighted rows first."
+        "fix": "Fix the highlighted rows first.",
+        "failLabel": "Message if the transfer fails",
+        "failHint": "Your agent reads this word for word when a transfer does not go through. Leave it empty and your agent says the team cannot take the call right now, then offers to take a message.",
+        "failPlaceholder": "Sorry, nobody can take your call right now. Leave your name and number and we will call you back.",
+        "failCount": "{used} / {max}"
       },
       "callers": {
         "countriesTitle": "Allowed caller countries",
@@ -2198,7 +2320,9 @@
           "topup": "Automatic top-up",
           "transfer": "Charge for a transferred call"
         },
-        "viewCall": "View call"
+        "viewCall": "View call",
+        "export": "Export CSV",
+        "exportDone": "Your export is downloading."
       },
       "invoices": {
         "title": "Invoices",
@@ -2248,6 +2372,7 @@
         "notifications": "Notifications",
         "security": "Security",
         "privacy": "Data & privacy",
+        "outbound": "Outbound calling",
         "audit": "Audit log"
       },
       "adminOnly": "Only an owner or admin can change this.",
@@ -2363,6 +2488,34 @@
         "signOutBody": "Signs you out of Oraly on this device.",
         "signOut": "Sign out"
       },
+      "dataRequests": {
+        "exportTitle": "Export your data",
+        "exportBody": "Download a zip file of this workspace: its settings, team, agents with every version of their script, numbers, calls, credit history, purchases, invoices, what your agents know and the activity log. A very long history is cut to its most recent rows.",
+        "exportCta": "Export all data",
+        "exportDone": "Your export is downloading.",
+        "exportAdminOnly": "Only an owner or admin can export this workspace's data.",
+        "deleteTitle": "Delete workspace",
+        "deleteBody": "Deleting closes this workspace for good. Our team completes it within {days, plural, one {# day} other {# days}} of your request, and you can withdraw the request until then.",
+        "deleteCta": "Delete workspace",
+        "deleteOwnerOnly": "Only the workspace owner can delete it.",
+        "confirmTitle": "Delete {workspace}?",
+        "confirmDescription": "This sends a deletion request to our team. Nothing is deleted today.",
+        "consequenceNumbers": "Every phone number is released and can't be recovered.",
+        "consequenceCredits": "Remaining credits are forfeited, not refunded.",
+        "consequenceData": "Agents, calls, recordings and team access are removed for good. Billing records we must keep are anonymised.",
+        "consequenceWhen": "Our team completes it within {days, plural, one {# day} other {# days}}. Until then you can withdraw the request here.",
+        "typeLabel": "Type {workspace} to confirm",
+        "confirmCta": "Request deletion",
+        "requestedToast": "Deletion requested. We opened a support ticket for it.",
+        "requestedTitle": "Deletion requested",
+        "requestedBy": "{who} asked for this workspace to be deleted on {date}. Our team will complete it by {due}.",
+        "requestedAnon": "Deletion of this workspace was requested on {date}. Our team will complete it by {due}.",
+        "followTicket": "Follow it in My tickets",
+        "withdraw": "Withdraw request",
+        "withdrawTitle": "Withdraw the deletion request?",
+        "withdrawDescription": "The workspace stays as it is. We let our team know on the same ticket.",
+        "withdrawn": "Deletion request withdrawn."
+      },
       "privacy": {
         "recordingTitle": "Recordings",
         "recording": "Record calls on new agents",
@@ -2371,10 +2524,13 @@
         "retentionHint": "Older recordings and transcripts are deleted automatically.",
         "days": "{n, plural, one {# day} other {# days}}",
         "save": "Save privacy settings",
-        "requestsTitle": "Export or delete your data",
-        "requestsBody": "A full export of this workspace, or deleting it, is handled by our team so nothing billable is lost by mistake. Deleting releases every number and forfeits remaining credits.",
-        "requestsCta": "Email {email}",
-        "requestsSubject": "Data request for workspace {workspace}"
+        "notice": "Tell callers the call is recorded",
+        "noticeHint": "An agent that records says a short notice before its greeting. Changes reach each agent the next time it is published.",
+        "noticeText": "Your own wording",
+        "noticeTextHint": "Used as written for every agent. Leave it empty for ours, in each agent's language.",
+        "noticePlaceholder": "Just so you know, this call is recorded.",
+        "pii": "Remove sensitive details on new agents",
+        "piiHint": "New agents start with sensitive-detail removal on. Each agent can still change it in its own settings."
       },
       "audit": {
         "title": "Audit log",
@@ -2516,7 +2672,125 @@
         }
       },
       "language": "Language",
-      "languageHint": "The language the portal is shown in on this browser. Your agent keeps its own languages, set on its Voice tab."
+      "languageHint": "The language the portal is shown in on this browser. Your agent keeps its own languages, set on its Voice tab.",
+      "outbound": {
+        "notEnabled": "Outbound calling is not available for this workspace yet. You can verify your business now so it is ready when it opens.",
+        "kyc": {
+          "title": "Business verification",
+          "body": "Before your agent calls anyone, we check that your business is real. Our team reviews what you send.",
+          "status": {
+            "none": "Not submitted",
+            "pending": "In review",
+            "verified": "Verified",
+            "rejected": "Not approved"
+          },
+          "pending": "Submitted {date}. Our team is reviewing it.",
+          "verified": "Verified {date}.",
+          "rejectedTitle": "Not approved",
+          "rejectedNoReason": "Check the details below and submit them again.",
+          "fields": {
+            "legal_name": "Legal business name",
+            "registration_number": "Business registration number",
+            "registration_numberHint": "As it appears on your registration or incorporation papers.",
+            "registration_country": "Country of registration",
+            "address": "Registered address",
+            "contact_name": "Contact person",
+            "dnc_registration": "National do-not-call registration",
+            "dnc_registrationHint": "Your registration number with your country’s national do-not-call list, if you have one."
+          },
+          "errors": {
+            "legal_name": "Between 2 and 200 characters.",
+            "registration_number": "Between 2 and 60 characters.",
+            "registration_country": "Choose a country.",
+            "address": "Between 5 and 300 characters.",
+            "contact_name": "Between 2 and 120 characters.",
+            "dnc_registration": "At most 60 characters."
+          },
+          "submit": "Submit for verification",
+          "resubmit": "Submit again",
+          "submitted": "Sent. Our team will review your business."
+        },
+        "voicemail": {
+          "title": "Voicemail",
+          "body": "What your agent does when a callback reaches a voicemail box.",
+          "options": {
+            "hang_up": {
+              "title": "Hang up",
+              "description": "Recommended. A voicemail box is not the person who asked to be called back, and every second is billed."
+            },
+            "leave_message": {
+              "title": "Leave a message",
+              "description": "Your agent reads your message after the beep, then hangs up."
+            },
+            "off": {
+              "title": "Don’t check",
+              "description": "Your agent talks to whatever answers, voicemail included."
+            }
+          },
+          "message": "Message",
+          "messageHint": "Read word for word. Say who is calling and how to reach you.",
+          "messagePlaceholder": "Hello, we are returning your call. Please call us back when it suits you.",
+          "count": "{n}/{max}",
+          "messageError": "Write the message your agent leaves.",
+          "save": "Save voicemail setting",
+          "saved": "Voicemail setting saved."
+        },
+        "callerIds": {
+          "title": "Caller IDs",
+          "body": "The numbers a callback can come from. Numbers you buy from us are verified automatically; numbers from your own phone system are verified by our team.",
+          "label": "Caller IDs",
+          "empty": "No numbers yet. Buy one or bring your own from Numbers.",
+          "columns": {
+            "number": "Number",
+            "status": "Status",
+            "via": "Verification"
+          },
+          "verified": "Verified",
+          "unverified": "Not verified",
+          "via": {
+            "purchase": "Bought from us",
+            "staff": "Verified by our team",
+            "contactSupport": "Contact support to verify this number."
+          }
+        },
+        "today": {
+          "title": "Today",
+          "usage": "Callbacks today: {used} of {cap}",
+          "capNote": "Your plan allows {cap, plural, one {# callback} other {# callbacks}} a day, counted in your workspace’s time zone.",
+          "capZero": "Callbacks start with your first pack.",
+          "rule": "Your agent only calls back someone who called you in the last {days, plural, one {# day} other {# days}}, and only within the legal calling hours where they live, in every time zone of their country.",
+          "countries": "Countries you can call: {list}",
+          "countriesNone": "No countries are open for callbacks yet."
+        },
+        "dnc": {
+          "title": "Do-not-call list",
+          "body": "Numbers your agents never call back. You can also add the other party of a call from its details.",
+          "label": "Do-not-call list",
+          "empty": "No numbers on the list.",
+          "columns": {
+            "number": "Number",
+            "added": "Added",
+            "source": "Added from",
+            "reason": "Reason",
+            "actions": "Actions"
+          },
+          "by": "by {name}",
+          "source": {
+            "call": "A call",
+            "manual": "Typed in"
+          },
+          "remove": "Remove",
+          "removeTitle": "Take {number} off the list?",
+          "removeBody": "Your agents may call this number back again, within the usual rules.",
+          "removed": "{number} is off the list.",
+          "numberLabel": "Phone number",
+          "numberError": "Enter a phone number we can recognise.",
+          "reasonLabel": "Reason",
+          "reasonPlaceholder": "Asked not to be called",
+          "add": "Add to list",
+          "added": "{number} added to the list."
+        }
+      }
     },
     "help": {
       "title": "Help",
@@ -2560,6 +2834,14 @@
       "reportSubject": "Call report {id}",
       "reportLine": "Call {id} at {when} from {caller}.",
       "reportPrompt": "What went wrong:",
+      "reportDialog": {
+        "title": "Report a problem with this call",
+        "body": "Tell us what went wrong. Support gets this call with your message and answers under My tickets on the Help page.",
+        "message": "What went wrong?",
+        "placeholder": "For example: the agent gave the wrong opening hours.",
+        "send": "Send report",
+        "sent": "Report sent as ticket #{id}."
+      },
       "allCalls": "All calls",
       "statusTitle": "Service status",
       "status": {

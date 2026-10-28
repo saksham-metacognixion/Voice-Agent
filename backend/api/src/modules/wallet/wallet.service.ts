@@ -4,16 +4,21 @@ import type {
   AutoTopup,
   CreditLotResponse,
   LedgerEntryResponse,
+  LedgerExportRequest,
   LedgerQuery,
   Page,
   WalletResponse,
 } from '@portal/schemas';
-import { autoTopup as autoTopupSchema } from '@portal/schemas';
+import { LEDGER_EXPORT_MAX_ROWS, autoTopup as autoTopupSchema } from '@portal/schemas';
 import { cursorArgs, toPage } from '../../common/pagination';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { RedisCache, redisKeys } from '../redis';
 import { allocateFifo, lotRemainingAfterSettling, roundCredits } from './fifo';
+import { ledgerCsvHeader, ledgerCsvRow } from './ledger-csv';
+
+/** Ledger rows read per round trip while streaming an export (the call export's batch). */
+const LEDGER_EXPORT_BATCH = 500;
 
 type Tx = Prisma.TransactionClient;
 
@@ -378,17 +383,61 @@ export class WalletService {
     const page = toPage(rows, query);
     return {
       next_cursor: page.next_cursor,
-      items: page.items.map((row) => ({
-        id: row.id,
-        delta: row.delta.toNumber(),
-        balance_after: row.balanceAfter.toNumber(),
-        reason: row.reason,
-        ref_type: row.refType,
-        ref_id: row.refId,
-        created_at: row.createdAt.toISOString(),
-      })),
+      items: page.items.map(ledgerEntry),
     };
   }
+
+  /**
+   * `POST /wallet/ledger/export` (QA-080, D5 "Export CSV") — the credit history, newest
+   * first, narrowed by reason like the list, as CSV. Streamed in batches like the call
+   * export: each batch is its own short `withWorkspace` (no connection held for the whole
+   * download, ADR 0006), resumed by keyset on the list's own order (`created_at`, `id`),
+   * capped at `LEDGER_EXPORT_MAX_ROWS`. Also the `credit_history.csv` of the D6 data export.
+   */
+  async *exportLedgerCsv(ctx: WorkspaceContext, body: LedgerExportRequest): AsyncGenerator<string> {
+    yield ledgerCsvHeader();
+    const where: Prisma.CreditLedgerWhereInput = { tenantId: ctx.workspaceId, ...(body.reason ? { reason: body.reason } : {}) };
+    let position: { id: string; createdAt: Date } | null = null;
+    let written = 0;
+    while (written < LEDGER_EXPORT_MAX_ROWS) {
+      const take = Math.min(LEDGER_EXPORT_BATCH, LEDGER_EXPORT_MAX_ROWS - written);
+      const after: Prisma.CreditLedgerWhereInput | null = position
+        ? { OR: [{ createdAt: { lt: position.createdAt } }, { createdAt: position.createdAt, id: { lt: position.id } }] }
+        : null;
+      const rows: Prisma.CreditLedgerGetPayload<object>[] = await withWorkspace(ctx, (db) =>
+        db.creditLedger.findMany({
+          where: after ? { AND: [where, after] } : where,
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take,
+        }),
+      );
+      for (const row of rows) yield ledgerCsvRow(ledgerEntry(row));
+      written += rows.length;
+      if (rows.length < take) return;
+      const last = rows[rows.length - 1]!;
+      position = { id: last.id, createdAt: last.createdAt };
+    }
+  }
+}
+
+function ledgerEntry(row: {
+  id: string;
+  delta: Prisma.Decimal;
+  balanceAfter: Prisma.Decimal;
+  reason: LedgerReason;
+  refType: string | null;
+  refId: string | null;
+  createdAt: Date;
+}): LedgerEntryResponse {
+  return {
+    id: row.id,
+    delta: row.delta.toNumber(),
+    balance_after: row.balanceAfter.toNumber(),
+    reason: row.reason,
+    ref_type: row.refType,
+    ref_id: row.refId,
+    created_at: row.createdAt.toISOString(),
+  };
 }
 
 /**

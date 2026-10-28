@@ -1,23 +1,53 @@
 'use client';
 
+import { isApiError } from '@portal/api-client';
 import { Button, EmptyState, ErrorState, Skeleton } from '@portal/ui';
+import Link from 'next/link';
 import * as React from 'react';
 import { errorMessage } from '@/src/lib/errors';
 
-/** The one error block every card shows: what failed, and a retry. */
-export function LoadError({ error, onRetry, title, compact }: { error: unknown; onRetry: () => void; title?: string; compact?: boolean }) {
-  return (
-    <ErrorState
-      className={compact ? 'py-6' : undefined}
-      title={title ?? 'Could not load'}
-      description={errorMessage(error)}
-      action={
-        <Button size="sm" variant="outline" onClick={onRetry}>
-          Retry
+/**
+ * The one error block every card shows: what failed, and a retry. A record that does not
+ * exist gets no Retry — asking again cannot bring it back (QA-071) — and, when the caller
+ * names one, a way back to its list instead.
+ */
+export function LoadError({
+  error,
+  onRetry,
+  title,
+  compact,
+  back,
+}: {
+  error: unknown;
+  onRetry: () => void;
+  title?: string;
+  compact?: boolean;
+  back?: { href: string; label: string } | { onClick: () => void; label: string };
+}) {
+  const missing = isApiError(error, 'NOT_FOUND');
+  const action = missing ? (
+    back ? (
+      'href' in back ? (
+        <Link href={back.href} className="text-sm text-primary underline">
+          {back.label}
+        </Link>
+      ) : (
+        <Button size="sm" variant="outline" onClick={back.onClick}>
+          {back.label}
         </Button>
-      }
-    />
+      )
+    ) : undefined
+  ) : (
+    <Button size="sm" variant="outline" onClick={onRetry}>
+      Retry
+    </Button>
   );
+  return <ErrorState className={compact ? 'py-6' : undefined} title={title ?? (missing ? 'Not found' : 'Could not load')} description={errorMessage(error)} action={action} />;
+}
+
+/** `refetchInterval` for a detail query: polls while the record is there, stops once it answers an error (a 404 polled every minute is noise). */
+export function pollUnlessError(ms: number) {
+  return (query: { state: { status: string } }) => (query.state.status === 'error' ? false : ms);
 }
 
 export function Lines({ count = 3, className }: { count?: number; className?: string }) {

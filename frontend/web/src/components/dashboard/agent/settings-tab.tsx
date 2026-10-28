@@ -1,16 +1,19 @@
 'use client';
 
-import { isApiError, useApi, useDeleteAgent, usePauseAgent, useResumeAgent, useUpdateAgentDraft } from '@portal/api-client';
+import { useApi, useUpdateAgentDraft } from '@portal/api-client';
 import type { AgentDetail, AgentTier } from '@portal/schemas';
-import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, Input, RadioCard, RadioGroup, Slider, Switch, toast } from '@portal/ui';
+import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, RadioCard, RadioGroup, Slider, Switch, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { formatDuration } from '@/src/lib/format';
-import { routes } from '@/src/routes';
+import { usePlanGate } from '@/src/dashboard/use-plan-gate';
+import { routes, settingsPath } from '@/src/routes';
+import { DeleteAgentDialog, useAgentActions } from './agent-actions';
 
 /**
  * D3 Settings (spec p. 36). Name and industry are labels on the agent; tier, the call
@@ -25,9 +28,7 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
   const router = useRouter();
   const queryClient = useQueryClient();
   const patch = useUpdateAgentDraft(api);
-  const pause = usePauseAgent(api);
-  const resume = useResumeAgent(api);
-  const remove = useDeleteAgent(api);
+  const actions = useAgentActions();
   const settings = agent.draft?.settings;
 
   const [name, setName] = React.useState(agent.name);
@@ -35,10 +36,14 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
   const [tier, setTier] = React.useState<AgentTier>(settings?.tier ?? agent.tier);
   const [maxS, setMaxS] = React.useState(settings?.max_call_duration_s ?? agent.max_call_duration_s);
   const [recording, setRecording] = React.useState(settings?.recording_enabled ?? agent.recording_enabled);
+  const [denoise, setDenoise] = React.useState(settings?.denoise ?? false);
+  const [pii, setPii] = React.useState(settings?.pii_removal ?? false);
+  const denoiseGate = usePlanGate('denoise');
+  const piiGate = usePlanGate('pii_removal');
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
-  const dirty = name.trim() !== agent.name || (industry.trim() || '') !== (agent.industry ?? '') || (settings ? tier !== settings.tier || maxS !== settings.max_call_duration_s || recording !== settings.recording_enabled : false);
+  const dirty = name.trim() !== agent.name || (industry.trim() || '') !== (agent.industry ?? '') || (settings ? tier !== settings.tier || maxS !== settings.max_call_duration_s || recording !== settings.recording_enabled || denoise !== settings.denoise || pii !== settings.pii_removal : false);
 
   async function save() {
     setError(null);
@@ -51,6 +56,8 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
           ...(settings && tier !== settings.tier ? { tier } : {}),
           ...(settings && maxS !== settings.max_call_duration_s ? { max_call_duration_s: maxS } : {}),
           ...(settings && recording !== settings.recording_enabled ? { recording_enabled: recording } : {}),
+          ...(settings && denoise !== settings.denoise ? { denoise } : {}),
+          ...(settings && pii !== settings.pii_removal ? { pii_removal: pii } : {}),
         },
       });
       await refresh();
@@ -64,30 +71,6 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
   async function refresh() {
     await queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agent.id }] });
     void queryClient.invalidateQueries({ queryKey: ['listAgents'] });
-  }
-
-  async function togglePause() {
-    try {
-      if (agent.status === 'paused') await resume.mutateAsync({ params: { id: agent.id } });
-      else await pause.mutateAsync({ params: { id: agent.id } });
-      await refresh();
-      toast.success(agent.status === 'paused' ? t('resumed') : t('paused'));
-    } catch (e) {
-      toast.error(errorMessage(e, tc));
-    }
-  }
-
-  async function doDelete() {
-    try {
-      await remove.mutateAsync({ params: { id: agent.id } });
-      track('agent_deleted', { agent_id: agent.id });
-      toast.success(t('deleted'));
-      await queryClient.invalidateQueries({ queryKey: ['listAgents'] });
-      router.replace(routes.app.agents);
-    } catch (e) {
-      setConfirmDelete(false);
-      toast.error(isApiError(e, 'AGENT_IN_USE') ? t('inUse') : errorMessage(e, tc));
-    }
   }
 
   return (
@@ -131,6 +114,13 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
               </div>
               <Switch checked={recording} disabled={!canEdit || !settings} onCheckedChange={setRecording} aria-label={t('recording')} />
             </div>
+            {/* QA-079: the two plan-gated add-ons. Locked, a switch that is on can still be
+                turned off — the API refuses only turning one on. */}
+            <AddOnSwitch label={t('denoise')} hint={t('denoiseHint')} checked={denoise} onChange={setDenoise} disabled={!canEdit || !settings} locked={denoiseGate.locked} packName={denoiseGate.packName} />
+            <AddOnSwitch label={t('pii')} hint={t('piiHint')} checked={pii} onChange={setPii} disabled={!canEdit || !settings} locked={piiGate.locked} packName={piiGate.packName} />
+            <p className="text-xs text-muted-foreground">
+              {t.rich('voicemail', { link: (chunks) => <Link href={settingsPath('outbound')} className="text-accent-foreground underline underline-offset-2">{chunks}</Link> })}
+            </p>
             {settings && agent.published ? (
               <p className="text-xs text-muted-foreground">
                 {t('liveNow', { tier: agent.tier === 'premium' ? tc('common.premium') : tc('common.standard'), duration: formatDuration(agent.max_call_duration_s), recording: agent.recording_enabled ? t('on') : t('off') })}
@@ -157,7 +147,7 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
           <CardContent className="flex flex-col gap-3">
             {agent.status !== 'draft' ? (
               <div className="flex flex-col gap-1">
-                <Button variant="outline" disabled={!canAdmin} loading={pause.isPending || resume.isPending} onClick={() => void togglePause()}>
+                <Button variant="outline" disabled={!canAdmin} loading={actions.pausing} onClick={() => void actions.togglePause(agent)}>
                   {agent.status === 'paused' ? t('resume') : t('pause')}
                 </Button>
                 <p className="text-xs text-muted-foreground">{agent.status === 'paused' ? t('resumeHint') : t('pauseHint')}</p>
@@ -174,22 +164,22 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
         </Card>
       </aside>
 
-      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('deleteTitle', { name: agent.name })}</DialogTitle>
-            <DialogDescription>{t('deleteBody')}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirmDelete(false)}>
-              {tc('common.cancel')}
-            </Button>
-            <Button variant="danger" loading={remove.isPending} onClick={() => void doDelete()}>
-              {t('delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <DeleteAgentDialog agent={agent} open={confirmDelete} onOpenChange={setConfirmDelete} onDeleted={() => router.replace(routes.app.agents)} />
+    </div>
+  );
+}
+
+/** A plan-gated switch (QA-079): the gate's pack named underneath while it is locked. */
+function AddOnSwitch({ label, hint, checked, onChange, disabled, locked, packName }: { label: string; hint: string; checked: boolean; onChange: (on: boolean) => void; disabled: boolean; locked: boolean; packName: string | null }) {
+  const tg = useTranslations('dashboard.planGate');
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div>
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{hint}</p>
+        {locked ? <p className="text-xs text-muted-foreground">{packName ? tg('lockedPack', { pack: packName }) : tg('lockedGeneric')}</p> : null}
+      </div>
+      <Switch checked={checked} disabled={disabled || (locked && !checked)} onCheckedChange={onChange} aria-label={label} />
     </div>
   );
 }

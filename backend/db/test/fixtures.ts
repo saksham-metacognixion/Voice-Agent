@@ -46,6 +46,8 @@ export interface Workspace {
   alertId: string;
   notificationId: string;
   jobId: string;
+  outboundCallId: string;
+  dncEntryId: string;
 }
 
 /** Builds one fully populated workspace on the owner connection, bypassing RLS. */
@@ -123,6 +125,10 @@ export async function createWorkspace(label: string): Promise<Workspace> {
     data: { tenantId: tenant.id, userId: user.id, kind: 'low_balance', dedupeKey: `rls:${suffix}:${label}`, channel: 'email', status: 'sent' },
   });
   const job = await ownerDb.job.create({ data: { tenantId: tenant.id, type: 'generate-agent', status: 'succeeded' } });
+  const outbound = await ownerDb.outboundCall.create({
+    data: { tenantId: tenant.id, idempotencyKey: randomUUID(), sourceCallId: call.id, toNumber: '+14165550123', fromNumber: '+14505550100', localDay: new Date('2026-10-28T00:00:00Z'), voicemail: 'hang_up' },
+  });
+  const dnc = await ownerDb.dncEntry.create({ data: { tenantId: tenant.id, e164: '+14165550123', source: 'manual' } });
 
   return {
     tenantId: tenant.id,
@@ -138,6 +144,8 @@ export async function createWorkspace(label: string): Promise<Workspace> {
     alertId: alert.id,
     notificationId: notification.id,
     jobId: job.id,
+    outboundCallId: outbound.id,
+    dncEntryId: dnc.id,
   };
 }
 

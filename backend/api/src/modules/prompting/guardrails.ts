@@ -1,3 +1,5 @@
+import { TRANSFER_FAIL_MESSAGE_VAR } from './transfer-fail-message';
+
 /**
  * §9.4 — platform guardrails: appended to every prompt, removable by nobody.
  *
@@ -49,9 +51,15 @@ export const CLOSING_RULE =
  * longer reaches the model at all (`staff-transfer.ts`); this says what to do instead,
  * and what to say when the transfer cannot happen — a browser test call, nobody answering.
  * Conditional on a hand-off rule, so an agent with no transfer never offers one.
+ *
+ * QA-083 (D4 Hand-off): the number's own "message if the transfer fails" arrives per call
+ * as `{{transfer_fail_message}}` (`transfer-fail-message.ts`) and is read word for word;
+ * empty — no message set, a browser test — keeps the words this rule always had. The
+ * variable is always supplied (the agent's defaults carry it empty), and a value still in
+ * braces is read as empty too, so no caller hears a placeholder.
  */
 export const TRANSFER_RULE =
-  'Never say a phone number you would transfer a caller to. When a hand-off rule says to transfer, ask "Would you like me to transfer you to our staff?" and transfer only once the caller agrees. If the transfer is not available or does not go through, say the team cannot take the call right now and offer to take a message.';
+  `Never say a phone number you would transfer a caller to. When a hand-off rule says to transfer, ask "Would you like me to transfer you to our staff?" and transfer only once the caller agrees. If the transfer is not available or does not go through, read the transfer-failed message to the caller word for word when there is one; otherwise say the team cannot take the call right now. Then offer to take a message. The transfer-failed message is between these markers, and empty or in curly braces means there is none: <<{{${TRANSFER_FAIL_MESSAGE_VAR}}}>>`;
 
 /**
  * Not in §9.4. Asked for vegetarian dishes, an agent read every menu item with its price,

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   adminDb,
@@ -144,6 +145,8 @@ describe('D6/D7 tenant-scoped resources are isolated the same way', () => {
     { table: 'invoices', own: (w) => w.invoiceId, find: (db, id) => db.invoice.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.invoice.count({ where: { tenantId: t } }) },
     { table: 'alerts', own: (w) => w.alertId, find: (db, id) => db.alert.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.alert.count({ where: { tenantId: t } }) },
     { table: 'notifications', own: (w) => w.notificationId, find: (db, id) => db.notification.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.notification.count({ where: { tenantId: t } }) },
+    { table: 'outbound_calls', own: (w) => w.outboundCallId, find: (db, id) => db.outboundCall.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.outboundCall.count({ where: { tenantId: t } }) },
+    { table: 'dnc_entries', own: (w) => w.dncEntryId, find: (db, id) => db.dncEntry.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.dncEntry.count({ where: { tenantId: t } }) },
     { table: 'jobs', own: (w) => w.jobId, find: (db, id) => db.job.findUnique({ where: { id }, select: { id: true } }), count: (db, t) => db.job.count({ where: { tenantId: t } }) },
   ];
 
@@ -165,6 +168,13 @@ describe('D6/D7 tenant-scoped resources are isolated the same way', () => {
     ).rejects.toThrow(/row-level security/i);
     await expect(asWorkspace(acme.tenantId, (db) => db.alert.create({ data: { tenantId: globex.tenantId, type: 'planted' } }))).rejects.toThrow(/row-level security/i);
     await expect(asWorkspace(acme.tenantId, (db) => db.job.create({ data: { tenantId: globex.tenantId, type: 'planted' } }))).rejects.toThrow(/row-level security/i);
+    // D18: neither a do-not-call entry nor an outbound attempt counted against a neighbour's cap.
+    await expect(asWorkspace(acme.tenantId, (db) => db.dncEntry.create({ data: { tenantId: globex.tenantId, e164: '+14165550999', source: 'manual' } }))).rejects.toThrow(/row-level security/i);
+    await expect(
+      asWorkspace(acme.tenantId, (db) =>
+        db.outboundCall.create({ data: { tenantId: globex.tenantId, idempotencyKey: randomUUID(), sourceCallId: 'x', toNumber: '+1', fromNumber: '+1', localDay: new Date(), voicemail: 'off' } }),
+      ),
+    ).rejects.toThrow(/row-level security/i);
   });
 
   it('cannot dismiss, release or re-route a neighbour’s rows by id', async () => {

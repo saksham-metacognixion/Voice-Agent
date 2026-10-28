@@ -20,7 +20,7 @@ export type DestinationVerdict =
   | { ok: false; reason: 'invalid' | 'country' | 'type' };
 
 /** Number types a test call never rings: someone else is paid for the minutes, or nobody answers. */
-const REFUSED_TYPES = new Set(['PREMIUM_RATE', 'SHARED_COST', 'UAN', 'PAGER', 'VOICEMAIL']);
+export const REFUSED_TYPES: ReadonlySet<string> = new Set(['PREMIUM_RATE', 'SHARED_COST', 'UAN', 'PAGER', 'VOICEMAIL']);
 
 export function checkTestDestination(to: string, allowedCountries: readonly string[]): DestinationVerdict {
   const parsed = parseTyped(to, allowedCountries);
@@ -34,7 +34,8 @@ export function checkTestDestination(to: string, allowedCountries: readonly stri
 /** Bidi marks an RTL input or a paste can carry around the digits. */
 const BIDI_MARKS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
 
-function parseTyped(to: string, countries: readonly string[]): PhoneNumber | undefined {
+/** A number as typed, read in the allowed countries in turn (also the D18 do-not-call list's input). */
+export function parseTyped(to: string, countries: readonly string[]): PhoneNumber | undefined {
   const text = asciiDigits(to).replace(BIDI_MARKS, '').trim().replace(/^00/, '+');
   if (text.startsWith('+')) return parsePhoneNumberFromString(text);
   const readings = countries.map((country) => parsePhoneNumberFromString(text, country as CountryCode));

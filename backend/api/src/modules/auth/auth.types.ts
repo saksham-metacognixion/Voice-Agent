@@ -21,6 +21,8 @@ export interface WorkspaceContext {
    * (workers, schedules): those rows have no IP.
    */
   ip?: string | null;
+  /** The request's id (Fastify's), so an audit row can be matched to the log lines of its request. */
+  requestId?: string;
 }
 
 /** Admin §2.1 — ctx.staff = {id, role}. Never coexists with a WorkspaceContext. */

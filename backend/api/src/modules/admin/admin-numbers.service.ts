@@ -189,6 +189,8 @@ export class AdminNumbersService {
       rental_overdue_since: iso(r.rentalOverdueSince),
       error: r.error,
       calls_7d: calls7d,
+      caller_id_verified: r.callerIdVerifiedAt !== null,
+      caller_id_verified_via: r.callerIdVerifiedAt !== null && (r.callerIdVerifiedVia === 'purchase' || r.callerIdVerifiedVia === 'staff') ? r.callerIdVerifiedVia : null,
       created_at: r.createdAt.toISOString(),
     };
   }

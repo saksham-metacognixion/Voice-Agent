@@ -18,12 +18,14 @@ import { CryptoModule } from './modules/crypto';
 import { KnowledgeModule } from './modules/knowledge';
 import { NotificationsModule } from './modules/notifications';
 import { NumbersModule } from './modules/numbers';
+import { OutboundModule } from './modules/outbound';
 import { PromptingModule } from './modules/prompting';
 import { RedisModule } from './modules/redis';
 import { RetellModule } from './modules/retell';
 import { RuntimeCacheModule } from './modules/runtime-cache';
 import { ScheduledModule } from './modules/scheduled';
 import { SupportModule } from './modules/support';
+import { DataRequestsModule } from './modules/data-requests';
 import { VoicesModule } from './modules/voices';
 import { WalletModule } from './modules/wallet';
 import { WebhooksModule } from './modules/webhooks';
@@ -69,11 +71,13 @@ import { WorkspacesModule } from './modules/workspaces';
     KnowledgeModule,
     NotificationsModule,
     NumbersModule,
+    OutboundModule,
     ActivationModule,
     VoicesModule,
     WebhooksModule,
     ScheduledModule,
     SupportModule,
+    DataRequestsModule,
     AdminModule,
   ],
   providers: [

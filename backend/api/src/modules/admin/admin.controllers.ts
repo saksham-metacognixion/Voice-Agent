@@ -16,6 +16,9 @@ import { Readable } from 'node:stream';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { adminDb } from '@portal/db';
 import {
+  type AdminKycResponse,
+  adminCallerIdRequest,
+  adminKycDecisionRequest,
   type AdminAgentResponse,
   type AdminAuditEntry,
   type AdminCallResponse,
@@ -91,6 +94,7 @@ import { AdminFlagsService } from './admin-flags.service';
 import { AdminJobsService } from './admin-jobs.service';
 import { AdminKpisService } from './admin-kpis.service';
 import { AdminNumbersService } from './admin-numbers.service';
+import { AdminOutboundService } from './admin-outbound.service';
 import { AdminPricingService } from './admin-pricing.service';
 import { AdminSearchService } from './admin-search.service';
 import { AdminSystemService } from './admin-system.service';
@@ -116,6 +120,7 @@ const MUTATE = STAFF_ROUTE_ROLES.mutate;
 const MONEY = STAFF_ROUTE_ROLES.money;
 const SYSTEM = STAFF_ROUTE_ROLES.system;
 const PRICING_EDIT = STAFF_ROUTE_ROLES.pricingEdit;
+const COMPLIANCE = STAFF_ROUTE_ROLES.compliance;
 const PRICING_PUBLISH = STAFF_ROUTE_ROLES.pricingPublish;
 const VIEW_AS = STAFF_ROUTE_ROLES.viewAs;
 /**
@@ -178,6 +183,7 @@ export class AdminCustomersController {
     private readonly jobs: AdminJobsService,
     private readonly webhooks: AdminWebhooksService,
     private readonly impersonation: ImpersonationService,
+    private readonly outbound: AdminOutboundService,
   ) {}
 
   @Get()
@@ -303,6 +309,25 @@ export class AdminCustomersController {
     @Req() request: FastifyRequest,
   ): Promise<RemovedResponse> {
     return this.customers.removeMember(staff, id, mid, staffActionRequest.parse(body ?? {}), request);
+  }
+
+  /** D18: the business verification the customer submitted for outbound calling. */
+  @Get(':id/kyc')
+  kyc(@Param('id') id: string): Promise<AdminKycResponse> {
+    return this.outbound.kyc(id);
+  }
+
+  /** D18: approve or reject (or withdraw) it — a compliance decision, audited. */
+  @Post(':id/kyc')
+  @HttpCode(200)
+  @StaffRoles(...COMPLIANCE)
+  decideKyc(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminKycResponse> {
+    return this.outbound.decideKyc(staff, id, adminKycDecisionRequest.parse(body), request);
   }
 
   @Post(':id/pause')
@@ -498,7 +523,24 @@ export class AdminAgentsController {
 
 @Controller('admin/numbers')
 export class AdminNumbersController {
-  constructor(private readonly numbers: AdminNumbersService) {}
+  constructor(
+    private readonly numbers: AdminNumbersService,
+    private readonly outbound: AdminOutboundService,
+  ) {}
+
+  /** D18: verify a SIP import as an outbound caller ID, or revoke any number's. */
+  @Post(':id/caller-id')
+  @HttpCode(200)
+  @StaffRoles(...COMPLIANCE)
+  async callerId(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminNumberResponse> {
+    await this.outbound.setCallerId(staff, id, adminCallerIdRequest.parse(body), request);
+    return this.numbers.get(id);
+  }
 
   @Get()
   list(@Query() query: Record<string, unknown>): Promise<Page<AdminNumberResponse>> {

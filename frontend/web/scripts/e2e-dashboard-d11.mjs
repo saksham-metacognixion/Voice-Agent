@@ -195,6 +195,7 @@ try {
   ok('D5 shows usage, credit history, invoices and payment methods', /Usage/.test(wallet) && /Credit history/.test(wallet) && /Invoices/.test(wallet) && /Payment methods/.test(wallet));
   const ledgerRows = await b.evaluate(`[...document.querySelectorAll('table[aria-label="Credit history"] tbody tr')].length`);
   ok('D5 ledger lists the movements', ledgerRows > 0, `rows=${ledgerRows}`);
+  ok('D5 ledger offers Export CSV to the owner (QA-080)', /Export CSV/.test(wallet));
   const w0 = (await apiCall('GET', '/wallet')).json;
   if (!w0.auto_topup?.card_last4 && !w0.auto_topup?.enabled) {
     await b.evaluate(`document.querySelector('#topup-enabled').click()`); await sleep(500);
@@ -235,6 +236,8 @@ try {
   ok('D6 security offers two-step verification, password reset and sign-out', /Two-step verification/.test(await bodyText()) && /Email me a reset link/.test(await bodyText()));
   await pressTab('Data & privacy'); await sleep(500);
   ok('D6 data & privacy shows recording default and retention', /Record calls on new agents/.test(await bodyText()) && /Keep recordings/.test(await bodyText()));
+  // QA-081: the export and the owner's danger zone. The dialog is not confirmed — a run must never ask to delete the live workspace.
+  ok('D6 data & privacy offers Export all data and Delete workspace', /Export all data/.test(await bodyText()) && /(Delete workspace|Deletion requested)/.test(await bodyText()));
   await pressTab('Audit log'); await sleep(1500);
   const audit = await bodyText();
   ok('D6 audit log shows this run’s changes with the actor', /Changed a number’s settings|Invited someone|Revoked an invitation/.test(audit) && audit.includes('saksham@metacognixion.com'));
@@ -245,14 +248,16 @@ try {
   ok('D7 guides: forwarding, SIP and billing (from the pricing config)', /Forward your existing number/.test(help) && /Connect your own phone system/.test(help) && /credits/.test(help) && /Calls are metered per second/.test(help));
   ok('D7 service status from the API readiness', /All systems operational/.test(help));
   ok('D7 support email and report-a-call', help.includes('support@oraly.ai') && /Report a call/.test(help));
-  const reportHref = await b.evaluate(`[...document.querySelectorAll('a')].find(a => a.textContent.trim() === 'Report')?.href ?? ''`);
-  ok('D7 report link carries the call id', !reportHref || /mailto:.*subject=Call%20report/.test(reportHref), reportHref.slice(0, 120));
+  // An owner reports a call as a support ticket with the call attached (QA-077); a viewer gets the email.
+  const reportOpened = (await clickText('Report')) === 'missing' || Boolean(await waitFor(`document.body.innerText.includes('Report a problem with this call')`, 5000));
+  ok('D7 report a call opens the ticket form', reportOpened);
+  await b.evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(b => b.textContent.trim() === 'Cancel')?.click()`); await sleep(300);
 
   // 6. Phone width, every screen.
   await b.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
   const screens = [['d1', '/app/'], ['d2', '/app/calls/'], ['d3-list', '/app/agents/'], ['d4-list', '/app/numbers/'], ['d5', '/app/wallet/'], ['d7', '/app/help/']];
   if (live) for (const tab of ['routing', 'handoff', 'callers', ...(live.forwarding ? ['forwarding'] : []), 'danger']) screens.push([`d4-${tab}`, `/app/numbers/?id=${live.id}${tab === 'routing' ? '' : `&tab=${tab}`}`]);
-  for (const tab of ['workspace', 'team', 'notifications', 'security', 'privacy', 'audit']) screens.push([`d6-${tab}`, tab === 'workspace' ? '/app/settings/' : `/app/settings/?tab=${tab}`]);
+  for (const tab of ['workspace', 'team', 'notifications', 'security', 'privacy', 'outbound', 'audit']) screens.push([`d6-${tab}`, tab === 'workspace' ? '/app/settings/' : `/app/settings/?tab=${tab}`]);
   const loaded = `document.querySelector('main h1') && [...document.querySelectorAll('nav')].some(n => getComputedStyle(n).position === 'fixed') && !document.querySelector('main [aria-busy="true"], main [aria-busy=""]') ? true : null`;
   for (const [name, url] of screens) {
     await b.goto(`${BASE}${url}`, 1500); await waitFor(loaded, 15000); await sleep(600);

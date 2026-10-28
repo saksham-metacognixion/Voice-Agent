@@ -5,42 +5,46 @@ import { Badge, Card, CardContent, CardHeader, CardTitle } from '@portal/ui';
 import { Copyable } from '@/src/components/common/copyable';
 import { Fact, FactGrid } from '@/src/components/common/query-states';
 import { YesNo } from '@/src/components/common/status-badges';
+import { KycCard } from '@/src/components/customers/kyc-card';
 import { formatCents, formatCredits, formatDateTime, formatNumber } from '@/src/lib/format';
 
 export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Workspace</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FactGrid columns={2}>
-            <Fact label="Timezone">{c.timezone}</Fact>
-            <Fact label="Website" wrap>
-              {c.website ?? '–'}
-            </Fact>
-            <Fact label="Onboarding">{c.onboarding_completed_at ? `Complete ${formatDateTime(c.onboarding_completed_at)}` : `Step ${c.onboarding_step} of 7`}</Fact>
-            <Fact label="Members">{formatNumber(c.members, 0)}</Fact>
-            <Fact label="Agents">
-              {c.agents_live} live / {c.agents_total}
-            </Fact>
-            <Fact label="Numbers active">{formatNumber(c.numbers_active, 0)}</Fact>
-            <Fact label="Calls 30d">{formatNumber(c.calls_30d, 0)}</Fact>
-            <Fact label="Usage 30d">{formatCredits(c.usage_30d)} credits</Fact>
-            <Fact label="Last activity">{formatDateTime(c.last_activity_at)}</Fact>
-            <Fact label="Paused at">{formatDateTime(c.paused_at)}</Fact>
-            <Fact label="Paused reason" wrap>
-              {c.paused_reason ?? '–'}
-            </Fact>
-            <Fact label="Open alerts">{c.open_alerts ? <Badge variant="warning">{c.open_alerts}</Badge> : '0'}</Fact>
-            <Fact label="View-as sessions open">{c.impersonations_open}</Fact>
-            <Fact label="Flags" wrap>
-              {c.flags.length ? c.flags.join(', ') : '–'}
-            </Fact>
-          </FactGrid>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Workspace</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FactGrid columns={2}>
+              <Fact label="Timezone">{c.timezone}</Fact>
+              <Fact label="Website" wrap>
+                {c.website ?? '–'}
+              </Fact>
+              <Fact label="Onboarding">{c.onboarding_completed_at ? `Complete ${formatDateTime(c.onboarding_completed_at)}` : `Step ${c.onboarding_step} of 7`}</Fact>
+              <Fact label="Members">{formatNumber(c.members, 0)}</Fact>
+              <Fact label="Agents">
+                {c.agents_live} live / {c.agents_total}
+              </Fact>
+              <Fact label="Numbers active">{formatNumber(c.numbers_active, 0)}</Fact>
+              <Fact label="Calls 30d">{formatNumber(c.calls_30d, 0)}</Fact>
+              <Fact label="Usage 30d">{formatCredits(c.usage_30d)} credits</Fact>
+              <Fact label="Last activity">{formatDateTime(c.last_activity_at)}</Fact>
+              <Fact label="Paused at">{formatDateTime(c.paused_at)}</Fact>
+              <Fact label="Paused reason" wrap>
+                {c.paused_reason ?? '–'}
+              </Fact>
+              <Fact label="Open alerts">{c.open_alerts ? <Badge variant="warning">{c.open_alerts}</Badge> : '0'}</Fact>
+              <Fact label="View-as sessions open">{c.impersonations_open}</Fact>
+              <Fact label="Flags" wrap>
+                {c.flags.length ? c.flags.join(', ') : '–'}
+              </Fact>
+            </FactGrid>
+          </CardContent>
+        </Card>
+        <KycCard customerId={c.id} />
+      </div>
       <div className="flex flex-col gap-4">
         <Card>
           <CardHeader>

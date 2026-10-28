@@ -1,10 +1,10 @@
 'use client';
 
 import { releaseNumber, updateNumber, useApi, useListCalls } from '@portal/api-client';
-import { hoursProblems, type BusinessHours, type CallSummary, type Carrier, type HoursMode, type PhoneNumberResponse, type UpdateNumberRequest } from '@portal/schemas';
+import { TRANSFER_FAIL_MESSAGE_MAX_CHARS, hoursProblems, type BusinessHours, type CallSummary, type Carrier, type HoursMode, type PhoneNumberResponse, type UpdateNumberRequest } from '@portal/schemas';
 import {
   Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch,
-  TagInput, toast,
+  TagInput, Textarea, toast,
 } from '@portal/ui';
 import { Ban, Check, Eye, EyeOff, PhoneIncoming, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -199,7 +199,11 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
 
 // ------------------------------------------------------------------ Hand-off
 
-/** Transfer targets (`transfer_targets`, up to five), with W6's editor and validation. */
+/**
+ * Transfer targets (`transfer_targets`, up to five), with W6's editor and validation, and
+ * the spec's "Read-out message if transfer fails" (`transfer_fail_message`, QA-083): what
+ * the agent reads word for word when a transfer does not go through. One PATCH, one save.
+ */
 export function HandoffSection({ number, disabled }: { number: PhoneNumberResponse; disabled: boolean }) {
   const t = useTranslations('dashboard.numbers.handoff');
   const tw = useTranslations('wizard.w6.transfer');
@@ -207,16 +211,25 @@ export function HandoffSection({ number, disabled }: { number: PhoneNumberRespon
   const [rows, setRows] = React.useState<TransferTargetDraft[]>(() => toDrafts(number.transfer_targets));
   const [rowErrors, setRowErrors] = React.useState<Record<string, { label?: string; number?: string }>>({});
   const [fix, setFix] = React.useState(false);
+  const savedMessage = number.transfer_fail_message ?? '';
+  const [message, setMessage] = React.useState(savedMessage);
 
   React.useEffect(() => setRows(toDrafts(number.transfer_targets)), [number.transfer_targets]);
-  const dirty = JSON.stringify(toTargets(rows)) !== JSON.stringify(number.transfer_targets);
+  React.useEffect(() => setMessage(savedMessage), [savedMessage]);
+  const targetsDirty = JSON.stringify(toTargets(rows)) !== JSON.stringify(number.transfer_targets);
+  const messageDirty = message.trim() !== savedMessage;
+  const dirty = targetsDirty || messageDirty;
 
   async function submit() {
     const errs = validateTargets(rows, { label: tw('errors.label'), number: tw('errors.number') });
     setRowErrors(errs);
     setFix(Object.keys(errs).length > 0);
     if (Object.keys(errs).length) return;
-    await save({ transfer_targets: toTargets(rows) });
+    const patch: UpdateNumberRequest = {};
+    if (targetsDirty) patch.transfer_targets = toTargets(rows);
+    // Blank clears it: the agent falls back to the fixed rule's own words.
+    if (messageDirty) patch.transfer_fail_message = message.trim() || null;
+    await save(patch);
   }
 
   return (
@@ -227,6 +240,26 @@ export function HandoffSection({ number, disabled }: { number: PhoneNumberRespon
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <TransferTargetsEditor value={rows} onChange={setRows} errors={rowErrors} disabled={disabled || busy} />
+        <Field
+          id={`fail-message-${number.id}`}
+          label={t('failLabel')}
+          description={t('failHint')}
+          addon={t('failCount', { used: message.length, max: TRANSFER_FAIL_MESSAGE_MAX_CHARS })}
+          optional
+        >
+          <Textarea
+            id={`fail-message-${number.id}`}
+            dir="auto"
+            rows={3}
+            className="min-h-16"
+            value={message}
+            maxLength={TRANSFER_FAIL_MESSAGE_MAX_CHARS}
+            placeholder={t('failPlaceholder')}
+            disabled={disabled || busy}
+            aria-describedby={`fail-message-${number.id}-desc`}
+            onChange={(e) => setMessage(e.target.value)}
+          />
+        </Field>
         {fix ? <Alert variant="danger">{t('fix')}</Alert> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {!disabled ? <SaveRow label={t('save')} busy={busy} dirty={dirty} onSave={() => void submit()} /> : null}

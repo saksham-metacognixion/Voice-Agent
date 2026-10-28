@@ -3,12 +3,14 @@ import { Prisma, adminDb, withWorkspace } from '@portal/db';
 import type { AgentDetail, AgentSettings, LintResult, PublishResponse } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
+import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
 import { applyGuardrails } from '../prompting/guardrails';
 import { lintErrors, lintPrompt } from '../prompting/lint';
 import { RuntimeCacheService } from '../runtime-cache';
 import { AgentEvents } from './agent-events';
 import { AgentRetellService } from './agent-retell.service';
+import { runtimeAddOns } from './agent-runtime';
 import { AgentStackService } from './agent-stack.service';
 import { AgentsService, liveColumnsFrom, parseAnalysisFields, parseBrief, settingsOf } from './agents.service';
 
@@ -58,6 +60,7 @@ export class AgentPublishService {
     private readonly retell: AgentRetellService,
     private readonly events: EventsService,
     private readonly runtimeCache: RuntimeCacheService,
+    private readonly config: PlatformConfigService,
   ) {}
 
   /**
@@ -82,7 +85,7 @@ export class AgentPublishService {
 
       const tenant = await db.tenant.findUniqueOrThrow({
         where: { id: ctx.workspaceId },
-        select: { name: true, timezone: true, pausedAt: true },
+        select: { name: true, timezone: true, pausedAt: true, recordingNotice: true, recordingNoticeText: true },
       });
       return { agent, version, tenant };
     });
@@ -171,6 +174,7 @@ export class AgentPublishService {
       // Every setting comes from the *version* — never from the agent row, which is what
       // is live right now and may be a different tier, voice or ceiling. Publishing v3
       // must put v3 on the phone, and rolling back to v1 must put v1's voice back too.
+      const flags = await this.config.flagsFor(ctx.workspaceId);
       const sync = await this.retell.syncDraft({
         agentId,
         agentName: fresh.agent.name,
@@ -193,6 +197,9 @@ export class AgentPublishService {
         businessName: tenant.name,
         stack: tierStack,
         guardrails: stack.guardrails,
+        // Denoise and PII removal with the plan gate applied, and the recording notice
+        // (QA-079, QA-081) — the same function the draft sync uses.
+        ...runtimeAddOns(fresh.settings, flags.gates, tenant),
       });
 
       // The mapping, written before the publish call. If the process dies in the next

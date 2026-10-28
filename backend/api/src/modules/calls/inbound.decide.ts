@@ -2,6 +2,7 @@ import type { AgentTier, DeclineReason, WorkspaceCaps } from '@portal/schemas';
 import { rateForTier } from '@portal/schemas';
 import type { CurrentPricing } from '../config';
 import { clampDuration } from '../retell';
+import { transferFailVariables } from '../prompting/transfer-fail-message';
 import { isOpen, nextOpening, type NumberRecord, normalisePhone } from '../runtime-cache';
 import { roundCredits } from '../wallet/fifo';
 
@@ -201,6 +202,10 @@ export function decide(input: DecisionInput): Decision {
     business_open: 'true',
     next_open_time: nextOpening(number.hours, now, number.timezone) ?? '',
     current_time: currentTime,
+    // QA-083: the number's D4 "message if the transfer fails", read word for word by the
+    // fixed transfer rule; '' (none set, or a record written before it existed) keeps the
+    // rule's own words. Already in `num:{e164}` — no extra round trip.
+    ...transferFailVariables(number.transfer_fail_message),
   };
   number.transfer_numbers.forEach((n, i) => {
     dynamicVariables[`transfer_number_${i + 1}`] = n;

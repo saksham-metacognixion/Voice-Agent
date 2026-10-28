@@ -3,6 +3,8 @@ import {
   agentDraftPatch,
   agentSettings,
   analysisField,
+  copyAgentName,
+  duplicateAgentRequest,
   analysisSchema,
   defaultAgentSettings,
   generatedPrompt,
@@ -170,5 +172,37 @@ describe('briefPatch — the W2 autosave (QA-006)', () => {
   it('takes no null for an array field — [] is how one is cleared', () => {
     expect(agentDraftPatch.safeParse({ brief: { services: null } }).success).toBe(false);
     expect(agentDraftPatch.safeParse({ brief: { services: [] } }).success).toBe(true);
+  });
+});
+
+describe('copyAgentName / duplicateAgentRequest (D3 Duplicate, QA-078)', () => {
+  it('appends the suffix to a name that fits', () => {
+    expect(copyAgentName('Front desk')).toBe('Front desk (copy)');
+    expect(copyAgentName('  Front desk  ')).toBe('Front desk (copy)');
+  });
+
+  it('shortens the source name, never the suffix, to stay within 60 characters', () => {
+    const long = 'A'.repeat(58);
+    const named = copyAgentName(long);
+    expect(named).toHaveLength(60);
+    expect(named.endsWith(' (copy)')).toBe(true);
+    expect(duplicateAgentRequest.safeParse({ name: named }).success).toBe(true);
+  });
+
+  it('takes a translated pattern, wherever it puts the name', () => {
+    expect(copyAgentName('Accueil', (n) => `${n} (copie)`)).toBe('Accueil (copie)');
+    const named = copyAgentName('B'.repeat(60), (n) => `نسخة من ${n}`);
+    expect(named).toHaveLength(60);
+    expect(named.startsWith('نسخة من ')).toBe(true);
+  });
+
+  it('never answers a name the request schema refuses', () => {
+    expect(copyAgentName('x', () => 'y'.repeat(80))).toHaveLength(60);
+  });
+
+  it('trims the name and refuses one under two characters', () => {
+    expect(duplicateAgentRequest.parse({ name: '  Second site  ' }).name).toBe('Second site');
+    expect(duplicateAgentRequest.safeParse({ name: ' a ' }).success).toBe(false);
+    expect(duplicateAgentRequest.parse({})).toEqual({});
   });
 });

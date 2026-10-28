@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { withWorkspace } from '@portal/db';
+import { PlatformConfigService } from '../config';
 import { AgentRetellService } from './agent-retell.service';
+import { runtimeAddOns } from './agent-runtime';
 import { AgentStackService } from './agent-stack.service';
 import { parseAnalysisFields, parseBrief, settingsOf } from './agents.service';
 
@@ -28,6 +30,7 @@ export class AgentDraftSyncService {
   constructor(
     private readonly retell: AgentRetellService,
     private readonly stack: AgentStackService,
+    private readonly config: PlatformConfigService,
   ) {}
 
   async syncVersion(workspaceId: string, agentId: string, versionNo: number): Promise<DraftSyncOutcome> {
@@ -35,7 +38,10 @@ export class AgentDraftSyncService {
     const snapshot = await withWorkspace(workspaceId, async (db) => {
       const agent = await db.agent.findFirstOrThrow({ where: { id: agentId, tenantId: workspaceId } });
       const version = await db.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo } } });
-      const tenant = await db.tenant.findUniqueOrThrow({ where: { id: workspaceId }, select: { name: true, timezone: true } });
+      const tenant = await db.tenant.findUniqueOrThrow({
+        where: { id: workspaceId },
+        select: { name: true, timezone: true, recordingNotice: true, recordingNoticeText: true },
+      });
       return { agent, version, tenant };
     });
 
@@ -50,6 +56,7 @@ export class AgentDraftSyncService {
       return { status: 'skipped', reason: 'stack_missing' };
     }
 
+    const flags = await this.config.flagsFor(workspaceId);
     const sync = await this.retell.syncDraft({
       agentId,
       agentName: snapshot.agent.name,
@@ -70,6 +77,7 @@ export class AgentDraftSyncService {
       businessName: snapshot.tenant.name,
       stack: tierStack,
       guardrails: stack.guardrails,
+      ...runtimeAddOns(settings, flags.gates, snapshot.tenant),
     });
 
     await withWorkspace(workspaceId, async (db) => {

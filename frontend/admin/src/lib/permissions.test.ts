@@ -47,4 +47,12 @@ describe('can() — route roles and limits together (QA-048)', () => {
     expect(can(me('finance')).editCosts()).toBeNull();
     expect(can(me('support')).editCosts()).toMatch(/Needs/);
   });
+
+  it('gives outbound compliance decisions to super admin and ops only', () => {
+    expect(can(me('super_admin')).compliance()).toBeNull();
+    expect(can(me('ops')).compliance()).toBeNull();
+    expect(can(me('support')).compliance()).toBe('Needs Super admin or Ops.');
+    expect(can(me('finance')).compliance()).toMatch(/Needs/);
+    expect(can(me('read_only')).compliance()).toMatch(/Needs/);
+  });
 });

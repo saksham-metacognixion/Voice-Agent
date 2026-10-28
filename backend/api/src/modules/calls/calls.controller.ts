@@ -99,16 +99,22 @@ export class CallsController {
    * Retell's own signed URL, which is a bearer credential for customer call audio with a
    * lifetime we do not control (CLAUDE.md, "Recordings stay on Retell URLs, proxied").
    * Range headers pass through so the player can seek.
+   *
+   * `?download=1` serves the same bytes as a file (QA-077, spec D2 "Download
+   * (Owner/Admin)") and is honoured only with a download token, which only an owner or
+   * admin is minted: an editor's playback token with `download=1` is a 401.
    */
   @Get(':id/recording/stream')
   @Public()
   async stream(
     @Param('id') id: string,
     @Query('token') token: string | undefined,
+    @Query('download') download: string | undefined,
     @Req() request: FastifyRequest,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    const { url } = await this.calls.resolveRecording(id, token);
+    const asFile = download === '1';
+    const { url } = await this.calls.resolveRecording(id, token, asFile ? 'download' : 'recording');
 
     const range = request.headers.range;
     const upstream = await fetch(url, { headers: range ? { range } : undefined });
@@ -130,7 +136,7 @@ export class CallsController {
         'accept-ranges': upstream.headers.get('accept-ranges') ?? 'bytes',
         // The link is short-lived and per viewer; caches must not hold the audio.
         'cache-control': 'private, max-age=0, no-store',
-        'content-disposition': `inline; filename="call-${id}.${media.ext}"`,
+        'content-disposition': recordingDisposition(id, media.ext, asFile),
       })
       // Relayed, not buffered: `arrayBuffer()` would hold the whole recording in the API
       // heap, and one process serves every workspace. The cap is enforced on the bytes as
@@ -199,6 +205,16 @@ export function recordingContentType(upstreamType: string | null, upstreamUrl: s
   if (useful) return { type: useful, ext: ext ?? (useful.includes('wav') ? 'wav' : 'mp3') };
   if (ext && byExt[ext]) return { type: byExt[ext]!, ext };
   return { type: 'audio/mpeg', ext: 'mp3' };
+}
+
+/**
+ * `inline` for the player, `attachment` for the D2 download (QA-077). The call id comes
+ * from the path, which the token has already been checked against; anything outside a
+ * plain id alphabet is dropped so it can never break out of the quoted filename.
+ */
+export function recordingDisposition(callId: string, ext: string, attachment: boolean): string {
+  const safe = callId.replace(/[^A-Za-z0-9_-]/g, '');
+  return `${attachment ? 'attachment' : 'inline'}; filename="call-${safe}.${ext}"`;
 }
 
 function headerValue(request: FastifyRequest, name: string): string | undefined {

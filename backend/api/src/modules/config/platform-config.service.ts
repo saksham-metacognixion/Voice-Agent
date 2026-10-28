@@ -3,16 +3,19 @@ import { Prisma, adminDb } from '@portal/db';
 import {
   type FlagsResponse,
   type KillSwitchKey,
+  type OutboundPolicy,
   type PricingConfig,
   type PricingPack,
   type PricingResponse,
   type WalletPolicy,
   type WorkspaceCaps,
   type AgentTier,
+  outboundPolicy,
   pricingConfig,
   pricingResponse,
   rateForTier,
 } from '@portal/schemas';
+import { AppError } from '../../common/errors/app-error';
 import { RedisCache, redisKeys } from '../redis';
 import { type FeatureFlagRow, type KillSwitchRow, isKillSwitchKey, killSwitchActive, resolveCaps, resolveFlags } from './config.resolve';
 
@@ -128,6 +131,18 @@ export class PlatformConfigService {
     }
     const current = await this.currentPricing();
     return { rate: current.config.rates.transferred_leg_per_min, configVersion: current.version };
+  }
+
+  /**
+   * D18 outbound policy (ADR 0031): daily caps, the prior-contact window, the calling rules.
+   * Re-parsed here, not trusted from the cache: a `pricing:current` entry written before
+   * the block existed carries no `outbound`, and that must read as the defaults.
+   */
+  async outboundPolicy(): Promise<{ policy: OutboundPolicy; configVersion: number }> {
+    const current = await this.currentPricing();
+    const parsed = outboundPolicy.safeParse((current.config as { outbound?: unknown }).outbound ?? {});
+    if (!parsed.success) throw new AppError('NOT_CONFIGURED', 'Outbound calling is not configured on this platform yet.');
+    return { policy: parsed.data, configVersion: current.version };
   }
 
   async walletPolicy(): Promise<{ policy: WalletPolicy; configVersion: number }> {

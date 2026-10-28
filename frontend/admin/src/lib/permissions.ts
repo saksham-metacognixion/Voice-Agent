@@ -71,6 +71,8 @@ export function can(me: StaffMeResponse | null | undefined) {
     supportTickets: (): Denied => needsRole(role, ['super_admin', 'ops', 'support', 'finance']),
     /** SA4 `rerun_activation`: the support trio, not finance. */
     rerunActivation: (): Denied => needsRole(role, ['super_admin', 'ops', 'support']),
+    /** Outbound compliance: a business verification verdict, a caller ID verified or revoked — super admin and ops. */
+    compliance: (): Denied => needsRole(role, R.compliance),
     /** SA4 canned responses are the desk's own text. */
     manageCanned: (): Denied => needsRole(role, ['super_admin', 'ops', 'support']),
     isSuperAdmin: (): boolean => role === 'super_admin',

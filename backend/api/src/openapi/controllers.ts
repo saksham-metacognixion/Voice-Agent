@@ -27,6 +27,7 @@ import { BillingController } from '../modules/billing/billing.controller';
 import { CallsController, StatsController } from '../modules/calls/calls.controller';
 import { TestCallController } from '../modules/calls/test-call.controller';
 import { AgentWidgetController, PublicWidgetController } from '../modules/calls/widget.controller';
+import { CallbackController, DncController, OutboundSettingsController } from '../modules/outbound/outbound.controller';
 import { ConfigController } from '../modules/config/config.controller';
 import { EventsController } from '../modules/events/events.controller';
 import { JobsController } from '../modules/jobs/jobs.controller';
@@ -36,6 +37,7 @@ import { NumbersController, PhonePlanController } from '../modules/numbers/numbe
 import { PromptingController } from '../modules/prompting/prompting.controller';
 import { VoicesController } from '../modules/voices/voices.controller';
 import { SupportController } from '../modules/support/support.controller';
+import { DataRequestsController } from '../modules/data-requests/data-requests.controller';
 import { WalletController } from '../modules/wallet/wallet.controller';
 import { WebhooksController } from '../modules/webhooks/webhooks.controller';
 import { WorkspacesController } from '../modules/workspaces/workspaces.controller';
@@ -65,6 +67,9 @@ export const CONTROLLERS = [
   TestCallController,
   AgentWidgetController,
   PublicWidgetController,
+  CallbackController,
+  OutboundSettingsController,
+  DncController,
   WalletController,
   BillingController,
   JobsController,
@@ -72,6 +77,7 @@ export const CONTROLLERS = [
   AlertsController,
   // D13 — the customer side of support tickets (D7 Help).
   SupportController,
+  DataRequestsController,
   WebhooksController,
   // D12 — the staff console (admin §9) and the view-as routes on the customer side.
   ImpersonationController,

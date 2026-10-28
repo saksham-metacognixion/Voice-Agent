@@ -9,7 +9,8 @@ import { ImprovePanel } from '@/src/components/wizard/improve-panel';
 import { TestCallPanel } from '@/src/components/wizard/test-call-panel';
 
 /**
- * D3 Test (spec p. 36) — the W5 panel on the draft version: a real browser call through
+ * D3 Test (spec p. 36) — the W5 panel, on the draft or another version picked in its
+ * selector (QA-082; the happiness checkbox is W5's only): a real browser call through
  * `POST /agents/:id/test/web` (§13.4, credits are charged), the after-call card from
  * `GET /calls/:id`, and the feedback patch. Nothing here is a simulation.
  */
@@ -23,7 +24,8 @@ export function TestTab({ agent, canEdit }: { agent: AgentDetail; canEdit: boole
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
       <div className="flex flex-col gap-6">
-        <Alert variant="info">{t('hint', { n: agent.draft?.version_no ?? agent.published?.version_no ?? 1 })}</Alert>
+        {/* The version under test is the panel's selector now (QA-082), so the hint names none. */}
+        <Alert variant="info">{t('hint')}</Alert>
         <TestCallPanel agent={agent} onEnded={setLastCallId} />
         {lastCallId ? <AfterCallCard key={lastCallId} callId={lastCallId} agent={agent} /> : null}
       </div>

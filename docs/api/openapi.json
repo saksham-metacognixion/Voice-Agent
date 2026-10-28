@@ -963,6 +963,47 @@
         ],
         "type": "object"
       },
+      "adminCallerIdRequest": {
+        "properties": {
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "reason_code",
+          "verified"
+        ],
+        "type": "object"
+      },
       "adminCannedResponseRequest": {
         "properties": {
           "body": {
@@ -2692,6 +2733,143 @@
         ],
         "type": "object"
       },
+      "adminKycDecisionRequest": {
+        "properties": {
+          "customer_reason": {
+            "maxLength": 300,
+            "minLength": 1,
+            "type": "string"
+          },
+          "decision": {
+            "enum": [
+              "verified",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code",
+          "decision"
+        ],
+        "type": "object"
+      },
+      "adminKycResponse": {
+        "properties": {
+          "decided_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "details": {
+            "nullable": true,
+            "properties": {
+              "address": {
+                "maxLength": 300,
+                "minLength": 5,
+                "type": "string"
+              },
+              "contact_name": {
+                "maxLength": 120,
+                "minLength": 2,
+                "type": "string"
+              },
+              "dnc_registration": {
+                "default": null,
+                "maxLength": 60,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              },
+              "legal_name": {
+                "maxLength": 200,
+                "minLength": 2,
+                "type": "string"
+              },
+              "registration_country": {
+                "type": "string"
+              },
+              "registration_number": {
+                "maxLength": 60,
+                "minLength": 2,
+                "type": "string"
+              }
+            },
+            "required": [
+              "legal_name",
+              "registration_number",
+              "registration_country",
+              "address",
+              "contact_name"
+            ],
+            "type": "object"
+          },
+          "reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "none",
+              "pending",
+              "verified",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "submitted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "tenant_id",
+          "tenant_name",
+          "status",
+          "submitted_at",
+          "decided_at",
+          "reason",
+          "details"
+        ],
+        "type": "object"
+      },
       "adminMemberResponse": {
         "properties": {
           "email": {
@@ -2800,6 +2978,19 @@
             "nullable": true,
             "type": "string"
           },
+          "caller_id_verified": {
+            "default": false,
+            "type": "boolean"
+          },
+          "caller_id_verified_via": {
+            "default": null,
+            "enum": [
+              "purchase",
+              "staff"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
           "calls_7d": {
             "type": "integer"
           },
@@ -2893,6 +3084,327 @@
                   "CAD"
                 ],
                 "type": "string"
+              },
+              "outbound": {
+                "default": {},
+                "properties": {
+                  "countries": {
+                    "additionalProperties": {
+                      "properties": {
+                        "closed_dates": {
+                          "default": [],
+                          "items": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "maxItems": 100,
+                          "type": "array"
+                        },
+                        "days": {
+                          "properties": {
+                            "fri": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "mon": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "sat": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "sun": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "thu": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "tue": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "wed": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                          ],
+                          "type": "object"
+                        },
+                        "zones": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "maxItems": 12,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "zones",
+                        "days"
+                      ],
+                      "type": "object"
+                    },
+                    "default": {
+                      "CA": {
+                        "closed_dates": [],
+                        "days": {
+                          "fri": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "mon": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "sat": {
+                            "end": "18:00",
+                            "start": "10:00"
+                          },
+                          "sun": {
+                            "end": "18:00",
+                            "start": "10:00"
+                          },
+                          "thu": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "tue": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "wed": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          }
+                        },
+                        "zones": [
+                          "America/St_Johns",
+                          "America/Halifax",
+                          "America/Toronto",
+                          "America/Winnipeg",
+                          "America/Regina",
+                          "America/Edmonton",
+                          "America/Vancouver",
+                          "America/Whitehorse"
+                        ]
+                      },
+                      "US": {
+                        "closed_dates": [],
+                        "days": {
+                          "fri": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "mon": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "sat": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "sun": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "thu": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "tue": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "wed": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          }
+                        },
+                        "zones": [
+                          "America/New_York",
+                          "America/Chicago",
+                          "America/Denver",
+                          "America/Phoenix",
+                          "America/Los_Angeles",
+                          "America/Anchorage",
+                          "Pacific/Honolulu"
+                        ]
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "daily_caps": {
+                    "default": {
+                      "growth": 50,
+                      "pro": 400,
+                      "scale": 150,
+                      "starter": 20,
+                      "trial": 0,
+                      "volume": 1000
+                    },
+                    "properties": {
+                      "growth": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "pro": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "scale": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "starter": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "trial": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "volume": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "trial",
+                      "starter",
+                      "growth",
+                      "scale",
+                      "pro",
+                      "volume"
+                    ],
+                    "type": "object"
+                  },
+                  "prior_contact_days": {
+                    "default": 90,
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 180,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
               },
               "packs": {
                 "items": {
@@ -3262,6 +3774,327 @@
                   "CAD"
                 ],
                 "type": "string"
+              },
+              "outbound": {
+                "default": {},
+                "properties": {
+                  "countries": {
+                    "additionalProperties": {
+                      "properties": {
+                        "closed_dates": {
+                          "default": [],
+                          "items": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "maxItems": 100,
+                          "type": "array"
+                        },
+                        "days": {
+                          "properties": {
+                            "fri": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "mon": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "sat": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "sun": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "thu": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "tue": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "wed": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                          ],
+                          "type": "object"
+                        },
+                        "zones": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "maxItems": 12,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "zones",
+                        "days"
+                      ],
+                      "type": "object"
+                    },
+                    "default": {
+                      "CA": {
+                        "closed_dates": [],
+                        "days": {
+                          "fri": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "mon": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "sat": {
+                            "end": "18:00",
+                            "start": "10:00"
+                          },
+                          "sun": {
+                            "end": "18:00",
+                            "start": "10:00"
+                          },
+                          "thu": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "tue": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "wed": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          }
+                        },
+                        "zones": [
+                          "America/St_Johns",
+                          "America/Halifax",
+                          "America/Toronto",
+                          "America/Winnipeg",
+                          "America/Regina",
+                          "America/Edmonton",
+                          "America/Vancouver",
+                          "America/Whitehorse"
+                        ]
+                      },
+                      "US": {
+                        "closed_dates": [],
+                        "days": {
+                          "fri": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "mon": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "sat": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "sun": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "thu": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "tue": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "wed": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          }
+                        },
+                        "zones": [
+                          "America/New_York",
+                          "America/Chicago",
+                          "America/Denver",
+                          "America/Phoenix",
+                          "America/Los_Angeles",
+                          "America/Anchorage",
+                          "Pacific/Honolulu"
+                        ]
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "daily_caps": {
+                    "default": {
+                      "growth": 50,
+                      "pro": 400,
+                      "scale": 150,
+                      "starter": 20,
+                      "trial": 0,
+                      "volume": 1000
+                    },
+                    "properties": {
+                      "growth": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "pro": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "scale": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "starter": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "trial": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "volume": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "trial",
+                      "starter",
+                      "growth",
+                      "scale",
+                      "pro",
+                      "volume"
+                    ],
+                    "type": "object"
+                  },
+                  "prior_contact_days": {
+                    "default": 90,
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 180,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
               },
               "packs": {
                 "items": {
@@ -4025,6 +4858,327 @@
                   "CAD"
                 ],
                 "type": "string"
+              },
+              "outbound": {
+                "default": {},
+                "properties": {
+                  "countries": {
+                    "additionalProperties": {
+                      "properties": {
+                        "closed_dates": {
+                          "default": [],
+                          "items": {
+                            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                            "type": "string"
+                          },
+                          "maxItems": 100,
+                          "type": "array"
+                        },
+                        "days": {
+                          "properties": {
+                            "fri": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "mon": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "sat": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "sun": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "thu": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "tue": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            },
+                            "wed": {
+                              "nullable": true,
+                              "properties": {
+                                "end": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                },
+                                "start": {
+                                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "start",
+                                "end"
+                              ],
+                              "type": "object"
+                            }
+                          },
+                          "required": [
+                            "mon",
+                            "tue",
+                            "wed",
+                            "thu",
+                            "fri",
+                            "sat",
+                            "sun"
+                          ],
+                          "type": "object"
+                        },
+                        "zones": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "maxItems": 12,
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "zones",
+                        "days"
+                      ],
+                      "type": "object"
+                    },
+                    "default": {
+                      "CA": {
+                        "closed_dates": [],
+                        "days": {
+                          "fri": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "mon": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "sat": {
+                            "end": "18:00",
+                            "start": "10:00"
+                          },
+                          "sun": {
+                            "end": "18:00",
+                            "start": "10:00"
+                          },
+                          "thu": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "tue": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          },
+                          "wed": {
+                            "end": "21:30",
+                            "start": "09:00"
+                          }
+                        },
+                        "zones": [
+                          "America/St_Johns",
+                          "America/Halifax",
+                          "America/Toronto",
+                          "America/Winnipeg",
+                          "America/Regina",
+                          "America/Edmonton",
+                          "America/Vancouver",
+                          "America/Whitehorse"
+                        ]
+                      },
+                      "US": {
+                        "closed_dates": [],
+                        "days": {
+                          "fri": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "mon": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "sat": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "sun": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "thu": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "tue": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          },
+                          "wed": {
+                            "end": "21:00",
+                            "start": "08:00"
+                          }
+                        },
+                        "zones": [
+                          "America/New_York",
+                          "America/Chicago",
+                          "America/Denver",
+                          "America/Phoenix",
+                          "America/Los_Angeles",
+                          "America/Anchorage",
+                          "Pacific/Honolulu"
+                        ]
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "daily_caps": {
+                    "default": {
+                      "growth": 50,
+                      "pro": 400,
+                      "scale": 150,
+                      "starter": 20,
+                      "trial": 0,
+                      "volume": 1000
+                    },
+                    "properties": {
+                      "growth": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "pro": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "scale": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "starter": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "trial": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "volume": {
+                        "exclusiveMinimum": false,
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "trial",
+                      "starter",
+                      "growth",
+                      "scale",
+                      "pro",
+                      "volume"
+                    ],
+                    "type": "object"
+                  },
+                  "prior_contact_days": {
+                    "default": 90,
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 180,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "type": "object"
               },
               "packs": {
                 "items": {
@@ -8605,6 +9759,14 @@
               },
               "settings": {
                 "properties": {
+                  "analysis_fields_edited": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "denoise": {
+                    "default": false,
+                    "type": "boolean"
+                  },
                   "languages": {
                     "items": {
                       "enum": [
@@ -8684,6 +9846,10 @@
                     "maximum": 1800,
                     "minimum": 180,
                     "type": "integer"
+                  },
+                  "pii_removal": {
+                    "default": false,
+                    "type": "boolean"
                   },
                   "primary_language": {
                     "enum": [
@@ -9388,6 +10554,14 @@
               },
               "settings": {
                 "properties": {
+                  "analysis_fields_edited": {
+                    "default": false,
+                    "type": "boolean"
+                  },
+                  "denoise": {
+                    "default": false,
+                    "type": "boolean"
+                  },
                   "languages": {
                     "items": {
                       "enum": [
@@ -9467,6 +10641,10 @@
                     "maximum": 1800,
                     "minimum": 180,
                     "type": "integer"
+                  },
+                  "pii_removal": {
+                    "default": false,
+                    "type": "boolean"
                   },
                   "primary_language": {
                     "enum": [
@@ -10031,6 +11209,9 @@
             },
             "type": "object"
           },
+          "denoise": {
+            "type": "boolean"
+          },
           "industry": {
             "maxLength": 60,
             "minLength": 1,
@@ -10121,6 +11302,9 @@
             "maxLength": 60,
             "minLength": 2,
             "type": "string"
+          },
+          "pii_removal": {
+            "type": "boolean"
           },
           "primary_language": {
             "enum": [
@@ -10841,6 +12025,14 @@
           },
           "settings": {
             "properties": {
+              "analysis_fields_edited": {
+                "default": false,
+                "type": "boolean"
+              },
+              "denoise": {
+                "default": false,
+                "type": "boolean"
+              },
               "languages": {
                 "items": {
                   "enum": [
@@ -10920,6 +12112,10 @@
                 "maximum": 1800,
                 "minimum": 180,
                 "type": "integer"
+              },
+              "pii_removal": {
+                "default": false,
+                "type": "boolean"
               },
               "primary_language": {
                 "enum": [
@@ -11958,6 +13154,160 @@
         ],
         "type": "object"
       },
+      "callbackCheck": {
+        "properties": {
+          "agent_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "daily_cap": {
+            "type": "integer"
+          },
+          "from_number": {
+            "nullable": true,
+            "type": "string"
+          },
+          "next_allowed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "number_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "prior_contact_days": {
+            "type": "integer"
+          },
+          "reason": {
+            "enum": [
+              "OUTBOUND_DISABLED",
+              "WORKSPACE_PAUSED",
+              "KYC_REQUIRED",
+              "KYC_PENDING",
+              "KYC_REJECTED",
+              "OUTBOUND_NOT_CONFIGURED",
+              "CALLER_ID_REQUIRED",
+              "CALLER_ID_UNVERIFIED",
+              "AGENT_NOT_PUBLISHED",
+              "DESTINATION_INVALID",
+              "DESTINATION_COUNTRY",
+              "DESTINATION_IS_AGENT",
+              "DNC_LISTED",
+              "NO_PRIOR_CONTACT",
+              "OUTSIDE_CALLING_WINDOW",
+              "PURCHASE_REQUIRED",
+              "NO_CREDITS",
+              "OUTBOUND_DAILY_CAP"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "to_number": {
+            "nullable": true,
+            "type": "string"
+          },
+          "used_today": {
+            "type": "integer"
+          },
+          "voicemail_detection": {
+            "enum": [
+              "off",
+              "hang_up",
+              "leave_message"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "allowed",
+          "reason",
+          "next_allowed_at",
+          "to_number",
+          "from_number",
+          "number_id",
+          "agent_id",
+          "voicemail_detection",
+          "daily_cap",
+          "used_today",
+          "prior_contact_days"
+        ],
+        "type": "object"
+      },
+      "callbackRequest": {
+        "properties": {
+          "idempotency_key": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "number_id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotency_key"
+        ],
+        "type": "object"
+      },
+      "callbackResponse": {
+        "properties": {
+          "agent_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "balance": {
+            "type": "number"
+          },
+          "call_id": {
+            "type": "string"
+          },
+          "daily_cap": {
+            "type": "integer"
+          },
+          "from_number": {
+            "type": "string"
+          },
+          "max_call_duration_s": {
+            "type": "integer"
+          },
+          "rate": {
+            "type": "number"
+          },
+          "to_number": {
+            "type": "string"
+          },
+          "used_today": {
+            "type": "integer"
+          },
+          "voicemail_detection": {
+            "enum": [
+              "off",
+              "hang_up",
+              "leave_message"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "call_id",
+          "from_number",
+          "to_number",
+          "agent_id",
+          "voicemail_detection",
+          "rate",
+          "balance",
+          "max_call_duration_s",
+          "daily_cap",
+          "used_today"
+        ],
+        "type": "object"
+      },
       "callsBulkPatch": {
         "properties": {
           "handled": {
@@ -12574,6 +13924,18 @@
         ],
         "type": "object"
       },
+      "deleteWorkspaceRequest": {
+        "properties": {
+          "confirm": {
+            "maxLength": 200,
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirm"
+        ],
+        "type": "object"
+      },
       "deletedResponse": {
         "properties": {
           "deleted": {
@@ -12594,6 +13956,75 @@
         "required": [
           "dismissed"
         ],
+        "type": "object"
+      },
+      "dncAddRequest": {
+        "properties": {
+          "call_id": {
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "number": {
+            "maxLength": 40,
+            "minLength": 3,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "dncEntryResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "created_by_name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "e164": {
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "call",
+              "manual"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "e164",
+          "source",
+          "reason",
+          "created_by_name",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "duplicateAgentRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 60,
+            "minLength": 2,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "endedResponse": {
@@ -13657,6 +15088,48 @@
         ],
         "type": "object"
       },
+      "kycDetails": {
+        "properties": {
+          "address": {
+            "maxLength": 300,
+            "minLength": 5,
+            "type": "string"
+          },
+          "contact_name": {
+            "maxLength": 120,
+            "minLength": 2,
+            "type": "string"
+          },
+          "dnc_registration": {
+            "default": null,
+            "maxLength": 60,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          },
+          "legal_name": {
+            "maxLength": 200,
+            "minLength": 2,
+            "type": "string"
+          },
+          "registration_country": {
+            "type": "string"
+          },
+          "registration_number": {
+            "maxLength": 60,
+            "minLength": 2,
+            "type": "string"
+          }
+        },
+        "required": [
+          "legal_name",
+          "registration_number",
+          "registration_country",
+          "address",
+          "contact_name"
+        ],
+        "type": "object"
+      },
       "ledgerEntryResponse": {
         "properties": {
           "balance_after": {
@@ -13705,6 +15178,26 @@
           "ref_id",
           "created_at"
         ],
+        "type": "object"
+      },
+      "ledgerExportRequest": {
+        "properties": {
+          "reason": {
+            "enum": [
+              "trial",
+              "purchase",
+              "call",
+              "rental",
+              "kb",
+              "adjustment",
+              "expiry",
+              "refund",
+              "topup",
+              "transfer"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "lintRequest": {
@@ -14215,6 +15708,11 @@
               "toll_free": {
                 "type": "boolean"
               },
+              "transfer_fail_message": {
+                "default": null,
+                "nullable": true,
+                "type": "string"
+              },
               "transfer_targets": {
                 "items": {
                   "properties": {
@@ -14273,6 +15771,208 @@
           "number",
           "job_id"
         ],
+        "type": "object"
+      },
+      "outboundOverview": {
+        "properties": {
+          "caller_ids": {
+            "items": {
+              "properties": {
+                "e164": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "bought",
+                    "sip"
+                  ],
+                  "type": "string"
+                },
+                "nickname": {
+                  "nullable": true,
+                  "type": "string"
+                },
+                "number_id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "verified": {
+                  "type": "boolean"
+                },
+                "verified_via": {
+                  "enum": [
+                    "purchase",
+                    "staff"
+                  ],
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "number_id",
+                "e164",
+                "nickname",
+                "kind",
+                "status",
+                "verified",
+                "verified_via"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "daily_cap": {
+            "type": "integer"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "kyc": {
+            "properties": {
+              "decided_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "details": {
+                "nullable": true,
+                "properties": {
+                  "address": {
+                    "maxLength": 300,
+                    "minLength": 5,
+                    "type": "string"
+                  },
+                  "contact_name": {
+                    "maxLength": 120,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "dnc_registration": {
+                    "default": null,
+                    "maxLength": 60,
+                    "minLength": 1,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "legal_name": {
+                    "maxLength": 200,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "registration_country": {
+                    "type": "string"
+                  },
+                  "registration_number": {
+                    "maxLength": 60,
+                    "minLength": 2,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "legal_name",
+                  "registration_number",
+                  "registration_country",
+                  "address",
+                  "contact_name"
+                ],
+                "type": "object"
+              },
+              "reason": {
+                "nullable": true,
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "none",
+                  "pending",
+                  "verified",
+                  "rejected"
+                ],
+                "type": "string"
+              },
+              "submitted_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "submitted_at",
+              "decided_at",
+              "reason",
+              "details"
+            ],
+            "type": "object"
+          },
+          "prior_contact_days": {
+            "type": "integer"
+          },
+          "settings": {
+            "properties": {
+              "voicemail_detection": {
+                "default": "hang_up",
+                "enum": [
+                  "off",
+                  "hang_up",
+                  "leave_message"
+                ],
+                "type": "string"
+              },
+              "voicemail_message": {
+                "default": null,
+                "maxLength": 300,
+                "minLength": 1,
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "used_today": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "kyc",
+          "settings",
+          "caller_ids",
+          "daily_cap",
+          "used_today",
+          "prior_contact_days",
+          "countries"
+        ],
+        "type": "object"
+      },
+      "outboundSettings": {
+        "properties": {
+          "voicemail_detection": {
+            "default": "hang_up",
+            "enum": [
+              "off",
+              "hang_up",
+              "leave_message"
+            ],
+            "type": "string"
+          },
+          "voicemail_message": {
+            "default": null,
+            "maxLength": 300,
+            "minLength": 1,
+            "nullable": true,
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "phoneNumberResponse": {
@@ -14617,6 +16317,11 @@
           },
           "toll_free": {
             "type": "boolean"
+          },
+          "transfer_fail_message": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
           },
           "transfer_targets": {
             "items": {
@@ -15991,6 +17696,11 @@
       },
       "recordingResponse": {
         "properties": {
+          "download_url": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
           "expires_at": {
             "format": "date-time",
             "type": "string"
@@ -16062,6 +17772,25 @@
         },
         "required": [
           "revoked"
+        ],
+        "type": "object"
+      },
+      "saveVersionResponse": {
+        "properties": {
+          "created": {
+            "type": "boolean"
+          },
+          "draft_version": {
+            "type": "integer"
+          },
+          "saved_version": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "saved_version",
+          "draft_version",
+          "created"
         ],
         "type": "object"
       },
@@ -17070,6 +18799,11 @@
           "paused": {
             "type": "boolean"
           },
+          "transfer_fail_message": {
+            "maxLength": 500,
+            "nullable": true,
+            "type": "string"
+          },
           "transfer_targets": {
             "items": {
               "properties": {
@@ -17180,8 +18914,19 @@
             "minLength": 2,
             "type": "string"
           },
+          "pii_removal_default": {
+            "type": "boolean"
+          },
           "recording_default": {
             "type": "boolean"
+          },
+          "recording_notice": {
+            "type": "boolean"
+          },
+          "recording_notice_text": {
+            "maxLength": 200,
+            "nullable": true,
+            "type": "string"
           },
           "retention_days": {
             "exclusiveMaximum": false,
@@ -17202,6 +18947,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "recording_notice_text"
+        ],
         "type": "object"
       },
       "voicePreviewRequest": {
@@ -17533,6 +19281,38 @@
         ],
         "type": "object"
       },
+      "workspaceDeletionRequest": {
+        "properties": {
+          "due_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requested_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requested_by": {
+            "nullable": true,
+            "type": "string"
+          },
+          "ticket_id": {
+            "nullable": true,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "requested_at",
+          "due_at",
+          "requested_by",
+          "ticket_id"
+        ],
+        "type": "object"
+      },
       "workspaceMembershipSummary": {
         "properties": {
           "id": {
@@ -17668,6 +19448,9 @@
             "nullable": true,
             "type": "string"
           },
+          "pii_removal_default": {
+            "type": "boolean"
+          },
           "plan_tier": {
             "enum": [
               "trial",
@@ -17681,6 +19464,13 @@
           },
           "recording_default": {
             "type": "boolean"
+          },
+          "recording_notice": {
+            "type": "boolean"
+          },
+          "recording_notice_text": {
+            "nullable": true,
+            "type": "string"
           },
           "retention_days": {
             "type": "integer"
@@ -17714,6 +19504,9 @@
           "business_hours",
           "recording_default",
           "retention_days",
+          "pii_removal_default",
+          "recording_notice",
+          "recording_notice_text",
           "onboarding_step",
           "onboarding_completed_at",
           "paused",
@@ -20431,6 +22224,203 @@
         "x-auth": "staff"
       }
     },
+    "/admin/customers/{id}/kyc": {
+      "get": {
+        "description": "Spec ADR 0031 §1.",
+        "operationId": "adminGetKyc",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminKycResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "D18 — the business verification the customer submitted for outbound calling",
+        "tags": [
+          "admin-customers"
+        ],
+        "x-auth": "staff"
+      },
+      "post": {
+        "description": "Spec ADR 0031 §1.",
+        "operationId": "adminDecideKyc",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminKycDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminKycResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "D18 — approve, reject or withdraw the business verification (compliance)",
+        "tags": [
+          "admin-customers"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
+        ]
+      }
+    },
     "/admin/customers/{id}/members": {
       "get": {
         "operationId": "adminCustomerMembers",
@@ -23043,6 +25033,126 @@
           "admin-operations"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/numbers/{id}/caller-id": {
+      "post": {
+        "description": "Spec ADR 0031 §1.",
+        "operationId": "adminSetCallerId",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminCallerIdRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminNumberResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "D18 — verify a number as an outbound caller ID, or revoke it (compliance)",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops"
+        ]
       }
     },
     "/admin/numbers/{id}/pause": {
@@ -28326,8 +30436,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "description": "Error envelope; `code` ∈ {PLAN_LIMIT, WORKSPACE_REQUIRED}",
             "x-error-codes": [
+              "PLAN_LIMIT",
               "WORKSPACE_REQUIRED"
             ]
           },
@@ -28406,6 +30517,120 @@
           }
         ],
         "summary": "W2/W3 autosave — brief, settings and name onto the newest unpublished version",
+        "tags": [
+          "agents"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
+    "/agents/{id}/draft/discard": {
+      "post": {
+        "operationId": "discardAgentDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, NO_DRAFT_CHANGES}",
+            "x-error-codes": [
+              "AGENT_NOT_PUBLISHED",
+              "NO_DRAFT_CHANGES"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D3 — discard the draft: point it back at the published version",
         "tags": [
           "agents"
         ],
@@ -28529,6 +30754,130 @@
           }
         ],
         "summary": "§13.5 Undo / restore a version as the draft",
+        "tags": [
+          "agents"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
+    "/agents/{id}/duplicate": {
+      "post": {
+        "operationId": "duplicateAgent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/duplicateAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agentDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {PLAN_LIMIT, WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "PLAN_LIMIT",
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D3 — a new agent whose v1 is this agent’s draft (brief, settings, script)",
         "tags": [
           "agents"
         ],
@@ -29990,12 +32339,13 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, CONCURRENCY_LIMIT, NO_NUMBER, TESTS_PAUSED, VERSION_SYNCING}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, CONCURRENCY_LIMIT, NO_NUMBER, TESTS_PAUSED, VERSION_NOT_TESTABLE, VERSION_SYNCING}",
             "x-error-codes": [
               "AGENT_NOT_GENERATED",
               "CONCURRENCY_LIMIT",
               "NO_NUMBER",
               "TESTS_PAUSED",
+              "VERSION_NOT_TESTABLE",
               "VERSION_SYNCING"
             ]
           },
@@ -30175,11 +32525,12 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, CONCURRENCY_LIMIT, TESTS_PAUSED, VERSION_SYNCING}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_GENERATED, CONCURRENCY_LIMIT, TESTS_PAUSED, VERSION_NOT_TESTABLE, VERSION_SYNCING}",
             "x-error-codes": [
               "AGENT_NOT_GENERATED",
               "CONCURRENCY_LIMIT",
               "TESTS_PAUSED",
+              "VERSION_NOT_TESTABLE",
               "VERSION_SYNCING"
             ]
           },
@@ -30337,6 +32688,105 @@
           "agents"
         ],
         "x-auth": "workspace"
+      },
+      "post": {
+        "description": "Spec §9.9.",
+        "operationId": "saveAgentVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/saveVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D3 Brief — save the draft as a new version and keep editing a copy",
+        "tags": [
+          "agents"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
       }
     },
     "/agents/{id}/versions/{v}": {
@@ -31897,6 +34347,308 @@
         ]
       }
     },
+    "/calls/{id}/callback": {
+      "get": {
+        "description": "Spec ADR 0031.",
+        "operationId": "getCallbackCheck",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/callbackCheck"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED}",
+            "x-error-codes": [
+              "NOT_CONFIGURED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — whether the other party of this call may be called back now, and if not why (the POST's checks, placing nothing)",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace"
+      },
+      "post": {
+        "description": "Spec ADR 0031.",
+        "operationId": "startCallback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/callbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/callbackResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NO_CREDITS, PURCHASE_REQUIRED}",
+            "x-error-codes": [
+              "NO_CREDITS",
+              "PURCHASE_REQUIRED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, KYC_PENDING, KYC_REJECTED, KYC_REQUIRED, NOT_A_MEMBER, OUTBOUND_DISABLED, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "KYC_PENDING",
+              "KYC_REJECTED",
+              "KYC_REQUIRED",
+              "NOT_A_MEMBER",
+              "OUTBOUND_DISABLED",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CALLER_ID_REQUIRED, CALLER_ID_UNVERIFIED, CONCURRENCY_LIMIT, CONFLICT, DNC_LISTED, NO_PRIOR_CONTACT, OUTBOUND_IN_PROGRESS, OUTBOUND_NOT_CONFIGURED, OUTSIDE_CALLING_WINDOW}",
+            "x-error-codes": [
+              "AGENT_NOT_PUBLISHED",
+              "CALLER_ID_REQUIRED",
+              "CALLER_ID_UNVERIFIED",
+              "CONCURRENCY_LIMIT",
+              "CONFLICT",
+              "DNC_LISTED",
+              "NO_PRIOR_CONTACT",
+              "OUTBOUND_IN_PROGRESS",
+              "OUTBOUND_NOT_CONFIGURED",
+              "OUTSIDE_CALLING_WINDOW"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {DESTINATION_COUNTRY, DESTINATION_INVALID, DESTINATION_IS_AGENT, VALIDATION_FAILED}",
+            "x-error-codes": [
+              "DESTINATION_COUNTRY",
+              "DESTINATION_INVALID",
+              "DESTINATION_IS_AGENT",
+              "VALIDATION_FAILED"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {OUTBOUND_DAILY_CAP}",
+            "x-error-codes": [
+              "OUTBOUND_DAILY_CAP"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED, UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "NOT_CONFIGURED",
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — click-to-call: the agent on this call rings its other party from a verified number, behind every compliance gate",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace",
+        "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
     "/calls/{id}/recording": {
       "get": {
         "description": "Spec ADR 0011 §5.",
@@ -32051,12 +34803,354 @@
           }
         },
         "security": [],
-        "summary": "The recording bytes, authorised by the signed token",
+        "summary": "The recording bytes, authorised by the signed token; `download=1` with an owner/admin download token serves them as an attachment (QA-077)",
         "tags": [
           "calls"
         ],
         "x-auth": "public",
         "x-client": false
+      }
+    },
+    "/dnc": {
+      "get": {
+        "description": "Spec ADR 0031 §3.",
+        "operationId": "listDnc",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/dncEntryResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — the workspace's do-not-call list, newest first",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace"
+      },
+      "post": {
+        "description": "Spec ADR 0031 §3.",
+        "operationId": "addDnc",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/dncAddRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/dncEntryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {DESTINATION_INVALID, VALIDATION_FAILED}",
+            "x-error-codes": [
+              "DESTINATION_INVALID",
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — add a number, or the other party of a call, to the do-not-call list",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
+      }
+    },
+    "/dnc/{id}": {
+      "delete": {
+        "description": "Spec ADR 0031 §3.",
+        "operationId": "removeDnc",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/deletedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — take a number off the do-not-call list",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
       }
     },
     "/events": {
@@ -34754,6 +37848,336 @@
         ]
       }
     },
+    "/outbound": {
+      "get": {
+        "description": "Spec ADR 0031.",
+        "operationId": "getOutboundOverview",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/outboundOverview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED}",
+            "x-error-codes": [
+              "NOT_CONFIGURED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — the D6 Outbound calling tab: business verification, voicemail setting, caller IDs, today's use",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace"
+      }
+    },
+    "/outbound/kyc": {
+      "post": {
+        "description": "Spec ADR 0031 §1.",
+        "operationId": "submitKyc",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/kycDetails"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/outboundOverview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED}",
+            "x-error-codes": [
+              "NOT_CONFIGURED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — submit the business details for verification (moves the workspace to pending)",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
+      }
+    },
+    "/outbound/settings": {
+      "put": {
+        "description": "Spec ADR 0031 §5.",
+        "operationId": "updateOutboundSettings",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/outboundSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/outboundOverview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED}",
+            "x-error-codes": [
+              "NOT_CONFIGURED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D18 — what an outbound call does at a voicemail box",
+        "tags": [
+          "outbound"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
+      }
+    },
     "/pricing": {
       "get": {
         "description": "Spec §5, §13.12.",
@@ -36369,6 +39793,110 @@
         "x-auth": "workspace"
       }
     },
+    "/wallet/ledger/export": {
+      "post": {
+        "description": "Spec §16.",
+        "operationId": "exportLedger",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ledgerExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The bytes."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D5 — CSV of the credit history, narrowed by reason like the list (QA-080)",
+        "tags": [
+          "wallet"
+        ],
+        "x-auth": "workspace",
+        "x-client": false,
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
+      }
+    },
     "/wallet/lots": {
       "get": {
         "operationId": "listCreditLots",
@@ -37005,8 +40533,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "description": "Error envelope; `code` ∈ {PLAN_LIMIT, WORKSPACE_REQUIRED}",
             "x-error-codes": [
+              "PLAN_LIMIT",
               "WORKSPACE_REQUIRED"
             ]
           },
@@ -37058,7 +40587,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "D6 Settings — name, timezone, hours, recording defaults",
+        "summary": "D6 Settings — name, timezone, hours, recording and privacy defaults",
         "tags": [
           "workspaces"
         ],
@@ -37140,6 +40669,360 @@
           "workspaces"
         ],
         "x-auth": "workspace"
+      }
+    },
+    "/workspace/delete-request": {
+      "delete": {
+        "description": "Spec §17.",
+        "operationId": "withdrawWorkspaceDeletion",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/revokedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 — withdraw the open deletion request before staff carry it out (QA-081)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner"
+        ]
+      },
+      "get": {
+        "description": "Spec §17.",
+        "operationId": "getWorkspaceDeletionRequest",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/workspaceDeletionRequest"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 — the open request to delete this workspace, or null (QA-081)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "workspace"
+      },
+      "post": {
+        "description": "Spec §17.",
+        "operationId": "requestWorkspaceDeletion",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/deleteWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workspaceDeletionRequest"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 — ask for this workspace to be deleted, with its name typed; staff carry it out (§17). The open request if one exists (QA-081)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "workspace",
+        "x-email-verified": true,
+        "x-roles": [
+          "owner"
+        ]
+      }
+    },
+    "/workspace/export": {
+      "post": {
+        "description": "Spec §17.",
+        "operationId": "exportWorkspaceData",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The bytes."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {RATE_LIMITED}",
+            "x-error-codes": [
+              "RATE_LIMITED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 — \"Export all data\": a zip of the workspace’s own data, streamed; recorded as a data request (QA-081)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "workspace",
+        "x-client": false,
+        "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
       }
     },
     "/workspace/notification-settings": {
@@ -37727,6 +41610,9 @@
     },
     {
       "name": "numbers"
+    },
+    {
+      "name": "outbound"
     },
     {
       "name": "prompting"

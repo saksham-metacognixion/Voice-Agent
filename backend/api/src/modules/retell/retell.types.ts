@@ -195,8 +195,55 @@ export interface AgentSpec {
   /** From the tier stack; Retell bills post-call analysis per call (ADR 0003 §21). */
   postCallAnalysisModel?: PostCallAnalysisModel;
   denoisingMode?: TierStack['denoising_mode'];
+  /**
+   * D3 Settings (QA-079): scrub `PII_CATEGORIES` after the call (`piiConfigFor`). False
+   * sends an empty list, which is how a stored config is switched off; undefined leaves
+   * whatever the platform holds.
+   */
+  piiRemoval?: boolean;
   sttMode?: TierStack['stt_mode'];
   timezone?: string;
+}
+
+/**
+ * The agent's noise filter: the tier's, or the strongest one when the agent's `denoise`
+ * add-on is on (QA-079, plan gate `denoise`) — it also drops voices in the background,
+ * which is what a caller in a shop or a car needs.
+ */
+export function denoisingModeFor(denoise: boolean, tierMode: TierStack['denoising_mode']): TierStack['denoising_mode'] {
+  return denoise ? 'noise-and-background-speech-cancellation' : tierMode;
+}
+
+type PiiConfig = NonNullable<Retell.AgentCreateParams['pii_config']>;
+
+/**
+ * What PII removal scrubs from the transcript and the recording (QA-079). The
+ * identifiers a business never needs back from a phone call — card, bank, account and
+ * government numbers, passwords and PINs, health ids, dates of birth.
+ *
+ * Deliberately **not** the caller's name, phone number, email or address. Taking a
+ * message with exactly those is what most of these agents are for: the call page shows
+ * them, `captured_checks` compares a captured number with what the caller said in the
+ * transcript (`captured-phones.ts`), and a callback dials the caller back. Scrubbing them
+ * would turn the agent's main output into "[redacted]".
+ */
+export const PII_CATEGORIES: PiiConfig['categories'] = [
+  'ssn',
+  'passport',
+  'driver_license',
+  'credit_card',
+  'bank_account',
+  'password',
+  'pin',
+  'medical_id',
+  'date_of_birth',
+  'customer_account_number',
+];
+
+/** `pii_config` for an agent; post-call is the only mode the platform has. */
+export function piiConfigFor(on: boolean | undefined): PiiConfig | undefined {
+  if (on === undefined) return undefined;
+  return { mode: 'post_call', categories: on ? [...PII_CATEGORIES] : [] };
 }
 
 /** Wire shape of the §13.9 inbound answer, as established on D2 (ADR 0003 §1). */

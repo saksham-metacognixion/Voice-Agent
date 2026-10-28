@@ -30,3 +30,5 @@ export { TestCallService } from './test-call.service';
 export { TEST_CALLS_PER_HOUR } from './call-headroom';
 export { LiveTranscriptRelay, LIVE_TRANSCRIPT_PATH, forwardable } from './live-transcript.relay';
 export type { TokenPurpose } from './recording';
+export { MintSlot, headroom, liveCalls } from './call-headroom';
+export { parseTyped, REFUSED_TYPES } from './call-my-phone';

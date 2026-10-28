@@ -127,6 +127,9 @@ export function DashboardLiveProvider({ children, enabled = true }: { children: 
           // (D17) is the one that does, and is news like a phone call.
           const isTest = data.is_test === true || (data.channel === 'web' && data.is_test !== false);
           if (isTest) return;
+          // D18: a callback is a call someone in the workspace just placed from D2, which
+          // already opened it — announcing it as a new inbound call would be wrong twice.
+          if (data.direction === 'outbound') return;
           const call: NewCallFrame = {
             callId,
             fromNumber: typeof data.from_number === 'string' ? data.from_number : null,

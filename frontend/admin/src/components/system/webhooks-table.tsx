@@ -55,9 +55,12 @@ function useReplay() {
 }
 
 // The table must fit beside the sidebar at 1366 px with Replay in view, so provider and
-// queue ride under the type and status instead of taking columns, and the error column
-// shows only when the table itself (`@container`, not the window) has room; the sheet
-// shows all of it.
+// queue ride under the type and status instead of taking columns, an event type wraps
+// (`checkout.session.async_payment_succeeded` has no break opportunity of its own), and
+// the external id and error show only when the table itself (`@container`, not the
+// window) has room; the sheet shows all of it. Replay is pinned to the end edge, so even
+// a narrower table that scrolls never clips it (QA-066).
+const EXTERNAL_COLUMN = 'hidden @min-[60rem]:table-cell';
 const ERROR_COLUMN = 'hidden @min-[75rem]:table-cell';
 
 export function WebhooksTable({ rows, showCustomer = true, onOpen }: { rows: AdminWebhookEventResponse[]; showCustomer?: boolean; onOpen: (id: string) => void }) {
@@ -72,12 +75,12 @@ export function WebhooksTable({ rows, showCustomer = true, onOpen }: { rows: Adm
       header: 'Type',
       cell: (r) => (
         <>
-          <code className="block text-xs">{r.event_type}</code>
+          <code className="block max-w-56 break-all text-xs">{r.event_type}</code>
           <span className="text-xs text-muted-foreground">{providerLabel(r.provider)}</span>
         </>
       ),
     },
-    { key: 'external', header: 'External id', cell: (r) => <Copyable value={r.external_id} /> },
+    { key: 'external', header: 'External id', className: EXTERNAL_COLUMN, cell: (r) => <Copyable value={r.external_id} /> },
     ...(showCustomer
       ? [
           {
@@ -114,6 +117,7 @@ export function WebhooksTable({ rows, showCustomer = true, onOpen }: { rows: Adm
       key: 'actions',
       header: '',
       align: 'right',
+      sticky: true,
       cell: (r) => (
         <CellActions>
           <PermissionButton size="sm" variant="outline" denied={denied} onClick={() => setTarget(r)}>

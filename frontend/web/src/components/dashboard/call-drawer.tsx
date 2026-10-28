@@ -4,28 +4,36 @@ import { isApiError, useApi, useGetAgent, useGetCall, useUpdateCall } from '@por
 import { roleAtLeast, type CallDetail } from '@portal/schemas';
 import { Alert, Badge, Button, Separator, Sheet, SheetContent, SheetDescription, SheetTitle, Skeleton, Switch, Textarea, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
-import { ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink, Phone } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
-import { capturedFields, parseAnalysis } from '@/src/dashboard/analysis';
-import { callerLabel } from '@/src/dashboard/caller';
+import { capturedFields, parseAnalysis, transcriptPlainText, transcriptTurns } from '@/src/dashboard/analysis';
+import { callerLabel, otherPartyNumber } from '@/src/dashboard/caller';
 import { useServerCopy } from '@/src/i18n/server-copy';
+import { CallBackPanel } from '@/src/components/dashboard/call-back-panel';
 import { PhoneCheckNote, PhoneSummaryNote } from '@/src/components/dashboard/phone-check';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { RecordingPlayer } from '@/src/components/dashboard/recording-player';
+import { ReportCallButton } from '@/src/components/dashboard/report-call';
 import { CallStatusBadge, SentimentBadge, TierBadge } from '@/src/components/dashboard/status-badges';
 import { TranscriptView } from '@/src/components/dashboard/transcript-view';
 import { errorMessage } from '@/src/lib/errors';
 import { formatCreditsValue, formatDateTime, formatDuration, formatPhone } from '@/src/lib/format';
 import { agentPath } from '@/src/routes';
+import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /**
  * D2 call detail (spec p. 35), as a drawer over the list: summary, the captured fields,
  * the transcript, the recording and the facts, plus "mark handled" and a note
- * (`PATCH /calls/:id`). `GET /calls/:id` is re-read on every `call:{id}` frame by the
- * page's live hook, so a call still in progress fills in as it ends and is analysed.
+ * (`PATCH /calls/:id`) and, where outbound calling is on, "Call back" (D18). Spec p. 35's
+ * other actions (QA-077): copy the caller's number and ring it from your own phone
+ * (`tel:` — a person calling, unlike D18's agent callback), copy the transcript, report a
+ * problem as a support ticket with the call attached, and download the recording
+ * (owner/admin).
+ * `GET /calls/:id` is re-read on every `call:{id}` frame by the page's live hook, so a
+ * call still in progress fills in as it ends and is analysed.
  */
 export function CallDrawer({ callId, onClose }: { callId: string | null; onClose: () => void }) {
   const t = useTranslations('dashboard.calls.detail');
@@ -76,6 +84,7 @@ function CallBody({ call }: { call: CallDetail }) {
   }, [agent.data]);
   const analysing = call.status === 'ended' || call.status === 'in_progress' || call.status === 'registered';
   const caller = callerLabel(call, tl);
+  const { canAdmin } = useRole();
 
   return (
     <div className="flex flex-col gap-5">
@@ -98,6 +107,8 @@ function CallBody({ call }: { call: CallDetail }) {
         </SheetDescription>
       </div>
 
+      <CallerActions call={call} />
+
       {call.status === 'missed' ? (
         <Alert variant="warning" title={t('missedTitle')}>
           {call.decline_reason ? tl(`declineReason.${call.decline_reason}`) : null}
@@ -105,6 +116,8 @@ function CallBody({ call }: { call: CallDetail }) {
       ) : null}
 
       <HandledControls call={call} canEdit={canEdit} />
+
+      <CallBackPanel call={call} />
 
       <Section title={t('summary')}>
         {analysis?.call_summary ? (
@@ -146,11 +159,12 @@ function CallBody({ call }: { call: CallDetail }) {
 
       <Section title={t('transcript')}>
         <TranscriptView json={call.transcript_json} text={call.transcript_text} agentName={agent.data?.name} />
+        <TranscriptActions call={call} agentName={agent.data?.name} />
       </Section>
 
       {canEdit ? (
         <Section title={t('recording')}>
-          <RecordingPlayer callId={call.id} available={call.has_recording} />
+          <RecordingPlayer callId={call.id} available={call.has_recording} canDownload={canAdmin} />
         </Section>
       ) : null}
 
@@ -258,6 +272,65 @@ function KnowledgeSection({ knowledge, agentId }: { knowledge: NonNullable<CallD
         </ul>
       ) : null}
     </Section>
+  );
+}
+
+/** Copies to the clipboard with a toast either way; an insecure context or a refusal is the failure line. */
+function useCopy() {
+  const t = useTranslations('dashboard.calls.detail');
+  return React.useCallback(
+    async (text: string, done: string) => {
+      try {
+        await navigator.clipboard.writeText(text);
+        toast.success(done);
+      } catch {
+        toast.error(t('copyFailed'));
+      }
+    },
+    [t],
+  );
+}
+
+/**
+ * The header's "Copy caller number" and "Call back (tel: link)" (spec p. 35, QA-077) —
+ * the person at the desk dialling from their own phone. Labelled "Call from your phone"
+ * so it reads apart from D18's panel, where the agent places the call. A web call has no
+ * number, so neither is shown.
+ */
+function CallerActions({ call }: { call: CallDetail }) {
+  const t = useTranslations('dashboard.calls.detail');
+  const copy = useCopy();
+  const number = otherPartyNumber(call);
+  if (!number) return null;
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" size="sm" onClick={() => void copy(number, t('numberCopied'))}>
+        <Copy aria-hidden /> {t('copyNumber')}
+      </Button>
+      <Button variant="outline" size="sm" asChild>
+        <a href={`tel:${number}`} title={t('callFromPhoneHint', { number: formatPhone(number) })}>
+          <Phone aria-hidden /> {t('callFromPhone')}
+        </a>
+      </Button>
+    </div>
+  );
+}
+
+/** "Copy transcript · Report a problem" (spec p. 35, QA-077). The copy is labelled by speaker as the drawer shows it. */
+function TranscriptActions({ call, agentName }: { call: CallDetail; agentName?: string | null }) {
+  const t = useTranslations('dashboard.calls.detail');
+  const tt = useTranslations('dashboard.calls.transcript');
+  const copy = useCopy();
+  const turns = React.useMemo(() => transcriptTurns(call.transcript_json, call.transcript_text), [call.transcript_json, call.transcript_text]);
+  return (
+    <div className="flex flex-wrap gap-2">
+      {turns.length ? (
+        <Button variant="outline" size="sm" onClick={() => void copy(transcriptPlainText(turns, { agent: agentName?.trim() || tt('agent'), caller: tt('caller') }), t('transcriptCopied'))}>
+          <Copy aria-hidden /> {t('copyTranscript')}
+        </Button>
+      ) : null}
+      <ReportCallButton call={call} from="drawer" label={t('reportProblem')} />
+    </div>
   );
 }
 

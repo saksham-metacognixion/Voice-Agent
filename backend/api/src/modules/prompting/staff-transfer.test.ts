@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { brief as briefSchema } from '@portal/schemas';
-import { STAFF_LABEL, redactTransferNumbers, transferRoutes } from './staff-transfer';
+import { STAFF_LABEL, briefTransferNumbers, numberTransferTargets, numberTransferVariables, redactTransferNumbers, transferRoutes } from './staff-transfer';
 
 /*
  * BUG-005 (26 Oct): the agent read the staff transfer number aloud when it offered a
@@ -64,5 +64,39 @@ describe('transferRoutes', () => {
       { number: STAFF, conditions: ['Party of more than 8', 'Asks for the manager'] },
       { number: '+14165550199', conditions: ['A complaint'] },
     ]);
+  });
+});
+
+describe('a number’s transfer targets and the fail message (QA-083)', () => {
+  const BRIEF_STAFF = '+14165550199';
+  const briefJson = { handoff_rules: [{ condition: 'A complaint', action: 'transfer', transfer_number: BRIEF_STAFF }, { condition: 'Hours', action: 'take_message' }] };
+
+  it('reads `{number}` entries and the plain strings an older row holds, and nothing else', () => {
+    expect(numberTransferTargets([{ label: 'Manager', number: STAFF }, '+14165550111', 42, null, { label: 'x' }])).toEqual([STAFF, '+14165550111']);
+    expect(numberTransferTargets(null)).toEqual([]);
+  });
+
+  it('reads the brief’s transfer numbers from stored JSON, deduplicated, tolerating junk', () => {
+    expect(briefTransferNumbers({ handoff_rules: [...briefJson.handoff_rules, briefJson.handoff_rules[0], { action: 'transfer', transfer_number: '' }, 'junk'] })).toEqual([BRIEF_STAFF]);
+    expect(briefTransferNumbers(null)).toEqual([]);
+    expect(briefTransferNumbers({ handoff_rules: 'nope' })).toEqual([]);
+  });
+
+  it('carries the number’s targets as transfer_number_N and redacts the brief’s defaults out of the message too', () => {
+    const variables = numberTransferVariables(
+      { transferTargetsJson: ['+14165550111'], transferFailMessage: 'Sorry. Try 416-555-0199, 416 555 0111, or our desk at 416-555-0100.' },
+      briefJson,
+    );
+    expect(variables).toEqual({
+      transfer_number_1: '+14165550111',
+      transfer_fail_message: `Sorry. Try ${STAFF_LABEL}, ${STAFF_LABEL}, or our desk at 416-555-0100.`,
+    });
+  });
+
+  it('a number with no targets keeps the brief’s defaults out of the message (they are what it dials)', () => {
+    expect(numberTransferVariables({ transferTargetsJson: [], transferFailMessage: `Call ${BRIEF_STAFF} directly.` }, briefJson)).toEqual({
+      transfer_fail_message: `Call ${STAFF_LABEL} directly.`,
+    });
+    expect(numberTransferVariables({ transferTargetsJson: null, transferFailMessage: null }, null)).toEqual({ transfer_fail_message: '' });
   });
 });

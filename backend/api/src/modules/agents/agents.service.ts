@@ -12,10 +12,12 @@ import {
   type Brief,
   type BriefPatch,
   type CreateAgentRequest,
+  type DuplicateAgentRequest,
   type LintRequest,
   type LintResult,
   type Page,
   type PromptUpdate,
+  type SaveVersionResponse,
   type Scenario,
   agentSettings as agentSettingsSchema,
   analysisField,
@@ -24,6 +26,7 @@ import {
   briefDocument as briefDocumentSchema,
   handoffRule as handoffRuleSchema,
   briefCard as briefCardSchema,
+  copyAgentName,
   defaultAgentSettings,
   lintResult as lintResultSchema,
   scenario as scenarioSchema,
@@ -31,6 +34,7 @@ import {
 import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import type { WorkspaceContext } from '../auth';
+import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
 import { applyGuardrails, stripGuardrails } from '../prompting/guardrails';
 import { lintPrompt } from '../prompting/lint';
@@ -76,6 +80,7 @@ export class AgentsService {
     private readonly stack: AgentStackService,
     private readonly events: EventsService,
     private readonly runtimeCache: RuntimeCacheService,
+    private readonly config: PlatformConfigService,
   ) {}
 
   // ------------------------------------------------------------------ create (W1)
@@ -97,13 +102,17 @@ export class AgentsService {
    */
   async create(ctx: WorkspaceContext, input: CreateAgentRequest): Promise<AgentDetail> {
     const template = await this.templates.require(input.template_id);
-    const caps = await this.agentCount(ctx);
+    const caps = await this.config.capsFor(ctx.workspaceId);
 
     const prefill = briefSchema.parse(template.brief_prefill);
-    const settings = defaultAgentSettings(template.default_tier);
+    const settings = await this.newAgentSettings(ctx, template.default_tier);
     const name = input.name?.trim() || template.name;
 
     const agentId = await withWorkspace(ctx, async (db) => {
+      // W1 creates a new agent each time the person picks another template, so the
+      // plan's `max_agents` counts only once onboarding is done; a paused workspace
+      // creates nothing at any stage (QA-078).
+      const existing = await this.assertRoomForAgent(db, ctx, caps.max_agents, { duringOnboarding: false });
       const agent = await db.agent.create({
         data: {
           tenantId: ctx.workspaceId,
@@ -132,7 +141,7 @@ export class AgentsService {
         template_id: template.id,
         template_version: template.version,
         industry: input.industry ?? null,
-        existing_agents: caps,
+        existing_agents: existing,
       });
 
       return agent.id;
@@ -144,6 +153,132 @@ export class AgentsService {
       template_id: template.id,
     });
     return this.get(ctx, agentId);
+  }
+
+  // ------------------------------------------------------------------ duplicate (D3)
+
+  /**
+   * POST /agents/:id/duplicate {name?} — D3's list menu "Duplicate" (QA-078): a second
+   * location's agent without writing the brief again or waiting for a generation.
+   *
+   * The copy is a new agent whose v1 holds the source's **draft** (what D3 shows, and
+   * what Publish would send) — brief, documents included, analysis fields, settings,
+   * script, greeting, closing, brief card, scenarios and lint — so it can be tested and
+   * published straight away. Not the newest row: "Discard draft" is a pointer move, and
+   * the newest row of an agent whose draft was discarded is the draft that was thrown
+   * away. The row is `source = manual`, as W1's v1 is: no model wrote it here, and
+   * `generated` / `regenerate` are what a generation job writes.
+   *
+   * What stays with the source: phone numbers (a number routes to one agent), knowledge
+   * sources (one platform base per agent, counted against `kb_allowance`), the website
+   * widget (its public key is the source's), the version history and the platform
+   * objects. Those are created the way W1's are — lazily, by the first test call or
+   * publish of the copy (`AgentDraftSyncService` / `AgentPublishService`), so this route
+   * makes no platform request.
+   *
+   * Room for the copy is checked as W1 would need it: not while the workspace is paused,
+   * and not past the plan's `max_agents` (`assertRoomForAgent`).
+   */
+  async duplicate(ctx: WorkspaceContext, sourceId: string, input: DuplicateAgentRequest): Promise<AgentDetail> {
+    const caps = await this.config.capsFor(ctx.workspaceId);
+
+    const { agentId, sourceVersion, templateId } = await withWorkspace(ctx, async (db) => {
+      const source = await this.loadAgent(db, ctx, sourceId);
+      const existing = await this.assertRoomForAgent(db, ctx, caps.max_agents);
+
+      const baseNo = source.draftVersion ?? source.publishedVersion;
+      const base = baseNo
+        ? await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId: source.id, versionNo: baseNo } } })
+        : await db.agentVersion.findFirst({ where: { agentId: source.id }, orderBy: { versionNo: 'desc' } });
+      if (!base) throw AppError.notFound('Draft version');
+
+      const settings = settingsOf(base, source);
+      // `agents.voice_id` is a foreign key into the catalogue. A draft's voice that has
+      // since left it stays on the version (publish refuses it with a field error, as for
+      // the source); the copy's live column, which nothing reads before a publish, does
+      // not carry it.
+      const voice = settings.voice_id
+        ? await db.voice.findUnique({ where: { retellVoiceId: settings.voice_id }, select: { retellVoiceId: true } })
+        : null;
+      const agent = await db.agent.create({
+        data: {
+          tenantId: ctx.workspaceId,
+          name: input.name ?? copyAgentName(source.name),
+          templateId: source.templateId,
+          industry: source.industry,
+          ...liveColumnsFrom(settings),
+          voiceId: voice?.retellVoiceId ?? null,
+          draftVersion: 1,
+          status: 'draft',
+        },
+      });
+
+      await db.agentVersion.create({
+        data: {
+          agentId: agent.id,
+          versionNo: 1,
+          source: 'manual',
+          briefJson: parseBrief(base.briefJson) as unknown as Prisma.InputJsonValue,
+          promptText: base.promptText,
+          greeting: base.greeting,
+          closing: base.closing,
+          analysisSchemaJson: parseAnalysisFields(base.analysisSchemaJson) as unknown as Prisma.InputJsonValue,
+          settingsJson: settings as unknown as Prisma.InputJsonValue,
+          briefCardJson: (base.briefCardJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          scenariosJson: (base.scenariosJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          lintJson: (base.lintJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          stackVersion: base.stackVersion,
+          createdBy: ctx.userId,
+        },
+      });
+
+      await this.audit(db, ctx, 'agent.duplicated', agent.id, {
+        source_agent_id: source.id,
+        source_version: base.versionNo,
+        template_id: source.templateId,
+        existing_agents: existing,
+      });
+      return { agentId: agent.id, sourceVersion: base.versionNo, templateId: source.templateId };
+    });
+
+    this.log.log(`agent ${agentId} duplicated from ${sourceId} v${sourceVersion} in workspace ${ctx.workspaceId}`);
+    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.created, {
+      agent_id: agentId,
+      template_id: templateId,
+      duplicated_from: sourceId,
+    });
+    return this.get(ctx, agentId);
+  }
+
+  /**
+   * Room for one more agent: the workspace is not paused, and it holds fewer live
+   * (not deleted) agents than its plan's `max_agents` (§5.2 caps, tenant overrides
+   * included). Inside the transaction that inserts the agent and under a per-workspace
+   * advisory lock, so two presses at once cannot both take the last slot. Returns the
+   * count it saw, for the audit row. `duringOnboarding: false` lifts the cap until
+   * `onboarding_completed_at` (W1's re-picks); the pause still applies.
+   */
+  private async assertRoomForAgent(
+    db: WorkspaceDb,
+    ctx: WorkspaceContext,
+    maxAgents: number,
+    opts: { duringOnboarding?: boolean } = {},
+  ): Promise<number> {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'agents:' + ctx.workspaceId}))`;
+    const tenant = await db.tenant.findUniqueOrThrow({
+      where: { id: ctx.workspaceId },
+      select: { pausedAt: true, onboardingCompletedAt: true },
+    });
+    if (tenant.pausedAt) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to resume it.');
+    const existing = await db.agent.count({ where: { tenantId: ctx.workspaceId, deletedAt: null } });
+    const capped = opts.duringOnboarding !== false || tenant.onboardingCompletedAt !== null;
+    if (capped && existing >= maxAgents) {
+      throw new AppError(
+        'PLAN_LIMIT',
+        `Your plan includes ${maxAgents} agent${maxAgents === 1 ? '' : 's'}. Buy a larger pack or delete an agent to add another.`,
+      );
+    }
+    return existing;
   }
 
   // ------------------------------------------------------------------ read
@@ -245,8 +380,12 @@ export class AgentsService {
     agentId: string,
     patch: AgentDraftPatch,
   ): Promise<AgentDetail> {
+    await this.assertDraftGates(ctx, patch);
     const stack = await this.stack.current();
     const settingsPatch = settingsPatchOf(patch);
+    // An edited list is the customer's from now on: a regenerate keeps it as it is
+    // rather than rebuilding it from the template and the model's additions (QA-079).
+    if (patch.analysis_fields !== undefined) settingsPatch.analysis_fields_edited = true;
     const touchesVersion =
       patch.brief !== undefined ||
       patch.analysis_fields !== undefined ||
@@ -504,6 +643,96 @@ export class AgentsService {
     return this.get(ctx, agentId);
   }
 
+  /**
+   * POST /agents/:id/draft/discard — D3 Overview "Discard draft" (QA-078).
+   *
+   * The draft goes back to the published version through the same pointer move
+   * "Restore as draft" makes (`selectDraft`): no row is written or deleted, the discarded
+   * draft stays in the Versions tab (immutable, restorable), and the next edit forks a
+   * fresh draft from the published version because that one is frozen. Nothing to
+   * discard is a 409: `AGENT_NOT_PUBLISHED` when there is no published version to go
+   * back to, `NO_DRAFT_CHANGES` when the draft already is it (`discardTarget`).
+   *
+   * No platform request: numbers run the published version, and a test call of the
+   * draft now rings the published version's platform copy.
+   */
+  async discardDraft(ctx: WorkspaceContext, agentId: string): Promise<AgentDetail> {
+    const target = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const target = discardTarget(agent);
+      if (!target.ok) {
+        throw target.code === 'AGENT_NOT_PUBLISHED'
+          ? new AppError('AGENT_NOT_PUBLISHED', 'This agent has never been published, so there is no live version to go back to.')
+          : new AppError('NO_DRAFT_CHANGES', 'The draft is already the live version. There is nothing to discard.');
+      }
+
+      await db.agent.update({ where: { id: agentId }, data: { draftVersion: target.restore } });
+      await this.audit(db, ctx, 'agent.draft_discarded', agentId, {
+        discarded_version: target.discarded,
+        version_no: target.restore,
+      });
+      return target;
+    });
+
+    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.draftSelected, {
+      agent_id: agentId,
+      version_no: target.restore,
+      discarded_version: target.discarded,
+    });
+    this.log.log(`agent ${agentId}: draft v${target.discarded} discarded, back to v${target.restore}`);
+    return this.get(ctx, agentId);
+  }
+
+  /**
+   * POST /agents/:id/versions — the D3 Brief tab's "Save as new version" (QA-079).
+   *
+   * The draft is the one version the autosave writes into in place, so saving it means
+   * freezing it: a copy is appended as the new draft, and the old row — no longer the
+   * newest — is immutable from then on (the `agent_versions_immutable` trigger, the same
+   * line every fork relies on). It stays in Versions, can be brought back with "Restore
+   * as draft" and published by number. Brief, analysis fields, settings, script, brief
+   * card, scenarios and lint are copied as they are; no LLM call and no platform request
+   * (the next test call syncs the copy, as it does any draft).
+   *
+   * A draft that is already frozen — the published version, or an older one restored as
+   * the draft — is already saved, so nothing is written and `created` is false: the next
+   * edit forks a new draft from it anyway.
+   */
+  async saveVersion(ctx: WorkspaceContext, agentId: string): Promise<SaveVersionResponse> {
+    const result = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const draft = await this.loadDraftForWrite(db, agent);
+      if (draft.frozen) return { saved_version: draft.versionNo, draft_version: draft.versionNo, created: false };
+
+      const next = await this.appendVersion(db, {
+        agentId,
+        source: 'manual',
+        brief: parseBrief(draft.briefJson),
+        promptText: draft.promptText,
+        greeting: draft.greeting,
+        closing: draft.closing,
+        analysisFields: parseAnalysisFields(draft.analysisSchemaJson),
+        settings: settingsOf(draft, agent),
+        briefCard: draft.briefCardJson,
+        scenarios: draft.scenariosJson,
+        lint: lintResultSchema.safeParse(draft.lintJson).data ?? null,
+        createdBy: ctx.userId,
+        stackVersion: draft.stackVersion ?? undefined,
+      });
+      await this.audit(db, ctx, 'agent.version_saved', agentId, { version_no: draft.versionNo, draft_version: next });
+      return { saved_version: draft.versionNo, draft_version: next, created: true };
+    });
+
+    if (result.created) {
+      await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.versionCreated, {
+        agent_id: agentId,
+        version_no: result.draft_version,
+        source: 'manual',
+      });
+    }
+    return result;
+  }
+
   // ------------------------------------------------------------------ helpers shared with prompting
 
   /** Everything a generation job needs, read in one transaction and then let go. */
@@ -603,10 +832,50 @@ export class AgentsService {
     });
   }
 
-  private async agentCount(ctx: WorkspaceContext): Promise<number> {
-    return withWorkspace(ctx, (db) =>
-      db.agent.count({ where: { tenantId: ctx.workspaceId, deletedAt: null } }),
-    );
+  /**
+   * A new agent's v1 settings (W1): the template's tier, and the workspace's D6 privacy
+   * defaults — recording, and PII removal when the plan includes it (QA-081). Read
+   * before the create transaction opens, like the template.
+   */
+  private async newAgentSettings(ctx: WorkspaceContext, tier: AgentSettings['tier']): Promise<AgentSettings> {
+    const [flags, privacy] = await Promise.all([
+      this.config.flagsFor(ctx.workspaceId),
+      withWorkspace(ctx, (db) =>
+        db.tenant.findUniqueOrThrow({
+          where: { id: ctx.workspaceId },
+          select: { recordingDefault: true, piiRemovalDefault: true },
+        }),
+      ),
+    ]);
+    return {
+      ...defaultAgentSettings(tier),
+      recording_enabled: privacy.recordingDefault,
+      pii_removal: privacy.piiRemovalDefault && flags.gates.pii_removal === true,
+    };
+  }
+
+  /**
+   * The plan gates on a draft edit (QA-079): turning denoise or PII removal **on**, and
+   * editing the analysis fields at all, need the plan's gate — the same `PLAN_LIMIT` the
+   * knowledge and SIP routes answer. Turning an add-on off never does, so a workspace
+   * that lost the gate can still clear what it set. The sync applies the gate again
+   * (`runtimeAddOns`), so a version that kept `true` past a downgrade sends it off.
+   */
+  private async assertDraftGates(ctx: WorkspaceContext, patch: AgentDraftPatch): Promise<void> {
+    const wanted: Array<'denoise' | 'pii_removal' | 'analysis_fields'> = [];
+    if (patch.denoise === true) wanted.push('denoise');
+    if (patch.pii_removal === true) wanted.push('pii_removal');
+    if (patch.analysis_fields !== undefined) wanted.push('analysis_fields');
+    if (wanted.length === 0) return;
+    const flags = await this.config.flagsFor(ctx.workspaceId);
+    const missing = wanted.filter((gate) => flags.gates[gate] !== true);
+    if (missing.length > 0) {
+      throw new AppError(
+        'PLAN_LIMIT',
+        'Your plan does not include this yet. Buy a pack that does to unlock it.',
+        missing.map((gate) => ({ field: gate, message: `${gate} gate is off` })),
+      );
+    }
   }
 
   /**
@@ -657,6 +926,24 @@ export class AgentsService {
       draft.publishedAt !== null || draft.versionNo !== (latest._max.versionNo ?? draft.versionNo);
     return { ...draft, frozen };
   }
+}
+
+/**
+ * What "Discard draft" would do to an agent (QA-078): point the draft back at the
+ * published version — or why there is nothing to discard. The same test as
+ * `has_unpublished_changes` (`toSummary`), so the button and the route cannot disagree.
+ */
+export function discardTarget(agent: {
+  draftVersion: number | null;
+  publishedVersion: number | null;
+}):
+  | { ok: true; discarded: number; restore: number }
+  | { ok: false; code: 'AGENT_NOT_PUBLISHED' | 'NO_DRAFT_CHANGES' } {
+  if (agent.publishedVersion === null) return { ok: false, code: 'AGENT_NOT_PUBLISHED' };
+  if (agent.draftVersion === null || agent.draftVersion === agent.publishedVersion) {
+    return { ok: false, code: 'NO_DRAFT_CHANGES' };
+  }
+  return { ok: true, discarded: agent.draftVersion, restore: agent.publishedVersion };
 }
 
 // ---------------------------------------------------------------------------
@@ -767,6 +1054,8 @@ export function settingsPatchOf(patch: AgentDraftPatch): Partial<AgentSettings> 
   if (patch.voice_temperature !== undefined) out.voice_temperature = patch.voice_temperature;
   if (patch.max_call_duration_s !== undefined) out.max_call_duration_s = patch.max_call_duration_s;
   if (patch.recording_enabled !== undefined) out.recording_enabled = patch.recording_enabled;
+  if (patch.denoise !== undefined) out.denoise = patch.denoise;
+  if (patch.pii_removal !== undefined) out.pii_removal = patch.pii_removal;
   return out;
 }
 

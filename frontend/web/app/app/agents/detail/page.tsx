@@ -129,7 +129,7 @@ export default function AgentDetailPage() {
         <TabsContent value="settings">{tab === 'settings' ? <SettingsTab key={data.draft?.version_no ?? 'none'} agent={data} canEdit={canEdit} canAdmin={canAdmin} /> : null}</TabsContent>
       </Tabs>
 
-      {tab !== 'test' ? <PublishBar agent={data} canEdit={canEdit} editorDirty={promptDirty} /> : null}
+      {tab !== 'test' ? <PublishBar agent={data} canEdit={canEdit} editorDirty={promptDirty} discard={tab === 'overview'} /> : null}
     </>
   );
 }

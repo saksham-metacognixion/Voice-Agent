@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RetellGateway, TierStack } from '../retell';
+import { denoisingModeFor, piiConfigFor, type RetellGateway, type TierStack } from '../retell';
 import { AgentRetellService, PHONE_FIELD_RULE, toRetellAnalysisFields, type RetellSyncInput } from './agent-retell.service';
 
 /*
@@ -63,6 +63,9 @@ function input(over: Partial<RetellSyncInput> = {}): RetellSyncInput {
     businessName: 'Maple Dental',
     stack,
     guardrails: ['Never claim to be human.'],
+    denoise: false,
+    piiRemoval: false,
+    recordingNotice: null,
     ...over,
   };
 }
@@ -322,5 +325,58 @@ describe('AgentRetellService staff transfers', () => {
     expect(llm.beginMessage).toBe('Hi! For the manager dial our staff.');
     // §9.7: the variable stays for the platform; nothing in the prompt references it.
     expect(llm.defaultDynamicVariables.transfer_number_1).toBe('+14165550142');
+    // QA-083: always supplied, empty by default, so the rule's `{{transfer_fail_message}}`
+    // never reaches a browser test call as literal braces.
+    expect(llm.defaultDynamicVariables.transfer_fail_message).toBe('');
+    expect(llm.prompt).toContain('{{transfer_fail_message}}');
+  });
+});
+
+// QA-079 / QA-081: the add-ons and the recording notice reach the platform at every sync.
+describe('AgentRetellService add-ons', () => {
+  const sync = async (over: Partial<RetellSyncInput>) => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft(input(over));
+    return {
+      agent: gw.calls.find((c) => c.method === 'createAgent')!.args[0] as Record<string, unknown>,
+      llm: gw.calls.find((c) => c.method === 'createLlm')!.args[0] as { prompt: string; beginMessage: string | null },
+    };
+  };
+
+  it('runs the strongest noise filter when denoise is on, the tier’s otherwise', async () => {
+    const tier = { ...stack, denoising_mode: 'noise-cancellation' as const };
+    expect((await sync({ stack: tier, denoise: true })).agent.denoisingMode).toBe('noise-and-background-speech-cancellation');
+    expect((await sync({ stack: tier, denoise: false })).agent.denoisingMode).toBe('noise-cancellation');
+  });
+
+  it('always sends the PII switch, so turning it off clears a stored config', async () => {
+    expect((await sync({ piiRemoval: true })).agent.piiRemoval).toBe(true);
+    expect((await sync({ piiRemoval: false })).agent.piiRemoval).toBe(false);
+  });
+
+  it('says the recording notice before the greeting, and stores nothing', async () => {
+    const { llm } = await sync({ greeting: 'Thank you for calling Maple Dental.', recordingNotice: 'Just so you know, this call is recorded.' });
+    expect(llm.beginMessage).toBe('Just so you know, this call is recorded. Thank you for calling Maple Dental.');
+    expect(llm.prompt).not.toContain('this call is recorded');
+    expect((await sync({ greeting: 'Hello', recordingNotice: null })).llm.beginMessage).toBe('Hello');
+  });
+});
+
+describe('piiConfigFor / denoisingModeFor', () => {
+  it('maps PII removal onto post-call scrubbing of identifiers, never names or phone numbers', () => {
+    const config = piiConfigFor(true)!;
+    expect(config.mode).toBe('post_call');
+    expect(config.categories).toEqual(expect.arrayContaining(['credit_card', 'bank_account', 'ssn', 'date_of_birth']));
+    expect(config.categories).not.toEqual(expect.arrayContaining(['person_name']));
+    expect(config.categories).not.toContain('phone_number');
+    expect(config.categories).not.toContain('email');
+    expect(config.categories).not.toContain('address');
+    expect(piiConfigFor(false)).toEqual({ mode: 'post_call', categories: [] });
+    expect(piiConfigFor(undefined)).toBeUndefined();
+  });
+
+  it('keeps the tier’s mode, including none, unless denoise is on', () => {
+    expect(denoisingModeFor(false, undefined)).toBeUndefined();
+    expect(denoisingModeFor(true, undefined)).toBe('noise-and-background-speech-cancellation');
   });
 });

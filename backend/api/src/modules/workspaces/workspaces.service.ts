@@ -158,6 +158,12 @@ export class WorkspacesService {
   /** PATCH /workspace — D6 Settings. Owner or admin (§6.1 "change workspace settings"). */
   async update(ctx: WorkspaceContext, input: UpdateWorkspaceRequest, ip?: string): Promise<WorkspaceResponse> {
     if (input.timezone) assertTimezone(input.timezone);
+    // Only turning the PII default on needs the plan (QA-081); turning it off never does.
+    if (input.pii_removal_default === true && (await this.config.flagsFor(ctx.workspaceId)).gates.pii_removal !== true) {
+      throw new AppError('PLAN_LIMIT', 'Your plan does not include PII removal yet. Buy a pack that does to unlock it.', [
+        { field: 'pii_removal_default', message: 'pii_removal gate is off' },
+      ]);
+    }
 
     const data: Prisma.TenantUpdateInput = {};
     if (input.name !== undefined) data.name = input.name.trim();
@@ -165,6 +171,9 @@ export class WorkspacesService {
     if (input.website !== undefined) data.website = input.website;
     if (input.recording_default !== undefined) data.recordingDefault = input.recording_default;
     if (input.retention_days !== undefined) data.retentionDays = input.retention_days;
+    if (input.pii_removal_default !== undefined) data.piiRemovalDefault = input.pii_removal_default;
+    if (input.recording_notice !== undefined) data.recordingNotice = input.recording_notice;
+    if (input.recording_notice_text !== undefined) data.recordingNoticeText = input.recording_notice_text;
     if (input.business_hours !== undefined) {
       data.businessHoursJson =
         input.business_hours === null
@@ -303,6 +312,9 @@ function toResponse(
     businessHoursJson: unknown;
     recordingDefault: boolean;
     retentionDays: number;
+    piiRemovalDefault: boolean;
+    recordingNotice: boolean;
+    recordingNoticeText: string | null;
     onboardingStep: number;
     onboardingCompletedAt: Date | null;
     pausedAt: Date | null;
@@ -323,6 +335,9 @@ function toResponse(
     business_hours: businessHoursSchema.safeParse(tenant.businessHoursJson).data ?? null,
     recording_default: tenant.recordingDefault,
     retention_days: tenant.retentionDays,
+    pii_removal_default: tenant.piiRemovalDefault,
+    recording_notice: tenant.recordingNotice,
+    recording_notice_text: tenant.recordingNoticeText,
     onboarding_step: tenant.onboardingStep,
     onboarding_completed_at: tenant.onboardingCompletedAt?.toISOString() ?? null,
     paused: tenant.pausedAt !== null,

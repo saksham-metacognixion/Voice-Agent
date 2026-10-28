@@ -10,7 +10,16 @@ export interface DataColumn<T> {
   align?: 'right' | 'center';
   /** Extra classes for the `<td>`/`<th>`, e.g. a hidden-below-md column. */
   className?: string;
+  /**
+   * Pinned to the end edge while the table scrolls sideways — for the actions column, so
+   * a row's buttons are never clipped behind the scroll (QA-066). The cell paints its
+   * own opaque background (card, plus the header or hover tint over it).
+   */
+  sticky?: boolean;
 }
+
+const STICKY_TH = 'sticky end-0 z-10 bg-card before:absolute before:inset-0 before:-z-10 before:bg-muted/60';
+const STICKY_TD = 'sticky end-0 z-10 bg-card before:absolute before:inset-0 before:-z-10 group-hover:before:bg-muted/50 group-focus-visible:before:bg-muted/50';
 
 /**
  * The console's list pattern (copied from the portal's D10 table, without the phone
@@ -51,7 +60,7 @@ export function DataTable<T>({
         <thead className="bg-muted/60 text-xs text-muted-foreground">
           <tr>
             {columns.map((c) => (
-              <th key={c.key} scope="col" className={cn(pad, 'whitespace-nowrap font-medium', c.align === 'right' && 'text-right', c.align === 'center' && 'text-center', c.className)}>
+              <th key={c.key} scope="col" className={cn(pad, 'whitespace-nowrap font-medium', c.align === 'right' && 'text-right', c.align === 'center' && 'text-center', c.sticky && STICKY_TH, c.className)}>
                 {c.header}
               </th>
             ))}
@@ -61,13 +70,13 @@ export function DataTable<T>({
           {rows.map((row) => (
             <tr
               key={rowKey(row)}
-              className={cn(onRowClick && 'cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none', rowClassName?.(row))}
+              className={cn('group', onRowClick && 'cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none', rowClassName?.(row))}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
               onKeyDown={onRowClick ? activate(row) : undefined}
               tabIndex={onRowClick ? 0 : undefined}
             >
               {columns.map((c) => (
-                <td key={c.key} className={cn(pad, 'align-middle', c.align === 'right' && 'text-right tabular-nums', c.align === 'center' && 'text-center', c.className)}>
+                <td key={c.key} className={cn(pad, 'align-middle', c.align === 'right' && 'text-right tabular-nums', c.align === 'center' && 'text-center', c.sticky && STICKY_TD, c.className)}>
                   {c.cell(row)}
                 </td>
               ))}

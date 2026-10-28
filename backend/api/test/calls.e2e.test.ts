@@ -85,6 +85,8 @@ describe('POST /webhooks/retell/inbound/:number_token — the six checks (§13.9
     expect(body.call_inbound.agent_override.agent.max_call_duration_ms).toBe(300_000);
     expect(body.call_inbound.metadata).toMatchObject({ tenant_id: ws.tenantId, number_id: ws.numberId, tier: 'standard' });
     expect(body.call_inbound.dynamic_variables.business_name).toContain('allow');
+    // QA-083: always supplied, so the transfer rule never reads a placeholder; none set = ''.
+    expect(body.call_inbound.dynamic_variables.transfer_fail_message).toBe('');
 
     // The slot is taken before the answer goes out, so the next call sees it.
     const active = await cache.client.hgetall(redisKeys.activeCalls(ws.tenantId));
@@ -330,6 +332,23 @@ describe('POST /webhooks/retell/inbound/:number_token — the six checks (§13.9
 
     const hash = await cache.client.hgetall(redisKeys.activeCalls(ws.tenantId));
     expect(Number(hash[id]?.split('|')[0])).toBe(4);
+  });
+
+  // QA-083 (D4 Hand-off): the number's own words, from `num:{e164}` — no extra read.
+  it('hands the number\'s transfer-failed message to the agent, with its own transfer targets redacted', async () => {
+    const ws = await readyWorkspace('fail-message');
+    await adminDb.phoneNumber.update({
+      where: { id: ws.numberId },
+      data: {
+        transferFailMessage: 'Sorry, the clinic team is busy. You can also try the manager on 416-555-0142.',
+        transferTargetsJson: [{ label: 'Manager', number: '+14165550142' }],
+      },
+    });
+    await runtimeCache.refresh(ws.tenantId);
+
+    const res = await inbound(ws, inboundEvent({ callId: callId(), to: ws.e164 }));
+    expect(res.statusCode).toBe(200);
+    expect(res.json().call_inbound.dynamic_variables.transfer_fail_message).toBe('Sorry, the clinic team is busy. You can also try the manager on our staff.');
   });
 
   it('writes no row for an allowed call that arrived without a call_id — call_started owns that row', async () => {

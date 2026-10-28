@@ -113,7 +113,7 @@ function UserDetail() {
       {user.isPending ? (
         <Skeleton className="h-48" aria-busy />
       ) : user.isError ? (
-        <LoadError error={user.error} onRetry={() => void user.refetch()} />
+        <LoadError error={user.error} onRetry={() => void user.refetch()} back={{ href: routes.users, label: 'Back to users' }} />
       ) : !u ? null : (
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>

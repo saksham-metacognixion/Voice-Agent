@@ -55,6 +55,12 @@ export interface NumberRecord {
   /** E.164 callers to decline as `blocked`: the number's own list plus the global phone blocklist. */
   blocklist: string[];
   transfer_numbers: string[];
+  /**
+   * QA-083: the number's "message if the transfer fails", or null for the fixed rule's own
+   * words. Optional so a record written before it existed still reads (no version bump —
+   * that would turn every live record into a miss until the next refresh); absent = null.
+   */
+  transfer_fail_message?: string | null;
   refreshed_at: string;
 }
 

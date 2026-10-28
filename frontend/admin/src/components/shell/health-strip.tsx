@@ -14,7 +14,8 @@ import { routes, systemPath } from '@/src/routes';
  */
 export function HealthStrip({ className }: { className?: string }) {
   const api = useApi();
-  const health = useAdminSystemHealth(api, { refetchInterval: 30_000, staleTime: 15_000 });
+  // The poll keeps it current; navigating to another page (a new shell) does not ask again (QA-072).
+  const health = useAdminSystemHealth(api, { refetchInterval: 30_000, staleTime: 5 * 60_000 });
   const h = health.data;
 
   if (!h) {

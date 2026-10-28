@@ -122,7 +122,13 @@ test's checks plus a paid pack and an own-phone destination, the forwarding test
 `fwdtest:{e164}` marker the inbound path declines, the website widget as a public key, an
 `/embed/` iframe and one `WIDGET_UNAVAILABLE`, `is_test` from `metadata.test` (27 Oct), 0030 Canadian French in the portal beside Arabic —
 `fr-CA` as the locale id (Auth0 `ui_locales`, `<html lang>`, `Intl`), `matchLocale` (same
-tag, else same base language), one glossary (27 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+tag, else same base language), one glossary (27 Oct), 0031 D18 outbound click-to-call — a
+callback of a D2 call only, behind staff-decided KYC, a verified caller ID, the workspace and
+platform do-not-call lists, prior contact, every-zone calling windows and a per-plan daily cap
+under a lock; voicemail per call (28 Oct), 0032 the 28 Oct QA batch — duplicate / discard draft /
+save version, denoise + PII add-ons on the version, editable analysis fields, the recording notice,
+the transfer-failed message, ledger export, the workspace zip and delete *request* (supersedes
+ADR 0019 §8), test-call versions, and the console's pinned actions and non-blocking health (28 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -179,7 +185,8 @@ Backend modules mirror §13.1: `auth, workspaces, agents, prompting, voices, kno
 wallet, billing, webhooks, notifications, events, jobs, admin`, plus `config` (pricing/flags/caps),
 `redis`, `retell`, `runtime-cache` (the Redis projection the inbound path reads), `scheduled`,
 and since D6 `activation` (§13.8), `crypto` (envelope encryption, global) and `alerts` (ops
-alerts, global); since D12 `admin` (admin §9: every `/admin/*` route, `StaffAuditService`,
+alerts, global); since D18 `outbound` (click-to-call and its gates, above `calls`); since ADR 0032
+`data-requests` (D6 export zip and delete request, above `calls` and `wallet`, nothing imports it); since D12 `admin` (admin §9: every `/admin/*` route, `StaffAuditService`,
 `StaffLimitsService`, `ImpersonationService`, plus the customer-namespace `/impersonation`
 routes) — the top of the graph, imports wallet/runtime-cache/billing/webhooks/config/agents/
 events/calls and nothing imports it; since D7 `notifications` (§13.1: the outbox, the email sender, the customer
@@ -448,7 +455,21 @@ job settles.
   (`transferCallTools()`) name *who* the caller reaches, and `redactTransferNumbers()`
   strips it from the script and greeting at `llmSpec`, so old scripts are covered too.
   `TRANSFER_RULE` and `LIST_RULE` (a category answer is three or four items and an offer
-  of more, BUG-007) are fixed rules like `CLOSING_RULE`.
+  of more, BUG-007) are fixed rules like `CLOSING_RULE`. **A failed transfer reads the
+  number's `transfer_fail_message`** (D4, ADR 0032 §4): a dynamic variable that is
+  **always supplied** — `''` from the agent's defaults, the number's value from `num:{e164}`
+  on inbound, the calling number's on "Call my phone" — because the platform leaves an
+  unsupplied `{{variable}}` as literal braces; blank = the rule's own words. Braces are
+  stripped from the customer's text and the number's own targets replaced by "our staff".
+- **Add-ons and the recording notice** (ADR 0032 §3, §6). `agentSettings.denoise` /
+  `.pii_removal` travel with the version; `runtimeAddOns()` re-applies the plan gate at
+  every sync (lost gate = sent off, the version keeps the choice). PII removal never
+  covers name, phone, email or address. The recording notice (`tenants.recording_notice`,
+  on by default) is put before the greeting at sync by `prompting/recording-notice.ts`,
+  never stored, like the documents block. `settings.analysis_fields_edited` makes an
+  edited analysis-field list the customer's: a regenerate keeps it.
+- **One editable draft on the platform** means a test can only ring the current draft or a
+  version that was published: anything else is `409 VERSION_NOT_TESTABLE` (QA-082).
 - **The closing line is said only once the caller is done** (ADR 0012, "The closing line",
   26 Oct: "Thank you for calling …" after a read-back or an answer about parking). Four
   places say so: `CLOSING_RULE` (fixed, so it reaches a live agent at its next sync without
@@ -675,6 +696,41 @@ job settles.
   fallback exists for dev, ci and tests only, and `assertPortalUrl()` refuses to boot the
   API or the worker in staging/prod without a public origin. No `process.env.PORTAL_URL ??`
   anywhere else.
+
+**Outbound click-to-call (D18, ADR 0031)**
+
+- **Outbound is a callback.** `POST /calls/:id/callback` rings the other party of a D2 call;
+  no route takes a typed destination. Every gate is `decideOutbound()`
+  (`modules/outbound/outbound.decide.ts`, pure, one order) and `GET /calls/:id/callback` is
+  the same verdict without placing. A refusal writes `audit_log` `call.outbound_blocked`
+  (reason, number masked to `+1••••••••23`, request id) and **nothing else** — no
+  `outbound_calls`, `calls` or ledger row, no platform request. Test calls ("Call my
+  phone", forwarding test) are not outbound in this sense and are not gated.
+- **KYC and caller-ID verdicts are staff's.** `tenants.kyc_status` (customer may only set
+  `pending`) and `phone_numbers.caller_id_verified_at` are refused from `portal_app` by the
+  `guard_outbound_verdicts` trigger, not only by the service. A bought number is verified at
+  `bind` (`via = purchase`); a SIP import only by staff; `via = staff` is never overwritten.
+- **The daily cap is a row count under a lock**, not Redis: `pg_advisory_xact_lock('outbound:<ws>')`,
+  `outbound_calls` of the workspace-local day in `pending|placed`, idempotency key re-read
+  under it. A provider failure marks the attempt `failed` (uncounted) and frees the `MintSlot`.
+- **The calling window holds in every zone of the destination's country**
+  (`outbound.countries` in the pricing config; US 8–21, CA 9–21:30 / weekends 10–18). Never
+  model DST — each zone's wall clock via `localClock`. No rule = not callable.
+- **No national DNC registry**: a callback needs an inbound call from that number within
+  `outbound.prior_contact_days` (90); the workspace's `dnc_entries` and the platform's
+  `blocklists` (type `phone`) apply on top. Legal sign-off is pending (ADR 0031 §3–§4); the
+  `outbound_calls` flag stays at 0 % until then.
+- Billing is the ordinary path: published version at the live tier rate, `call_ended` bills
+  once on `call_id`; the API pre-writes the `registered` row (`recordOutboundPlaced`).
+- **No answer from the platform is not a failure** (ADR 0031 addendum). Only a 4xx marks
+  an attempt `failed`. A timeout, a reset or a 5xx leaves it `pending` (`unconfirmed`), and
+  its key answers `OUTBOUND_IN_PROGRESS`, because the person may be ringing. The first
+  lifecycle event carrying `metadata.outbound_id` binds the attempt to its call
+  (`bindOutboundAttempt`). A `pending` attempt with no call stops counting after
+  `UNCONFIRMED_ATTEMPT_MS` (5 min), and the next claim writes it off. The `MintSlot` line
+  is taken **before** the claim, so a lost race writes no `outbound_calls` row. The
+  callback carries the caller ID's `transfer_number_N` and fail message
+  (`numberTransferVariables`, the same reader the runtime cache and "Call my phone" use).
 
 **Knowledge use (D16, ADR 0028)**
 
@@ -998,8 +1054,8 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `has_password`) — provider identity is not on the PATCH shape. D6 is
   `/app/settings/?tab=` (`SETTINGS_TABS`); the audit tab is owner/admin only.
 - **What the dashboard does not offer, on purpose** (ADR 0019 §8): payment methods are
-  the Stripe Customer Portal only; export/delete workspace is a `mailto:` to support
-  (staff job, §17); status page and support chat are `NEXT_PUBLIC_STATUS_PAGE_URL`
+  the Stripe Customer Portal only; deleting a workspace is a request staff carry out
+  (§17 job; the button files it, ADR 0032 §6); status page and support chat are `NEXT_PUBLIC_STATUS_PAGE_URL`
   (`https:` only, optional) and `NEXT_PUBLIC_SUPPORT_EMAIL` (default `support@oraly.ai`)
   in `src/config.ts`; SMS and the weekly summary have no sender and are not shown;
   Help's status is `GET /health/ready`. Pricing copy on Help comes from `GET /pricing`.
@@ -1288,11 +1344,12 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `lock:schedule:{name}`       | one worker per running §13.11 tick, `SET NX`, TTL 2× the interval (D7)                                                  |
 | `worker:heartbeat`           | the worker's liveness beacon, refreshed every 30 s, read by `GET /health/ready` (D7)                                    |
 | `alert:platform_concurrency` | the open platform-wide concurrency incident, so ops is paged once per incident; held a day at most (D7)                 |
-| `admin:health:{provider}`    | the health strip's cached Retell / Stripe probe, 60 s (D12)                                                            |
+| `admin:health:{provider}`    | the health strip's Retell / Stripe probe: fresh 60 s, then served while refreshed behind the response, kept 10 min (D12, ADR 0032) |
 | `ratelimit:api:{ip}:{min}`   | API requests from one client IP in one epoch minute, TTL 2 min (D14, ADR 0025)                                          |
 | `ratelimit:sip-verify:{ws}`  | SIP re-verify checks this hour, per workspace (D16, ADR 0028)                                                           |
 | `fwdtest:{e164}`             | the "Test forwarding" ringing for a number, `SET NX` 90 s — the lease and the inbound path's cue (D17, ADR 0029)        |
 | `ratelimit:fwd-test:{number}` | forwarding tests this hour, per number (D17)                                                                           |
+| `ratelimit:data-export:{ws}` | D6 "Export all data" zips this hour, 5 max (ADR 0032)                                                                    |
 | `ratelimit:widget:{key}` / `ratelimit:widget-ip:{key}:{ip}` | website widget calls per widget per hour / per visitor address per 10 min (D17)          |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never
@@ -1428,6 +1485,26 @@ throws and never waits past its budget (ADR 0010 §6).
   owner/admin), and the public `GET /widget/:key` + `POST /widget/:key/call {page_origin}`
   (`ORIGIN_NOT_ALLOWED`, `RATE_LIMITED`, and one `409 WIDGET_UNAVAILABLE` for every state a
   stranger should not learn). `GET /stats` answers `by_channel: {phone, web}`.
+- D18 routes (ADR 0031, tag `outbound`): `GET|POST /calls/:id/callback` (check: any member;
+  place: owner/admin/editor, verified email; `{idempotency_key, number_id?}`; codes
+  `OUTBOUND_DISABLED`, `KYC_REQUIRED|PENDING|REJECTED`, `OUTBOUND_NOT_CONFIGURED`,
+  `CALLER_ID_REQUIRED|UNVERIFIED`, `DESTINATION_INVALID`, `DNC_LISTED`, `NO_PRIOR_CONTACT`,
+  `OUTSIDE_CALLING_WINDOW`, `OUTBOUND_DAILY_CAP`, `OUTBOUND_IN_PROGRESS` beside the existing
+  ones), `GET /outbound`, `PUT /outbound/settings` and `POST /outbound/kyc` (owner/admin),
+  `GET|POST /dnc` (add: editor+), `DELETE /dnc/:id` (owner/admin); staff
+  `GET|POST /admin/customers/:id/kyc` and `POST /admin/numbers/:id/caller-id`
+  (`STAFF_ROUTE_ROLES.compliance` = super admin, ops).
+- ADR 0032 routes (28 Oct QA batch): `POST /agents/:id/duplicate {name?}`,
+  `POST /agents/:id/draft/discard` (`NO_DRAFT_CHANGES`), `POST /agents/:id/versions` (save
+  as new version) — editor+; `POST /agents` and duplicate answer `WORKSPACE_PAUSED` and,
+  once onboarding is complete (duplicate: always), `PLAN_LIMIT` past `max_agents`;
+  `PATCH /numbers/:id {transfer_fail_message}`; `GET /wallet/ledger?reason=`,
+  `POST /wallet/ledger/export` (owner/admin, CSV, `client: false`); `POST /workspace/export`
+  (owner/admin, verified, zip, `RATE_LIMITED`); `GET|POST|DELETE /workspace/delete-request`
+  (read: any member; request/withdraw: owner, verified, `{confirm}` = the workspace name —
+  files a `data_requests` row + an SA4 ticket + an ops alert and deletes **nothing**);
+  `recordingResponse.download_url` (owner/admin) and `…/recording/stream?download=1`
+  (download-purpose token only); `VERSION_NOT_TESTABLE` on both test mints.
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 
@@ -1436,7 +1513,8 @@ throws and never waits past its budget (ADR 0010 §6).
 Portal (§15): `users, tenants, memberships, invites, audit_log, notification_settings, templates,
 agents, agent_versions, voices, knowledge_sources, phone_plans, phone_numbers, calls, credit_lots,
 credit_ledger, purchases, packs, webhook_events, jobs, alerts`, plus since D7 `notifications`
-(the outbox) and `reconciliation_runs` (global, staff-only).
+(the outbox) and `reconciliation_runs` (global, staff-only), and since D18 `outbound_calls`
+and `dnc_entries`.
 
 Admin (§8): `staff_users, staff_role_limits, pricing_drafts, pricing_configs, stripe_price_map,
 promo_codes, custom_deals, tenant_overrides, agent_stack_configs, retell_cost_inputs,
@@ -1564,7 +1642,10 @@ knowledge W4 → auto top-up → team and invites.
   hysteresis, webhook ordering / replay / decline for both providers, and the RLS matrix over
   every D6/D7 table (`test/d7-*.e2e.test.ts`, `backend/db/test/rls.e2e.test.ts`); from D17 — the
   "Call my phone" gates, the forwarding test's hot-path decline and stale-job safety, and
-  the widget's public refusals and exit check (`test/d17-channels.e2e.test.ts`); from D9 —
+  the widget's public refusals and exit check (`test/d17-channels.e2e.test.ts`); from D18 —
+every outbound refusal (no platform request, an audit row, no call or ledger row), the
+staff-only verdicts, the cap under concurrent presses, idempotency and billing once
+(`test/d18-outbound.e2e.test.ts`); from D9 —
   the test-call mint (draft re-sync, credits, rate limit, kill switch, roles, isolation) and
   the live-transcript relay's authorisation and frame filter (`test/d9-test-call.e2e.test.ts`,
   `live-transcript.relay.test.ts`); from D10 — server-side sort with a stable cursor, the

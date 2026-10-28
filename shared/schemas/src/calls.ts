@@ -228,6 +228,12 @@ export type CallDetail = z.infer<typeof callDetail>;
 export const recordingResponse = z.object({
   url: z.string(),
   expires_at: isoDateTime,
+  /**
+   * The same recording served as a file (`Content-Disposition: attachment`), on its own
+   * signed link with the same expiry. Owner/admin only (spec D2 "Download (Owner/Admin)",
+   * QA-077); null for an editor, whose token the stream refuses to serve as a download.
+   */
+  download_url: z.string().nullable().default(null),
 });
 export type RecordingResponse = z.infer<typeof recordingResponse>;
 

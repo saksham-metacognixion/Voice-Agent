@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { Prisma, adminDb, type DeclineReason } from '@portal/db';
+import { Prisma, adminDb, type DeclineReason, withWorkspace } from '@portal/db';
 import type { AgentTier } from '@portal/schemas';
 import { EventsService } from '../events';
 import { type InboundDecisionJob, JobQueues } from '../jobs';
@@ -118,6 +118,63 @@ export class CallsService {
     return { created: count === 1, callId: job.callId };
   }
 
+  /**
+   * D18: the `calls` row for an outbound callback the platform has just accepted, written by
+   * the API (not a job: there is no hot path to protect) so D2 shows the call from the
+   * first second. `registered` until `call_started`; the rate and the config version are
+   * captured **here**, once — the row's creator captures them (ADR 0011 §4) — and
+   * `call_ended` bills at them like any call. `skipDuplicates`: a lifecycle event that
+   * overtook this write already created the row from the same metadata, and wins.
+   */
+  async recordOutboundPlaced(input: {
+    callId: string;
+    workspaceId: string;
+    agentId: string;
+    agentVersion: number | null;
+    numberId: string;
+    fromNumber: string;
+    toNumber: string;
+    tier: AgentTier;
+    rate: number;
+    configVersion: number;
+  }): Promise<{ created: boolean }> {
+    // The customer's own request path, so the customer's connection (RLS) — no reason to cross workspaces.
+    const { count } = await withWorkspace(input.workspaceId, (db) =>
+      db.call.createMany({
+        data: [
+          {
+            id: input.callId,
+            tenantId: input.workspaceId,
+            agentId: input.agentId,
+            agentVersion: input.agentVersion,
+            numberId: input.numberId,
+            channel: 'phone',
+            direction: 'outbound',
+            isTest: false,
+            fromNumber: input.fromNumber,
+            toNumber: input.toNumber,
+            tier: input.tier,
+            rate: new Prisma.Decimal(input.rate),
+            configVersion: input.configVersion,
+            status: 'registered',
+          },
+        ],
+        skipDuplicates: true,
+      }),
+    );
+    if (count === 1) {
+      await this.publishCall(input.workspaceId, input.callId, 'registered', {
+        from_number: input.fromNumber,
+        to_number: input.toNumber,
+        agent_id: input.agentId,
+        channel: 'phone',
+        direction: 'outbound',
+        is_test: false,
+      });
+    }
+    return { created: count === 1 };
+  }
+
   // ---------------------------------------------------------------- lifecycle (§13.10)
 
   async handleLifecycle(event: RetellLifecycleEvent): Promise<LifecycleOutcome> {
@@ -135,6 +192,7 @@ export class CallsService {
     // row exists now, so its leg is settled here. A no-op for the (nearly all) calls that
     // were never transferred: one indexed read of this call's stored events.
     if (outcome.outcome !== 'ignored') await this.settleTransfer(event.call.call_id);
+    if (outcome.outcome !== 'ignored') await this.bindOutboundAttempt(event.call);
     // D16: what the agent looked up. Its own job — a slow CDN must not hold this webhook.
     if (outcome.outcome !== 'ignored' && event.event !== 'call_started' && usedKnowledge(event.call)) {
       await this.queues.enqueueCallKnowledge(event.call.call_id);
@@ -525,6 +583,29 @@ export class CallsService {
 
     await this.publishCall(workspaceId, call.call_id, 'analyzed', { outcome: outcomeOf(analysis) });
     return { outcome: 'analyzed', callId: call.call_id, retellCostCents };
+  }
+
+  /**
+   * D18: a callback's lifecycle events name its `outbound_calls` attempt
+   * (`metadata.outbound_id`). Bound here, the attempt is `placed` even when the API never
+   * heard the platform's answer — a timeout, a restart between the request and the reply —
+   * so its idempotency key replays this call instead of ringing the person again, and it
+   * counts toward the day's cap. Only within the workspace the call row belongs to; a
+   * failure is logged, never retried (it moves no credits, and a retry would loop).
+   */
+  private async bindOutboundAttempt(call: RetellCallFacts): Promise<void> {
+    const outboundId = metadataOf(call).outbound_id;
+    if (typeof outboundId !== 'string' || !UUID_RE.test(outboundId)) return;
+    try {
+      const row = await adminDb.call.findUnique({ where: { id: call.call_id }, select: { tenantId: true, direction: true } });
+      if (!row || row.direction !== 'outbound') return;
+      await adminDb.outboundCall.updateMany({
+        where: { id: outboundId, tenantId: row.tenantId, callId: null, status: { in: ['pending', 'failed'] } },
+        data: { status: 'placed', callId: call.call_id, failure: null },
+      });
+    } catch (error) {
+      this.log.warn(`${call.call_id}: outbound attempt ${outboundId} not bound: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   // ---------------------------------------------------------------- helpers

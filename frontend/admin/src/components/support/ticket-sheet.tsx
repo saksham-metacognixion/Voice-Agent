@@ -11,7 +11,7 @@ import Link from 'next/link';
 import * as React from 'react';
 import { DetailSheet } from '@/src/components/common/detail-sheet';
 import { PermissionButton } from '@/src/components/common/permission-button';
-import { Fact, FactGrid, LoadError } from '@/src/components/common/query-states';
+import { Fact, FactGrid, LoadError, pollUnlessError } from '@/src/components/common/query-states';
 import { CannedResponsesDialog } from '@/src/components/support/canned-responses-dialog';
 import { CompCreditsDialog, RefundCallDialog, RerunActivationDialog, type MacroKind } from '@/src/components/support/macro-dialogs';
 import { SlaCell, TicketPriorityBadge, TicketStatusBadge } from '@/src/components/support/ticket-badges';
@@ -24,10 +24,10 @@ import { useStaff } from '@/src/staff/staff-provider';
 /** SA4 ticket detail as a right-hand drawer: `/support/?id=<n>`. */
 export function TicketSheet({ id, onClose }: { id: string | null; onClose: () => void }) {
   const api = useApi();
-  const ticket = useAdminGetTicket(api, { id: id ?? '' }, { enabled: Boolean(id), refetchInterval: 30_000 });
+  const ticket = useAdminGetTicket(api, { id: id ?? '' }, { enabled: Boolean(id), refetchInterval: pollUnlessError(30_000) });
   return (
     <DetailSheet open={Boolean(id)} onOpenChange={(o) => (o ? undefined : onClose())} title={ticket.data ? `#${ticket.data.id} · ${ticket.data.subject}` : `Ticket #${id ?? ''}`} description={ticket.data ? ticket.data.tenant.name : undefined}>
-      {ticket.isPending ? <Skeleton className="h-64" aria-busy /> : ticket.isError ? <LoadError error={ticket.error} onRetry={() => void ticket.refetch()} compact /> : <TicketDetail t={ticket.data} />}
+      {ticket.isPending ? <Skeleton className="h-64" aria-busy /> : ticket.isError ? <LoadError error={ticket.error} onRetry={() => void ticket.refetch()} back={{ onClick: onClose, label: 'Back to tickets' }} compact /> : <TicketDetail t={ticket.data} />}
     </DetailSheet>
   );
 }

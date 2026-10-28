@@ -5,6 +5,7 @@ import { resolvePublicAddress } from '../../common/http/public-address';
 import { RetellConfig } from './retell.config';
 import { type RetellCallFacts, retellCallFacts } from './retell-webhook';
 import type { AgentSpec, AllowOptions, InboundAllow, InboundDecline, KnowledgeSourcesInput, LlmSpec, TransferTarget } from './retell.types';
+import { piiConfigFor } from './retell.types';
 
 /**
  * The version tag every phone number is bound to (§9.9, ADR 0003 §7). Retell resolves it
@@ -175,6 +176,7 @@ export class RetellGateway {
       post_call_analysis_data: spec.postCallAnalysis,
       post_call_analysis_model: spec.postCallAnalysisModel,  // typed by AgentSpec; see retell.types.ts
       denoising_mode: spec.denoisingMode,
+      pii_config: piiConfigFor(spec.piiRemoval),
       stt_mode: spec.sttMode,
       timezone: spec.timezone,
       // Ours, always. The account-level webhook is ignored once this is set.
@@ -230,7 +232,15 @@ export class RetellGateway {
     });
   }
 
-  /** Outbound (Phase 2, §14.2). Same balance/cap checks as inbound happen before this. */
+  /**
+   * Outbound (Phase 2, §14.2). Same balance/cap checks as inbound happen before this.
+   *
+   * `voicemail` (D18) is the platform's per-call `voicemail_option`: `undefined` leaves the
+   * agent's own setting alone (the test calls), `null` turns detection off for this call,
+   * and an action detects a voicemail box in the first minutes and hangs up or leaves the
+   * text. It rides on `agent_override`, so the agent and its published version are
+   * untouched (ADR 0031 §5).
+   */
   createPhoneCall(input: {
     fromNumber: string;
     toNumber: string;
@@ -239,17 +249,22 @@ export class RetellGateway {
     agentVersion?: number;
     metadata?: Record<string, unknown>;
     maxCallDurationMs?: number;
+    voicemail?: VoicemailAction | null;
+    /** Per-call LLM variables over the agent's defaults (QA-083: `transfer_fail_message`). */
+    dynamicVariables?: Record<string, string>;
   }) {
+    const agent = {
+      ...(input.maxCallDurationMs === undefined ? {} : { max_call_duration_ms: input.maxCallDurationMs }),
+      ...(input.voicemail === undefined ? {} : { voicemail_option: voicemailOption(input.voicemail) }),
+    };
     return this.client.call.createPhoneCall({
       from_number: input.fromNumber,
       to_number: input.toNumber,
       override_agent_id: input.agentId,
       override_agent_version: input.agentVersion,
       metadata: input.metadata,
-      agent_override:
-        input.maxCallDurationMs === undefined
-          ? undefined
-          : { agent: { max_call_duration_ms: input.maxCallDurationMs } },
+      retell_llm_dynamic_variables: input.dynamicVariables,
+      agent_override: Object.keys(agent).length ? { agent } : undefined,
     });
   }
 
@@ -653,4 +668,13 @@ export function transferCallTools(transfers: readonly TransferTarget[]): Retell.
 
 function clip(text: string, max: number): string {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+}
+
+/** D18: what an outbound call does on reaching a voicemail box (`createPhoneCall`). */
+export type VoicemailAction = { action: 'hang_up' } | { action: 'leave_message'; text: string };
+
+/** Our voicemail action as the platform's `voicemail_option`; `null` = no detection. */
+export function voicemailOption(action: VoicemailAction | null): Retell.CallCreatePhoneCallParams.AgentOverride.Agent['voicemail_option'] {
+  if (!action) return null;
+  return action.action === 'hang_up' ? { action: { type: 'hangup' } } : { action: { type: 'static_text', text: action.text } };
 }

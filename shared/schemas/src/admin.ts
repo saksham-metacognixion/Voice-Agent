@@ -8,6 +8,7 @@ import { jobStatus } from './agents.js';
 import { ledgerEntryResponse, purchaseStatus } from './wallet.js';
 import { isTimeZone } from './business-hours.js';
 import { assignableRole, countryCode } from './workspaces.js';
+import { callerIdVia, kycDetails, kycStatus } from './outbound.js';
 
 /*
  * Admin console (admin spec §4, §9 — D12). Every shape a staff route reads or answers
@@ -318,6 +319,9 @@ export const adminNumberResponse = z.object({
   rental_overdue_since: isoDateTime.nullable(),
   error: z.string().nullable(),
   calls_7d: z.number().int(),
+  /** D18: may be shown as an outbound caller ID. Defaulted so an older console still parses. */
+  caller_id_verified: z.boolean().default(false),
+  caller_id_verified_via: callerIdVia.nullable().default(null),
   created_at: isoDateTime,
 });
 export type AdminNumberResponse = z.infer<typeof adminNumberResponse>;
@@ -394,6 +398,45 @@ export const adminCustomerUpdateRequest = z
     { message: 'Change at least one field.', path: ['name'] },
   );
 export type AdminCustomerUpdateRequest = z.infer<typeof adminCustomerUpdateRequest>;
+
+/** GET /admin/customers/:id/kyc — D18 business verification, as submitted (ADR 0031 §1). */
+export const adminKycResponse = z.object({
+  tenant_id: uuid,
+  tenant_name: z.string(),
+  status: kycStatus,
+  submitted_at: isoDateTime.nullable(),
+  decided_at: isoDateTime.nullable(),
+  reason: z.string().nullable(),
+  details: kycDetails.nullable(),
+});
+export type AdminKycResponse = z.infer<typeof adminKycResponse>;
+
+/**
+ * POST /admin/customers/:id/kyc — staff approve or reject the submission. A rejection
+ * carries the sentence the customer reads (`customer_reason`); the audit note stays ours.
+ * `verified` may also be withdrawn later with `rejected`, which stops outbound at once.
+ */
+export const adminKycDecisionRequest = z
+  .object({
+    ...staffActionFields,
+    decision: z.enum(['verified', 'rejected']),
+    customer_reason: z.string().trim().min(1).max(300).optional(),
+  })
+  .refine(noteWithOther, noteWithOtherIssue)
+  .refine((v) => v.decision !== 'rejected' || Boolean(v.customer_reason), {
+    message: 'Tell the customer why.',
+    path: ['customer_reason'],
+  });
+export type AdminKycDecisionRequest = z.infer<typeof adminKycDecisionRequest>;
+
+/**
+ * POST /admin/numbers/:id/caller-id — D18: confirm a SIP import is the customer's to show as
+ * a caller ID (an LOA or a bill seen by staff), or revoke any number's (spam complaints).
+ */
+export const adminCallerIdRequest = z
+  .object({ ...staffActionFields, verified: z.boolean() })
+  .refine(noteWithOther, noteWithOtherIssue);
+export type AdminCallerIdRequest = z.infer<typeof adminCallerIdRequest>;
 
 /**
  * PATCH /admin/customers/:id/members/:mid — a member's role, as the customer's own
@@ -1014,4 +1057,6 @@ export const STAFF_ROUTE_ROLES = {
   viewAs: ['super_admin', 'ops', 'finance', 'support'],
   /** A stored webhook body (QA-033); its contents are narrowed again by `can_listen_recordings`. */
   payloadView: ['super_admin', 'ops', 'finance', 'support'],
+  /** D18: a business verification verdict and a caller ID verified or revoked — compliance decisions. */
+  compliance: ['super_admin', 'ops'],
 } as const satisfies Record<string, ReadonlyArray<z.infer<typeof staffRole>>>;

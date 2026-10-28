@@ -17,6 +17,7 @@ import { CryptoModule } from '../src/modules/crypto';
 import { KnowledgeModule } from '../src/modules/knowledge';
 import { NotificationsModule } from '../src/modules/notifications';
 import { NumbersModule } from '../src/modules/numbers';
+import { OutboundModule } from '../src/modules/outbound';
 import { BillingModule } from '../src/modules/billing';
 import { CallsModule } from '../src/modules/calls';
 import { PlatformConfigModule } from '../src/modules/config';
@@ -327,7 +328,15 @@ export class FakeRetellGateway {
   }
 
   /** D17 outbound: "Call my phone" and the forwarding test. The platform answers with the registered call. */
-  createPhoneCall(input: { fromNumber: string; toNumber: string; agentId?: string; agentVersion?: number; metadata?: Record<string, unknown>; maxCallDurationMs?: number }) {
+  createPhoneCall(input: {
+    fromNumber: string;
+    toNumber: string;
+    agentId?: string;
+    agentVersion?: number;
+    metadata?: Record<string, unknown>;
+    maxCallDurationMs?: number;
+    voicemail?: { action: 'hang_up' } | { action: 'leave_message'; text: string } | null;
+  }) {
     return this.record('createPhoneCall', [input], () => ({
       call_id: `call_out_${Math.random().toString(16).slice(2, 14)}`,
       call_type: 'phone_call',
@@ -609,6 +618,7 @@ export class CapturingAlerts {
     KnowledgeModule,
     NotificationsModule,
     NumbersModule,
+    OutboundModule,
     ActivationModule,
     VoicesModule,
     WebhooksModule,

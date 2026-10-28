@@ -3,6 +3,7 @@ import { adminDb } from '@portal/db';
 import { type AgentTier, businessHours, type BusinessHours, rateForTier } from '@portal/schemas';
 import { PlatformConfigService } from '../config';
 import { RedisCache, redisKeys } from '../redis';
+import { briefTransferNumbers, numberTransferTargets, spokenTransferFailMessage } from '../prompting/staff-transfer';
 import { agentStackTiers, type AgentStackTiers } from '../retell';
 import { WalletService } from '../wallet';
 import { NUMBER_RECORD_VERSION, type NumberRecord, normalisePhone } from './number-record';
@@ -55,7 +56,7 @@ export class RuntimeCacheService {
     const [numbers, globalBlocklist, stack, pricing] = await Promise.all([
       adminDb.phoneNumber.findMany({
         where: { tenantId: workspaceId },
-        include: { agent: { select: { id: true, name: true, tier: true, status: true, retellAgentId: true, maxCallDurationS: true } } },
+        include: { agent: { select: { id: true, name: true, tier: true, status: true, retellAgentId: true, maxCallDurationS: true, publishedVersion: true } } },
       }),
       this.globalPhoneBlocklist(),
       this.stackTiers(),
@@ -69,6 +70,7 @@ export class RuntimeCacheService {
     ]);
 
     const tenantHours = parseHours(tenant.businessHoursJson);
+    const briefs = await this.publishedBriefs(numbers.map((n) => n.agent));
     let removed = 0;
     let written = 0;
     for (const number of numbers) {
@@ -102,7 +104,13 @@ export class RuntimeCacheService {
         hours_mode: number.hoursMode,
         hours: number.hoursMode === 'custom' ? parseHours(number.hoursOverrideJson) : number.hoursMode === 'business' ? tenantHours : null,
         blocklist: [...new Set([...number.blocklist, ...globalBlocklist].map(normalisePhone).filter(Boolean))],
-        transfer_numbers: transferNumbers(number.transferTargetsJson),
+        transfer_numbers: numberTransferTargets(number.transferTargetsJson),
+        // The brief's numbers too: they are the `transfer_number_N` defaults wherever the
+        // number sets none, so the call can dial them and the message must not say them.
+        transfer_fail_message: spokenTransferFailMessage(number.transferFailMessage, [
+          ...numberTransferTargets(number.transferTargetsJson),
+          ...briefTransferNumbers(number.agent ? briefs.get(number.agent.id) : undefined),
+        ]),
         refreshed_at: new Date().toISOString(),
       };
       if (await this.cache.setJson(redisKeys.number(number.e164), record, NUMBER_TTL_S)) written += 1;
@@ -145,6 +153,17 @@ export class RuntimeCacheService {
     return { workspaces: owners.length, numbers };
   }
 
+  /** The published brief of each agent, which the number runs (`latest_published`). */
+  private async publishedBriefs(agents: ReadonlyArray<{ id: string; publishedVersion: number | null } | null>): Promise<Map<string, unknown>> {
+    const pairs = [...new Map(agents.flatMap((a) => (a && a.publishedVersion !== null ? [[a.id, a.publishedVersion] as const] : []))).entries()];
+    if (!pairs.length) return new Map();
+    const rows = await adminDb.agentVersion.findMany({
+      where: { OR: pairs.map(([agentId, versionNo]) => ({ agentId, versionNo })) },
+      select: { agentId: true, briefJson: true },
+    });
+    return new Map(rows.map((r) => [r.agentId, r.briefJson]));
+  }
+
   private async globalPhoneBlocklist(): Promise<string[]> {
     const rows = await adminDb.blocklist.findMany({
       where: { type: 'phone', OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] },
@@ -175,16 +194,4 @@ export function planMaxMs(agentMaxS: number | null, stack: AgentStackTiers | nul
   const stackMax = stack?.[tier]?.max_call_duration_ms;
   if (stackMax && stackMax > 0) candidates.push(stackMax);
   return candidates.length ? Math.min(...candidates) : null;
-}
-
-function transferNumbers(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const out: string[] = [];
-  for (const item of value) {
-    if (typeof item === 'string') out.push(item);
-    else if (typeof item === 'object' && item !== null && typeof (item as { number?: unknown }).number === 'string') {
-      out.push((item as { number: string }).number);
-    }
-  }
-  return out;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoTopupBody, balanceTone, expiringSoon, ledgerLink, usageSummary } from './wallet-view';
+import { LEDGER_REASONS, autoTopupBody, balanceTone, expiringSoon, ledgerLink, ledgerReasonParam, usageSummary } from './wallet-view';
 
 describe('balanceTone (§7.2)', () => {
   it('is amber under 20 % of the last pack and red at or below zero', () => {
@@ -30,6 +30,19 @@ describe('usageSummary', () => {
     const points = [0, 3, 0, 1.2].map((credits, i) => ({ date: `2026-09-0${i + 1}`, calls: 0, missed: 0, minutes: 0, credits }));
     expect(usageSummary(points)).toEqual({ total: 4.2, perDay: 1.1 });
     expect(usageSummary([])).toEqual({ total: 0, perDay: 0 });
+  });
+});
+
+describe('ledgerReasonParam (QA-080)', () => {
+  it('reads every reason the filter offers', () => {
+    for (const reason of LEDGER_REASONS) expect(ledgerReasonParam(reason)).toBe(reason);
+  });
+  it('reads anything else as everything', () => {
+    expect(ledgerReasonParam(null)).toBeNull();
+    expect(ledgerReasonParam('')).toBeNull();
+    expect(ledgerReasonParam('all')).toBeNull();
+    expect(ledgerReasonParam('CALL')).toBeNull();
+    expect(ledgerReasonParam('constructor')).toBeNull();
   });
 });
 

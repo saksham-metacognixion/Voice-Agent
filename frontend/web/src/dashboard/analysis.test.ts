@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { capturedFields, parseAnalysis, sentimentOf, transcriptTurns } from './analysis';
+import { capturedFields, parseAnalysis, sentimentOf, transcriptPlainText, transcriptTurns } from './analysis';
 
 describe('parseAnalysis', () => {
   it('reads the platform fields leniently and keeps the captured data', () => {
@@ -36,5 +36,16 @@ describe('transcriptTurns', () => {
   it('is empty with nothing to read', () => {
     expect(transcriptTurns(null, null)).toEqual([]);
     expect(transcriptTurns([], '  ')).toEqual([]);
+  });
+});
+
+describe('transcriptPlainText (QA-077)', () => {
+  it('labels every turn with its speaker, one line each', () => {
+    const turns = transcriptTurns([{ role: 'agent', content: 'Maple Dental, how can I help?' }, { role: 'user', content: 'I need a cleaning.' }], null);
+    expect(transcriptPlainText(turns, { agent: 'Maple', caller: 'Caller' })).toBe('Maple: Maple Dental, how can I help?\nCaller: I need a cleaning.');
+  });
+
+  it('is empty for no turns', () => {
+    expect(transcriptPlainText([], { agent: 'Agent', caller: 'Caller' })).toBe('');
   });
 });

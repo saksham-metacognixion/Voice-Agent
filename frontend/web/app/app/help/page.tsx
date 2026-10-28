@@ -1,13 +1,13 @@
 'use client';
 
 import { isApiError, useApi, useGetPricing, useGetReadiness, useListCalls } from '@portal/api-client';
-import type { CallSummary, Carrier } from '@portal/schemas';
+import type { Carrier } from '@portal/schemas';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Skeleton, cn } from '@portal/ui';
 import { Activity, BookOpen, ExternalLink, Network, PhoneForwarded, PhoneIncoming, Receipt, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
-import { track } from '@/src/analytics/posthog';
+import { ReportCallButton } from '@/src/components/dashboard/report-call';
 import { ContactSupportCard, MyTicketsCard } from '@/src/components/dashboard/support-tickets';
 import { callerLabel } from '@/src/dashboard/caller';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
@@ -204,7 +204,11 @@ function StatusRow({ label, up }: { label: string; up: boolean | null }) {
   );
 }
 
-/** "Report a call" (spec p. 39): pick one of the latest calls; the email carries its id and time so support can find it. */
+/**
+ * "Report a call" (spec p. 39): pick one of the latest calls. `ReportCallButton` is the
+ * D2 drawer's "Report a problem" too (QA-077): a support ticket with the call attached,
+ * or for a viewer the email carrying its id and time.
+ */
 function ReportCallCard() {
   const t = useTranslations('dashboard.help');
   const tl = useTranslations('dashboard.calls');
@@ -212,13 +216,6 @@ function ReportCallCard() {
   const ws = useWorkspace();
   const calls = useListCalls(api, { limit: 5, sort: 'started_at', order: 'desc' }, { staleTime: 30_000 });
   const tz = ws.workspace?.timezone;
-
-  const mailto = (c: CallSummary) => {
-    const when = formatDateTime(c.started_at ?? c.created_at, tz);
-    const caller = callerLabel(c, tl);
-    const body = `${t('reportLine', { id: c.id, when, caller })}\n\n${t('reportPrompt')}\n`;
-    return `mailto:${config.support.email}?subject=${encodeURIComponent(t('reportSubject', { id: c.id }))}&body=${encodeURIComponent(body)}`;
-  };
 
   return (
     <Card id="report">
@@ -241,11 +238,7 @@ function ReportCallCard() {
                   <span className="truncate font-medium tabular-nums">{callerLabel(c, tl)}</span>
                   <span className="text-xs text-muted-foreground tabular-nums">{formatDateTime(c.started_at ?? c.created_at, tz)}</span>
                 </Link>
-                <Button variant="outline" size="sm" asChild>
-                  <a href={mailto(c)} onClick={() => track('call_reported')}>
-                    {t('report')}
-                  </a>
-                </Button>
+                <ReportCallButton call={c} from="help" />
               </li>
             ))}
           </ul>
