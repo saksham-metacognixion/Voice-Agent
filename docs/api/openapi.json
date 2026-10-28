@@ -784,6 +784,90 @@
         ],
         "type": "object"
       },
+      "adminBreakageReport": {
+        "properties": {
+          "by_day": {
+            "items": {
+              "properties": {
+                "credits": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "day": {
+                  "type": "string"
+                },
+                "value_cents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "day",
+                "currency",
+                "credits",
+                "value_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lots": {
+            "type": "integer"
+          },
+          "paid": {
+            "items": {
+              "properties": {
+                "credits": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "value_cents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "currency",
+                "credits",
+                "value_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "range": {
+            "enum": [
+              "7d",
+              "30d",
+              "90d"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "unpaid_credits": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "range",
+          "from",
+          "to",
+          "lots",
+          "paid",
+          "unpaid_credits",
+          "by_day"
+        ],
+        "type": "object"
+      },
       "adminCallFlagRequest": {
         "properties": {
           "flagged": {
@@ -1130,6 +1214,126 @@
         "required": [
           "title",
           "body"
+        ],
+        "type": "object"
+      },
+      "adminCogsReport": {
+        "properties": {
+          "avg_price_cents_per_credit": {
+            "nullable": true,
+            "type": "number"
+          },
+          "billed_seconds": {
+            "type": "integer"
+          },
+          "by_day": {
+            "items": {
+              "properties": {
+                "calls": {
+                  "type": "integer"
+                },
+                "credits_billed": {
+                  "type": "number"
+                },
+                "day": {
+                  "type": "string"
+                },
+                "platform_cost_cents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "day",
+                "calls",
+                "credits_billed",
+                "platform_cost_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "by_tier": {
+            "items": {
+              "properties": {
+                "calls": {
+                  "type": "integer"
+                },
+                "credits_billed": {
+                  "type": "number"
+                },
+                "platform_cost_cents": {
+                  "type": "integer"
+                },
+                "tier": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "tier",
+                "calls",
+                "credits_billed",
+                "platform_cost_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "calls": {
+            "type": "integer"
+          },
+          "calls_without_cost": {
+            "type": "integer"
+          },
+          "credits_billed": {
+            "type": "number"
+          },
+          "estimated_margin_pct": {
+            "nullable": true,
+            "type": "number"
+          },
+          "estimated_revenue_cents": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "platform_cost_cents": {
+            "type": "integer"
+          },
+          "price_currency": {
+            "nullable": true,
+            "type": "string"
+          },
+          "range": {
+            "enum": [
+              "7d",
+              "30d",
+              "90d"
+            ],
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "range",
+          "from",
+          "to",
+          "calls",
+          "calls_without_cost",
+          "billed_seconds",
+          "credits_billed",
+          "platform_cost_cents",
+          "by_tier",
+          "by_day",
+          "avg_price_cents_per_credit",
+          "price_currency",
+          "estimated_revenue_cents",
+          "estimated_margin_pct"
         ],
         "type": "object"
       },
@@ -1965,6 +2169,76 @@
         ],
         "type": "object"
       },
+      "adminDeferredReport": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "by_expiry_month": {
+            "items": {
+              "properties": {
+                "credits": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "month": {
+                  "type": "string"
+                },
+                "value_cents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "month",
+                "currency",
+                "credits",
+                "value_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "paid": {
+            "items": {
+              "properties": {
+                "credits": {
+                  "type": "number"
+                },
+                "currency": {
+                  "type": "string"
+                },
+                "value_cents": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "currency",
+                "credits",
+                "value_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "unpaid_credits": {
+            "type": "number"
+          },
+          "workspaces": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "as_of",
+          "workspaces",
+          "paid",
+          "unpaid_credits",
+          "by_expiry_month"
+        ],
+        "type": "object"
+      },
       "adminFailedTopup": {
         "properties": {
           "alert_open": {
@@ -2458,6 +2732,95 @@
           "can_retry",
           "can_discard",
           "steps"
+        ],
+        "type": "object"
+      },
+      "adminKbResponse": {
+        "properties": {
+          "agent_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "agent_name": {
+            "type": "string"
+          },
+          "agent_status": {
+            "type": "string"
+          },
+          "by_status": {
+            "properties": {
+              "deleting": {
+                "type": "integer"
+              },
+              "failed": {
+                "type": "integer"
+              },
+              "pending": {
+                "type": "integer"
+              },
+              "ready": {
+                "type": "integer"
+              },
+              "syncing": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "pending",
+              "syncing",
+              "ready",
+              "failed",
+              "deleting"
+            ],
+            "type": "object"
+          },
+          "has_menu": {
+            "type": "boolean"
+          },
+          "has_platform_kb": {
+            "type": "boolean"
+          },
+          "last_error": {
+            "nullable": true,
+            "type": "string"
+          },
+          "last_synced_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer"
+          },
+          "sources": {
+            "type": "integer"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent_id",
+          "agent_name",
+          "agent_status",
+          "tenant_id",
+          "tenant_name",
+          "has_platform_kb",
+          "sources",
+          "by_status",
+          "has_menu",
+          "size_bytes",
+          "last_synced_at",
+          "last_error",
+          "updated_at"
         ],
         "type": "object"
       },
@@ -25238,6 +25601,141 @@
         ]
       }
     },
+    "/admin/kbs": {
+      "get": {
+        "description": "Spec admin §9.",
+        "operationId": "adminListKbs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "pending",
+                "syncing",
+                "ready",
+                "failed",
+                "deleting"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/adminKbResponse"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Every agent with knowledge, across workspaces, with its sources by state",
+        "tags": [
+          "admin-operations"
+        ],
+        "x-auth": "staff"
+      }
+    },
     "/admin/kill-switches/{key}": {
       "put": {
         "description": "Spec §13.9.",
@@ -28082,6 +28580,317 @@
           "super_admin",
           "ops"
         ]
+      }
+    },
+    "/admin/reports/breakage": {
+      "get": {
+        "description": "Spec admin §9.",
+        "operationId": "adminGetBreakageReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminBreakageReport"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Breakage: credits that expired unused in range, valued per lot",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/reports/cogs": {
+      "get": {
+        "description": "Spec admin §9.",
+        "operationId": "adminGetCogsReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminCogsReport"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "COGS: what the range’s calls cost on the voice platform against what they billed",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/reports/deferred": {
+      "get": {
+        "description": "Spec admin §9.",
+        "operationId": "adminGetDeferredReport",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminDeferredReport"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Deferred revenue as of now: paid credits not yet used or expired, valued per lot",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/reports/revenue": {
+      "get": {
+        "description": "Spec admin §9.",
+        "operationId": "adminGetRevenueReport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "enum": [
+                "7d",
+                "30d",
+                "90d"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminBillingSummaryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Revenue: paid sales, refunds and failed top-ups in range (the SA9 summary)",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
       }
     },
     "/admin/retell-costs": {

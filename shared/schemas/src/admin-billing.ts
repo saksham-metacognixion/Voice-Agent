@@ -180,3 +180,89 @@ export const adminBillingSummaryResponse = z.object({
   ),
 });
 export type AdminBillingSummaryResponse = z.infer<typeof adminBillingSummaryResponse>;
+
+// ---------------------------------------------------------------------------- finance reports (admin §9 `GET /admin/reports/*`)
+
+/** Money per currency: every report keeps currencies apart rather than adding CAD to USD. */
+const moneyByCurrency = z.array(z.object({ currency: z.string(), credits: z.number(), value_cents: z.number().int() }));
+
+/**
+ * `GET /admin/reports/cogs?range=` — what the calls of the range cost us on the voice
+ * platform against what they billed. Revenue here is an estimate: the ledger does not
+ * record which lot a call drew down, so credits are valued at the average price per credit
+ * of the paid purchases of the last 12 months (`null` when they span currencies).
+ */
+export const adminCogsReport = z.object({
+  range: adminRange,
+  from: isoDateTime,
+  to: isoDateTime,
+  calls: z.number().int(),
+  /** Calls the platform has not reported a cost for yet (`call_analyzed` not in). */
+  calls_without_cost: z.number().int(),
+  billed_seconds: z.number().int(),
+  credits_billed: z.number(),
+  platform_cost_cents: z.number().int(),
+  by_tier: z.array(z.object({ tier: z.string(), calls: z.number().int(), credits_billed: z.number(), platform_cost_cents: z.number().int() })),
+  by_day: z.array(z.object({ day: z.string(), calls: z.number().int(), credits_billed: z.number(), platform_cost_cents: z.number().int() })),
+  avg_price_cents_per_credit: z.number().nullable(),
+  price_currency: z.string().nullable(),
+  estimated_revenue_cents: z.number().int().nullable(),
+  estimated_margin_pct: z.number().nullable(),
+});
+export type AdminCogsReport = z.infer<typeof adminCogsReport>;
+
+/**
+ * `GET /admin/reports/deferred` — as of now: credits sold and not yet used or expired,
+ * valued at what each lot's purchase paid per credit. Credits nobody paid for (the trial,
+ * staff adjustments) are counted apart and carry no value.
+ */
+export const adminDeferredReport = z.object({
+  as_of: isoDateTime,
+  workspaces: z.number().int(),
+  paid: moneyByCurrency,
+  unpaid_credits: z.number(),
+  /** When the paid credits expire, by UTC month: what becomes breakage if unused. */
+  by_expiry_month: z.array(z.object({ month: z.string(), currency: z.string(), credits: z.number(), value_cents: z.number().int() })),
+});
+export type AdminDeferredReport = z.infer<typeof adminDeferredReport>;
+
+/** `GET /admin/reports/breakage?range=` — credits that expired unused in the range (the `expiry` ledger rows), valued per lot. */
+export const adminBreakageReport = z.object({
+  range: adminRange,
+  from: isoDateTime,
+  to: isoDateTime,
+  lots: z.number().int(),
+  paid: moneyByCurrency,
+  unpaid_credits: z.number(),
+  by_day: z.array(z.object({ day: z.string(), currency: z.string(), credits: z.number(), value_cents: z.number().int() })),
+});
+export type AdminBreakageReport = z.infer<typeof adminBreakageReport>;
+
+// ---------------------------------------------------------------------------- knowledge bases (admin §9 `GET /admin/kbs`)
+
+export const adminKbsQuery = paginationQuery.extend({
+  tenant_id: uuid.optional(),
+  /** Only agents with a source in this state. */
+  status: z.enum(['pending', 'syncing', 'ready', 'failed', 'deleting']).optional(),
+});
+export type AdminKbsQuery = z.infer<typeof adminKbsQuery>;
+
+/** One agent's knowledge: the platform base and its sources by state. */
+export const adminKbResponse = z.object({
+  agent_id: uuid,
+  agent_name: z.string(),
+  agent_status: z.string(),
+  tenant_id: uuid,
+  tenant_name: z.string(),
+  /** The agent holds a knowledge base on the voice platform (counts against `kb_allowance`). */
+  has_platform_kb: z.boolean(),
+  sources: z.number().int(),
+  by_status: z.object({ pending: z.number().int(), syncing: z.number().int(), ready: z.number().int(), failed: z.number().int(), deleting: z.number().int() }),
+  has_menu: z.boolean(),
+  size_bytes: z.number().int(),
+  last_synced_at: isoDateTime.nullable(),
+  /** The newest failed source's customer-safe reason. */
+  last_error: z.string().nullable(),
+  updated_at: isoDateTime,
+});
+export type AdminKbResponse = z.infer<typeof adminKbResponse>;

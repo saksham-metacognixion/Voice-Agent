@@ -1178,7 +1178,12 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   staff), so one person adjusting two workspaces at once cannot pass it twice (QA-037).
 - **SA9 billing (D13, ADR 0022).** `GET /admin/purchases` (+ `:id`), `POST /admin/purchases/:id/refund`,
   `GET /admin/topups/failed`, `POST /admin/topups/:id/retry`, `POST /admin/customers/:id/auto-topup/disable`,
-  `GET /admin/billing/summary`. **A refund is claim → Stripe → settle**: a `refunds` row
+  `GET /admin/billing/summary` (also `GET /admin/reports/revenue`), and the admin §9 reports `GET
+  /admin/reports/cogs|deferred|breakage` (`AdminReportsService`, SQL aggregates on `adminDb`): a credit is
+  valued at what its own lot's purchase paid, a credit nobody paid for (trial, adjustment) is counted apart at
+  no value, currencies are never added together, and COGS revenue is an estimate (the ledger does not say which
+  lot a call drew down). `GET /admin/kbs` lists every agent with knowledge (Telephony → Knowledge).
+  **A refund is claim → Stripe → settle**: a `refunds` row
   `pending` whose id *is* the request's `idempotency_key` (+ `purchase.refund_requested`, in the
   tx), then `StripeGateway.refundPaymentIntent` with idempotency key `refund-<row id>` (a thrown
   error marks the row `failed` + `purchase.refund_failed` and answers `503 UPSTREAM_UNAVAILABLE`;

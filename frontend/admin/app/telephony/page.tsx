@@ -13,6 +13,7 @@ import { AgentsTable } from '@/src/components/telephony/agents-table';
 import { ConcurrencyTab } from '@/src/components/telephony/concurrency-tab';
 import { AgentSheet, NumberSheet } from '@/src/components/telephony/detail-panels';
 import { NumbersTable } from '@/src/components/telephony/numbers-table';
+import { KnowledgeTab } from '@/src/components/telephony/knowledge-tab';
 import { ProvisioningTab } from '@/src/components/telephony/provisioning-tab';
 import { humanize } from '@/src/lib/format';
 import { useCursorPager } from '@/src/lib/use-cursor-pager';
@@ -42,6 +43,7 @@ function Telephony() {
         <TabsList>
           <TabsTrigger value="numbers">Numbers</TabsTrigger>
           <TabsTrigger value="agents">Agents</TabsTrigger>
+          <TabsTrigger value="knowledge">Knowledge</TabsTrigger>
           <TabsTrigger value="provisioning">Provisioning</TabsTrigger>
           <TabsTrigger value="concurrency">Concurrency</TabsTrigger>
         </TabsList>
@@ -58,6 +60,7 @@ function Telephony() {
           <AgentSheet id={id} onClose={close} />
         </>
       ) : null}
+      {tab === 'knowledge' ? <KnowledgeTab /> : null}
       {tab === 'provisioning' ? <ProvisioningTab params={params} setQuery={setQuery} /> : null}
       {tab === 'concurrency' ? <ConcurrencyTab /> : null}
     </>

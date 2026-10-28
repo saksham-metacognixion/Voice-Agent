@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminCallFlagRequest, adminCallRefundRequest, adminCallResponse, adminCallerIdRequest, adminCallsQuery, adminCannedResponseRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminKycDecisionRequest, adminKycResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumberResyncResponse, adminNumbersQuery, adminOverridesRequest, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminReconciliationRun, adminReconciliationRunRequest, adminReconciliationsQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callbackCheck, callbackRequest, callbackResponse, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deleteWorkspaceRequest, deletedResponse, dismissAlertResponse, dncAddRequest, dncEntryResponse, dncQuery, duplicateAgentRequest, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, kycDetails, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, outboundOverview, outboundSettings, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, saveVersionResponse, selectVersionRequest, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceDeletionRequest, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminBreakageReport, adminCallFlagRequest, adminCallRefundRequest, adminCallResponse, adminCallerIdRequest, adminCallsQuery, adminCannedResponseRequest, adminCogsReport, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminDeferredReport, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKbResponse, adminKbsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminKycDecisionRequest, adminKycResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumberResyncResponse, adminNumbersQuery, adminOverridesRequest, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminReconciliationRun, adminReconciliationRunRequest, adminReconciliationsQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callbackCheck, callbackRequest, callbackResponse, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deleteWorkspaceRequest, deletedResponse, dismissAlertResponse, dncAddRequest, dncEntryResponse, dncQuery, duplicateAgentRequest, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, kycDetails, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, outboundOverview, outboundSettings, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, saveVersionResponse, selectVersionRequest, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceDeletionRequest, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -454,6 +454,15 @@ export function useAdminRetryJob(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminRetryJob(api, vars.params, vars.body) });
 }
 
+/** GET /admin/kbs — Every agent with knowledge, across workspaces, with its sources by state — admin §9. */
+export function adminListKbs(api: ApiClient, query?: z.input<typeof adminKbsQuery>) {
+  return api.get(`/admin/kbs${qs(query)}`, paginated(adminKbResponse));
+}
+
+export function useAdminListKbs(api: ApiClient, query?: z.input<typeof adminKbsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListKbs', query ?? null], queryFn: () => adminListKbs(api, query), ...options });
+}
+
 /** PUT /admin/kill-switches/:key — Flip one of the four kill switches (reject_inbound is republished to the hot path at once) (staff: super_admin, ops) — §13.9. */
 export function adminSetKillSwitch(api: ApiClient, params: { key: string }, body: z.input<typeof adminSetKillSwitchRequest>) {
   return api.put(`/admin/kill-switches/${enc(params.key)}`, body, adminKillSwitch);
@@ -695,6 +704,42 @@ export function adminRunReconciliation(api: ApiClient, body: z.input<typeof admi
 
 export function useAdminRunReconciliation(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { body: z.input<typeof adminReconciliationRunRequest> }) => adminRunReconciliation(api, vars.body) });
+}
+
+/** GET /admin/reports/breakage — Breakage: credits that expired unused in range, valued per lot — admin §9. */
+export function adminGetBreakageReport(api: ApiClient, query?: z.input<typeof adminKpisQuery>) {
+  return api.get(`/admin/reports/breakage${qs(query)}`, adminBreakageReport);
+}
+
+export function useAdminGetBreakageReport(api: ApiClient, query?: z.input<typeof adminKpisQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetBreakageReport', query ?? null], queryFn: () => adminGetBreakageReport(api, query), ...options });
+}
+
+/** GET /admin/reports/cogs — COGS: what the range’s calls cost on the voice platform against what they billed — admin §9. */
+export function adminGetCogsReport(api: ApiClient, query?: z.input<typeof adminKpisQuery>) {
+  return api.get(`/admin/reports/cogs${qs(query)}`, adminCogsReport);
+}
+
+export function useAdminGetCogsReport(api: ApiClient, query?: z.input<typeof adminKpisQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetCogsReport', query ?? null], queryFn: () => adminGetCogsReport(api, query), ...options });
+}
+
+/** GET /admin/reports/deferred — Deferred revenue as of now: paid credits not yet used or expired, valued per lot — admin §9. */
+export function adminGetDeferredReport(api: ApiClient) {
+  return api.get(`/admin/reports/deferred`, adminDeferredReport);
+}
+
+export function useAdminGetDeferredReport(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetDeferredReport'], queryFn: () => adminGetDeferredReport(api), ...options });
+}
+
+/** GET /admin/reports/revenue — Revenue: paid sales, refunds and failed top-ups in range (the SA9 summary) — admin §9. */
+export function adminGetRevenueReport(api: ApiClient, query?: z.input<typeof adminKpisQuery>) {
+  return api.get(`/admin/reports/revenue${qs(query)}`, adminBillingSummaryResponse);
+}
+
+export function useAdminGetRevenueReport(api: ApiClient, query?: z.input<typeof adminKpisQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminGetRevenueReport', query ?? null], queryFn: () => adminGetRevenueReport(api, query), ...options });
 }
 
 /** GET /admin/retell-costs — The platform cost inputs behind the margin check — admin §5.4. */

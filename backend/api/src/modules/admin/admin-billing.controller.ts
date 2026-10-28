@@ -4,6 +4,9 @@ import {
   type AdminAutoTopupStatusResponse,
   type AdminBillingPurchase,
   type AdminBillingSummaryResponse,
+  type AdminBreakageReport,
+  type AdminCogsReport,
+  type AdminDeferredReport,
   type AdminFailedTopup,
   type AdminPurchaseDetail,
   type AdminTopupRetryResponse,
@@ -18,6 +21,7 @@ import {
 import { StaffCtx, StaffRoles } from '../auth';
 import type { StaffContext } from '../auth';
 import { AdminBillingService } from './admin-billing.service';
+import { AdminReportsService } from './admin-reports.service';
 
 /*
  * SA9 Billing & finance (admin §4 SA9, D13). Parse, delegate, return — the service owns
@@ -30,7 +34,10 @@ const MONEY = STAFF_ROUTE_ROLES.money;
 
 @Controller('admin')
 export class AdminBillingController {
-  constructor(private readonly billing: AdminBillingService) {}
+  constructor(
+    private readonly billing: AdminBillingService,
+    private readonly reports: AdminReportsService,
+  ) {}
 
   @Get('purchases')
   purchases(@Query() query: Record<string, unknown>): Promise<Page<AdminBillingPurchase>> {
@@ -72,6 +79,27 @@ export class AdminBillingController {
   @Get('billing/summary')
   summary(@Query() query: Record<string, unknown>): Promise<AdminBillingSummaryResponse> {
     return this.billing.summary(adminKpisQuery.parse(query).range);
+  }
+
+  /** Admin §9 `GET /admin/reports/revenue`: the SA9 summary under the spec's name. */
+  @Get('reports/revenue')
+  revenue(@Query() query: Record<string, unknown>): Promise<AdminBillingSummaryResponse> {
+    return this.billing.summary(adminKpisQuery.parse(query).range);
+  }
+
+  @Get('reports/cogs')
+  cogs(@Query() query: Record<string, unknown>): Promise<AdminCogsReport> {
+    return this.reports.cogs(adminKpisQuery.parse(query).range);
+  }
+
+  @Get('reports/deferred')
+  deferred(): Promise<AdminDeferredReport> {
+    return this.reports.deferred();
+  }
+
+  @Get('reports/breakage')
+  breakage(@Query() query: Record<string, unknown>): Promise<AdminBreakageReport> {
+    return this.reports.breakage(adminKpisQuery.parse(query).range);
   }
 }
 

@@ -4,9 +4,11 @@ import { adminDb } from '@portal/db';
 import {
   type AdminConcurrencyResponse,
   type AdminJobResponse,
+  type AdminKbResponse,
   type AdminProvisioningJob,
   type Page,
   STAFF_ROUTE_ROLES,
+  adminKbsQuery,
   adminProvisioningQuery,
   staffActionRequest,
 } from '@portal/schemas';
@@ -15,6 +17,7 @@ import { StaffCtx, StaffRoles } from '../auth';
 import type { StaffContext } from '../auth';
 import { AdminJobsService } from './admin-jobs.service';
 import { AdminOperationsService, PROVISIONING_JOB_TYPES } from './admin-operations.service';
+import { AdminReportsService } from './admin-reports.service';
 import { uuidParam } from './admin.helpers';
 
 /**
@@ -26,6 +29,7 @@ export class AdminOperationsController {
   constructor(
     private readonly operations: AdminOperationsService,
     private readonly jobs: AdminJobsService,
+    private readonly reports: AdminReportsService,
   ) {}
 
   @Get('provisioning')
@@ -50,6 +54,12 @@ export class AdminOperationsController {
     const row = await adminDb.job.findUnique({ where: { id: uuidParam(jobId, 'Job') }, select: { type: true } });
     if (!row || !(PROVISIONING_JOB_TYPES as readonly string[]).includes(row.type)) throw AppError.notFound('Job');
     return this.jobs.retry(staff, jobId, staffActionRequest.parse(body), request);
+  }
+
+  /** Admin §9 `GET /admin/kbs`: every agent with knowledge, across workspaces. */
+  @Get('kbs')
+  kbs(@Query() query: Record<string, unknown>): Promise<Page<AdminKbResponse>> {
+    return this.reports.kbs(adminKbsQuery.parse(query));
   }
 
   @Get('concurrency')

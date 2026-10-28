@@ -96,7 +96,7 @@ export function RevenueTab({ range }: { range: AdminRange }) {
   );
 }
 
-function Tile({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
+export function Tile({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
     <Card>
       <CardHeader className="pb-0">
@@ -108,7 +108,7 @@ function Tile({ title, description, children }: { title: string; description?: s
   );
 }
 
-function Stat({ label, value, hint, tone }: { label: string; value: React.ReactNode; hint?: React.ReactNode; tone?: 'danger' | 'warning' }) {
+export function Stat({ label, value, hint, tone }: { label: string; value: React.ReactNode; hint?: React.ReactNode; tone?: 'danger' | 'warning' }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <span className="text-xs text-muted-foreground">{label}</span>

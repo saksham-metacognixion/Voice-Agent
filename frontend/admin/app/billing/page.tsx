@@ -8,6 +8,7 @@ import { AdminShell } from '@/src/components/shell/admin-shell';
 import { PageHeader } from '@/src/components/shell/page-header';
 import { FailedTopupsTable } from '@/src/components/billing/failed-topups-table';
 import { PurchaseSheet, PurchasesTable } from '@/src/components/billing/purchases-table';
+import { BreakageTab, CogsTab, DeferredTab } from '@/src/components/billing/reports-tabs';
 import { RevenueTab } from '@/src/components/billing/revenue-tab';
 import { FilterBar, FilterSelect, SearchBox } from '@/src/components/common/filter-bar';
 import { Pager } from '@/src/components/common/pager';
@@ -44,9 +45,9 @@ function Billing() {
       <PageHeader
         title="Billing"
         crumbs={[{ label: 'Billing' }]}
-        description="Purchases, refunds, failed auto top-ups and the revenue report."
+        description="Purchases, refunds, failed auto top-ups and the finance reports."
         actions={
-          tab === 'revenue' ? (
+          tab === 'revenue' || tab === 'cogs' || tab === 'breakage' ? (
             <div role="tablist" aria-label="Range" className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs">
               {RANGES.map((r) => (
                 <button key={r} type="button" role="tab" aria-selected={range === r} onClick={() => setQuery((q) => setParam(q, 'range', r === '30d' ? null : r), 'replace')} className={cn('rounded px-3 py-1.5 font-medium transition-colors', range === r ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground')}>
@@ -70,6 +71,9 @@ function Billing() {
           <TabsTrigger value="purchases">Purchases</TabsTrigger>
           <TabsTrigger value="topups">Failed top-ups</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
+          <TabsTrigger value="cogs">COGS</TabsTrigger>
+          <TabsTrigger value="deferred">Deferred</TabsTrigger>
+          <TabsTrigger value="breakage">Breakage</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === 'purchases' ? (
@@ -80,6 +84,9 @@ function Billing() {
       ) : null}
       {tab === 'topups' ? <TopupsTab params={params} /> : null}
       {tab === 'revenue' ? <RevenueTab range={range} /> : null}
+      {tab === 'cogs' ? <CogsTab range={range} /> : null}
+      {tab === 'deferred' ? <DeferredTab /> : null}
+      {tab === 'breakage' ? <BreakageTab range={range} /> : null}
     </>
   );
 }

@@ -12,7 +12,7 @@ import { bullConnection, bullPrefix } from '../src/modules/jobs/jobs.connection'
 import { RedisCache, redisKeys } from '../src/modules/redis';
 import { WebhookEventsService, WebhookProcessingService } from '../src/modules/webhooks';
 import { Auth0ManagementService } from '../src/modules/auth';
-import { type D5Harness, startD5Harness } from './d5-fixtures';
+import { type D5Harness, createWorkspace, startD5Harness } from './d5-fixtures';
 import { paidWorkspace, type PaidWorkspace } from './d6-fixtures';
 
 /*
@@ -1690,6 +1690,64 @@ describe('SA8 call actions and SA12 reconciliation', () => {
     const listed = await call('GET', '/admin/reconciliations?limit=100', staff.readOnly.token);
     expect((listed.body.items as Array<{ id: string }>).map((r) => r.id)).toContain(ran.body.id);
     await adminDb.reconciliationRun.deleteMany({ where: { windowStart: start } });
+  });
+});
+
+// --------------------------------------------------------------------------- finance reports and the KB list
+
+describe('finance reports and the knowledge-base list', () => {
+  // The reports are platform-wide, so each case measures what its own rows add.
+  it('values deferred credits and breakage at the price their own pack paid', async () => {
+    const other = await createWorkspace(`d12-reports-${randomUUID().slice(0, 8)}`);
+    const purchase = await adminDb.purchase.create({ data: { tenantId: other.workspaceId, amountCents: 1_000, currency: 'USD', credits: 100, status: 'paid' } });
+    const usd = (r: { paid: Array<{ currency: string; credits: number; value_cents: number }> }) => r.paid.find((p) => p.currency === 'USD') ?? { credits: 0, value_cents: 0 };
+
+    const deferredBefore = (await call('GET', '/admin/reports/deferred', staff.readOnly.token)).body as Parameters<typeof usd>[0] & { unpaid_credits: number };
+    await adminDb.creditLot.create({ data: { tenantId: other.workspaceId, purchaseId: purchase.id, creditsTotal: 100, creditsRemaining: 40, expiresAt: new Date(Date.now() + 180 * 86_400_000) } });
+    await adminDb.creditLot.create({ data: { tenantId: other.workspaceId, creditsTotal: 20, creditsRemaining: 20, expiresAt: new Date(Date.now() + 30 * 86_400_000) } });
+    const deferred = await call('GET', '/admin/reports/deferred', staff.readOnly.token);
+    expect(deferred.status).toBe(200);
+    const after = deferred.body as typeof deferredBefore;
+    expect(usd(after).credits - usd(deferredBefore).credits).toBeCloseTo(40, 2);
+    expect(usd(after).value_cents - usd(deferredBefore).value_cents).toBe(400);
+    expect(after.unpaid_credits - deferredBefore.unpaid_credits).toBeCloseTo(20, 2);
+
+    const breakageBefore = (await call('GET', '/admin/reports/breakage?range=7d', staff.readOnly.token)).body as Parameters<typeof usd>[0];
+    const expired = await adminDb.creditLot.create({ data: { tenantId: other.workspaceId, purchaseId: purchase.id, creditsTotal: 100, creditsRemaining: 0, expiresAt: new Date(Date.now() - 86_400_000) } });
+    await adminDb.creditLedger.create({ data: { tenantId: other.workspaceId, delta: -25, balanceAfter: 0, reason: 'expiry', refType: 'lot', refId: expired.id } });
+    const breakage = await call('GET', '/admin/reports/breakage?range=7d', staff.readOnly.token);
+    expect(breakage.status).toBe(200);
+    expect(usd(breakage.body as Parameters<typeof usd>[0]).value_cents - usd(breakageBefore).value_cents).toBe(250);
+  });
+
+  it('sets the platform cost of the range’s calls against what they billed, by tier', async () => {
+    type Cogs = { calls: number; credits_billed: number; platform_cost_cents: number; by_tier: Array<{ tier: string; platform_cost_cents: number }> };
+    const before = (await call('GET', '/admin/reports/cogs?range=7d', staff.readOnly.token)).body as Cogs;
+    await adminDb.call.create({
+      data: { id: `call_cogs_${randomUUID().replace(/-/g, '').slice(0, 16)}`, tenantId: ws.workspaceId, agentId, channel: 'phone', direction: 'inbound', status: 'analyzed', durationS: 120, tier: 'premium', rate: 1.5, creditsCharged: 3, retellCostCents: 42 },
+    });
+    const cogs = await call('GET', '/admin/reports/cogs?range=7d', staff.readOnly.token);
+    expect(cogs.status).toBe(200);
+    const after = cogs.body as Cogs;
+    expect(after.calls - before.calls).toBe(1);
+    expect(after.platform_cost_cents - before.platform_cost_cents).toBe(42);
+    expect(after.credits_billed - before.credits_billed).toBeCloseTo(3, 2);
+    const premium = (r: Cogs) => r.by_tier.find((t) => t.tier === 'premium')?.platform_cost_cents ?? 0;
+    expect(premium(after) - premium(before)).toBe(42);
+    expect((await call('GET', '/admin/reports/revenue?range=7d', staff.readOnly.token)).status).toBe(200);
+  });
+
+  it('lists every agent with knowledge, its sources by state and the latest failure', async () => {
+    await adminDb.knowledgeSource.create({ data: { tenantId: ws.workspaceId, agentId, type: 'text', name: 'Opening hours', status: 'failed', error: 'We could not read this source.', sizeBytes: 2_048 } });
+    await adminDb.knowledgeSource.create({ data: { tenantId: ws.workspaceId, agentId, type: 'url', name: 'Site', url: 'https://example.test', status: 'ready', syncedAt: new Date() } });
+    const res = await call('GET', `/admin/kbs?tenant_id=${ws.workspaceId}&status=failed`, staff.readOnly.token);
+    expect(res.status).toBe(200);
+    const row = (res.body.items as Array<Record<string, unknown>>).find((r) => r.agent_id === agentId);
+    expect(row).toMatchObject({ tenant_id: ws.workspaceId, sources: 2, has_menu: false, size_bytes: 2_048, last_error: 'We could not read this source.' });
+    expect(row?.by_status).toEqual({ pending: 0, syncing: 0, ready: 1, failed: 1, deleting: 0 });
+    expect(row?.last_synced_at).toEqual(expect.any(String));
+    const none = await call('GET', `/admin/kbs?tenant_id=${ws.workspaceId}&status=deleting`, staff.readOnly.token);
+    expect(none.body.items).toEqual([]);
   });
 });
 

@@ -51,7 +51,7 @@ export function userPath(id: string): string {
 export const PRICING_TABS = ['draft', 'preview', 'versions', 'costs'] as const;
 export type PricingTab = (typeof PRICING_TABS)[number];
 
-export const TELEPHONY_TABS = ['numbers', 'agents', 'provisioning', 'concurrency'] as const;
+export const TELEPHONY_TABS = ['numbers', 'agents', 'knowledge', 'provisioning', 'concurrency'] as const;
 export type TelephonyTab = (typeof TELEPHONY_TABS)[number];
 
 export function telephonyPath(tab: TelephonyTab, id?: string): string {
@@ -82,7 +82,7 @@ export function systemPath(tab: SystemTab = 'health', id?: string): string {
 }
 
 /** SA9 Billing & finance (D13): purchases, failed auto top-ups, the revenue report. */
-export const BILLING_TABS = ['purchases', 'topups', 'revenue'] as const;
+export const BILLING_TABS = ['purchases', 'topups', 'revenue', 'cogs', 'deferred', 'breakage'] as const;
 export type BillingTab = (typeof BILLING_TABS)[number];
 
 export function billingPath(tab: BillingTab = 'purchases', id?: string): string {
