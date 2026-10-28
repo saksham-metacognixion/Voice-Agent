@@ -241,11 +241,17 @@ describe('the staff boundary', () => {
 });
 
 describe('workspace context', () => {
-  it('attaches ctx = {userId, workspaceId, role}', async () => {
+  it('attaches ctx = {userId, workspaceId, role, ip}', async () => {
     const token = await customerTenant.mint(owner.sub);
     const { status, body } = await call('probe/workspace', { token, workspace: workspaceA });
     expect(status).toBe(200);
-    expect(body).toEqual({ userId: owner.userId, workspaceId: workspaceA, role: 'owner' });
+    // `ip` is what every audit_log row the request writes takes (QA-074); inject() is 127.0.0.1.
+    expect(body).toEqual({
+      userId: owner.userId,
+      workspaceId: workspaceA,
+      role: 'owner',
+      ip: '127.0.0.1',
+    });
   });
 
   it('asks for a workspace when the header is missing', async () => {
