@@ -7,6 +7,7 @@ import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
 import { applyGuardrails } from '../prompting/guardrails';
 import { lintErrors, lintPrompt } from '../prompting/lint';
+import { retellErrorStatus } from '../retell';
 import { RuntimeCacheService } from '../runtime-cache';
 import { AgentEvents } from './agent-events';
 import { AgentRetellService } from './agent-retell.service';
@@ -482,11 +483,23 @@ function isLive(
 
 /**
  * A Retell failure is not our customer's mistake and must not read as one. Anything that
- * already carries a §16 code keeps it; everything else becomes 503, which is what the
- * portal shows a "try again" for — and which never carries the upstream's message.
+ * already carries a §16 code keeps it; an outage becomes 503, which is what the portal
+ * shows a "try again" for — and neither carries the upstream's message.
+ *
+ * A 4xx is not an outage: the platform refused what we sent, and it will refuse it again
+ * on every retry. As a 503 the activation worker retried it three times and the customer
+ * was told to "try again in a moment" for ever (28 Oct, a transfer number the platform
+ * would not dial). `BAD_REQUEST` is permanent to `classifyError`.
  */
 function asPublishError(error: unknown): unknown {
   if (error instanceof AppError) return error;
+  const status = retellErrorStatus(error);
+  if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 409 && status !== 429) {
+    return new AppError(
+      'BAD_REQUEST',
+      'The settings of this agent were not accepted, so nothing was put live. Check its business details and voice, or contact support.',
+    );
+  }
   return new AppError(
     'UPSTREAM_UNAVAILABLE',
     'We could not put this agent live just now. Nothing was changed — try again in a moment.',

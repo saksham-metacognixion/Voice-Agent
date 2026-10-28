@@ -411,6 +411,7 @@ export const lintRule = z.enum([
   'greeting_too_long',
   'handoff_rule_missing',
   'transfer_tool_missing',
+  'transfer_number_invalid',
   'handoff_message_missing',
   'absolute_language',
   'language_mismatch',

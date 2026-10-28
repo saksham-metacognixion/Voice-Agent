@@ -68,6 +68,7 @@ export const LINT_CONFIG_V1 = {
     greeting_too_long: 'warning',
     handoff_rule_missing: 'warning',
     transfer_tool_missing: 'error',
+    transfer_number_invalid: 'error',
     handoff_message_missing: 'warning',
     absolute_language: 'warning',
     language_mismatch: 'warning',

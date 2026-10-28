@@ -542,7 +542,11 @@ job settles.
   `handoff_message_missing` (warning) fires when the script does not contain them
   (case and punctuation ignored, guardrail block excluded). `parseBrief` filters
   `handoff_rules` per rule, so a legacy `read_message` without a message costs that
-  rule only (30 Sep).
+  rule only (30 Sep). `e164` checks the shape only, so lint rule `transfer_number_invalid` (error)
+  runs `libphonenumber-js` over every transfer number: the platform answers a number it will
+  not dial (`+144444444`) with a 400 for the whole agent. And `asPublishError` keeps a
+  platform 4xx permanent (`BAD_REQUEST`) — as a 503 the activation retried it three times
+  and told the customer to "try again" for ever (28 Oct).
 - `GET /jobs/:id` returns an explicit whitelist (`jobProgress`), never `steps_json` or
   `jobs.error`. Those name the provider, the model and the Retell sync and stay server-side;
   the customer-facing failure text is `steps_json.customer_reason`, written by the worker.

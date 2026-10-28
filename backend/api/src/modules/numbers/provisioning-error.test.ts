@@ -26,6 +26,17 @@ describe('classifyError', () => {
     expect(classifyError(new AppError('WORKSPACE_PAUSED', 'x')).kind).toBe('workspace_paused');
   });
 
+  it('a lint failure tells the customer which finding blocked it', () => {
+    const error = new AppError('LINT_FAILED', 'This version cannot go live yet.', [
+      { field: 'brief.handoff_rules', message: '+144444444 is not a real phone number.' },
+    ]);
+    expect(classifyError(error).customerReason).toBe('This version cannot go live yet. +144444444 is not a real phone number.');
+  });
+
+  it('BAD_REQUEST — what publish makes of a platform 4xx — is permanent', () => {
+    expect(classifyError(new AppError('BAD_REQUEST', 'not accepted')).retryable).toBe(false);
+  });
+
   it('a publish already in progress and an upstream outage are retryable', () => {
     expect(classifyError(new AppError('PUBLISH_IN_PROGRESS', 'busy')).retryable).toBe(true);
     expect(classifyError(new AppError('UPSTREAM_UNAVAILABLE', 'down')).retryable).toBe(true);

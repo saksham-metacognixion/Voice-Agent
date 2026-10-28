@@ -6,6 +6,7 @@ import {
   type LintSeverity,
   transferTargets,
 } from '@portal/schemas';
+import { isValidPhoneNumber } from 'libphonenumber-js/max';
 import { hasGuardrails, stripGuardrails } from './guardrails';
 
 /**
@@ -32,6 +33,9 @@ export const MAX_GREETING_WORDS = 25;
  *   prompt_empty          nothing to run — there is no call without a prompt
  *   no_greeting           `begin_message` is what the caller hears first; silence is broken
  *   transfer_tool_missing the brief promises a transfer the agent has no way to perform
+ *   transfer_number_invalid a transfer number that is E.164 in shape but no real number
+ *                         (`+144444444`, 28 Oct): the platform refuses the whole agent
+ *                         with a 400, so the publish could never succeed anyway
  *   guardrails_missing    §9.4 is not optional
  *   platform_named        the voice platform is never named to a customer (CLAUDE.md, Retell
  *                         isolation) — an agent that says it is from the vendor is that
@@ -50,6 +54,7 @@ export const DEFAULT_SEVERITIES: Record<LintRule, LintSeverity> = {
   greeting_too_long: 'warning',
   handoff_rule_missing: 'warning',
   transfer_tool_missing: 'error',
+  transfer_number_invalid: 'error',
   handoff_message_missing: 'warning',
   absolute_language: 'warning',
   language_mismatch: 'warning',
@@ -152,6 +157,16 @@ export function lintPrompt(input: LintInput, config: LintConfig = DEFAULT_LINT_C
     add(
       'transfer_tool_missing',
       'The brief asks for a transfer but no transfer target reached the agent, so the transfer would fail on the call.',
+      'brief.handoff_rules',
+    );
+  }
+
+  // `e164` in the brief schema checks the shape only; the platform checks the number.
+  const invalid = declared.filter((number) => !isValidPhoneNumber(number));
+  if (invalid.length > 0) {
+    add(
+      'transfer_number_invalid',
+      `${invalid[0]} is not a real phone number, so the transfer would fail. Correct it under "When to hand off to a person".`,
       'brief.handoff_rules',
     );
   }

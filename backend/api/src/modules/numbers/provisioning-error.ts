@@ -72,8 +72,12 @@ export function classifyError(error: unknown): ProvisioningError {
   if (error instanceof ProvisioningError) return error;
 
   if (error instanceof AppError) {
-    const body = error.getResponse() as { message?: string };
-    const message = typeof body?.message === 'string' ? body.message : error.message;
+    const body = error.getResponse() as { message?: string; fields?: Array<{ message?: string }> };
+    let message = typeof body?.message === 'string' ? body.message : error.message;
+    // "This version cannot go live yet." says nothing the customer can act on; the first
+    // blocking finding does (W7 shows only this sentence).
+    const finding = error.code === 'LINT_FAILED' ? body?.fields?.[0]?.message : undefined;
+    if (finding) message = `${message} ${finding}`;
     if (error.code === 'PUBLISH_IN_PROGRESS' || error.code === 'UPSTREAM_UNAVAILABLE') {
       return new ProvisioningError('unavailable', message, `${error.code}: ${message}`, { retryable: true, cause: error });
     }

@@ -83,6 +83,22 @@ describe('rules that block a publish', () => {
     expect(result.findings.map((f) => f.rule)).toContain('transfer_tool_missing');
     expect(result.publishable).toBe(false);
   });
+
+  it('transfer_number_invalid — E.164 in shape, no real number (staging, 28 Oct: the platform refused the agent)', () => {
+    const rule = (transfer_number: string) =>
+      brief({ handoff_rules: [{ condition: 'Caller asks for a person', action: 'transfer', transfer_number }] });
+    const lint = (transfer_number: string) =>
+      lintPrompt({ prompt: CLEAN_PROMPT, greeting: GREETING, brief: rule(transfer_number), primaryLanguage: 'en-US' });
+
+    const bad = lint('+144444444');
+    expect(bad.findings.map((f) => f.rule)).toContain('transfer_number_invalid');
+    expect(bad.findings.find((f) => f.rule === 'transfer_number_invalid')?.message).toContain('+144444444');
+    expect(bad.publishable).toBe(false);
+
+    for (const good of ['+15145550123', '+14165550199', '+442079460018']) {
+      expect(lint(good).findings.map((f) => f.rule), good).not.toContain('transfer_number_invalid');
+    }
+  });
 });
 
 describe('rules that warn but still publish', () => {
