@@ -14,6 +14,7 @@ import type {
   AdminCustomerWallet,
   AdminMemberResponse,
   AdminMemberUpdateRequest,
+  AdminOverridesRequest,
   AdminPurchaseResponse,
   AdminTenantStatusResponse,
   Page,
@@ -574,6 +575,57 @@ export class AdminCustomersService {
       await this.afterTenantChange(id);
       this.log.log(`workspace ${id} profile (${Object.keys(after).join(', ')}) changed by ${staff.email}`);
     }
+    return this.detail(id);
+  }
+
+  /**
+   * SA2 overrides (admin §5.3: tier defaults ∘ tenant overrides): the caps a custom deal
+   * changes. Replaces the whole set — a null cap falls back to the plan's — and keeps the
+   * row's flags and gates. `caps:{ws}` and `num:{e164}` are rebuilt after, so the §13.9
+   * concurrency check sees a new cap on the next call, not in five minutes.
+   */
+  async setOverrides(
+    staff: StaffContext,
+    idRaw: string,
+    body: AdminOverridesRequest,
+    request: FastifyRequest,
+  ): Promise<AdminCustomerDetail> {
+    const id = uuidParam(idRaw, 'Customer');
+    await this.exists(id);
+    const caps = {
+      concurrencyCap: body.concurrency_cap,
+      kbAllowance: body.kb_allowance,
+      maxAgents: body.max_agents,
+      maxNumbers: body.max_numbers,
+    };
+    const reason = body.note ? `${body.reason_code}: ${body.note}` : body.reason_code;
+    await adminDb.$transaction(async (tx) => {
+      const before = await tx.tenantOverride.findUnique({ where: { tenantId: id } });
+      await tx.tenantOverride.upsert({
+        where: { tenantId: id },
+        create: { tenantId: id, ...caps, reason, setBy: staff.staffId },
+        update: { ...caps, reason, setBy: staff.staffId },
+      });
+      await this.audit.record(
+        {
+          staff,
+          action: 'customer.overrides_set',
+          targetType: 'tenant',
+          targetId: id,
+          tenantId: id,
+          reasonCode: body.reason_code,
+          note: body.note,
+          before: before
+            ? { concurrency_cap: before.concurrencyCap, kb_allowance: before.kbAllowance, max_agents: before.maxAgents, max_numbers: before.maxNumbers }
+            : null,
+          after: { concurrency_cap: body.concurrency_cap, kb_allowance: body.kb_allowance, max_agents: body.max_agents, max_numbers: body.max_numbers },
+          request,
+        },
+        tx,
+      );
+    });
+    await this.afterTenantChange(id);
+    this.log.log(`workspace ${id} overrides set by ${staff.email} (${body.reason_code})`);
     return this.detail(id);
   }
 

@@ -69,6 +69,7 @@ import {
   adminKpisQuery,
   adminMemberUpdateRequest,
   adminNumbersQuery,
+  adminOverridesRequest,
   adminPricingDraftRequest,
   adminPricingPublishRequest,
   adminPricingRollbackRequest,
@@ -119,6 +120,7 @@ import { StaffLimitsService } from './staff-limits.service';
 const MUTATE = STAFF_ROUTE_ROLES.mutate;
 const MONEY = STAFF_ROUTE_ROLES.money;
 const SYSTEM = STAFF_ROUTE_ROLES.system;
+const COMMERCIAL = STAFF_ROUTE_ROLES.commercial;
 const PRICING_EDIT = STAFF_ROUTE_ROLES.pricingEdit;
 const COMPLIANCE = STAFF_ROUTE_ROLES.compliance;
 const PRICING_PUBLISH = STAFF_ROUTE_ROLES.pricingPublish;
@@ -283,6 +285,18 @@ export class AdminCustomersController {
     @Req() request: FastifyRequest,
   ): Promise<AdminCustomerDetail> {
     return this.customers.updateProfile(staff, id, adminCustomerUpdateRequest.parse(body), request);
+  }
+
+  /** SA2 per-customer caps (admin §9 `PUT /admin/customers/:id/overrides`): a custom deal. */
+  @Put(':id/overrides')
+  @StaffRoles(...COMMERCIAL)
+  overrides(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminCustomerDetail> {
+    return this.customers.setOverrides(staff, id, adminOverridesRequest.parse(body), request);
   }
 
   /** A member's role (admin §9 `PATCH /admin/customers/:id/members/:mid`); never the owner's. */

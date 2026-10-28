@@ -1543,6 +1543,18 @@ export const MANIFEST: readonly EndpointSpec[] = [
     errors: ['NOT_FOUND', 'VALIDATION_FAILED'],
   },
   {
+    method: 'PUT',
+    path: '/admin/customers/:id/overrides',
+    operationId: 'adminSetOverrides',
+    summary: 'Set the per-customer caps (concurrency, KB allowance, agents, numbers); null falls back to the plan',
+    tag: 'admin-customers',
+    spec: 'admin §4 SA2, §5.3, §9',
+    body: 'adminOverridesRequest',
+    response: { schema: 'adminCustomerDetail' },
+    staffRoles: ['super_admin', 'ops', 'finance'],
+    errors: ['NOT_FOUND', 'VALIDATION_FAILED'],
+  },
+  {
     method: 'PATCH',
     path: '/admin/customers/:id/members/:mid',
     operationId: 'adminUpdateMember',

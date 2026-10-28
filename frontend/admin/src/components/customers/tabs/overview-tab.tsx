@@ -2,13 +2,19 @@
 
 import type { AdminCustomerDetail } from '@portal/schemas';
 import { Badge, Card, CardContent, CardHeader, CardTitle } from '@portal/ui';
+import * as React from 'react';
 import { Copyable } from '@/src/components/common/copyable';
+import { PermissionButton } from '@/src/components/common/permission-button';
 import { Fact, FactGrid } from '@/src/components/common/query-states';
 import { YesNo } from '@/src/components/common/status-badges';
 import { KycCard } from '@/src/components/customers/kyc-card';
+import { OverridesDialog } from '@/src/components/customers/overrides-dialog';
 import { formatCents, formatCredits, formatDateTime, formatNumber } from '@/src/lib/format';
+import { useStaff } from '@/src/staff/staff-provider';
 
 export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
+  const { can } = useStaff();
+  const [editingOverrides, setEditingOverrides] = React.useState(false);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="flex flex-col gap-4">
@@ -47,8 +53,11 @@ export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
       </div>
       <div className="flex flex-col gap-4">
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle className="text-sm">Plan and caps</CardTitle>
+            <PermissionButton variant="outline" size="sm" denied={can.setOverrides()} onClick={() => setEditingOverrides(true)}>
+              Edit overrides
+            </PermissionButton>
           </CardHeader>
           <CardContent>
             <FactGrid columns={2}>
@@ -76,6 +85,7 @@ export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
             ) : (
               <p className="mt-3 text-xs text-muted-foreground">No tenant overrides.</p>
             )}
+            {editingOverrides ? <OverridesDialog c={c} onClose={() => setEditingOverrides(false)} /> : null}
           </CardContent>
         </Card>
         <Card>

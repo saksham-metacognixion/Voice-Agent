@@ -5,6 +5,7 @@ import { adminDb } from '@portal/db';
 import { type PricingConfig, pricingConfig } from '@portal/schemas';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
+import { PlatformConfigService } from '../src/modules/config';
 import { JOBS, JobQueues, JobRecordsService } from '../src/modules/jobs';
 import { RedisCache, redisKeys } from '../src/modules/redis';
 import { WebhookEventsService, WebhookProcessingService } from '../src/modules/webhooks';
@@ -1445,6 +1446,28 @@ describe('SA2 profile and member edits', () => {
     expect((await call('PATCH', path, staff.finance.token, { ...reason, timezone: 'UTC' })).status).toBe(403);
     expect((await call('PATCH', path, staff.readOnly.token, { ...reason, timezone: 'UTC' })).status).toBe(403);
     expect((await call('PATCH', `/admin/customers/${randomUUID()}`, staff.support.token, { ...reason, timezone: 'UTC' })).status).toBe(404);
+  });
+
+  it('sets per-customer overrides that the cached caps see at once, and clears them back to the plan', async () => {
+    const path = `/admin/customers/${ws.workspaceId}/overrides`;
+    const config = h.app.get(PlatformConfigService);
+    const planCap = (await config.capsFor(ws.workspaceId)).concurrency_cap;
+
+    expect((await call('PUT', path, staff.support.token, { ...reason, concurrency_cap: 9 })).status).toBe(403);
+    expect((await call('PUT', path, staff.ops.token, { ...reason, concurrency_cap: -1 })).status).toBe(422);
+
+    const set = await call('PUT', path, staff.finance.token, { ...reason, concurrency_cap: 9, max_agents: 4 });
+    expect(set.status).toBe(200);
+    expect(set.body.overrides).toMatchObject({ concurrency_cap: 9, max_agents: 4, kb_allowance: null, max_numbers: null, reason: 'service_issue: d12 e2e' });
+    // `caps:{ws}` was rebuilt by the write, not left for its TTL.
+    expect(await config.capsFor(ws.workspaceId)).toMatchObject({ concurrency_cap: 9, max_agents: 4 });
+    const audit = await lastAudit('customer.overrides_set');
+    expect(audit).toMatchObject({ staffId: staff.finance.id, tenantId: ws.workspaceId });
+    expect(audit?.afterJson).toEqual({ concurrency_cap: 9, kb_allowance: null, max_agents: 4, max_numbers: null });
+
+    const cleared = await call('PUT', path, staff.ops.token, reason);
+    expect(cleared.status).toBe(200);
+    expect((await config.capsFor(ws.workspaceId)).concurrency_cap).toBe(planCap);
   });
 
   it('changes a member’s role and removes a member, never the owner, with both audit rows', async () => {

@@ -3074,6 +3074,79 @@
         ],
         "type": "object"
       },
+      "adminOverridesRequest": {
+        "properties": {
+          "concurrency_cap": {
+            "default": null,
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 10000,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "kb_allowance": {
+            "default": null,
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 10000,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "max_agents": {
+            "default": null,
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 10000,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "max_numbers": {
+            "default": null,
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 10000,
+            "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code"
+        ],
+        "type": "object"
+      },
       "adminPricingDraftRequest": {
         "properties": {
           "config": {
@@ -22887,6 +22960,114 @@
           "admin-customers"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/customers/{id}/overrides": {
+      "put": {
+        "description": "Spec admin §4 SA2, §5.3, §9.",
+        "operationId": "adminSetOverrides",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminOverridesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminCustomerDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Set the per-customer caps (concurrency, KB allowance, agents, numbers); null falls back to the plan",
+        "tags": [
+          "admin-customers"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance"
+        ]
       }
     },
     "/admin/customers/{id}/pause": {

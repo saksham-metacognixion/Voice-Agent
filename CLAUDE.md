@@ -1444,7 +1444,9 @@ throws and never waits past its budget (ADR 0010 §6).
   `/calls`, `/jobs`, `/webhook-events`, `/audit`, `POST …/pause|resume|credits/adjust|impersonate`,
   `PATCH :id` — name/country/timezone/website, only changed fields audited — and
   `PATCH|DELETE :id/members/:mid` — role admin/editor/viewer or removal, never the owner (409);
-  ownership moves only by the owner's own transfer);
+  ownership moves only by the owner's own transfer, and `PUT :id/overrides` — the caps a custom
+  deal changes, the whole set replaced, null = the plan's, `caps:{ws}` rebuilt by the write;
+  super admin, ops, finance = `STAFF_ROUTE_ROLES.commercial`);
   `/admin/impersonations` (+ `DELETE :id`); `/admin/users` (+ `POST :id/verify-email|reset-mfa|lock|unlock|force-logout`);
   `/admin/agents` and `/admin/numbers` (+ `POST :id/pause|resume`); `/admin/calls`;
   `/admin/jobs` (+ `POST :id/retry|discard`); `/admin/webhook-events` (+ `POST :id/replay`);

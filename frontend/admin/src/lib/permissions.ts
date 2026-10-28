@@ -46,6 +46,8 @@ export function can(me: StaffMeResponse | null | undefined) {
     manageStaff: (): Denied => (limits ? (needsRole(role, ['super_admin']) ?? needsLimit(limits, 'can_manage_staff', 'manage staff')) : missing),
     editPricingDraft: (): Denied => needsRole(role, R.pricingEdit) ?? (limits ? needsLimit(limits, 'can_edit_pricing_draft', 'edit the pricing draft') : missing),
     publishPricing: (): Denied => needsRole(role, R.pricingPublish) ?? (limits ? needsLimit(limits, 'can_publish_pricing', 'publish or roll back pricing') : missing),
+    /** SA2 tenant overrides — a custom deal: super admin, ops or finance. */
+    setOverrides: (): Denied => needsRole(role, R.commercial),
     /** Jobs and webhooks actions: super admin or ops. */
     operateQueues: (): Denied => needsRole(role, R.system),
     /** Agent / number / user actions: super admin, ops, support. */

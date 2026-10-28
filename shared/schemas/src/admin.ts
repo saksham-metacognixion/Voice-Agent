@@ -448,6 +448,25 @@ export const adminMemberUpdateRequest = z
   .refine(noteWithOther, noteWithOtherIssue);
 export type AdminMemberUpdateRequest = z.infer<typeof adminMemberUpdateRequest>;
 
+const overrideCap = z.number().int().min(0).max(10_000).nullable();
+
+/**
+ * PUT /admin/customers/:id/overrides — SA2 per-customer caps (admin §4 SA2, §5.3: tier
+ * defaults ∘ tenant overrides). The whole set is replaced: a cap sent as `null` (or left
+ * out) falls back to the plan's. The reason is required — a custom deal is a commercial
+ * decision — and it becomes `tenant_overrides.reason`.
+ */
+export const adminOverridesRequest = z
+  .object({
+    ...staffActionFields,
+    concurrency_cap: overrideCap.default(null),
+    kb_allowance: overrideCap.default(null),
+    max_agents: overrideCap.default(null),
+    max_numbers: overrideCap.default(null),
+  })
+  .refine(noteWithOther, noteWithOtherIssue);
+export type AdminOverridesRequest = z.infer<typeof adminOverridesRequest>;
+
 export const adminCreditAdjustRequest = z
   .object({
     /** Credits to add (positive) or remove (negative). Never zero. 2 dp. */
@@ -1049,6 +1068,8 @@ export const STAFF_ROUTE_ROLES = {
   money: ['super_admin', 'ops', 'finance', 'support'],
   /** Jobs, webhook replays, flags and kill switches. */
   system: ['super_admin', 'ops'],
+  /** Per-customer caps (tenant overrides): a custom deal, so ops or finance, not the support desk. */
+  commercial: ['super_admin', 'ops', 'finance'],
   /** The pricing draft and the cost inputs. */
   pricingEdit: ['super_admin', 'finance'],
   /** Pricing publish and rollback. */
