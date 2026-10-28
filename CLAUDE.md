@@ -807,6 +807,9 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Auto top-up credits a `pending` **or `abandoned`** purchase when `payment_intent.succeeded`
   arrives with a matching amount: Stripe may deliver an earlier attempt's failure after the
   success, and Stripe has the money either way.
+- The `auto-topup` sweep closes a pending top-up whose PaymentIntent Stripe has no record of
+  (`resource_missing`) as `abandoned` / `payment_intent_not_found`, quietly — no customer
+  alert — as Checkout does a missing session; only an outage is retried (ADR 0032 §8).
 - **The API contract is `src/openapi/manifest.ts` joined with the controllers' decorator
   metadata.** Adding or changing a route means editing the manifest and running
   `pnpm --filter @portal/api openapi:generate`; `openapi:check` fails CI on a route in one and

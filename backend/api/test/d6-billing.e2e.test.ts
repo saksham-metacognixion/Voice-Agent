@@ -227,6 +227,42 @@ describe('auto top-up', () => {
   }, 30_000);
 });
 
+describe('auto top-up — an intent Stripe has no record of', () => {
+  it('the sweep closes the stale purchase quietly instead of asking again every tick', async () => {
+    const ws = await paidWorkspace(app, 'topup-missing', 'growth', { savedCard: true });
+    const purchase = await adminDb.purchase.create({
+      data: {
+        tenantId: ws.workspaceId,
+        packId: 'growth',
+        credits: 500,
+        amountCents: 14_900,
+        currency: 'USD',
+        status: 'pending',
+        isAutoTopup: true,
+        stripePaymentIntent: `pi_missing_${randomUUID().replace(/-/g, '').slice(0, 12)}`,
+        createdAt: new Date(Date.now() - 60 * 60_000),
+      },
+    });
+    const missing = Object.assign(new Error('No such payment_intent'), { statusCode: 404, code: 'resource_missing' });
+    const spy = vi.spyOn(stripe, 'retrievePaymentIntent').mockRejectedValue(missing);
+    try {
+      await app.get(AutoTopupService).sweep();
+      const row = await adminDb.purchase.findUniqueOrThrow({ where: { id: purchase.id } });
+      expect(row).toMatchObject({ status: 'abandoned', failureReason: 'payment_intent_not_found' });
+      // Nobody was charged and nobody can be: no customer alert, no "card declined" page.
+      expect(await adminDb.alert.count({ where: { tenantId: ws.workspaceId, type: 'auto_topup_failed' } })).toBe(0);
+      expect(alerts.alerts.filter((a) => a.kind === 'auto_topup_failed' && a.fields.purchase_id === purchase.id)).toHaveLength(0);
+
+      // Closed: the next sweep does not ask about it again.
+      spy.mockClear();
+      await app.get(AutoTopupService).sweep();
+      expect(spy.mock.calls.filter(([id]) => id === purchase.stripePaymentIntent)).toHaveLength(0);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
 describe('invoices', () => {
   function invoiceObject(ws: { stripeCustomerId: string; workspaceId: string; purchaseId: string }, id: string, over: Record<string, unknown>) {
     return {

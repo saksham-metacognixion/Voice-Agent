@@ -1012,7 +1012,7 @@ model Purchase {
   invoiceUrl          String?        @map("invoice_url")
   status              PurchaseStatus @default(pending)
   isAutoTopup         Boolean        @default(false) @map("is_auto_topup")
-  /// D6, auto top-up: why a pending top-up ended without credits (`failed`, `requires_action`, `canceled`, `mismatch`).
+  /// D6, auto top-up: why a pending top-up ended without credits (`failed`, `requires_action`, `canceled`, `mismatch`, `payment_intent_not_found`).
   failureReason       String?        @map("failure_reason")
   promoCode           String?        @map("promo_code")
   createdAt           DateTime       @default(now()) @map("created_at")

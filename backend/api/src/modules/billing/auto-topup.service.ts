@@ -6,7 +6,7 @@ import { OpsAlertService } from '../alerts';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { WalletService, addMonths } from '../wallet/wallet.service';
-import { BillingService } from './billing.service';
+import { BillingService, isStripeNotFound } from './billing.service';
 import { type PaymentIntentFacts, StripeGateway } from './stripe.gateway';
 
 /** A pending auto top-up younger than this is "in flight": no second charge for the same threshold. */
@@ -350,6 +350,26 @@ export class AutoTopupService {
     return purchase;
   }
 
+  /**
+   * The intent behind a stale pending top-up, or null once the purchase is closed because
+   * Stripe says no such intent exists under this key (another account's or environment's
+   * id, a test double's). Nobody was charged and nobody can be, so it is closed quietly —
+   * no customer alert, no "card declined" page — as Checkout closes a session Stripe has
+   * no record of (ADR 0013 §9). Asked again every 15 minutes it only filled the logs, and
+   * a hundred of them at a few hundred milliseconds each held the whole sweep. An outage
+   * still throws and is retried on the next tick.
+   */
+  private async retrieveOrClose(purchaseId: string, intentId: string): Promise<PaymentIntentFacts | null> {
+    try {
+      return await this.stripe.retrievePaymentIntent(intentId);
+    } catch (error) {
+      if (!isStripeNotFound(error)) throw error;
+      const { count } = await adminDb.purchase.updateMany({ where: { id: purchaseId, status: 'pending' }, data: { status: 'abandoned', failureReason: 'payment_intent_not_found' } });
+      this.log.warn(`auto top-up ${intentId}: Stripe has no such payment intent; purchase ${purchaseId} ${count ? 'abandoned' : 'was no longer pending'}`);
+      return null;
+    }
+  }
+
   /** Marks a pending top-up abandoned with why, announces it (the customer alert is the listener's), and tells ops once. Returns whether the row changed. */
   private async abandon(purchaseId: string, workspaceId: string, reason: string, detail: string | null): Promise<boolean> {
     const { count } = await adminDb.purchase.updateMany({ where: { id: purchaseId, status: 'pending' }, data: { status: 'abandoned', failureReason: reason.slice(0, 80) } });
@@ -384,7 +404,11 @@ export class AutoTopupService {
     for (const purchase of stale) {
       try {
         if (purchase.stripePaymentIntent) {
-          const intent = await this.stripe.retrievePaymentIntent(purchase.stripePaymentIntent);
+          const intent = await this.retrieveOrClose(purchase.id, purchase.stripePaymentIntent);
+          if (!intent) {
+            reconciled += 1;
+            continue;
+          }
           if (intent.status === 'succeeded') await this.fulfilPaymentIntent({ ...intent, metadata: { ...intent.metadata, kind: 'auto_topup', purchase_id: purchase.id } });
           else if (intent.status === 'requires_payment_method' || intent.status === 'canceled' || intent.status === 'requires_action') {
             await this.abandon(purchase.id, purchase.tenantId, intent.status === 'requires_action' ? 'requires_action' : (intent.failure_code ?? intent.status), intent.failure_message);

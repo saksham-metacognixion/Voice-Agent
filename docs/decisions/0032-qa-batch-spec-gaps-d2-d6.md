@@ -143,6 +143,16 @@ editable draft that every sync rewrites, so testing an older never-published dra
 the newer script without an error. W5's Continue waits for "I'm happy with how my agent
 sounds"; "Skip testing" warns and continues (`w5_happy` / `w5_skipped`).
 
+### 8. Found while testing: an auto top-up intent Stripe has no record of
+
+The `auto-topup` sweep asked Stripe about every stale pending top-up, up to 100 a tick,
+and retried a `resource_missing` answer for ever. A wrong-key or test id therefore never
+left, and on the dev database 124 of them held each sweep past 30 s. A PaymentIntent
+Stripe has no record of is now closed like a Checkout session it has no record of (ADR
+0013 §9): `abandoned`, `failure_reason = payment_intent_not_found`, a warning log, and no
+customer alert or "card declined" page — nobody was charged and nobody can be. An outage
+is still retried.
+
 ## Alternatives considered
 
 - **Keep the `mailto:` for export and deletion** (ADR 0019 §8). Its reason — "a button
