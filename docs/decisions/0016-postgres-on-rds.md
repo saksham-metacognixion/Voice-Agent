@@ -14,7 +14,10 @@ ADR 0001 put Postgres on Neon and ADR 0004 re-examined it, keeping Neon for cost
 and noting "revisit when the org consolidates on AWS". On 22 Sep 2026, while bringing staging
 up, there was no Neon account and the org already runs this account (`667723749107`,
 `ca-central-1`) with CloudFormation. Creating a Neon account would have added a vendor, a
-credential to rotate and a database on the public internet, to save roughly $15 a month.
+credential to rotate and a database on the public internet, to save roughly $15 a month. Neon
+has no Canadian region either (ADR 0015 §6), so the database would have sat in `us-east-1`,
+away from a backend in `ca-central-1`. RDS keeps the data in Canada and everything in one AWS
+account.
 
 The question that decides it is not cost. **ADR 0006 gives `portal_admin` BYPASSRLS-like
 reach**, and on RDS the master user is `rds_superuser`, not a superuser, so it cannot set the
@@ -56,8 +59,8 @@ a no-op on an RDS host.
 ## Alternatives considered
 
 **Neon** (ADR 0001, ADR 0004). Free at staging size, real branching, and a managed pooler.
-Set aside because the account did not exist, the endpoint is public, and nothing in the repo
-uses branching. Cost is close once Neon is paid.
+Set aside because the account did not exist, the endpoint is public, there is no Canadian
+region, and nothing in the repo uses branching. Cost is close once Neon is paid.
 
 **RDS, publicly accessible, security group limited to the developer's IP.** Keeps `psql` and
 `pnpm db:deploy` working with no tunnel. Rejected: a home or café address changes and the
