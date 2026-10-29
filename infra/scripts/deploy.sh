@@ -5,10 +5,13 @@
 #
 # Runs ON THE INSTANCE (CI reaches it through SSM Run Command; see .github/workflows/ci.yml).
 # It writes `.env` from SSM Parameter Store (/voice-agent/<env>/*), records the image tag,
-# pulls, and restarts only what changed. Rollback is the same command with the previous tag.
+# pulls, applies the image's migrations (ADR 0034), and restarts only what changed. Rollback
+# is the same command with the previous tag — migrations only go forward, so a rollback runs
+# the older code against the newer schema (additive migrations keep that safe).
 #
 # Requires: docker compose v2, aws cli v2, an instance role with ssm:GetParametersByPath
-# on /voice-agent/<env>/ (nothing wider), and read access to the image registry
+# on /voice-agent/<env>/ and secretsmanager:GetSecretValue on the database master secret
+# (nothing wider), and read access to the image registry
 # (`docker login ghcr.io` once with a read-only token, stored in the instance's docker config).
 set -euo pipefail
 
@@ -62,9 +65,32 @@ fi
 cp -f "$(dirname "$0")/../docker-compose.prod.yml" docker-compose.yml
 cp -f "$(dirname "$0")/../caddy/Caddyfile" caddy/Caddyfile
 
-# 3. Pull and restart what changed. `--wait` blocks until healthchecks pass or fails the deploy.
+# 3. Pull, migrate, then restart what changed. `--wait` blocks until healthchecks pass or fails the deploy.
 echo "» deploying $IMAGE:$TAG to $ENV_NAME"
 docker compose pull --quiet
+
+# Migrations from the image being deployed, before anything restarts (ADR 0034): new code in
+# front of an old schema is a 500 on every route that reads a new table. A failure stops here
+# and the running containers keep the previous image. The owner password is the RDS-managed
+# secret, read now because it rotates weekly; it goes to this one container and never to .env.
+# SKIP_MIGRATIONS=1 is for an operator who has already migrated by hand through the tunnel.
+if [ "${SKIP_MIGRATIONS:-0}" = 1 ]; then
+  echo "» SKIP_MIGRATIONS=1: not migrating; the schema must already match $TAG"
+else
+  secret_arn="$(sed -n 's/^DB_MASTER_SECRET_ARN=//p' .env)"
+  if [ -n "$secret_arn" ]; then
+    DB_OWNER_SECRET="$(aws secretsmanager get-secret-value --region "$REGION" --secret-id "$secret_arn" --query SecretString --output text)" \
+      || { echo "!! cannot read the database owner secret; nothing was restarted" >&2; exit 1; }
+    export DB_OWNER_SECRET
+  elif ! grep -q '^DIRECT_DATABASE_URL=' .env; then
+    echo "!! neither DB_MASTER_SECRET_ARN nor DIRECT_DATABASE_URL is in SSM for $ENV_NAME; cannot migrate" >&2; exit 1
+  fi
+  echo "» migrating $ENV_NAME to $TAG"
+  docker compose run --rm --no-deps -e DB_OWNER_SECRET migrate \
+    || { echo "!! migrations failed; nothing was restarted, $ENV_NAME still runs the previous image" >&2; exit 1; }
+  unset DB_OWNER_SECRET
+fi
+
 docker compose up -d --remove-orphans --wait --wait-timeout 180
 docker image prune -f >/dev/null
 

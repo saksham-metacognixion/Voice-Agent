@@ -74,6 +74,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   grep -qx "$key" <<<"$present" && { echo "!! $FILE:$n: $key appears twice" >&2; exit 1; }
   case "$key" in
     APP_ENV|BACKEND_IMAGE|BACKEND_TAG) echo "!! $FILE:$n: $key is set by deploy.sh, not by SSM" >&2; exit 1 ;;
+    DB_MASTER_SECRET_ARN) echo "!! $FILE:$n: $key is written by the backend stack (ADR 0034), not by this file" >&2; exit 1 ;;
     PORTAL_URL) [[ "$value" =~ localhost|127\.0\.0\.1 ]] && { echo "!! PORTAL_URL points at localhost; deploy.sh would refuse it" >&2; exit 1; } ;;
     API_PUBLIC_URL) [[ "$value" =~ ^https:// ]] || { echo "!! API_PUBLIC_URL must be https on $ENV_NAME (Retell bakes it into every agent)" >&2; exit 1; } ;;
   esac

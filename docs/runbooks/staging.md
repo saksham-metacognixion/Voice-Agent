@@ -152,6 +152,33 @@ to GitHub (step 7).
 The outputs are the inputs to everything below: `ElasticIp`, `InstanceId`, `Region`,
 `SipCredentialsKmsKeyArn`, `CiUserName`.
 
+#### Updating the stack later — pin the AMI, preview first
+
+Without `AmiId`, the launch template's image is Canonical's public "Ubuntu 24.04 stable
+**current**" parameter, and CloudFormation resolves it again on **every** update. Once
+Canonical publishes a newer image, any update (even one that only adds a policy) makes a new
+launch template version and **replaces the instance**: a fresh box with no repo checkout,
+no registry login and an empty Redis. That happened on 28 Oct (ADR 0034's update): the box ran
+`ami-05d7d46c2c4b0dbf8` and Canonical had published `ami-0dccf39617797ec84` on 23 Oct. So
+pass the AMI the box is running, and read the change set before executing it:
+
+```sh
+AMI=$(aws ec2 describe-instances --region ca-central-1 --instance-ids <InstanceId> \
+  --query 'Reservations[0].Instances[0].ImageId' --output text)
+aws cloudformation deploy --region ca-central-1 --stack-name voice-agent-staging-backend \
+  --template-file infra/aws/backend-stack.yaml --capabilities CAPABILITY_NAMED_IAM \
+  --parameter-overrides PermissionsBoundaryArn=arn:aws:iam::667723749107:policy/VoiceAgentBoundary \
+    AmiId="$AMI" \
+  --no-execute-changeset
+aws cloudformation describe-change-set --change-set-name <the ARN it printed> \
+  --query 'Changes[].ResourceChange.[Action,LogicalResourceId,Replacement]' --output table
+```
+
+Execute only when the table shows what you meant to change and no `Instance` row. Every
+parameter you leave out keeps its current value. OS patches arrive through
+unattended-upgrades, so pinning the image costs no security updates; moving to a new image is
+its own, planned replacement.
+
 ### 2. DNS (Namecheap → Domain List → oraly.ai → Advanced DNS → Host Records)
 
 Add one record; leave the parking `www` CNAME and `@` redirect until the frontend lands.
@@ -176,7 +203,9 @@ aws ssm start-session --region ca-central-1 --target <InstanceId> \
 ```
 
 In a second terminal, read the generated master password and run the migrations through the
-tunnel. The master user exists for this and nothing else:
+tunnel. The master user exists for this and nothing else. This is the **first** migration only:
+after it, every deploy migrates by itself (ADR 0034). The password rotates every 7 days, so
+always read it fresh, as below:
 
 ```sh
 OWNER=$(aws secretsmanager get-secret-value --region ca-central-1 \
@@ -323,9 +352,26 @@ sudo /opt/voice-agent/infra/infra/scripts/deploy.sh staging sha-9f8e7d6   # roll
 ```
 
 `deploy.sh` writes `/opt/voice-agent/.env` from SSM (root-only), copies the compose file and
-Caddyfile, `docker compose pull && up -d --wait`, and prints `docker compose ps` and the
-readiness JSON. `--wait` fails the deploy if a healthcheck does not pass; a non-200
-`/health/ready` fails it too.
+Caddyfile, `docker compose pull`, **applies the image's migrations** (ADR 0034), then
+`up -d --wait`, and prints `docker compose ps` and the readiness JSON. `--wait` fails the
+deploy if a healthcheck does not pass; a non-200 `/health/ready` fails it too.
+
+The migration step reads the master password from Secrets Manager through
+`DB_MASTER_SECRET_ARN` (written by the stack) and passes it to a one-off
+`docker compose run --rm migrate`; the running app never sees it. A failed migration stops
+the deploy **before** anything restarts, so the previous image keeps serving. Migrations go
+forward only, so a rollback runs older code on the newer schema; keep migrations additive.
+`SKIP_MIGRATIONS=1` skips the step when you have already migrated by hand.
+
+After the stack update that adds `DB_MASTER_SECRET_ARN`, check once that the instance role
+may read the secret (`VoiceAgentBoundary` caps it and its contents are unverified), as the
+instance, through Run Command:
+
+```sh
+aws secretsmanager get-secret-value --region ca-central-1 \
+  --secret-id "$(aws ssm get-parameter --region ca-central-1 --name /voice-agent/staging/DB_MASTER_SECRET_ARN --query Parameter.Value --output text)" \
+  --query 'length(SecretString)'   # a number, never the value
+```
 
 ## Verify
 

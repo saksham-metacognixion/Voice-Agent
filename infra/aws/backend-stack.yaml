@@ -157,6 +157,30 @@ Resources:
         - { Key: project, Value: voice-agent }
         - Key: env
           Value: !Ref EnvName
+  # ADR 0034: deploy.sh migrates before it restarts anything, as the owner. The master password
+  # rotates every 7 days, so the box reads it from Secrets Manager on each deploy instead of a
+  # copy in SSM. Only deploy.sh reads it, for the one-off `migrate` container; the app never does.
+  # Its own resource, so the role does not depend on the database.
+  InstanceMigratePolicy:
+    Type: AWS::IAM::RolePolicy
+    Properties:
+      RoleName: !Ref InstanceRole
+      PolicyName: read-db-owner-secret-for-migrations
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ReadDbMasterSecret
+            Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: !GetAtt Database.MasterUserSecret.SecretArn
+  # Where deploy.sh finds that secret: under the path it already reads. An ARN, not a secret.
+  DbMasterSecretArnParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub /voice-agent/${EnvName}/DB_MASTER_SECRET_ARN
+      Type: String
+      Value: !GetAtt Database.MasterUserSecret.SecretArn
+      Description: Set by the stack (ADR 0034). deploy.sh reads the owner password through it to migrate.
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
@@ -256,7 +280,7 @@ Resources:
       EngineVersion: !Ref DbEngineVersion
       DBInstanceClass: !Ref DbInstanceClass
       # The master password is generated and held by Secrets Manager, so it is in neither this
-      # template nor SSM. It is used by a human for migrations, never by the running app.
+      # template nor SSM. deploy.sh reads it to migrate (ADR 0034); the running app never does.
       MasterUsername: portal
       ManageMasterUserPassword: true
       AllocatedStorage: !Ref DbAllocatedGb

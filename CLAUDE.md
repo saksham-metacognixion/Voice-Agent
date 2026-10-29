@@ -131,7 +131,11 @@ the transfer-failed message, ledger export, the workspace zip and delete *reques
 ADR 0019 §8), test-call versions, and the console's pinned actions and non-blocking health (28 Oct), 0033 the
 admin P1 gaps — overrides, number release/resync/reprovision, the provisioning retry that frees a
 finished job's id, call refund/flag, reconciliation runs, COGS/deferred/breakage reports and the KB
-list, platform settings as rows over env vars, and the portal's own-session list (28 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+list, platform settings as rows over env vars, and the portal's own-session list (28 Oct), 0034
+migrations on every deploy — the image carries `/migrate` (Prisma CLI + the commit's SQL),
+`deploy.sh` runs the `migrate` compose service between pull and `up` with the RDS master
+password read fresh from Secrets Manager via `DB_MASTER_SECRET_ARN`, a failed migration
+restarts nothing, CI migrates an empty Postgres from the built image (28 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -1358,7 +1362,9 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 
 **Secrets**
 
-- AWS SSM Parameter Store only, nothing in the repo. SIP credentials are envelope-encrypted with an AWS KMS
+- AWS SSM Parameter Store, nothing in the repo. The one exception is the RDS master password: RDS
+  generates and rotates it in Secrets Manager, SSM holds only its ARN (`DB_MASTER_SECRET_ARN`), and only
+  `deploy.sh` reads it, to migrate (ADR 0016, ADR 0034). SIP credentials are envelope-encrypted with an AWS KMS
   data key (AES-256-GCM).
 
 ## Redis keys
@@ -1672,7 +1678,10 @@ knowledge W4 → auto top-up → team and invites.
   `infra/scripts/deploy.sh` (which refuses to deploy without `PORTAL_URL`, or with one that
   points at localhost, and exits non-zero when `/health/ready` is not 200 — a degraded box is
   a failed deploy, not a printed status), and CI publishes the image to GHCR and deploys `develop` to staging
-  over SSM Run Command (`docs/runbooks/staging.md`).
+  over SSM Run Command (`docs/runbooks/staging.md`). **`deploy.sh` migrates before it
+  restarts anything** (ADR 0034): the image's own `/migrate` as the owner, a failure leaves
+  the previous image running. Migrations go forward only and a rollback runs old code on the
+  new schema, so write them additive; a drop or rename ships in two deploys.
 - Tests are required for metering, ledger idempotency, webhook exactly-once, inbound decline paths,
   RLS cross-tenant isolation, and — from D5 — guardrail tampering, version immutability, publish
   idempotency and duplicate generation jobs; from D6 — SIP credentials encrypted at rest, activation

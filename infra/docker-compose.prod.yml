@@ -75,6 +75,23 @@ services:
           cpus: '1.0'
           memory: 1g
 
+  # ADR 0034: `prisma migrate deploy` from the image being deployed. deploy.sh runs it with
+  # `docker compose run --rm migrate` after the pull and before `up`; the profile keeps `up`
+  # from ever starting it. The owner password is handed in by deploy.sh for this one run
+  # (DB_OWNER_SECRET) and is never in .env.
+  migrate:
+    image: ${BACKEND_IMAGE:-ghcr.io/metacognixion-labs/voice-agent-backend}:${BACKEND_TAG:-develop}
+    profiles: [migrate]
+    env_file:
+      - path: .env
+        required: false
+    command: ['node', '/migrate/migrate-deploy.mjs']
+    restart: 'no'
+    logging:
+      driver: json-file
+      options: { max-size: '10m', max-file: '3' }
+    networks: [backend]
+
   redis:
     image: redis:7-alpine
     command:
