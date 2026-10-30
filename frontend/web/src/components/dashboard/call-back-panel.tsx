@@ -147,6 +147,14 @@ function CallBackControls({ callId, check, refetch }: { callId: string; check: C
             <Link href={settingsPath('outbound')} className="text-xs text-primary hover:underline">
               {t('openSettings')}
             </Link>
+          ) : view.fix === 'workspace' ? (
+            <Link href={settingsPath('workspace')} className="text-xs text-primary hover:underline">
+              {t('openWorkspaceSettings')}
+            </Link>
+          ) : view.fix === 'numbers' ? (
+            <Link href={routes.app.numbers} className="text-xs text-primary hover:underline">
+              {t('openNumbers')}
+            </Link>
           ) : view.fix === 'wallet' ? (
             <Link href={routes.app.wallet} className="text-xs text-primary hover:underline">
               {t('openWallet')}

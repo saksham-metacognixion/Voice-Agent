@@ -23,6 +23,7 @@ describe('callbackView', () => {
     const at = '2026-10-29T13:00:00.000Z';
     expect(callbackView({ allowed: false, reason: 'OUTSIDE_CALLING_WINDOW', next_allowed_at: at }, 'editor')).toEqual({ kind: 'blocked', reason: 'OUTSIDE_CALLING_WINDOW', fix: null, nextAllowedAt: at });
     expect(callbackView({ allowed: false, reason: 'DNC_LISTED', next_allowed_at: at }, 'editor')).toEqual({ kind: 'blocked', reason: 'DNC_LISTED', fix: null, nextAllowedAt: null });
+    expect(callbackView({ allowed: false, reason: 'OUTBOUND_IN_PROGRESS', next_allowed_at: null }, 'editor')).toEqual({ kind: 'blocked', reason: 'OUTBOUND_IN_PROGRESS', fix: null, nextAllowedAt: null });
   });
 
   it('points verification and caller ID refusals at settings, money ones at the wallet', () => {
@@ -32,6 +33,12 @@ describe('callbackView', () => {
     expect(callbackFix('PURCHASE_REQUIRED')).toBe('wallet');
     expect(callbackFix('NO_PRIOR_CONTACT')).toBeNull();
     expect(callbackFix(null)).toBeNull();
+  });
+
+  it('points a bad workspace time zone at the Workspace tab and a paused caller ID at Numbers (QA-087, QA-085)', () => {
+    expect(callbackFix('WORKSPACE_TIMEZONE_INVALID')).toBe('workspace');
+    expect(callbackFix('NUMBER_PAUSED')).toBe('numbers');
+    expect(callbackView({ allowed: false, reason: 'WORKSPACE_TIMEZONE_INVALID', next_allowed_at: null }, 'owner')).toMatchObject({ kind: 'blocked', fix: 'workspace' });
   });
 
   it('survives a refusal without a reason', () => {
@@ -60,6 +67,8 @@ describe('keepIdempotencyKey', () => {
 
   it('takes a new key after a definitive refusal', () => {
     expect(keepIdempotencyKey(err(409, 'DNC_LISTED'))).toBe(false);
+    // QA-084: the platform refused the request for good; a new press is a new attempt.
+    expect(keepIdempotencyKey(err(400, 'BAD_REQUEST'))).toBe(false);
     expect(keepIdempotencyKey(err(429, 'OUTBOUND_DAILY_CAP'))).toBe(false);
     expect(keepIdempotencyKey(err(409, 'CONFLICT'))).toBe(false);
     expect(keepIdempotencyKey(new Error('boom'))).toBe(false);
@@ -68,9 +77,11 @@ describe('keepIdempotencyKey', () => {
 
 describe('callerIdNote', () => {
   it('says how a number was verified, or that support verifies it', () => {
-    expect(callerIdNote({ verified: true, verified_via: 'purchase' })).toBe('purchase');
-    expect(callerIdNote({ verified: true, verified_via: 'staff' })).toBe('staff');
-    expect(callerIdNote({ verified: false, verified_via: null })).toBe('contactSupport');
-    expect(callerIdNote({ verified: true, verified_via: null })).toBeNull();
+    expect(callerIdNote({ verified: true, verified_via: 'purchase', usable: true })).toBe('purchase');
+    expect(callerIdNote({ verified: true, verified_via: 'staff', usable: true })).toBe('staff');
+    expect(callerIdNote({ verified: false, verified_via: null, usable: false })).toBe('contactSupport');
+    expect(callerIdNote({ verified: true, verified_via: null, usable: true })).toBeNull();
+    // QA-085: paused keeps its verification but cannot be called from.
+    expect(callerIdNote({ verified: true, verified_via: 'purchase', usable: false })).toBe('paused');
   });
 });

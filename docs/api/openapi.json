@@ -14213,9 +14213,11 @@
               "KYC_REQUIRED",
               "KYC_PENDING",
               "KYC_REJECTED",
+              "WORKSPACE_TIMEZONE_INVALID",
               "OUTBOUND_NOT_CONFIGURED",
               "CALLER_ID_REQUIRED",
               "CALLER_ID_UNVERIFIED",
+              "NUMBER_PAUSED",
               "AGENT_NOT_PUBLISHED",
               "DESTINATION_INVALID",
               "DESTINATION_COUNTRY",
@@ -14225,7 +14227,8 @@
               "OUTSIDE_CALLING_WINDOW",
               "PURCHASE_REQUIRED",
               "NO_CREDITS",
-              "OUTBOUND_DAILY_CAP"
+              "OUTBOUND_DAILY_CAP",
+              "OUTBOUND_IN_PROGRESS"
             ],
             "nullable": true,
             "type": "string"
@@ -16837,6 +16840,9 @@
                 "status": {
                   "type": "string"
                 },
+                "usable": {
+                  "type": "boolean"
+                },
                 "verified": {
                   "type": "boolean"
                 },
@@ -16856,7 +16862,8 @@
                 "kind",
                 "status",
                 "verified",
-                "verified_via"
+                "verified_via",
+                "usable"
               ],
               "type": "object"
             },
@@ -37304,8 +37311,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "description": "Error envelope; `code` ∈ {BAD_REQUEST, WORKSPACE_REQUIRED}",
             "x-error-codes": [
+              "BAD_REQUEST",
               "WORKSPACE_REQUIRED"
             ]
           },
@@ -37378,7 +37386,7 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CALLER_ID_REQUIRED, CALLER_ID_UNVERIFIED, CONCURRENCY_LIMIT, CONFLICT, DNC_LISTED, NO_PRIOR_CONTACT, OUTBOUND_IN_PROGRESS, OUTBOUND_NOT_CONFIGURED, OUTSIDE_CALLING_WINDOW}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CALLER_ID_REQUIRED, CALLER_ID_UNVERIFIED, CONCURRENCY_LIMIT, CONFLICT, DNC_LISTED, NO_PRIOR_CONTACT, NUMBER_PAUSED, OUTBOUND_IN_PROGRESS, OUTBOUND_NOT_CONFIGURED, OUTSIDE_CALLING_WINDOW, WORKSPACE_TIMEZONE_INVALID}",
             "x-error-codes": [
               "AGENT_NOT_PUBLISHED",
               "CALLER_ID_REQUIRED",
@@ -37387,9 +37395,11 @@
               "CONFLICT",
               "DNC_LISTED",
               "NO_PRIOR_CONTACT",
+              "NUMBER_PAUSED",
               "OUTBOUND_IN_PROGRESS",
               "OUTBOUND_NOT_CONFIGURED",
-              "OUTSIDE_CALLING_WINDOW"
+              "OUTSIDE_CALLING_WINDOW",
+              "WORKSPACE_TIMEZONE_INVALID"
             ]
           },
           "422": {

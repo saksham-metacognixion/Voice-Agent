@@ -327,12 +327,14 @@
     "OUTBOUND_NOT_CONFIGURED": "Votre réglage de messagerie vocale pour les rappels doit être revu. Vérifiez-le dans les paramètres.",
     "CALLER_ID_REQUIRED": "Il vous faut un numéro vérifié d’où appeler. Les numéros achetés chez nous sont vérifiés automatiquement.",
     "CALLER_ID_UNVERIFIED": "Ce numéro n’est pas vérifié pour les appels sortants. Communiquez avec le soutien pour le faire vérifier.",
+    "NUMBER_PAUSED": "Ce numéro est en pause : aucun rappel ne peut en partir. Réactivez-le dans Numéros ou choisissez un autre numéro vérifié.",
+    "WORKSPACE_TIMEZONE_INVALID": "Le fuseau horaire de votre espace de travail n’est pas reconnu : les heures d’appel ne peuvent pas être vérifiées. Corrigez-le dans Paramètres → Espace de travail → Fuseau horaire.",
     "DESTINATION_INVALID": "Cet appel n’a aucun numéro de téléphone que nous pouvons rappeler.",
     "DNC_LISTED": "Ce numéro figure sur votre liste de numéros exclus.",
     "NO_PRIOR_CONTACT": "Votre agent peut seulement rappeler une personne qui vous a appelé récemment.",
     "OUTSIDE_CALLING_WINDOW": "Nous sommes en dehors des heures d’appel permises là où vit cette personne.",
     "OUTBOUND_DAILY_CAP": "Vous avez fait aujourd’hui tous les rappels que votre formule permet. Réessayez demain.",
-    "OUTBOUND_IN_PROGRESS": "Ce rappel est déjà en cours. Patientez un instant."
+    "OUTBOUND_IN_PROGRESS": "Un rappel à cette personne est déjà en cours. Attendez qu’il se termine."
   },
   "validation": {
     "required": "Obligatoire",
@@ -1544,6 +1546,8 @@
           "view": "Ouvrir l’appel",
           "earliest": "Heure la plus tôt permise pour ce numéro : {when}, dans le fuseau horaire de votre espace de travail.",
           "openSettings": "Ouvrir les paramètres d’appels sortants",
+          "openWorkspaceSettings": "Ouvrir les paramètres de l’espace de travail",
+          "openNumbers": "Aller aux numéros",
           "openWallet": "Aller au portefeuille",
           "rule": "Les rappels vont seulement aux personnes qui vous ont appelé dans les {days, plural, one {# dernier jour} other {# derniers jours}}, pendant les heures d’appel permises là où elles vivent.",
           "dnc": {
@@ -1555,7 +1559,8 @@
           },
           "reasons": {
             "DESTINATION_COUNTRY": "Nous ne pouvons pas encore appeler de numéros dans ce pays.",
-            "DESTINATION_IS_AGENT": "Un agent répond à ce numéro, pas une personne."
+            "DESTINATION_IS_AGENT": "Un agent répond à ce numéro, pas une personne.",
+            "BAD_REQUEST": "L’appel n’a pas pu être lancé : le numéro ou le numéro affiché n’a pas été accepté. Vérifiez-les ou communiquez avec le soutien."
           }
         }
       },
@@ -2764,10 +2769,12 @@
           },
           "verified": "Vérifié",
           "unverified": "Non vérifié",
+          "paused": "En pause",
           "via": {
             "purchase": "Acheté chez nous",
             "staff": "Vérifié par notre équipe",
-            "contactSupport": "Communiquez avec le soutien pour faire vérifier ce numéro."
+            "contactSupport": "Communiquez avec le soutien pour faire vérifier ce numéro.",
+            "paused": "En pause — réactivez-le dans Numéros pour appeler à partir de ce numéro."
           }
         },
         "today": {

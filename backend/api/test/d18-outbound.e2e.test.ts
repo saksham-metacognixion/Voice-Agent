@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import Retell from 'retell-sdk';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PlatformConfigService } from '../src/modules/config';
+import { OpsAlertService } from '../src/modules/alerts';
 import { OutboundCallService, UNCONFIRMED_ATTEMPT_MS, callingWindowVerdict, insideCallingWindow } from '../src/modules/outbound';
 import { REDIS, type RedisLike, redisKeys } from '../src/modules/redis';
 import { RuntimeCacheService } from '../src/modules/runtime-cache';
@@ -486,20 +487,56 @@ describe('placing the call', () => {
     await redis.del(redisKeys.activeCalls(ws.workspaceId));
   });
 
+  it('never rings the same person twice at once: a second press with its own key — another tab, or another of their calls — is refused while the first is live, and allowed once it ended', async () => {
+    clockAt(openAt);
+    const { ws, headers, agentId, number, source } = await setup('d18-twice');
+    const before = retell.countOf('createPhoneCall');
+    // Two tabs, each with its own key, within a few seconds of each other.
+    const [a, b] = await Promise.all([press(source.id, headers), press(source.id, headers)]);
+    const [won, lost] = a.status === 201 ? [a, b] : [b, a];
+    expect(won.status, JSON.stringify([a.body, b.body])).toBe(201);
+    expect(`${lost.status} ${lost.body.code}`).toBe('409 OUTBOUND_IN_PROGRESS');
+    expect(retell.countOf('createPhoneCall')).toBe(before + 1);
+    expect(await adminDb.outboundCall.count({ where: { tenantId: ws.workspaceId, status: { in: ['pending', 'placed'] } } })).toBe(1);
+    expect(await adminDb.call.count({ where: { tenantId: ws.workspaceId, direction: 'outbound' } })).toBe(1);
+    const blocked = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'call.outbound_blocked', targetId: source.id } });
+    expect(blocked?.metaJson).toMatchObject({ reason: 'OUTBOUND_IN_PROGRESS' });
+
+    // The same person from another of their calls, while the first is still live: the check says so, a press is refused.
+    const again = await d2Call(ws.workspaceId, agentId, number, { from: source.fromNumber });
+    expect((await call('GET', `/calls/${again.id}/callback`, headers)).body).toMatchObject({ allowed: false, reason: 'OUTBOUND_IN_PROGRESS' });
+    expect((await press(again.id, headers)).body.code).toBe('OUTBOUND_IN_PROGRESS');
+    // Someone else may still be called.
+    const other = await d2Call(ws.workspaceId, agentId, number);
+    expect((await press(other.id, headers)).status).toBe(201);
+    expect(retell.countOf('createPhoneCall')).toBe(before + 2);
+
+    // Once the first call has ended they may be called again (the lines freed as call_ended would).
+    await adminDb.call.update({ where: { id: won.body.call_id as string }, data: { status: 'ended', endedAt: new Date() } });
+    await redis.del(redisKeys.activeCalls(ws.workspaceId));
+    expect((await call('GET', `/calls/${source.id}/callback`, headers)).body.allowed).toBe(true);
+    expect((await press(source.id, headers)).status).toBe(201);
+    expect(retell.countOf('createPhoneCall')).toBe(before + 3);
+    await redis.del(redisKeys.activeCalls(ws.workspaceId));
+  });
+
   it('a provider refusal places nothing, counts nothing, frees the line, and the same key may try again', async () => {
     clockAt(openAt);
     const { ws, headers, source } = await setup('d18-upstream');
     const key = randomUUID();
     retell.failNext('createPhoneCall', 1, Retell.APIError.generate(400, { message: 'bad number' }, 'bad number', new Headers()));
     const failed = await call('POST', `/calls/${source.id}/callback`, headers, { idempotency_key: key });
-    expect(failed.status).toBe(503);
-    expect(failed.body.code).toBe('UPSTREAM_UNAVAILABLE');
+    // QA-084: a 4xx is the platform refusing for good — permanent, not "try again in a moment".
+    expect(failed.status).toBe(400);
+    expect(failed.body.code).toBe('BAD_REQUEST');
+    expect(String(failed.body.message)).not.toMatch(/try again/i);
     expect(JSON.stringify(failed.body)).not.toMatch(/retell|bad number/i);
     expect(await adminDb.outboundCall.findFirstOrThrow({ where: { tenantId: ws.workspaceId } })).toMatchObject({ status: 'failed', failure: 'upstream' });
     expect(await adminDb.call.count({ where: { tenantId: ws.workspaceId, direction: 'outbound' } })).toBe(0);
     expect(Object.keys(await redis.hgetall(redisKeys.activeCalls(ws.workspaceId)))).toEqual([]);
     const audit = await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'call.outbound_failed' } });
-    expect(audit.metaJson).toMatchObject({ outcome: 'rejected' });
+    expect(audit.metaJson).toMatchObject({ outcome: 'rejected', reason: 'BAD_REQUEST', upstream_status: 400 });
+    expect(JSON.stringify(audit.metaJson)).not.toMatch(/retell|bad number/i);
     expect((await call('GET', `/calls/${source.id}/callback`, headers)).body.used_today).toBe(0);
 
     const retried = await call('POST', `/calls/${source.id}/callback`, headers, { idempotency_key: key });
@@ -640,5 +677,139 @@ describe('metering', () => {
     expect(ledger).toHaveLength(1);
     expect(ledger[0]!.delta.toNumber()).toBe(-row.creditsCharged!.toNumber());
     expect(await adminDb.call.count({ where: { id: callId } })).toBe(1);
+  });
+});
+
+describe('QA-084 to QA-088 — the 30 Oct batch', () => {
+  it('QA-084: a platform 5xx or a 429 is 503 and "try again", a 4xx is 400 and final — and only the 4xx frees the key', async () => {
+    clockAt(openAt);
+    const { ws, headers, source } = await setup('d18-qa084');
+    const before = retell.countOf('createPhoneCall');
+
+    // A 5xx may have rung the person: 503, the attempt stays pending, the key is held.
+    retell.failNext('createPhoneCall', 1, Retell.APIError.generate(502, { message: 'bad gateway' }, 'bad gateway', new Headers()));
+    const key = randomUUID();
+    const outage = await call('POST', `/calls/${source.id}/callback`, headers, { idempotency_key: key });
+    expect(outage.status).toBe(503);
+    expect(outage.body.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(await adminDb.outboundCall.findFirstOrThrow({ where: { tenantId: ws.workspaceId, idempotencyKey: key } })).toMatchObject({ status: 'pending', failure: 'unconfirmed' });
+    expect((await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'call.outbound_failed' } })).metaJson).toMatchObject({ reason: 'UPSTREAM_UNAVAILABLE', outcome: 'unconfirmed', upstream_status: 502 });
+    await adminDb.outboundCall.updateMany({ where: { tenantId: ws.workspaceId }, data: { status: 'failed', failure: 'unconfirmed' } });
+
+    // A 429 placed nothing but is not a refusal of the request: 503, and the key may try again.
+    retell.failNext('createPhoneCall', 1, Retell.APIError.generate(429, { message: 'slow down' }, 'slow down', new Headers()));
+    const throttled = await call('POST', `/calls/${source.id}/callback`, headers, { idempotency_key: key });
+    expect(throttled.status).toBe(503);
+    expect(throttled.body.code).toBe('UPSTREAM_UNAVAILABLE');
+    expect(await adminDb.outboundCall.findFirstOrThrow({ where: { tenantId: ws.workspaceId, idempotencyKey: key } })).toMatchObject({ status: 'failed', failure: 'upstream' });
+
+    // A 422 is final: 400, no "try again", the provider's words nowhere in the answer.
+    retell.failNext('createPhoneCall', 1, Retell.APIError.generate(422, { message: 'from_number not owned' }, 'from_number not owned', new Headers()));
+    const refused = await call('POST', `/calls/${source.id}/callback`, headers, { idempotency_key: key });
+    expect(refused.status).toBe(400);
+    expect(refused.body.code).toBe('BAD_REQUEST');
+    expect(String(refused.body.message)).not.toMatch(/try again/i);
+    expect(JSON.stringify(refused.body)).not.toMatch(/retell|from_number not owned/i);
+    expect(retell.countOf('createPhoneCall')).toBe(before + 3);
+    expect(await adminDb.call.count({ where: { tenantId: ws.workspaceId, direction: 'outbound' } })).toBe(0);
+    expect(Object.keys(await redis.hgetall(redisKeys.activeCalls(ws.workspaceId)))).toEqual([]);
+  });
+
+  it('QA-085: a paused number is listed as paused and unusable, is never picked, and asked for by id is NUMBER_PAUSED', async () => {
+    clockAt(openAt);
+    const { ws, headers, source, number } = await setup('d18-qa085');
+    const before = retell.countOf('createPhoneCall');
+    await adminDb.phoneNumber.update({ where: { id: number.id }, data: { status: 'paused', pausedAt: new Date() } });
+
+    const overview = await call('GET', '/outbound', headers);
+    expect(overview.status).toBe(200);
+    const listed = (overview.body.caller_ids as Array<Record<string, unknown>>).find((c) => c.number_id === number.id);
+    expect(listed).toMatchObject({ status: 'paused', verified: true, usable: false });
+
+    // The only verified number is paused: the gate says so, and points at Numbers, not at support.
+    await expectRefused(ws.workspaceId, source.id, await press(source.id, headers), 'NUMBER_PAUSED', 409, before);
+    await expectRefused(ws.workspaceId, source.id, await press(source.id, headers, { number_id: number.id }), 'NUMBER_PAUSED', 409, before);
+    expect((await call('GET', `/calls/${source.id}/callback`, headers)).body).toMatchObject({ allowed: false, reason: 'NUMBER_PAUSED', number_id: null });
+
+    // Resumed, it is the caller ID again; the tab and the gate agree.
+    await adminDb.phoneNumber.update({ where: { id: number.id }, data: { status: 'active', pausedAt: null } });
+    const after = (await call('GET', '/outbound', headers)).body.caller_ids as Array<Record<string, unknown>>;
+    expect(after.find((c) => c.number_id === number.id)).toMatchObject({ status: 'active', verified: true, usable: true });
+    const placed = await press(source.id, headers, { number_id: number.id });
+    expect(placed.status).toBe(201);
+    expect(placed.body.from_number).toBe(number.e164);
+    await redis.del(redisKeys.activeCalls(ws.workspaceId));
+  });
+
+  it('QA-086: the Outbound tab counts today exactly as the gate does, before and after an unconfirmed attempt goes stale', async () => {
+    clockAt(openAt);
+    const { ws, headers, source } = await setup('d18-qa086');
+    const usage = async () => {
+      const [tab, gate] = await Promise.all([call('GET', '/outbound', headers), call('GET', `/calls/${source.id}/callback`, headers)]);
+      expect(tab.status).toBe(200);
+      expect(gate.status).toBe(200);
+      return { tab: tab.body.used_today as number, gate: gate.body.used_today as number };
+    };
+    expect(await usage()).toEqual({ tab: 0, gate: 0 });
+
+    // No answer from the platform: it may be ringing, so both count it.
+    retell.failNext('createPhoneCall');
+    expect((await press(source.id, headers)).status).toBe(503);
+    expect(await usage()).toEqual({ tab: 1, gate: 1 });
+
+    // Past the write-off cut-off it stops counting — on the tab too, which used to count every pending row for ever.
+    await adminDb.outboundCall.updateMany({ where: { tenantId: ws.workspaceId }, data: { updatedAt: new Date(Date.now() - UNCONFIRMED_ATTEMPT_MS - 60_000) } });
+    expect(await usage()).toEqual({ tab: 0, gate: 0 });
+
+    // A placed call counts on both, and the drawer's "used + 1" is what the tab then shows.
+    const placed = await press(source.id, headers);
+    expect(placed.status).toBe(201);
+    expect(placed.body.used_today).toBe(1);
+    expect(await usage()).toEqual({ tab: 1, gate: 1 });
+    await redis.del(redisKeys.activeCalls(ws.workspaceId));
+  });
+
+  it('QA-087: a workspace time zone the runtime does not know is WORKSPACE_TIMEZONE_INVALID, not "outbound settings need attention"', async () => {
+    clockAt(openAt);
+    const { ws, headers, source } = await setup('d18-qa087');
+    const before = retell.countOf('createPhoneCall');
+    const tenant = await adminDb.tenant.findUniqueOrThrow({ where: { id: ws.workspaceId }, select: { timezone: true } });
+
+    await adminDb.tenant.update({ where: { id: ws.workspaceId }, data: { timezone: 'Canada/Eastern_Legacy' } });
+    const refused = await press(source.id, headers);
+    await expectRefused(ws.workspaceId, source.id, refused, 'WORKSPACE_TIMEZONE_INVALID', 409, before);
+    expect(String(refused.body.message)).toMatch(/Settings → Workspace/);
+    expect((await call('GET', `/calls/${source.id}/callback`, headers)).body).toMatchObject({ allowed: false, reason: 'WORKSPACE_TIMEZONE_INVALID' });
+    // The tab still loads; it just cannot say which day "today" is.
+    expect((await call('GET', '/outbound', headers)).status).toBe(200);
+
+    // Unusable settings on top: the time zone is named first — it is the workspace setting, and fixed elsewhere.
+    await adminDb.tenant.update({ where: { id: ws.workspaceId }, data: { outboundSettingsJson: { voicemail_detection: 'leave_message' } } });
+    expect((await press(source.id, headers)).body.code).toBe('WORKSPACE_TIMEZONE_INVALID');
+    await adminDb.tenant.update({ where: { id: ws.workspaceId }, data: { timezone: tenant.timezone } });
+    expect((await press(source.id, headers)).body.code).toBe('OUTBOUND_NOT_CONFIGURED');
+    await adminDb.tenant.update({ where: { id: ws.workspaceId }, data: { outboundSettingsJson: { voicemail_detection: 'hang_up', voicemail_message: null } } });
+    expect((await press(source.id, headers)).status).toBe(201);
+    await redis.del(redisKeys.activeCalls(ws.workspaceId));
+  });
+
+  it('QA-088: a refusal whose audit row cannot be written still refuses with its own code, and raises an ops alert', async () => {
+    clockAt(openAt);
+    const { ws, source } = await setup('d18-qa088', { flag: false });
+    const ops = app.get(OpsAlertService);
+    const alertsBefore = ops.recent.filter((a) => a.kind === 'outbound_audit_failed').length;
+    const before = retell.countOf('createPhoneCall');
+    const owner = await adminDb.membership.findFirstOrThrow({ where: { tenantId: ws.workspaceId, role: 'owner' }, select: { userId: true } });
+    // `audit_log.ip` is inet: an address Postgres cannot parse makes the insert itself fail, as a
+    // lost connection would, with nothing else about the request changed.
+    const ctx = { userId: owner.userId, workspaceId: ws.workspaceId, role: 'owner' as const, ip: 'not-an-ip-address', requestId: `req_${randomUUID()}` };
+    await expect(app.get(OutboundCallService).callBack(ctx, source.id, { idempotency_key: randomUUID() })).rejects.toMatchObject({ code: 'OUTBOUND_DISABLED' });
+
+    expect(retell.countOf('createPhoneCall')).toBe(before);
+    expect(await adminDb.auditLog.count({ where: { tenantId: ws.workspaceId, action: 'call.outbound_blocked', targetId: source.id } })).toBe(0);
+    const alert = await waitFor('the ops alert', async () => ops.recent.filter((a) => a.kind === 'outbound_audit_failed').at(alertsBefore) ?? null);
+    expect(alert.severity).toBe('warning');
+    expect(alert.fields).toMatchObject({ action: 'call.outbound_blocked', workspace_id: ws.workspaceId, call_id: source.id, reason: 'OUTBOUND_DISABLED', request_id: ctx.requestId });
+    expect(alert.text).not.toMatch(new RegExp(source.fromNumber!.replace('+', '\\+')));
   });
 });

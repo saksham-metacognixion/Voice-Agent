@@ -327,12 +327,14 @@
     "OUTBOUND_NOT_CONFIGURED": "Your voicemail setting for callbacks needs a look. Review it in Settings.",
     "CALLER_ID_REQUIRED": "You need a verified number to call from. Numbers you buy from us are verified automatically.",
     "CALLER_ID_UNVERIFIED": "That number is not verified for outbound calls. Contact support to verify it.",
+    "NUMBER_PAUSED": "That number is paused, so no callback can come from it. Resume it in Numbers, or pick another verified number.",
+    "WORKSPACE_TIMEZONE_INVALID": "Your workspace time zone is not one we recognise, so calling hours cannot be checked. Correct it in Settings → Workspace → Time zone.",
     "DESTINATION_INVALID": "This call has no phone number we can call back.",
     "DNC_LISTED": "This number is on your do-not-call list.",
     "NO_PRIOR_CONTACT": "Your agent can only call back someone who called you recently.",
     "OUTSIDE_CALLING_WINDOW": "It is outside the legal calling hours where this person lives.",
     "OUTBOUND_DAILY_CAP": "You have placed every callback your plan allows today. Try again tomorrow.",
-    "OUTBOUND_IN_PROGRESS": "This callback is already being placed. Give it a moment."
+    "OUTBOUND_IN_PROGRESS": "A callback to this person is already in progress. Wait until it ends."
   },
   "validation": {
     "required": "Required",
@@ -1544,6 +1546,8 @@
           "view": "Open the call",
           "earliest": "Earliest time allowed for this number: {when}, in your workspace’s time zone.",
           "openSettings": "Open outbound settings",
+          "openWorkspaceSettings": "Open workspace settings",
+          "openNumbers": "Go to numbers",
           "openWallet": "Go to wallet",
           "rule": "Callbacks go only to someone who called you in the last {days, plural, one {# day} other {# days}}, within the legal calling hours where they live.",
           "dnc": {
@@ -1555,7 +1559,8 @@
           },
           "reasons": {
             "DESTINATION_COUNTRY": "We cannot call numbers in this country yet.",
-            "DESTINATION_IS_AGENT": "This number is answered by an agent, not a person."
+            "DESTINATION_IS_AGENT": "This number is answered by an agent, not a person.",
+            "BAD_REQUEST": "The call could not be placed: the number or the caller ID was not accepted. Check them, or contact support."
           }
         }
       },
@@ -2764,10 +2769,12 @@
           },
           "verified": "Verified",
           "unverified": "Not verified",
+          "paused": "Paused",
           "via": {
             "purchase": "Bought from us",
             "staff": "Verified by our team",
-            "contactSupport": "Contact support to verify this number."
+            "contactSupport": "Contact support to verify this number.",
+            "paused": "Paused — resume it in Numbers to call from it."
           }
         },
         "today": {

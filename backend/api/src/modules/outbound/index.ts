@@ -1,5 +1,8 @@
 export { OutboundModule } from './outbound.module';
-export { OutboundCallService, UNCONFIRMED_ATTEMPT_MS, pickCallerId, voicemailAction } from './outbound.service';
+export { OutboundCallService, asPlacementError, voicemailAction } from './outbound.service';
+export { UNCONFIRMED_ATTEMPT_MS, unconfirmedBefore, usedOn } from './outbound-usage';
+export { callerIdCandidates, pickCallerId, usableCallerId } from './caller-ids';
+export type { CallerId, CallerIdCandidate, CallerIdPick } from './caller-ids';
 export { OutboundSettingsService, kycOf } from './outbound-settings.service';
 export { DncService } from './dnc.service';
 export { decideOutbound, REFUSAL_MESSAGES } from './outbound.decide';

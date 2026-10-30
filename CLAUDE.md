@@ -724,6 +724,12 @@ job settles.
 - **The daily cap is a row count under a lock**, not Redis: `pg_advisory_xact_lock('outbound:<ws>')`,
   `outbound_calls` of the workspace-local day in `pending|placed`, idempotency key re-read
   under it. A provider failure marks the attempt `failed` (uncounted) and frees the `MintSlot`.
+- **One live callback per person** (30 Oct, ADR 0031 addendum): the key dedupes one press,
+  not two tabs. `liveAttemptTo()` — a `pending` attempt to the same **destination** inside
+  `UNCONFIRMED_ATTEMPT_MS`, or a `placed` one whose call is still `registered`/`in_progress`
+  — is `OutboundFacts.inProgress` → `OUTBOUND_IN_PROGRESS` (the last gate, so the check and
+  the panel say so) and is asked again under the lock in `claimAttempt` (`ringing` → the
+  line freed, `call.outbound_blocked`, nothing placed).
 - **The calling window holds in every zone of the destination's country**
   (`outbound.countries` in the pricing config; US 8–21, CA 9–21:30 / weekends 10–18). Never
   model DST — each zone's wall clock via `localClock`. No rule = not callable.
@@ -742,6 +748,19 @@ job settles.
   is taken **before** the claim, so a lost race writes no `outbound_calls` row. The
   callback carries the caller ID's `transfer_number_N` and fail message
   (`numberTransferVariables`, the same reader the runtime cache and "Call my phone" use).
+- **The 30 Oct batch (QA-084 to QA-088, ADR 0031 addendum).** A platform 4xx on
+  `create-phone-call` (not 408/409/429) is `400 BAD_REQUEST` through `asPlacementError`,
+  permanent like `asPublishError`'s; `503 UPSTREAM_UNAVAILABLE` is only a timeout, a 5xx or
+  a 429, and only those keep the key. The audit row carries `upstream_status`, never the
+  platform's words. **One caller-ID rule**: `callerIdCandidates()` + `usableCallerId()`
+  (`modules/outbound/caller-ids.ts`) feed both `GET /outbound` and the gate — a paused
+  number stays listed with `usable: false` and is refused `NUMBER_PAUSED` (sent to Numbers,
+  not to support). **One count of today**: `usedOn()` (`outbound-usage.ts`) for the tab, the
+  gate, the claim and the replay, so a stale unconfirmed attempt drops out of all of them at
+  the same minute. A `tenants.timezone` `Intl` cannot read is `WORKSPACE_TIMEZONE_INVALID`
+  (fix in Settings → Workspace), judged before the outbound settings. An audit row the
+  database refuses raises an `outbound_audit_failed` ops alert (ids, the masked number,
+  200 chars of the error) and changes nothing about the answer.
 
 **Knowledge use (D16, ADR 0028)**
 
@@ -1535,10 +1554,11 @@ throws and never waits past its budget (ADR 0010 §6).
   stranger should not learn). `GET /stats` answers `by_channel: {phone, web}`.
 - D18 routes (ADR 0031, tag `outbound`): `GET|POST /calls/:id/callback` (check: any member;
   place: owner/admin/editor, verified email; `{idempotency_key, number_id?}`; codes
-  `OUTBOUND_DISABLED`, `KYC_REQUIRED|PENDING|REJECTED`, `OUTBOUND_NOT_CONFIGURED`,
-  `CALLER_ID_REQUIRED|UNVERIFIED`, `DESTINATION_INVALID`, `DNC_LISTED`, `NO_PRIOR_CONTACT`,
-  `OUTSIDE_CALLING_WINDOW`, `OUTBOUND_DAILY_CAP`, `OUTBOUND_IN_PROGRESS` beside the existing
-  ones), `GET /outbound`, `PUT /outbound/settings` and `POST /outbound/kyc` (owner/admin),
+  `OUTBOUND_DISABLED`, `KYC_REQUIRED|PENDING|REJECTED`, `WORKSPACE_TIMEZONE_INVALID`,
+  `OUTBOUND_NOT_CONFIGURED`, `CALLER_ID_REQUIRED|UNVERIFIED`, `NUMBER_PAUSED`,
+  `DESTINATION_INVALID`, `DNC_LISTED`, `NO_PRIOR_CONTACT`, `OUTSIDE_CALLING_WINDOW`,
+  `OUTBOUND_DAILY_CAP`, `OUTBOUND_IN_PROGRESS` and a platform 4xx as `400 BAD_REQUEST`
+  beside the existing ones), `GET /outbound` (`caller_ids[].usable`), `PUT /outbound/settings` and `POST /outbound/kyc` (owner/admin),
   `GET|POST /dnc` (add: editor+), `DELETE /dnc/:id` (owner/admin); staff
   `GET|POST /admin/customers/:id/kyc` and `POST /admin/numbers/:id/caller-id`
   (`STAFF_ROUTE_ROLES.compliance` = super admin, ops).

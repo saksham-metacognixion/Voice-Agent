@@ -63,3 +63,6 @@ frontend/web/.e2e/
 
 # scratch output written into the repo by mistake (a relative /tmp path)
 tmp/
+
+# git worktrees Claude Code creates for isolated agents (`git worktree list` is the record)
+.claude/worktrees/

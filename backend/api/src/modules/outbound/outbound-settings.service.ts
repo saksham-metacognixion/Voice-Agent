@@ -15,6 +15,8 @@ import {
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
+import { callerIdCandidates, usableCallerId } from './caller-ids';
+import { usedOn } from './outbound-usage';
 
 /**
  * D18 — the D6 "Outbound calling" tab (ADR 0031 §1, §5): the business verification the
@@ -33,15 +35,10 @@ export class OutboundSettingsService {
         select: { kycStatus: true, kycJson: true, kycSubmittedAt: true, kycDecidedAt: true, kycReason: true, outboundSettingsJson: true, planTier: true, timezone: true },
       });
       const localDay = localClock(new Date(), tenant.timezone)?.date;
+      // The same rows and the same count the callback gate reads (QA-085, QA-086).
       const [numbers, used] = await Promise.all([
-        db.phoneNumber.findMany({
-          where: { tenantId: ctx.workspaceId, status: { in: ['active', 'paused'] }, e164: { not: null } },
-          select: { id: true, e164: true, nickname: true, type: true, status: true, callerIdVerifiedAt: true, callerIdVerifiedVia: true },
-          orderBy: { createdAt: 'asc' },
-        }),
-        localDay
-          ? db.outboundCall.count({ where: { tenantId: ctx.workspaceId, localDay: new Date(`${localDay}T00:00:00Z`), status: { in: ['pending', 'placed'] } } })
-          : 0,
+        callerIdCandidates(db, ctx.workspaceId, { nickname: true, type: true, callerIdVerifiedVia: true }),
+        localDay ? usedOn(db, ctx.workspaceId, localDay) : 0,
       ]);
       const settings = outboundSettings.safeParse(tenant.outboundSettingsJson ?? DEFAULT_OUTBOUND_SETTINGS);
       return {
@@ -58,6 +55,7 @@ export class OutboundSettingsService {
             status: n.status,
             verified: n.callerIdVerifiedAt !== null,
             verified_via: n.callerIdVerifiedAt !== null && via.success ? via.data : null,
+            usable: usableCallerId(n),
           };
         }),
         daily_cap: policy.daily_caps[tenant.planTier],

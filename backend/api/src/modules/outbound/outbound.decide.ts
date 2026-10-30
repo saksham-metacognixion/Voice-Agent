@@ -10,10 +10,16 @@ export interface OutboundFacts {
   enabled: boolean;
   workspacePaused: boolean;
   kyc: KycStatus;
-  /** The workspace's stored outbound settings and time zone are usable. */
+  /** `tenants.timezone` is a zone this runtime can tell the local day and hour in (QA-087). */
+  timezoneValid: boolean;
+  /** The workspace's stored outbound settings are usable. */
   configured: boolean;
-  /** `none` = no verified number at all; `unverified` = the one asked for is not a verified number of this workspace. */
-  callerId: 'ok' | 'none' | 'unverified';
+  /**
+   * `none` = no verified number at all; `unverified` = the one asked for is not a verified
+   * number of this workspace; `paused` = the one asked for, or the only verified one, is
+   * paused (QA-085).
+   */
+  callerId: 'ok' | 'none' | 'unverified' | 'paused';
   /** The call's agent is live, published and on the platform. */
   agentLive: boolean;
   destinationValid: boolean;
@@ -28,6 +34,8 @@ export interface OutboundFacts {
   balance: number;
   usedToday: number;
   dailyCap: number;
+  /** A callback to this person is still being placed, ringing or talking. */
+  inProgress: boolean;
 }
 
 export type OutboundDecision = { ok: true } | { ok: false; reason: OutboundRefusal };
@@ -35,8 +43,9 @@ export type OutboundDecision = { ok: true } | { ok: false; reason: OutboundRefus
 /**
  * The D18 compliance gates, in the order they are answered. Pure, like the inbound
  * `decide()`: `GET /calls/:id/callback` shows the verdict, `POST` acts on it, and both read
- * it from here. The daily cap is checked once more under a lock when the attempt is
- * recorded, and the plan's line by `MintSlot` — this is the read, those are the writes.
+ * it from here. The daily cap and "already in progress" are checked once more under a lock
+ * when the attempt is recorded, and the plan's line by `MintSlot` — this is the read, those
+ * are the writes.
  *
  * The order is "who may call" before "whom" before "when" before "how much": a workspace
  * without verification learns that first, whatever the number.
@@ -48,9 +57,11 @@ export function decideOutbound(f: OutboundFacts): OutboundDecision {
   if (f.kyc === 'pending') return refuse('KYC_PENDING');
   if (f.kyc === 'rejected') return refuse('KYC_REJECTED');
   if (f.kyc !== 'verified') return refuse('KYC_REQUIRED');
+  if (!f.timezoneValid) return refuse('WORKSPACE_TIMEZONE_INVALID');
   if (!f.configured) return refuse('OUTBOUND_NOT_CONFIGURED');
   if (f.callerId === 'none') return refuse('CALLER_ID_REQUIRED');
   if (f.callerId === 'unverified') return refuse('CALLER_ID_UNVERIFIED');
+  if (f.callerId === 'paused') return refuse('NUMBER_PAUSED');
   if (!f.agentLive) return refuse('AGENT_NOT_PUBLISHED');
   if (!f.destinationValid) return refuse('DESTINATION_INVALID');
   if (!f.countryRuled) return refuse('DESTINATION_COUNTRY');
@@ -61,6 +72,7 @@ export function decideOutbound(f: OutboundFacts): OutboundDecision {
   if (!f.paid) return refuse('PURCHASE_REQUIRED');
   if (!(f.balance > 0)) return refuse('NO_CREDITS');
   if (f.usedToday >= f.dailyCap) return refuse('OUTBOUND_DAILY_CAP');
+  if (f.inProgress) return refuse('OUTBOUND_IN_PROGRESS');
   return { ok: true };
 }
 
@@ -71,9 +83,11 @@ export const REFUSAL_MESSAGES: Record<OutboundRefusal, string> = {
   KYC_REQUIRED: 'Verify your business before calling out. Submit your details in Settings → Outbound calling.',
   KYC_PENDING: 'Your business verification is being reviewed. Outbound calling opens once it is approved.',
   KYC_REJECTED: 'Your business verification was not approved. See Settings → Outbound calling, or contact support.',
+  WORKSPACE_TIMEZONE_INVALID: 'Your workspace time zone is not one we recognise, so calling hours cannot be checked. Correct it in Settings → Workspace → Time zone.',
   OUTBOUND_NOT_CONFIGURED: 'Your outbound settings need attention. Review them in Settings → Outbound calling.',
   CALLER_ID_REQUIRED: 'You need a verified number to call from. Numbers you bought from us are verified automatically.',
   CALLER_ID_UNVERIFIED: 'That number is not a verified caller ID of this workspace.',
+  NUMBER_PAUSED: 'That number is paused, so no call can come from it. Resume it in Numbers, or pick another verified number.',
   AGENT_NOT_PUBLISHED: 'The agent on this call is not live. Publish it before calling back.',
   DESTINATION_INVALID: 'This call has no phone number we can call back (withheld, a browser call, or not a real number).',
   DESTINATION_COUNTRY: 'Calls to that country are not available.',
@@ -84,4 +98,5 @@ export const REFUSAL_MESSAGES: Record<OutboundRefusal, string> = {
   PURCHASE_REQUIRED: 'Calling out opens once you have bought a pack.',
   NO_CREDITS: 'You are out of credits. Buy a pack to call out.',
   OUTBOUND_DAILY_CAP: 'You have placed as many outbound calls today as your plan allows.',
+  OUTBOUND_IN_PROGRESS: 'A callback to this person is already in progress. Wait until it ends.',
 };

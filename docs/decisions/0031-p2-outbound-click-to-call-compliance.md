@@ -158,7 +158,7 @@ bought from the platform dials **US destinations only**.
   platform-bought number may dial Canada (its docs say US only — a Canadian callback from a
   bought number may fail upstream and is reported as `UPSTREAM_UNAVAILABLE`). One staging
   call each before customers use it.
-- Exit checks: `test/d18-outbound.e2e.test.ts` (17 cases; the first is the D18 exit check),
+- Exit checks: `test/d18-outbound.e2e.test.ts` (23 cases; the first is the D18 exit check),
   `modules/outbound/{calling-window,outbound.decide}.test.ts`, the RLS matrix.
 
 ## Addendum — 28 Oct 2026: an attempt the platform never answered
@@ -193,3 +193,60 @@ could ring someone twice:
   path matches them.
 - **Verdicts on insert.** `guard_outbound_verdicts` also runs BEFORE INSERT
   (`20261028150000_outbound_verdicts_on_insert`).
+
+## Addendum — 30 Oct 2026: the same person is never rung twice at once
+
+QA pressed "Call back" on one D2 call in two tabs within a few seconds. Each tab mints its
+own `idempotency_key`, so the key check saw two different presses and both calls rang, both
+were billed and both counted toward the daily cap. The key is a guard against *one* press
+repeated; it says nothing about two presses, nor about the same caller's other D2 rows.
+
+- **A new fact and a new refusal.** `OutboundFacts.inProgress` and `OUTBOUND_IN_PROGRESS` as
+  the last gate of `decideOutbound` (after the cap), so `GET /calls/:id/callback` reports it
+  and the D2 panel shows it as any other blocked state. The code already existed for the
+  same-key case and keeps its 409; the portal's copy now reads for both.
+- **The write is under the lock.** `claimAttempt` re-asks `liveAttemptTo()` under
+  `outbound:<ws>` and answers `ringing`: the line is freed, `call.outbound_blocked` is
+  written with the reason, and nothing else — no `outbound_calls` row, no platform request.
+  Deduped on the **destination number**, not the source call: two of the person's own calls
+  in D2 are the same person.
+- **"Still live"** is: a `pending` attempt with no call inside `UNCONFIRMED_ATTEMPT_MS`, or a
+  `placed` one whose `calls` row is `registered` / `in_progress`. A placed attempt whose row
+  never appeared counts only inside that window. `call-recovery` settles a row the platform
+  stopped reporting, so a stuck "live" call frees the person within its windows.
+
+## Addendum — 30 Oct 2026: QA-084 to QA-088
+
+Five findings from the first review of the D2 panel and the D6 tab against the gate:
+
+- **QA-084 — a platform refusal is final.** `create-phone-call` answering a 4xx meant
+  `503 UPSTREAM_UNAVAILABLE` and "try again in a moment", for a request the platform would
+  refuse again every time. `asPlacementError(status)` now follows `asPublishError`
+  (commit `8199b2b`): a 4xx other than 408, 409 and 429 is `400 BAD_REQUEST` with a final
+  sentence; a timeout, a reset, a 5xx, a 408 or a 429 stays 503. The attempt's state is
+  unchanged by this (a 4xx still frees the key, anything else still holds it); the
+  `call.outbound_failed` audit row now records `reason` (which code was answered) and
+  `upstream_status`. The platform's message stays in the API log — it can name the vendor.
+- **QA-085 — one caller-ID rule.** `GET /outbound` listed every active-or-paused number as
+  a caller ID while the gate picked from active, unpaused ones only. Both now read
+  `callerIdCandidates()` and judge with `usableCallerId()` (`caller-ids.ts`), and the
+  response says `usable`. A paused number stays listed — its verification survives the
+  pause and the tab should say so — marked "Paused". `pickCallerId` answers `paused` when
+  the number asked for, or the only verified number, is paused, and the gate refuses
+  `NUMBER_PAUSED` (409): the fix is the customer's own Resume on the Numbers page, which the
+  D2 panel links to; `CALLER_ID_UNVERIFIED` would have sent them to support.
+- **QA-086 — one count of today.** The tab counted every `pending` row for ever; the gate
+  dropped unconfirmed ones after `UNCONFIRMED_ATTEMPT_MS`. `usedOn()` (`outbound-usage.ts`,
+  with the constant and `unconfirmedBefore()`) is now the only count, read by the tab, the
+  check, the claim under the lock and the replay.
+- **QA-087 — the time zone is a workspace setting.** A `tenants.timezone` `Intl` does not
+  know (a legacy value, a typo) read as `OUTBOUND_NOT_CONFIGURED`, which points at the
+  Outbound tab, where nothing is wrong. It is its own fact (`timezoneValid`) and refusal,
+  `WORKSPACE_TIMEZONE_INVALID` (409), judged before the outbound settings, with a sentence
+  and a panel link that send the customer to Settings → Workspace → Time zone.
+- **QA-088 — a lost audit row pages someone.** `call.outbound_blocked` is the only record a
+  refusal leaves, and the insert's failure was a log line. `OutboundCallService.audit()` now
+  raises an `outbound_audit_failed` ops alert (action, workspace, call, attempt, reason,
+  request id, 200 chars of the error — the number is already masked, and `OpsAlertService`
+  redacts). The answer is unchanged: the refusal still answers its code, a placed call is
+  still placed. The alert path is itself guarded; it can never throw into the request.

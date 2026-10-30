@@ -7,8 +7,8 @@ import { roleAtLeast, type CallbackCheck, type CallDetail, type CallerIdResponse
  * the one place that can fix it.
  */
 
-/** Where a refusal can be fixed: the D6 Outbound tab, the wallet, or nowhere we can link to. */
-export type CallbackFix = 'settings' | 'wallet' | null;
+/** Where a refusal can be fixed: the D6 Outbound tab, the D6 Workspace tab, the Numbers page, the wallet, or nowhere we can link to. */
+export type CallbackFix = 'settings' | 'workspace' | 'numbers' | 'wallet' | null;
 
 export type CallbackView =
   | { kind: 'ready'; canPlace: boolean }
@@ -21,10 +21,16 @@ export function showCallbackPanel(call: Pick<CallDetail, 'channel'>, enabled: bo
 
 const SETTINGS_FIXES: ReadonlySet<OutboundRefusal> = new Set(['KYC_REQUIRED', 'KYC_PENDING', 'KYC_REJECTED', 'OUTBOUND_NOT_CONFIGURED', 'CALLER_ID_REQUIRED', 'CALLER_ID_UNVERIFIED']);
 const WALLET_FIXES: ReadonlySet<OutboundRefusal> = new Set(['PURCHASE_REQUIRED', 'NO_CREDITS']);
+/** QA-087: the time zone is a workspace setting, not an outbound one. */
+const WORKSPACE_FIXES: ReadonlySet<OutboundRefusal> = new Set(['WORKSPACE_TIMEZONE_INVALID']);
+/** QA-085: a paused caller ID is resumed on the Numbers page. */
+const NUMBERS_FIXES: ReadonlySet<OutboundRefusal> = new Set(['NUMBER_PAUSED']);
 
 export function callbackFix(reason: OutboundRefusal | null): CallbackFix {
   if (!reason) return null;
   if (SETTINGS_FIXES.has(reason)) return 'settings';
+  if (WORKSPACE_FIXES.has(reason)) return 'workspace';
+  if (NUMBERS_FIXES.has(reason)) return 'numbers';
   if (WALLET_FIXES.has(reason)) return 'wallet';
   return null;
 }
@@ -63,9 +69,12 @@ export function keepIdempotencyKey(error: unknown): boolean {
 /**
  * The D6 caller-ID line: how a verified number got verified, or what an unverified one
  * needs. A number bought from us is verified on purchase; one from the customer's own
- * phone system (or one whose verification staff withdrew) only by our team.
+ * phone system (or one whose verification staff withdrew) only by our team. A verified
+ * number that is paused keeps its verification but cannot be called from until it is
+ * resumed in Numbers (QA-085) — `usable` is the server's word on that.
  */
-export function callerIdNote(c: Pick<CallerIdResponse, 'verified' | 'verified_via'>): 'purchase' | 'staff' | 'contactSupport' | null {
+export function callerIdNote(c: Pick<CallerIdResponse, 'verified' | 'verified_via' | 'usable'>): 'purchase' | 'staff' | 'contactSupport' | 'paused' | null {
   if (!c.verified) return 'contactSupport';
+  if (!c.usable) return 'paused';
   return c.verified_via;
 }

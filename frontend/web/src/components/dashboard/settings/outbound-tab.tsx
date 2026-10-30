@@ -321,14 +321,15 @@ function CallerIdsCard({ callerIds }: { callerIds: CallerIdResponse[] }) {
       key: 'status',
       header: t('columns.status'),
       card: 'badge',
-      cell: (c) => <Badge variant={c.verified ? 'success' : 'outline'}>{c.verified ? t('verified') : t('unverified')}</Badge>,
+      // A paused number keeps its verification but is not a caller ID until it is resumed (QA-085).
+      cell: (c) => (c.verified && !c.usable ? <Badge variant="warning">{t('paused')}</Badge> : <Badge variant={c.verified ? 'success' : 'outline'}>{c.verified ? t('verified') : t('unverified')}</Badge>),
     },
     {
       key: 'via',
       header: t('columns.via'),
       cell: (c) => {
         const note = callerIdNote(c);
-        return note ? <span className={note === 'contactSupport' ? 'text-muted-foreground' : undefined}>{t(`via.${note}`)}</span> : '–';
+        return note ? <span className={note === 'contactSupport' || note === 'paused' ? 'text-muted-foreground' : undefined}>{t(`via.${note}`)}</span> : '–';
       },
     },
   ];

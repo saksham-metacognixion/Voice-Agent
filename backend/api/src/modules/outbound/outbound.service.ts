@@ -15,6 +15,7 @@ import {
   outboundSettings,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
+import { OpsAlertService } from '../alerts';
 import type { WorkspaceContext } from '../auth';
 import { CallsService, MintSlot, headroom, liveCalls } from '../calls';
 import { PlatformConfigService } from '../config';
@@ -23,15 +24,11 @@ import { REDIS, type RedisLike } from '../redis';
 import { RetellGateway, type VoicemailAction, retellErrorStatus } from '../retell';
 import { normalisePhone } from '../runtime-cache';
 import { WalletService } from '../wallet';
+import { type CallerId, callerIdCandidates, pickCallerId } from './caller-ids';
 import { callingWindowVerdict } from './calling-window';
 import { maskNumber, readDestination } from './destination';
 import { type OutboundFacts, REFUSAL_MESSAGES, decideOutbound } from './outbound.decide';
-
-/** A verified number of the workspace that may be the caller ID. */
-interface CallerId {
-  id: string;
-  e164: string;
-}
+import { unconfirmedBefore, usedOn } from './outbound-usage';
 
 /** The caller ID's hand-off settings, which the call carries as an inbound call to it would. */
 interface CallerLine {
@@ -64,15 +61,6 @@ interface Assessment {
 }
 
 /**
- * An attempt still `pending` with no call this long after it was last touched is written
- * off as `failed` (`unconfirmed`): the process died between the claim and the answer, or the
- * platform's answer never came and no lifecycle webhook has named the attempt since. Until
- * then it counts toward the cap and its key answers `OUTBOUND_IN_PROGRESS`, because the
- * platform may have rung the person. Wall time, not `now()`: it is about our own process.
- */
-export const UNCONFIRMED_ATTEMPT_MS = 5 * 60_000;
-
-/**
  * D18 outbound click-to-call (ADR 0031): call back the other party of a D2 call, from a
  * verified number of the workspace, by the agent on that call — only once every gate in
  * `decideOutbound` says yes, and never by any other route.
@@ -99,6 +87,7 @@ export class OutboundCallService {
     private readonly config: PlatformConfigService,
     private readonly calls: CallsService,
     @Inject(REDIS) private readonly redis: RedisLike,
+    private readonly ops: OpsAlertService,
   ) {}
 
   async check(ctx: WorkspaceContext, callId: string): Promise<CallbackCheck> {
@@ -153,8 +142,10 @@ export class OutboundCallService {
       await slot.release();
       throw error;
     });
-    if (attempt === 'cap' || attempt === 'in_progress') await slot.release();
+    if (attempt === 'cap' || attempt === 'in_progress' || attempt === 'ringing') await slot.release();
     if (attempt === 'cap') return this.refuse(ctx, callId, a, 'OUTBOUND_DAILY_CAP');
+    // Another press — a second tab, another of their calls — reached this person first.
+    if (attempt === 'ringing') return this.refuse(ctx, callId, a, 'OUTBOUND_IN_PROGRESS');
     if (attempt === 'in_progress') throw new AppError('OUTBOUND_IN_PROGRESS', 'This call is already being placed.');
 
     const placed = await this.retell
@@ -187,14 +178,16 @@ export class OutboundCallService {
         const rejected = status !== undefined && status >= 400 && status < 500 && status !== 408;
         await this.settleAttempt(ctx, attempt.id, rejected ? { status: 'failed', failure: 'upstream' } : { status: 'pending', failure: 'unconfirmed' });
         // The provider's words stay in our log; the customer and the audit row get ours.
-        this.log.warn(`outbound ${attempt.id} (workspace ${ctx.workspaceId}): ${rejected ? 'refused' : 'no answer'} upstream: ${String(error)}`);
+        this.log.warn(`outbound ${attempt.id} (workspace ${ctx.workspaceId}): ${rejected ? 'refused' : 'no answer'} upstream (${status ?? 'no status'}): ${String(error)}`);
+        const failure = asPlacementError(status);
         await this.audit(ctx, 'call.outbound_failed', callId, {
-          reason: 'UPSTREAM_UNAVAILABLE',
+          reason: failure.code,
           outcome: rejected ? 'rejected' : 'unconfirmed',
+          upstream_status: status ?? null,
           outbound_id: attempt.id,
           ...this.target(a),
         });
-        throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not place the call just now. Try again in a moment.');
+        throw failure;
       });
     await slot.bind(placed.call_id);
 
@@ -266,11 +259,7 @@ export class OutboundCallService {
           where: { id: ctx.workspaceId },
           select: { pausedAt: true, kycStatus: true, timezone: true, planTier: true, outboundSettingsJson: true },
         }),
-        db.phoneNumber.findMany({
-          where: { tenantId: ctx.workspaceId, status: 'active', pausedAt: null, e164: { not: null } },
-          select: { id: true, e164: true, agentId: true, callerIdVerifiedAt: true, transferTargetsJson: true, transferFailMessage: true },
-          orderBy: { createdAt: 'asc' },
-        }),
+        callerIdCandidates(db, ctx.workspaceId, { transferTargetsJson: true, transferFailMessage: true }),
         db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }),
       ]);
       const localDay = localClock(now, tenant.timezone)?.date ?? null;
@@ -278,12 +267,13 @@ export class OutboundCallService {
       // The other party: the caller of an inbound call, the callee of an outbound one. A
       // browser call has no number at all.
       const destination = readDestination(source.channel === 'phone' ? (source.direction === 'inbound' ? source.fromNumber : source.toNumber) : null);
-      const [ownDnc, priorContact, usedToday] = await Promise.all([
+      const [ownDnc, priorContact, usedToday, ringing] = await Promise.all([
         destination.ok ? db.dncEntry.findUnique({ where: { tenantId_e164: { tenantId: ctx.workspaceId, e164: destination.e164 } }, select: { id: true } }) : null,
         destination.ok ? calledWithin(db, ctx.workspaceId, destination.e164, policy.prior_contact_days, now) : false,
         localDay ? usedOn(db, ctx.workspaceId, localDay) : 0,
+        destination.ok ? liveAttemptTo(db, ctx.workspaceId, destination.e164) : null,
       ]);
-      return { source, tenant, numbers, paid, localDay, agent, destination, ownDnc: ownDnc !== null, priorContact, usedToday };
+      return { source, tenant, numbers, paid, localDay, agent, destination, ownDnc: ownDnc !== null, priorContact, usedToday, inProgress: ringing !== null };
     });
 
     if (!read) return disabledAssessment(policy);
@@ -303,7 +293,10 @@ export class OutboundCallService {
       enabled,
       workspacePaused: tenant.pausedAt !== null,
       kyc: tenant.kycStatus as KycStatus,
-      configured: settings.success && localDay !== null,
+      // A time zone `Intl` does not know (a legacy or mistyped `tenants.timezone`) is its own
+      // refusal, fixed in Settings → Workspace — not "outbound settings need attention" (QA-087).
+      timezoneValid: localDay !== null,
+      configured: settings.success,
       callerId: caller.kind,
       agentLive: agent !== null,
       destinationValid: destination.ok,
@@ -316,6 +309,7 @@ export class OutboundCallService {
       balance,
       usedToday: read.usedToday,
       dailyCap: policy.daily_caps[tenant.planTier],
+      inProgress: read.inProgress,
     };
     const line = caller.kind === 'ok' ? numbers.find((n) => n.id === caller.number.id) : undefined;
     return {
@@ -361,10 +355,13 @@ export class OutboundCallService {
    * per workspace, then the key and the count re-read under it. Attempts left `pending`
    * past `UNCONFIRMED_ATTEMPT_MS` are written off first, so a dead one neither holds the cap
    * nor its key for good. A key seen before is the same press — `in_progress` while it is
-   * being placed; a failed one is claimed again. No network I/O in here (CLAUDE.md,
-   * tenancy): the platform is asked after the commit.
+   * being placed; a failed one is claimed again. A *different* key while an attempt to the
+   * same person is still live (`liveAttemptTo`) is `ringing`: two tabs, or two of their
+   * calls, must not ring them twice at once — the gate in `decideOutbound` is the read,
+   * this is the write, and only this one is under the lock. No network I/O in here
+   * (CLAUDE.md, tenancy): the platform is asked after the commit.
    */
-  private async claimAttempt(ctx: WorkspaceContext, callId: string, key: string, a: Assessment): Promise<{ id: string } | 'cap' | 'in_progress'> {
+  private async claimAttempt(ctx: WorkspaceContext, callId: string, key: string, a: Assessment): Promise<{ id: string } | 'cap' | 'in_progress' | 'ringing'> {
     const day = new Date(`${a.localDay!}T00:00:00Z`);
     return withWorkspace(ctx, async (db) => {
       await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'outbound:' + ctx.workspaceId}))`;
@@ -374,6 +371,7 @@ export class OutboundCallService {
       });
       const existing = await db.outboundCall.findUnique({ where: { tenantId_idempotencyKey: { tenantId: ctx.workspaceId, idempotencyKey: key } }, select: { id: true, status: true } });
       if (existing && existing.status !== 'failed') return 'in_progress' as const;
+      if (await liveAttemptTo(db, ctx.workspaceId, a.destination!.e164, existing?.id)) return 'ringing' as const;
       const used = await usedOn(db, ctx.workspaceId, a.localDay!);
       if (used >= a.facts.dailyCap) return 'cap' as const;
       const data = {
@@ -488,13 +486,54 @@ export class OutboundCallService {
           metaJson: { ...meta, request_id: ctx.requestId ?? null } as Prisma.InputJsonValue,
         },
       }),
-    ).catch((error: unknown) => this.log.warn(`${action} ${callId}: audit row not written: ${String(error)}`));
+    ).catch((error: unknown) => this.auditLost(ctx, action, callId, meta, error));
+  }
+
+  /**
+   * An audit row that could not be written is an ops alert, not only a log line (QA-088):
+   * `call.outbound_blocked` is the only record a refusal leaves, and a compliance review
+   * reads it. The answer to the customer is unchanged — the refusal (or the placement)
+   * stands whatever happened to its record. Ids only in the alert: the number is already
+   * masked in `meta`, and the error's text is cut short in case it quotes a value.
+   */
+  private auditLost(ctx: WorkspaceContext, action: string, callId: string, meta: Record<string, unknown>, error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    this.log.warn(`${action} ${callId}: audit row not written: ${detail}`);
+    try {
+      void this.ops
+        .send({
+          kind: 'outbound_audit_failed',
+          severity: 'warning',
+          title: 'An outbound-call audit row was not written',
+          fields: {
+            action,
+            workspace_id: ctx.workspaceId,
+            call_id: callId,
+            outbound_id: typeof meta.outbound_id === 'string' ? meta.outbound_id : null,
+            reason: typeof meta.reason === 'string' ? meta.reason : null,
+            request_id: ctx.requestId ?? null,
+            error: detail.slice(0, 200),
+          },
+        })
+        .catch((alertError: unknown) => this.log.warn(`${action} ${callId}: ops alert not sent: ${String(alertError)}`));
+    } catch (alertError) {
+      this.log.warn(`${action} ${callId}: ops alert not sent: ${String(alertError)}`);
+    }
   }
 }
 
-/** Pending attempts last touched before this are written off (`UNCONFIRMED_ATTEMPT_MS`). */
-function unconfirmedBefore(): Date {
-  return new Date(Date.now() - UNCONFIRMED_ATTEMPT_MS);
+/**
+ * What `POST /calls/:id/callback` answers when the platform did not place the call. A 4xx
+ * is the platform refusing what we sent — it will refuse it again on every retry — so it is
+ * permanent, `BAD_REQUEST`, as `asPublishError` keeps a publish 4xx (QA-084); 408, 409 and
+ * 429 are not refusals of the request itself. Everything else (a timeout, a reset, a 5xx)
+ * is the 503 the portal shows a "try again" for. Neither carries the platform's words.
+ */
+export function asPlacementError(status: number | undefined): AppError {
+  if (status !== undefined && status >= 400 && status < 500 && status !== 408 && status !== 409 && status !== 429) {
+    return new AppError('BAD_REQUEST', 'The call could not be placed: the number or the caller ID was not accepted. Nothing was placed. Check them, or contact support.');
+  }
+  return new AppError('UPSTREAM_UNAVAILABLE', 'We could not place the call just now. Try again in a moment.');
 }
 
 /** The agent on the call, if it is live, published and has its platform copy. */
@@ -535,15 +574,33 @@ async function calledWithin(db: WorkspaceDb, workspaceId: string, e164: string, 
   return hit !== null;
 }
 
-/** Attempts that count toward a local day's cap: placed, or still being placed and not yet written off. */
-function usedOn(db: WorkspaceDb, workspaceId: string, localDay: string): Promise<number> {
-  return db.outboundCall.count({
-    where: {
-      tenantId: workspaceId,
-      localDay: new Date(`${localDay}T00:00:00Z`),
-      OR: [{ status: 'placed' }, { status: 'pending', OR: [{ callId: { not: null } }, { updatedAt: { gte: unconfirmedBefore() } }] }],
-    },
+/**
+ * An attempt of this workspace to this number that may still be ringing or talking, so the
+ * person is not rung twice at once (two tabs, a double press with a fresh key, another of
+ * their calls in D2): `pending` with no call inside the unconfirmed window — being placed,
+ * or unanswered and not yet written off — or `placed` whose `calls` row is still
+ * `registered` / `in_progress`. A placed attempt whose row has not appeared yet counts only
+ * inside that same window: `call_started` creates the row, and one that never comes was a
+ * call that never was. `except` is the row a retried key is claiming again.
+ */
+async function liveAttemptTo(db: WorkspaceDb, workspaceId: string, e164: string, except?: string): Promise<{ id: string } | null> {
+  const attempts = await db.outboundCall.findMany({
+    where: { tenantId: workspaceId, toNumber: e164, status: { in: ['pending', 'placed'] }, ...(except ? { id: { not: except } } : {}) },
+    select: { id: true, status: true, callId: true, updatedAt: true },
   });
+  if (attempts.length === 0) return null;
+  const cutoff = unconfirmedBefore();
+  const pending = attempts.find((x) => x.status === 'pending' && x.callId === null && x.updatedAt >= cutoff);
+  if (pending) return { id: pending.id };
+  const placed = attempts.filter((x) => x.status === 'placed' && x.callId !== null);
+  if (placed.length === 0) return null;
+  const calls = await db.call.findMany({ where: { tenantId: workspaceId, id: { in: placed.map((x) => x.callId!) } }, select: { id: true, status: true } });
+  const statusOf = new Map(calls.map((c) => [c.id, c.status]));
+  const live = placed.find((x) => {
+    const status = statusOf.get(x.callId!);
+    return status === undefined ? x.updatedAt >= cutoff : status === 'registered' || status === 'in_progress';
+  });
+  return live ? { id: live.id } : null;
 }
 
 /** The flag is off: that is the verdict, and nothing else was read. */
@@ -553,6 +610,7 @@ function disabledAssessment(policy: OutboundPolicy): Assessment {
       enabled: false,
       workspacePaused: false,
       kyc: 'none',
+      timezoneValid: false,
       configured: false,
       callerId: 'none',
       agentLive: false,
@@ -566,6 +624,7 @@ function disabledAssessment(policy: OutboundPolicy): Assessment {
       balance: 0,
       usedToday: 0,
       dailyCap: 0,
+      inProgress: false,
     },
     policy,
     settings: DEFAULT_OUTBOUND_SETTINGS,
@@ -576,25 +635,6 @@ function disabledAssessment(policy: OutboundPolicy): Assessment {
     nextAllowedAt: null,
     localDay: null,
   };
-}
-
-/**
- * The caller ID: the number asked for, if it is a verified number of this workspace; else
- * the number the call came in on, then one answering for the agent, then any — verified
- * ones only. A number of another workspace is not in `numbers` (RLS) and reads as unverified.
- */
-export function pickCallerId(
-  numbers: ReadonlyArray<{ id: string; e164: string | null; agentId: string | null; callerIdVerifiedAt: Date | null }>,
-  pick: { requested?: string; sourceNumberId: string | null; agentId: string | null },
-): { kind: 'ok'; number: CallerId } | { kind: 'none' | 'unverified' } {
-  const verified = numbers.filter((n): n is typeof n & { e164: string } => n.e164 !== null && n.callerIdVerifiedAt !== null);
-  if (pick.requested) {
-    const asked = verified.find((n) => n.id === pick.requested);
-    return asked ? { kind: 'ok', number: { id: asked.id, e164: asked.e164 } } : { kind: 'unverified' };
-  }
-  const chosen =
-    verified.find((n) => n.id === pick.sourceNumberId) ?? verified.find((n) => pick.agentId !== null && n.agentId === pick.agentId) ?? verified[0];
-  return chosen ? { kind: 'ok', number: { id: chosen.id, e164: chosen.e164 } } : { kind: 'none' };
 }
 
 /** The workspace's setting as the gateway's per-call option. */

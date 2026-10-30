@@ -166,6 +166,12 @@ export const callerIdResponse = z.object({
   status: z.string(),
   verified: z.boolean(),
   verified_via: callerIdVia.nullable(),
+  /**
+   * Whether a callback may come from it right now: verified, active and not paused — the
+   * same test `POST /calls/:id/callback` applies (QA-085). A paused number stays listed so
+   * its verification is seen to survive the pause, but it cannot be chosen.
+   */
+  usable: z.boolean(),
 });
 export type CallerIdResponse = z.infer<typeof callerIdResponse>;
 
@@ -196,9 +202,11 @@ export const outboundRefusal = z.enum([
   'KYC_REQUIRED',
   'KYC_PENDING',
   'KYC_REJECTED',
+  'WORKSPACE_TIMEZONE_INVALID',
   'OUTBOUND_NOT_CONFIGURED',
   'CALLER_ID_REQUIRED',
   'CALLER_ID_UNVERIFIED',
+  'NUMBER_PAUSED',
   'AGENT_NOT_PUBLISHED',
   'DESTINATION_INVALID',
   'DESTINATION_COUNTRY',
@@ -209,6 +217,8 @@ export const outboundRefusal = z.enum([
   'PURCHASE_REQUIRED',
   'NO_CREDITS',
   'OUTBOUND_DAILY_CAP',
+  /** A callback to this person is still ringing or talking (QA: two tabs rang them twice). */
+  'OUTBOUND_IN_PROGRESS',
 ]);
 export type OutboundRefusal = z.infer<typeof outboundRefusal>;
 
