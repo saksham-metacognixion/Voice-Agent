@@ -1594,9 +1594,9 @@ blocklists, fraud_reviews, data_requests, staff_audit_log`.
 
 **Retell** (Appendix A): `list-voices`; `create-agent`, `update-agent`, `get-agent`, publish/version;
 `create-retell-llm`, `update-retell-llm`; `create-knowledge-base` + sources; `create-phone-number`,
-`import-phone-number`, `update-phone-number`, `delete-phone-number`, `list-phone-numbers`;
+`import-phone-number`, `update-phone-number`, `delete-phone-number`, `v2/list-phone-numbers` (paged, walked whole by `listPhoneNumbers()`);
 `v3/create-web-call`, `v2/create-phone-call`, `v2/get-call`, `v3/list-calls`, `delete-call`
-(v2 web-call creation loses support 30 Sep 2026; retell-sdk 6 already posts to v3, pinned by
+(v2 web-call creation loses support 30 Sep 2026 and the legacy list endpoints were removed 15 Jun 2026 — every list is a `{items, has_more, pagination_key}` page, walked by `pageThrough()` (ADR 0003, 3 Nov addendum); retell-sdk 6 already posts to the replacements, pinned by
 `retell.endpoints.test.ts`. The browser uses `RetellClient` with a `fetch` that answers
 create-web-call from our API — never a public key; `RetellWebClient` is gone in SDK 4.)
 Events in: `call_started`, `call_ended`, `call_analyzed`, `transfer_*`, plus the per-number inbound webhook.

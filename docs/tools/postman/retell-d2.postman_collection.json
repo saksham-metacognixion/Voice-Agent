@@ -917,7 +917,7 @@
               }
             ],
             "url": {
-              "raw": "https://api.retellai.com/list-phone-numbers",
+              "raw": "https://api.retellai.com/v2/list-phone-numbers",
               "protocol": "https",
               "host": [
                 "api",
@@ -925,10 +925,11 @@
                 "com"
               ],
               "path": [
+                "v2",
                 "list-phone-numbers"
               ]
             },
-            "description": "See the spike number, its inbound_agents (pinned to latest_published) and its inbound_webhook_url with the ?mode= you last set."
+            "description": "See the spike number, its inbound_agents (pinned to latest_published) and its inbound_webhook_url with the ?mode= you last set. Since 15 Jun 2026 the answer is a page: read items, and pass pagination_key while has_more is true."
           },
           "response": []
         },

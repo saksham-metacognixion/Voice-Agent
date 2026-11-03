@@ -435,7 +435,8 @@ export class FakeRetellGateway {
   }
 
   listPhoneNumbers() {
-    return this.record('listPhoneNumbers', [], () => ({ has_more: false, items: [...this.phoneNumbers.values()].map((n) => ({ ...n })) }));
+    // The gateway walks every `/v2/list-phone-numbers` page and answers the whole list.
+    return this.record('listPhoneNumbers', [], () => [...this.phoneNumbers.values()].map((n) => ({ ...n })));
   }
 
   deletePhoneNumber(e164: string) {

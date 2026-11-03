@@ -240,8 +240,10 @@ async function main() {
         return;
       }
       if (sub === 'list') {
+        // The fixture is the raw first page as the platform answers it ({items, has_more,
+        // pagination_key}); the listing below is every page, walked by the gateway.
+        await fixture('list-phone-numbers', await gw.client.phoneNumber.list());
         const numbers = await gw.listPhoneNumbers();
-        await fixture('list-phone-numbers', numbers);
         console.log(numbers.map((n) => `${n.phone_number} ${n.phone_number_type} ${n.nickname ?? ''} → ${n.inbound_webhook_url ?? '-'}`).join('\n'));
         return;
       }
@@ -369,11 +371,15 @@ there is silence, ask another question. Speak English only.`,
     }
     case 'calls': {
       const hours = intFlag(flags, 'hours') ?? 24;
-      const calls = await gw.listCalls(Date.now() - hours * 3_600_000);
-      await fixture('list-calls', calls);
+      const since = Date.now() - hours * 3_600_000;
+      // POST /v3/list-calls answers {items, has_more, pagination_key}, never an array. The
+      // fixture is the raw first page; the listing walks every page like the reconciliation.
+      await fixture('list-calls', await gw.listCalls(since));
+      const { calls, partial } = await gw.listCallsInWindow(since, Date.now());
       for (const c of calls) {
-        console.log(`${c.call_id} ${c.call_type} ${c.call_status} ${c.disconnection_reason ?? ''} ${c.duration_ms ?? ''}ms cost=${c.call_cost?.combined_cost ?? '-'}c`);
+        console.log(`${c.call_id} ${c.call_type} ${c.call_status ?? ''} ${c.disconnection_reason ?? ''} ${c.duration_s ?? ''}s cost=${c.cost_cents ?? '-'}c`);
       }
+      if (partial) console.log(`(stopped at the page cap; there are more than ${calls.length} calls in ${hours} h)`);
       return;
     }
     case 'kb': {

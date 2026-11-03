@@ -327,21 +327,15 @@ export class RetellGateway {
   async listCallsInWindow(sinceMs: number, untilMs: number, maxPages = LIST_CALLS_MAX_PAGES): Promise<{ calls: ProviderCallFacts[]; partial: boolean }> {
     const calls: ProviderCallFacts[] = [];
     const seen = new Set<string>();
-    let paginationKey: string | undefined;
-    for (let page = 0; page < maxPages; page += 1) {
-      const { items, hasMore, paginationKey: next } = callListPage(await this.listCalls(sinceMs, untilMs, paginationKey));
-      for (const raw of items) {
-        const facts = providerCallFacts(raw);
-        if (facts && !seen.has(facts.call_id)) {
-          seen.add(facts.call_id);
-          calls.push(facts);
-        }
+    const { items, partial } = await pageThrough('list-calls', (key) => this.listCalls(sinceMs, untilMs, key), maxPages);
+    for (const raw of items) {
+      const facts = providerCallFacts(raw);
+      if (facts && !seen.has(facts.call_id)) {
+        seen.add(facts.call_id);
+        calls.push(facts);
       }
-      // The platform says when it is done; a cursor that does not move is treated the same.
-      if (!hasMore || items.length === 0 || !next || next === paginationKey) return { calls, partial: false };
-      paginationKey = next;
     }
-    return { calls, partial: true };
+    return { calls, partial };
   }
 
   deleteCall(callId: string) {
@@ -430,8 +424,21 @@ export class RetellGateway {
     return { terminationUri: trunk?.termination_uri ?? null, username: trunk?.auth_username ?? null, transport: trunk?.transport ?? null };
   }
 
-  listPhoneNumbers() {
-    return this.client.phoneNumber.list();
+  /**
+   * Every number in the platform workspace. `GET /v2/list-phone-numbers` (the 15 Jun 2026
+   * replacement for the legacy array endpoint) answers one `{has_more, items,
+   * pagination_key}` page; reading only the first one made "look before you buy" miss a
+   * number on page two and buy it again (ADR 0013 §2). An incomplete walk throws rather
+   * than answering "not there" from part of the list.
+   */
+  async listPhoneNumbers(maxPages = LIST_PHONE_NUMBERS_MAX_PAGES): Promise<Retell.PhoneNumberResponse[]> {
+    const { items, partial } = await pageThrough('list-phone-numbers', (key) => this.client.phoneNumber.list(key ? { pagination_key: key } : {}), maxPages);
+    if (partial) throw new Error(`list-phone-numbers: still more after ${maxPages} pages; refusing to answer from an incomplete list`);
+    const byNumber = new Map<string, Retell.PhoneNumberResponse>();
+    for (const raw of items as Retell.PhoneNumberResponse[]) {
+      if (raw && typeof raw.phone_number === 'string' && !byNumber.has(raw.phone_number)) byNumber.set(raw.phone_number, raw);
+    }
+    return [...byNumber.values()];
   }
 
   deletePhoneNumber(e164: string) {
@@ -576,6 +583,8 @@ export class RetellGateway {
 /** Retell's list-calls page size; a window with more than 1000 × 10 calls is recorded as partial. */
 export const LIST_CALLS_PAGE = 1000;
 export const LIST_CALLS_MAX_PAGES = 10;
+/** One platform workspace per environment; 50 default-sized pages is far past any real count. */
+export const LIST_PHONE_NUMBERS_MAX_PAGES = 50;
 
 /** What reconciliation compares, reduced from a `CallResponse`. `cost_cents` is `combined_cost` rounded (ADR 0003 §3). */
 export interface ProviderCallFacts {
@@ -597,15 +606,48 @@ export interface ProviderCallFacts {
  * reconciliation would otherwise report every call in `calls` as extra and page ops with
  * false drift every night. Pinned by `retell.list-calls.test.ts` against the SDK type.
  */
-export function callListPage(response: unknown): { items: unknown[]; hasMore: boolean; paginationKey?: string } {
-  if (!response || typeof response !== 'object') throw new Error(`list-calls answered ${response === null ? 'null' : typeof response}, not a page`);
+export function callListPage(response: unknown): ListPage {
+  return listPage('list-calls', response);
+}
+
+export interface ListPage {
+  items: unknown[];
+  hasMore: boolean;
+  paginationKey?: string;
+}
+
+/**
+ * One page of any versioned list endpoint (`/v2/list-*`, `/v3/list-*`): since the
+ * 15 Jun 2026 deprecation they all answer `{items, has_more, pagination_key}`. A bare
+ * array or a body without `items` is a provider error, never an empty list.
+ */
+export function listPage(what: string, response: unknown): ListPage {
+  if (!response || typeof response !== 'object') throw new Error(`${what} answered ${response === null ? 'null' : typeof response}, not a page`);
   const r = response as Record<string, unknown>;
-  if (!Array.isArray(r.items)) throw new Error('list-calls answered without an items array');
+  if (!Array.isArray(r.items)) throw new Error(`${what} answered without an items array`);
   return {
     items: r.items,
     hasMore: r.has_more === true,
     paginationKey: typeof r.pagination_key === 'string' && r.pagination_key ? r.pagination_key : undefined,
   };
+}
+
+/**
+ * Walks a versioned list endpoint by `pagination_key` until the platform says it is done
+ * (`has_more` false, an empty page, no key, or a key that did not move — a loop guard),
+ * or `maxPages` is reached, which is `partial: true` for the caller to decide on. Errors
+ * propagate: the SDK has already retried 408/409/429/5xx with backoff.
+ */
+export async function pageThrough(what: string, fetchPage: (paginationKey?: string) => Promise<unknown>, maxPages: number): Promise<{ items: unknown[]; partial: boolean }> {
+  const items: unknown[] = [];
+  let paginationKey: string | undefined;
+  for (let page = 0; page < maxPages; page += 1) {
+    const { items: pageItems, hasMore, paginationKey: next } = listPage(what, await fetchPage(paginationKey));
+    items.push(...pageItems);
+    if (!hasMore || pageItems.length === 0 || !next || next === paginationKey) return { items, partial: false };
+    paginationKey = next;
+  }
+  return { items, partial: true };
 }
 
 export function providerCallFacts(raw: unknown): ProviderCallFacts | null {

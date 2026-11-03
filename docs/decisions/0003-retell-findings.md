@@ -434,3 +434,25 @@ staging pressed play on a catalogue clip that says "I'm … from Retell AI". Def
 `allow` under `APP_ENV=dev` only (an explicit `allow` still wins); ADR 0020 §5. The
 generation prompt and a lint rule (`platform_named`) now also keep the name out of the
 agent's own script.
+
+## Addendum, 3 Nov 2026 — the legacy list endpoints are gone
+
+Retell removed the legacy list endpoints on 15 Jun 2026 (docs.retellai.com/deprecation-notice/2026/06-15_legacy_list_endpoints)
+and a notice for org `org_vJqsnccsUYJAm6RX` reported a `POST /v2/list-calls` on 27 Oct 2026,
+05:36 UTC, client `curl`, from a residential address. **It was not the product.** retell-sdk 6.0.1
+already sends every replacement (`/v3/list-calls`, `POST /v3/list-chats`, `/v2/list-phone-numbers`,
+`/v2/list-retell-llms`, `/v2/list-conversation-flows`, `/v2/list-test-runs/{id}`, …), the API and
+worker reach Retell only through the SDK, and no repo file holds a `curl` to the old path. Whoever
+ran it by hand should switch to `/v3/list-calls`.
+
+What the move did break was the **shape**: `/v2/list-phone-numbers` answers one
+`{items, has_more, pagination_key}` page, and the activation's look-before-you-buy
+(`findByNickname`) read only the first page — a number a dead run bought, sitting on page two,
+would have been bought again. `RetellGateway.listPhoneNumbers()` now walks every page and
+answers the whole list, and throws rather than answer from an incomplete one. The walk is
+one function, `pageThrough()`, shared with `listCallsInWindow()`: stop on `has_more` false,
+an empty page, no key or a key that did not move; `partial` at the page cap; errors propagate
+after the SDK's own 408/409/429/5xx retries. `retell-spike.ts`'s `calls` and `numbers list`
+commands read pages too. `retell.endpoints.test.ts` pins every replacement in the guide;
+`retell.pagination.test.ts` drives the gateway's paging through the real SDK. Not deprecated
+and unchanged: `list-voices`, `list-knowledge-bases` (still an array), `list-agent-versions`.

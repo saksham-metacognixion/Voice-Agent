@@ -298,9 +298,8 @@ export class NumberProvisioningService {
 
   private async findByNickname(nickname: string): Promise<PhoneNumberFacts | null> {
     const wanted = this.retell.config.objectName(nickname);
-    const page = await this.retell.listPhoneNumbers();
-    const items: PhoneNumberFacts[] = Array.isArray(page) ? page : ((page as { items?: PhoneNumberFacts[] }).items ?? []);
-    return items.find((n) => n.nickname === wanted) ?? null;
+    const all: PhoneNumberFacts[] = await this.retell.listPhoneNumbers();
+    return all.find((n) => n.nickname === wanted) ?? null;
   }
 
   private async getIfExists(e164: string): Promise<PhoneNumberFacts | null> {
