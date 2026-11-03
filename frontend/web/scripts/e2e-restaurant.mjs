@@ -1,18 +1,24 @@
 /**
- * Restaurant template, menu upload and business identity, end to end (25 Sep 2026):
+ * Restaurant template, menu upload and business identity, end to end (25 Sep 2026;
+ * knowledge-after-payment since ADR 0024, script updated 3 Nov 2026, ADR 0035):
  * sign-up → workspace "Bright Dental" → W1 Restaurant with a conflicting industry (the
  * warning, then the fix) → W2 banner, restaurant placeholders, a real Generate → the
- * prompt names the business and nothing else → W4 Menu section (locked on trial, then
- * paid: invalid file, upload, Ready on the real platform) → Regenerate carries the menu
- * rules → W5 a real browser test call whose transcript names the business → replace and
- * remove the menu → a Receptionist workspace sees no menu and keeps its own identity →
+ * prompt names the business and nothing else → W3 → W5 (knowledge is *after* payment:
+ * the knowledge page sends an unpaid workspace back, the API refuses a menu on the trial)
+ * → W5 a real browser test call whose transcript names the business → paid but not live:
+ * still no knowledge page → go-live → W7 lands on the knowledge page → W4 Menu section
+ * (invalid file, upload, Ready on the real platform) → Regenerate carries the menu rules
+ * and the draft's LLM points at the base → replace and remove the menu → W4 Continue →
+ * the live screen → a Receptionist workspace sees no menu and keeps its own identity →
  * D3 header badge and Knowledge tab on a live workspace. Screenshots in frontend/web/.e2e/.
  *
  * Needs the same stack as e2e:wizard: the export at PORTAL_URL (default :3005) built
  * against API_URL (default :4001) with a worker, the local issuer on :9999 with
  * LOCAL_ISSUER_USER_FILE = this script's E2E_USER_FILE (rewritten per identity), Chrome,
  * and — for the D3 part — DASHBOARD_SUB, the owner of DASHBOARD_WORKSPACE_NAME (a live
- * workspace). The paid step runs `dev:seed-workspace` (APP_ENV=dev only).
+ * workspace). The paid step runs `dev:seed-workspace` (APP_ENV=dev only); the go-live step
+ * runs it again with `--live`, which completes onboarding the way the activation's
+ * `mark_live` step does without buying a real number (that path is `test/d6-activation`).
  *
  *   PORTAL_URL=http://localhost:3005 API_URL=http://localhost:4001 E2E_USER_FILE=/tmp/e2e-user.json \
  *   MENU_FILE=/tmp/menu.txt MENU_FILE_V2=/tmp/menu-v2.txt BAD_FILE=/tmp/menu.exe \
@@ -157,23 +163,50 @@ try {
   await clickText('Choose a voice'); await waitFor(`location.pathname === '/onboarding/voice/'`, 10000);
   await waitFor(`document.querySelectorAll('[data-testid="voice-card"]').length`, 20000);
   await b.evaluate(`document.querySelector('[data-testid="voice-card"] button').click()`); await sleep(1200);
-  await clickText('Continue'); ok('→ W4', Boolean(await waitFor(`location.pathname === '/onboarding/knowledge/'`, 10000)), await path());
+  await clickText('Continue'); ok('W3 → W5 (knowledge comes after payment, ADR 0024)', Boolean(await waitFor(`location.pathname === '/onboarding/test/'`, 10000)), await path());
   await b.goto(`${BASE}/onboarding/brief/`, 3000); await waitFor(`document.querySelector('[data-testid="agent-context"]') !== null`, 10000);
   ok('W2 banner still Restaurant after navigating away and back', /Restaurant agent for Bright Dental/.test(await b.evaluate(`document.querySelector('[data-testid="agent-context"]')?.innerText`) ?? ''));
   ok('W1 restores the Restaurant choice', Boolean(await (async () => { await b.goto(`${BASE}/onboarding/template/`, 3000); return waitFor(`document.querySelector('[aria-pressed="true"]')?.getAttribute('aria-label')?.includes('Restaurant')`, 10000); })()));
 
-  // 5. W4 — the Menu section: visible for a restaurant agent, locked on a trial plan
-  await b.goto(`${BASE}/onboarding/knowledge/`, 3000);
-  ok('W4 shows the Menu section for a restaurant agent', Boolean(await waitFor(`document.querySelector('[data-testid="menu-upload"]') !== null`, 10000)));
-  ok('W4 banner shows the category too', /Restaurant agent for Bright Dental/.test(await b.evaluate(`document.querySelector('[data-testid="agent-context"]')?.innerText`) ?? ''));
-  ok('W4 on trial explains the plan gate and disables the upload', (await bodyText()).includes('Included from a bigger pack') && (await b.evaluate(`document.querySelector('#menu-file')?.disabled`)) === true);
-  await b.shot(`${S}/shot-rest-w4-locked.png`, true);
+  // 5. Unpaid: the knowledge page is not reachable and the API refuses a menu on the trial
+  await b.goto(`${BASE}/onboarding/knowledge/`, 3000); await sleep(1500);
+  ok('W4 (knowledge) sends an unpaid workspace back to its step', Boolean(await waitFor(`location.pathname === '/onboarding/test/'`, 10000)), await path());
+  const trialMenu = await apiCall('POST', `/agents/${agent.id}/knowledge`, { type: 'text', name: 'Menu', text: 'Soup $6', role: 'menu' });
+  ok('API refuses a menu on the trial plan (PLAN_LIMIT)', trialMenu.status === 400 && trialMenu.json?.code === 'PLAN_LIMIT', trialMenu.text);
+  ok('nothing was stored for the trial', ((await apiCall('GET', `/agents/${agent.id}/knowledge`)).json ?? []).length === 0);
+  await b.shot(`${S}/shot-rest-w4-unpaid.png`, true);
+
+  // 6. W5 — a real browser test call before any knowledge: the agent introduces itself as the business
+  await b.goto(`${BASE}/onboarding/test/`, 3000);
+  await waitFor(`document.body.innerText.includes('Talk to your agent')`, 15000);
+  await clickText('Start test call');
+  const onCall = await waitFor(`document.body.innerText.includes('Hang up')`, 40000, 500);
+  ok('W5 test call connects', Boolean(onCall), onCall ? '' : (await bodyText()).slice(0, 300));
+  const agentLine = await waitFor(`[...document.querySelectorAll('[aria-label="Live transcript"] li')].some(li => li.textContent.startsWith('Agent'))`, 40000, 500);
+  ok('W5 live transcript shows the agent speaking', Boolean(agentLine));
+  await sleep(6000);
+  const transcript = await b.evaluate(`[...document.querySelectorAll('[aria-label="Live transcript"] li')].map(li => li.textContent).join('\\n')`);
+  ok('W5 the agent introduces itself for Bright Dental', /Bright Dental/i.test(transcript ?? ''), transcript);
+  ok('W5 the agent never says it is from the voice platform', !VENDOR.test(transcript ?? ''), transcript);
+  await b.shot(`${S}/shot-rest-w5-call.png`, true);
+  await clickText('Hang up');
+  ok('W5 call ends cleanly', Boolean(await waitFor(`document.body.innerText.includes('Call ended')`, 15000)));
+  ok('W5 after-call shows the charge', Boolean(await waitFor(`/Credits charged\\s*\\d/.test(document.body.innerText)`, 90000, 1000)));
+
+  // 7. Paid, but not live: still no knowledge page. Then go-live: W7 lands on knowledge.
   const wsId = (await apiCall('GET', '/workspace')).json?.id;
   execSync(`pnpm --filter @portal/api dev:seed-workspace ${wsId} growth`, { cwd: ROOT, stdio: 'ignore' });
-  await b.goto(`${BASE}/onboarding/knowledge/`, 3500); await waitFor(`document.querySelector('#menu-file') && !document.querySelector('#menu-file').disabled`, 15000);
-  ok('W4 unlocked after a paid pack', (await b.evaluate(`document.querySelector('#menu-file')?.disabled`)) === false);
+  await b.goto(`${BASE}/onboarding/knowledge/`, 3500); await sleep(1500);
+  ok('W4 (knowledge) still waits for go-live once paid but not activated', (await path()).startsWith('/onboarding/') && !(await path()).startsWith('/onboarding/knowledge/'), await path());
+  execSync(`pnpm --filter @portal/api dev:seed-workspace ${wsId} growth --live`, { cwd: ROOT, stdio: 'ignore' });
+  await b.goto(`${BASE}/onboarding/activate/`, 3500);
+  ok('W7 on a live workspace lands on the knowledge page (completeRedirect)', Boolean(await waitFor(`location.pathname === '/onboarding/knowledge/'`, 15000)), await path());
+  ok('W4 shows the Menu section for a restaurant agent', Boolean(await waitFor(`document.querySelector('[data-testid="menu-upload"]') !== null`, 10000)));
+  ok('W4 banner shows the category too', /Restaurant agent for Bright Dental/.test(await b.evaluate(`document.querySelector('[data-testid="agent-context"]')?.innerText`) ?? ''));
+  await waitFor(`document.querySelector('#menu-file') && !document.querySelector('#menu-file').disabled`, 15000);
+  ok('W4 upload is enabled on a paid, live workspace', (await b.evaluate(`document.querySelector('#menu-file')?.disabled`)) === false);
 
-  // 6. Upload: an invalid type is refused in the browser, the real one goes to the platform
+  // 8. Upload: an invalid type is refused in the browser, the real one goes to the platform
   ok('W4 file input set (invalid type)', (await setFile('#menu-file', BAD)) === 'ok'); await sleep(800);
   ok('W4 refuses a non-document file with a clear message', (await bodyText()).includes('That file type is not supported'), (await bodyText()).match(/That file type[^\n]*/)?.[0]);
   ok('W4 nothing was uploaded for the bad file', ((await apiCall('GET', `/agents/${agent.id}/knowledge`)).json ?? []).length === 0);
@@ -189,7 +222,7 @@ try {
   let facts = platformFacts(agent.id);
   ok('platform: the agent has a knowledge base with the menu, status complete', facts.kb?.status === 'complete' && facts.kb.sources.some((s) => /menu/i.test(s ?? '')), JSON.stringify(facts));
 
-  // 7. Regenerate carries the menu rules into the prompt
+  // 9. Regenerate carries the menu rules into the prompt, and the draft's LLM points at the base
   await b.goto(`${BASE}/onboarding/brief/`, 3000); await waitFor(`document.body.innerText.includes('Regenerate')`, 15000);
   ok('W2 regenerate completes', await generate('Regenerate', agent.id));
   const draft2 = await draftOf(agent.id);
@@ -197,28 +230,10 @@ try {
   ok('regenerated prompt tells the agent to answer from the menu', /menu/i.test(draft2?.prompt_text ?? ''), (draft2?.prompt_text ?? '').match(/[^\n]*menu[^\n]*/i)?.[0]);
   ok('regenerated prompt says what to do when a dish is not on the menu', /not on (the|our) menu|isn.t on the menu|don.t have that/i.test(draft2?.prompt_text ?? ''));
   ok('regenerated prompt still names Bright Dental and never the platform', /Bright Dental/.test(draft2?.prompt_text ?? '') && !VENDOR.test(`${draft2?.prompt_text}\n${draft2?.greeting}`));
-
-  // 8. W5 — a real browser test call: the agent introduces itself as the business
-  await b.goto(`${BASE}/onboarding/knowledge/`, 3000); await waitFor(`document.body.innerText.includes('Add a source')`, 15000);
-  await clickText('Continue'); ok('W4 Continue → W5', Boolean(await waitFor(`location.pathname === '/onboarding/test/'`, 10000)), await path());
-  await waitFor(`document.body.innerText.includes('Talk to your agent')`, 15000);
-  await clickText('Start test call');
-  const onCall = await waitFor(`document.body.innerText.includes('Hang up')`, 40000, 500);
-  ok('W5 test call connects', Boolean(onCall), onCall ? '' : (await bodyText()).slice(0, 300));
-  const agentLine = await waitFor(`[...document.querySelectorAll('[aria-label="Live transcript"] li')].some(li => li.textContent.startsWith('Agent'))`, 40000, 500);
-  ok('W5 live transcript shows the agent speaking', Boolean(agentLine));
-  await sleep(6000);
-  const transcript = await b.evaluate(`[...document.querySelectorAll('[aria-label="Live transcript"] li')].map(li => li.textContent).join('\\n')`);
-  ok('W5 the agent introduces itself for Bright Dental', /Bright Dental/i.test(transcript ?? ''), transcript);
-  ok('W5 the agent never says it is from the voice platform', !VENDOR.test(transcript ?? ''), transcript);
-  await b.shot(`${S}/shot-rest-w5-call.png`, true);
-  await clickText('Hang up');
-  ok('W5 call ends cleanly', Boolean(await waitFor(`document.body.innerText.includes('Call ended')`, 15000)));
   facts = platformFacts(agent.id);
-  ok('platform: the test call rang an LLM that points at the menu knowledge base', Array.isArray(facts.llm_kbs) && facts.llm_kbs.includes(facts.kb_id), JSON.stringify(facts));
-  ok('W5 after-call shows the charge', Boolean(await waitFor(`/Credits charged\\s*\\d/.test(document.body.innerText)`, 90000, 1000)));
+  ok('platform: the regenerated draft rang an LLM that points at the menu knowledge base', Array.isArray(facts.llm_kbs) && facts.llm_kbs.includes(facts.kb_id), JSON.stringify(facts));
 
-  // 9. Replace, then remove
+  // 10. Replace, then remove
   await b.goto(`${BASE}/onboarding/knowledge/`, 3500); await waitFor(`document.querySelector('[data-testid="menu-row"]') !== null`, 15000);
   ok('W4 offers Replace and Remove for an existing menu', (await bodyText()).includes('Replace menu') && (await bodyText()).includes('Remove'));
   const firstMenuId = sources[0].id;
@@ -238,8 +253,9 @@ try {
   facts = platformFacts(agent.id);
   ok('platform: the last source took the knowledge base with it', facts.kb_id === null, JSON.stringify(facts));
   await b.shot(`${S}/shot-rest-w4-removed.png`, true);
+  await clickText('Continue'); ok('W4 Continue → the live screen (ADR 0024)', Boolean(await waitFor(`location.pathname === '/onboarding/live/'`, 10000)), await path());
 
-  // 10. A non-restaurant workspace: no menu, its own identity, the receptionist example copy
+  // 11. A non-restaurant workspace: no menu, its own identity, the receptionist example copy
   await b.goto(`${BASE}/setup/workspace/`, 2500); await waitFor(`document.querySelector('#name') !== null`, 10000);
   await setInput('#name', 'Second Shop'); await clickText('Create workspace'); await waitFor(`location.pathname === '/onboarding/template/'`, 10000);
   await waitFor(`document.querySelectorAll('[aria-pressed]').length >= 6`, 10000);
@@ -262,12 +278,15 @@ try {
   await waitFor(`document.querySelectorAll('[data-testid="voice-card"]').length`, 20000);
   // W3's Continue is disabled until a voice is picked.
   await b.evaluate(`document.querySelector('[data-testid="voice-card"] button').click()`); await sleep(1200);
-  await clickText('Continue'); ok('W3 (receptionist) → W4', Boolean(await waitFor(`location.pathname === '/onboarding/knowledge/'`, 10000)), await path());
+  await clickText('Continue'); ok('W3 (receptionist) → W5', Boolean(await waitFor(`location.pathname === '/onboarding/test/'`, 10000)), await path());
+  const shopWs = (await apiCall('GET', '/workspace')).json?.id;
+  execSync(`pnpm --filter @portal/api dev:seed-workspace ${shopWs} growth --live`, { cwd: ROOT, stdio: 'ignore' });
+  await b.goto(`${BASE}/onboarding/knowledge/`, 3500);
   await waitFor(`location.pathname === '/onboarding/knowledge/' && document.body.innerText.includes('Add a source')`, 15000);
   ok('W4 shows no Menu section for a receptionist', !(await has('[data-testid="menu-upload"]')) && (await bodyText()).includes('Add a source'));
   ok('API refuses a menu on a non-restaurant agent', (await apiCall('POST', `/agents/${shopAgent.id}/knowledge`, { type: 'text', name: 'Menu', text: 'Soup $6', role: 'menu' })).status === 400);
 
-  // 11. D3 on a live workspace: the header badge, the Knowledge tab with and without a menu
+  // 12. D3 on a live workspace: the header badge, the Knowledge tab with and without a menu
   if (process.env.DASHBOARD_SUB && process.env.DASHBOARD_WORKSPACE_NAME) {
     writeFileSync(USER_FILE, JSON.stringify({ sub: process.env.DASHBOARD_SUB, email: process.env.DASHBOARD_EMAIL ?? 'owner@example.test', name: 'Owner', email_verified: true }));
     await b.evaluate(`localStorage.clear(); sessionStorage.clear();`);

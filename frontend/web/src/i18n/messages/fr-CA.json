@@ -1388,6 +1388,7 @@
         "balance": "Refusé : le solde était insuffisant.",
         "cap": "Refusé : toutes les lignes étaient occupées.",
         "blocked": "Refusé : cet appelant est bloqué.",
+        "country": "Refusé : le pays de l’appelant n’est pas autorisé sur ce numéro.",
         "hours": "Refusé : en dehors des heures d’ouverture.",
         "paused": "Refusé : l’agent ou l’espace de travail était en pause."
       },

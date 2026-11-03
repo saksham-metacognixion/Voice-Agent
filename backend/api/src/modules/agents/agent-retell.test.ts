@@ -58,6 +58,8 @@ function input(over: Partial<RetellSyncInput> = {}): RetellSyncInput {
     voiceTemperature: null,
     primaryLanguage: 'en-US',
     languages: [],
+    recording: true,
+    retentionDays: 90,
     maxCallDurationS: 1_500,
     timezone: 'America/Toronto',
     businessName: 'Maple Dental',

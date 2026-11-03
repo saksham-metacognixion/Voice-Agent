@@ -1044,6 +1044,7 @@
               "balance",
               "cap",
               "blocked",
+              "country",
               "hours",
               "paused"
             ],
@@ -13760,6 +13761,7 @@
               "balance",
               "cap",
               "blocked",
+              "country",
               "hours",
               "paused"
             ],
@@ -14051,6 +14053,7 @@
               "balance",
               "cap",
               "blocked",
+              "country",
               "hours",
               "paused"
             ],

@@ -4,8 +4,10 @@ import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import Retell from 'retell-sdk';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
+import { NumberProvisioningService } from '../src/modules/numbers';
 import { RedisCache, redisKeys } from '../src/modules/redis';
-import { type CapturingAlerts, type FakeRetellGateway, startD5Harness, waitFor, waitForJob } from './d5-fixtures';
+import { WalletService } from '../src/modules/wallet';
+import { type CapturingAlerts, type FakeRetellGateway, nanpNumber, startD5Harness, waitFor, waitForJob } from './d5-fixtures';
 import { authFor, caller, paidWorkspace, publishedAgent, waitForNumber } from './d6-fixtures';
 
 /*
@@ -134,6 +136,16 @@ describe('the activation workflow', () => {
       const poll = await call('GET', `/jobs/${jobId}`, headers);
       expect(poll.body.progress).toMatchObject({ activation_status: 'live', e164: number.e164, number_id: number.id });
 
+      // ADR 0035 (spec §13.8 step 2): the first month's rental was charged as the number went
+      // active — one ledger row keyed on the number and the period, the anniversary a month on.
+      const rentals = await adminDb.creditLedger.findMany({ where: { tenantId: ws.workspaceId, reason: 'rental' } });
+      expect(rentals).toHaveLength(1);
+      expect(rentals[0]!.delta.toNumber()).toBe(-15); // pricing v1 recurring.number_rental_credits
+      expect(rentals[0]!.refId).toBe(`${number.id}:${number.lastRentalAt!.toISOString()}`);
+      expect(number.nextRentalAt!.getTime() - number.lastRentalAt!.getTime()).toBeGreaterThan(27 * 86_400_000);
+      expect(number.rentalOverdueSince).toBeNull();
+      expect(await app.get(WalletService).balance(ws.workspaceId)).toBe(485); // growth 500 − 15
+
       // A second activation later (a republish) skips the number steps and stays live.
       const again = await call('POST', `/agents/${agentId}/activate`, headers, {});
       const againJob = await waitForJob(again.body.job_id as string);
@@ -142,6 +154,9 @@ describe('the activation workflow', () => {
       expect(againSteps.steps.provision?.status).toBe('skipped');
       expect(againSteps.steps.bind?.status).toBe('skipped');
       expect(await adminDb.phoneNumber.count({ where: { agentId } })).toBe(1);
+      // …and charges nothing again.
+      expect(await adminDb.creditLedger.count({ where: { tenantId: ws.workspaceId, reason: 'rental' } })).toBe(1);
+      expect(await app.get(WalletService).balance(ws.workspaceId)).toBe(485);
     } finally {
       await stream.close();
     }
@@ -165,6 +180,84 @@ describe('the activation workflow', () => {
     const otherAuth = await auth(other.sub, other.workspaceId);
     expect((await call('POST', `/agents/${agentId}/activate`, otherAuth, {})).status).toBe(404);
     expect((await call('GET', `/agents/${agentId}/activation`, otherAuth)).status).toBe(404);
+  });
+});
+
+describe('the first month of rental (ADR 0035, audit §6.1 #4)', () => {
+  const drainTo = async (workspaceId: string, balance: number) => {
+    const wallet = app.get(WalletService);
+    const current = await wallet.balance(workspaceId);
+    if (current > balance) await wallet.withWallet(workspaceId, (_tx, w) => w.debit({ credits: current - balance, reason: 'adjustment', refType: 'e2e', refId: randomUUID() }));
+  };
+
+  it('a wallet that cannot cover the first month fails the activation before anything is bought, with a reason the customer can act on', async () => {
+    const ws = await paidWorkspace(app, 'act-poor', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA' });
+    await drainTo(ws.workspaceId, 4); // 4 − 15 = −11, past the 10-credit grace
+    const before = retell.countOf('createPhoneNumber');
+    const jobId = (await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string;
+    const job = await waitForJob(jobId, 30_000);
+    expect(job.status).toBe('failed');
+    const steps = job.stepsJson as { attempt: number; error_kind: string; customer_reason: string; steps: Record<string, Record<string, unknown>> };
+    expect(steps.attempt).toBe(1); // permanent: no retry
+    expect(steps.steps.provision).toMatchObject({ status: 'failed' });
+    expect(steps.error_kind).toBe('insufficient_credits');
+    expect(steps.customer_reason).toMatch(/15 credits/);
+    expect(retell.countOf('createPhoneNumber')).toBe(before);
+    expect(await adminDb.phoneNumber.count({ where: { agentId } })).toBe(0);
+    expect((await adminDb.tenant.findUniqueOrThrow({ where: { id: ws.workspaceId } })).onboardingCompletedAt).toBeNull();
+    expect(await adminDb.creditLedger.count({ where: { tenantId: ws.workspaceId, reason: 'rental' } })).toBe(0);
+
+    // Topped up, the retry goes live and charges the month once.
+    await app.get(WalletService).grant(ws.workspaceId, { credits: 100, reason: 'purchase', expiresAt: new Date(Date.now() + 365 * 86_400_000) });
+    const retry = await waitForJob((await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string, 30_000);
+    expect(retry.status).toBe('succeeded');
+    expect(await adminDb.creditLedger.count({ where: { tenantId: ws.workspaceId, reason: 'rental' } })).toBe(1);
+    expect(await app.get(WalletService).balance(ws.workspaceId)).toBe(89); // 4 + 100 − 15
+  }, 60_000);
+
+  it('bind refuses to make a bought number active when the wallet was emptied after the purchase, and a retry charges exactly once', async () => {
+    const ws = await paidWorkspace(app, 'act-bind', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const e164 = nanpNumber();
+    retell.phoneNumbers.set(e164, { phone_number: e164, phone_number_type: 'retell-twilio', phone_number_pretty: e164, nickname: 'dev-num', inbound_agents: [], inbound_webhook_url: 'x' });
+    const number = await adminDb.phoneNumber.create({
+      data: { tenantId: ws.workspaceId, agentId, e164, type: 'retell_twilio', status: 'provisioning', inboundToken: `tok_${randomUUID().replace(/-/g, '')}`, country: 'CA', rentalCredits: 15 },
+    });
+    const provisioning = app.get(NumberProvisioningService);
+    await drainTo(ws.workspaceId, 0);
+    await expect(provisioning.bind(number.id, ws.workspaceId)).rejects.toMatchObject({ kind: 'insufficient_credits', retryable: false });
+    const unpaid = await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: number.id } });
+    expect(unpaid.status).toBe('provisioning'); // never active without the month paid
+    expect(unpaid.nextRentalAt).toBeNull();
+    expect(await adminDb.creditLedger.count({ where: { tenantId: ws.workspaceId, reason: 'rental' } })).toBe(0);
+
+    await app.get(WalletService).grant(ws.workspaceId, { credits: 50, reason: 'purchase', expiresAt: new Date(Date.now() + 365 * 86_400_000) });
+    await provisioning.bind(number.id, ws.workspaceId);
+    const paid = await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: number.id } });
+    expect(paid.status).toBe('active');
+    expect(paid.lastRentalAt).toBeTruthy();
+    expect(paid.nextRentalAt!.getTime()).toBeGreaterThan(Date.now() + 27 * 86_400_000);
+    const rows = await adminDb.creditLedger.findMany({ where: { tenantId: ws.workspaceId, reason: 'rental' } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.refId).toBe(`${number.id}:${paid.lastRentalAt!.toISOString()}`);
+    expect(await app.get(WalletService).balance(ws.workspaceId)).toBe(35);
+
+    // A repeated bind (a retried step, a staff resync) is a no-op for the wallet.
+    await provisioning.bind(number.id, ws.workspaceId);
+    expect(await adminDb.creditLedger.count({ where: { tenantId: ws.workspaceId, reason: 'rental' } })).toBe(1);
+    expect(await app.get(WalletService).balance(ws.workspaceId)).toBe(35);
+    // A SIP import owes nothing.
+    const sip = await adminDb.phoneNumber.create({
+      data: { tenantId: ws.workspaceId, agentId, e164: nanpNumber('438'), type: 'custom_sip', status: 'provisioning', inboundToken: `tok_${randomUUID().replace(/-/g, '')}`, country: 'CA', rentalCredits: 0 },
+    });
+    retell.phoneNumbers.set(sip.e164!, { phone_number: sip.e164!, phone_number_type: 'custom', phone_number_pretty: sip.e164!, nickname: 'dev-sip', inbound_agents: [], inbound_webhook_url: 'x' });
+    await provisioning.bind(sip.id, ws.workspaceId);
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: sip.id } })).status).toBe('active');
+    expect(await app.get(WalletService).balance(ws.workspaceId)).toBe(35);
   });
 });
 

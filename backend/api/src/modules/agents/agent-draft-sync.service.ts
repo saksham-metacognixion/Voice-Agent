@@ -40,7 +40,7 @@ export class AgentDraftSyncService {
       const version = await db.agentVersion.findUniqueOrThrow({ where: { agentId_versionNo: { agentId, versionNo } } });
       const tenant = await db.tenant.findUniqueOrThrow({
         where: { id: workspaceId },
-        select: { name: true, timezone: true, recordingNotice: true, recordingNoticeText: true },
+        select: { name: true, timezone: true, recordingNotice: true, recordingNoticeText: true, retentionDays: true },
       });
       return { agent, version, tenant };
     });

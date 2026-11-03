@@ -19,6 +19,7 @@ import { WalletModule } from '../wallet';
 import { CallsController, StatsController } from './calls.controller';
 import { CallsQueryService } from './calls.query.service';
 import { CallReconciliationService } from './call-reconciliation.service';
+import { CallRetentionService } from './call-retention.service';
 import { CallKnowledgeService } from './call-knowledge.service';
 import { CallsService } from './calls.service';
 import { ConcurrencyMonitorService } from './concurrency-monitor.service';
@@ -52,12 +53,13 @@ import { WidgetService } from './widget.service';
     InboundAuthorizationService,
     { provide: RecordingSigner, useFactory: () => new RecordingSigner() },
     CallReconciliationService,
+    CallRetentionService,
     ConcurrencyMonitorService,
     TestCallService,
     WidgetService,
     LiveTranscriptRelay,
   ],
-  exports: [LiveTranscriptRelay, CallsService, CallsQueryService, InboundAuthorizationService, RecordingSigner, CallReconciliationService, ConcurrencyMonitorService],
+  exports: [LiveTranscriptRelay, CallsService, CallsQueryService, InboundAuthorizationService, RecordingSigner, CallReconciliationService, CallRetentionService, ConcurrencyMonitorService],
 })
 export class CallsModule implements OnModuleInit {
   constructor(

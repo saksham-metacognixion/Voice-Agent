@@ -135,7 +135,13 @@ list, platform settings as rows over env vars, and the portal's own-session list
 migrations on every deploy — the image carries `/migrate` (Prisma CLI + the commit's SQL),
 `deploy.sh` runs the `migrate` compose service between pull and `up` with the RDS master
 password read fresh from Secrets Manager via `DB_MASTER_SECRET_ARN`, a failed migration
-restarts nothing, CI migrates an empty Postgres from the built image (28 Oct). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+restarts nothing, CI migrates an empty Postgres from the built image (28 Oct), 0035 the 29 Oct
+audit's §6.1 defects — recording off as the platform storage setting, the hourly `data-retention`
+purge (provider first, `purged_at` only once delete-call answered), allowed caller countries
+enforced in `decide()` (`country` decline, unreadable = refused), the first month of rental
+charged inside `bind` in one wallet transaction (`insufficient_credits` never goes active),
+`{{business_open}}` from the workspace hours on every channel, plus the valid-NANP fixture and
+the restaurant script on the post-ADR 0024 journey (3 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -207,8 +213,8 @@ needs it too, which is what saves both modules from a `forwardRef`.
 Jobs: `modules/jobs` owns the BullMQ plumbing — five queues (`webhooks`, `calls`, `prompting`,
 `provisioning`, `scheduled`), a handler registry every feature module registers into at module init, the worker
 runtime, the §13.11 schedulers (plus `job-sweeper`, which writes off `jobs` rows whose queue
-job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). Thirteen
-of the fourteen schedules are live (`kb-sync` is the skeleton; `call-recovery` joined on 24 Sep); each is upserted by
+job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). Fourteen
+of the fifteen schedules are live (`kb-sync` is the skeleton; `call-recovery` joined on 24 Sep, `data-retention` on 3 Nov); each is upserted by
 id on worker boot, strangers are removed, and **every tick runs under
 `lock:schedule:{name}`** — a tick that outlives its interval is skipped on the second worker,
 not run twice (ADR 0014 §1). The lock waits 2 s for Redis, and the third consecutive skip
@@ -296,6 +302,13 @@ job settles.
 - Retell can deliver out of order: `call_ended` first finalises the row and the late `call_started`
   does not reopen it; `call_analyzed` first creates an **unbilled** row and leaves it unbilled.
 - Every ledger write goes through the `wallet` module. No direct `credit_ledger` inserts anywhere else.
+- **§17 retention is the hourly `data-retention` purge** (`CallRetentionService`, ADR 0035):
+  calls older than their workspace's `retention_days` lose `transcript_text`,
+  `transcript_json`, `recording_url` and the copies inside their stored `webhook_events`
+  bodies (`redactWebhookPayload(payload, PURGED)`), **after** `delete-call` answered
+  (404 = gone; any other failure leaves `purged_at` null, counts `purge_attempts`, pages
+  ops at the third). Billing facts and `analysis_json` stay. The handlers write no content
+  back onto a row with `purged_at`, so a replay restores nothing.
 - **A lifecycle webhook the platform never sends is recovered, not lost** (ADR 0011 §7). The
   platform has been seen delivering `call_started` and dropping `call_ended` + `call_analyzed`
   for a call it had ended and analysed. The 5-minute `call-recovery` schedule
@@ -326,7 +339,10 @@ job settles.
 - `POST /webhooks/retell/inbound/:number_token`. Redis-only path; Retell times out at 10 s and retries 3×.
   Four keys, two round trips, one 150 ms budget. Measured p95 8.4 ms at 6 319 req/s (`test/load/inbound.k6.js`).
 - Six ordered checks: workspace not paused → number not paused (or no live agent) → caller not in
-  blocklist → balance > −grace → active calls < plan cap → hours rule. Hours: `custom` = the
+  blocklist → **caller's country allowed** (ADR 0035: only when `allowed_countries` is set;
+  read from `from_number` by `callerCountry()`, never a caller-supplied field; withheld,
+  malformed or national = refused while a restriction is set; `decline_reason = country`) →
+  balance > −grace → active calls < plan cap → hours rule. Hours: `custom` = the
   number's own schedule and zone, `business` = the workspace's (none set = open, `no_schedule`),
   `always` = none. On a date: closed date → `date_overrides` entry (no intervals = closed) →
   weekday; a closed date also shuts the previous evening's overnight spill (D16). `isOpen` lives
@@ -340,6 +356,11 @@ job settles.
   enqueues `forwarding-test-landed`. Not part of `decide()`. **The call it turns away
   consumes the marker** (compare-and-delete inside the budget), so a test declines one
   call at most — never every real caller on a carrier that shows the forwarded line.
+- **`{{business_open}}`, `{{next_open_time}}` and `{{current_time}}` are computed per call**
+  from the *workspace's* hours (`num:{e164}.business_hours`, separate from the answering
+  schedule `hours`) by `businessVariables()` in `runtime-cache/hours.ts` (ADR 0035) — the
+  inbound path, the W5 browser test, "Call my phone" and the widget all send them. No hours =
+  open. The agent's defaults at sync (`'true'`) are placeholders these override.
 - `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`, clamped to Retell's
   [60 s, 2 h]. "remainingCredits" is the balance **minus what the other live calls may still
   spend** — that is what `active:{ws}` holds per call (ADR 0011 §1).
@@ -468,6 +489,14 @@ job settles.
   on inbound, the calling number's on "Call my phone" — because the platform leaves an
   unsupplied `{{variable}}` as literal braces; blank = the rule's own words. Braces are
   stripped from the customer's text and the number's own targets replaced by "our staff".
+- **Recording off is the platform's storage setting** (ADR 0035, audit §6.1 #1):
+  `AgentSpec.recording` → `data_storage_setting` through `dataStorageSettingFor()` —
+  `everything` records, `basic_attributes_only` keeps nothing on the platform (the only
+  value that stops a recording; `everything_except_pii` still records). From the version's
+  `recording_enabled` via `runtimeAddOns()`, so the draft sync and the publish agree.
+  `tenants.retention_days` rides along as `data_storage_retention_days`. The handlers drop
+  a `recording_url` the payload carries for a version with recording off
+  (`CallsService.recordingToKeep`). Republish live agents after the deploy.
 - **Add-ons and the recording notice** (ADR 0032 §3, §6). `agentSettings.denoise` /
   `.pii_removal` travel with the version; `runtimeAddOns()` re-applies the plan gate at
   every sync (lost gate = sent off, the version keeps the choice). PII removal never
@@ -625,6 +654,14 @@ job settles.
   a 4xx, a lint failure, no plan, no paid purchase or a plan limit ends on attempt one. The
   final failure marks the number row `failed`, sends one `activation:{id}` `failed` frame and
   one `activation_failed` ops alert. The state → view mapping is pure (`activation-state.ts`).
+- **The first month of rental is charged inside `bind`** (ADR 0035, spec §13.8 step 2): for a
+  bought number never charged (`firstMonthRentalDue()`), the platform binding first, then one
+  wallet transaction — `decideRental()` against the balance, a `rental` debit with `ref_id =
+  <number id>:<activation instant>` under the rental index, `status = active`,
+  `last_rental_at`, `next_rental_at` + 1 month. A wallet that cannot cover it throws
+  `insufficient_credits` (permanent) and the row stays `provisioning`: never active unpaid.
+  `assertBillingState` and `POST /numbers/buy` refuse up front. SIP owes nothing. The hourly
+  sweep is unchanged.
 - **Look before you buy.** The platform has no idempotency keys, so every retry looks up what
   a dead run may have created: a bought number by its nickname `num-<20 hex of its id>`, a SIP
   import by its E.164, a knowledge base by its name `kb-<20 hex of the agent id>` (Retell caps

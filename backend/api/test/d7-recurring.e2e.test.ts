@@ -11,7 +11,7 @@ import { REDIS, RedisCache, type RedisLike, redisKeys } from '../src/modules/red
 import { ScheduledJobsService } from '../src/modules/scheduled';
 import { SKIP_ALERT_AFTER } from '../src/modules/scheduled/scheduled.service';
 import { RENTAL_REF_TYPE, WalletService } from '../src/modules/wallet';
-import { type CapturingAlerts, type FakeRetellGateway, startD5Harness } from './d5-fixtures';
+import { type CapturingAlerts, type FakeRetellGateway, startD5Harness, nanpNumber } from './d5-fixtures';
 import { type PaidWorkspace, paidWorkspace } from './d6-fixtures';
 
 /*
@@ -67,7 +67,7 @@ const rentalRows = (ws: string) => adminDb.creditLedger.findMany({ where: { tena
 
 /** A bought, bound, active number whose anniversary has passed — as the D6 bind step leaves it, a month later. */
 async function boughtNumber(ws: PaidWorkspace, over: Partial<{ type: 'retell_twilio' | 'custom_sip'; status: 'active' | 'paused' | 'released' | 'releasing'; nextRentalAt: Date | null; rentalOverdueSince: Date | null }> = {}) {
-  const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+  const e164 = nanpNumber();
   const row = await adminDb.phoneNumber.create({
     data: {
       tenantId: ws.workspaceId,

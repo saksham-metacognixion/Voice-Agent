@@ -86,7 +86,7 @@ export class AgentPublishService {
 
       const tenant = await db.tenant.findUniqueOrThrow({
         where: { id: ctx.workspaceId },
-        select: { name: true, timezone: true, pausedAt: true, recordingNotice: true, recordingNoticeText: true },
+        select: { name: true, timezone: true, pausedAt: true, recordingNotice: true, recordingNoticeText: true, retentionDays: true },
       });
       return { agent, version, tenant };
     });

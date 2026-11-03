@@ -1,3 +1,4 @@
+import { nanpNumber } from './d5-fixtures';
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
@@ -127,7 +128,7 @@ export async function createCallWorkspace(label: string, overrides: { tier?: 'st
       maxCallDurationS: overrides.maxCallDurationS ?? 600,
     },
   });
-  const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+  const e164 = nanpNumber();
   const token = `tok_${randomUUID().replace(/-/g, '')}`;
   const number = await adminDb.phoneNumber.create({
     data: {

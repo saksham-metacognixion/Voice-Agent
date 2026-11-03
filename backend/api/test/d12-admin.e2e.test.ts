@@ -13,7 +13,7 @@ import { bullConnection, bullPrefix } from '../src/modules/jobs/jobs.connection'
 import { RedisCache, redisKeys } from '../src/modules/redis';
 import { WebhookEventsService, WebhookProcessingService } from '../src/modules/webhooks';
 import { Auth0ManagementService } from '../src/modules/auth';
-import { type D5Harness, createWorkspace, startD5Harness } from './d5-fixtures';
+import { type D5Harness, createWorkspace, startD5Harness, nanpNumber } from './d5-fixtures';
 import { paidWorkspace, type PaidWorkspace } from './d6-fixtures';
 
 /*
@@ -44,7 +44,7 @@ let noMfaToken: string;
 let agentId: string;
 let numberId: string;
 let originalPricing: PricingConfig;
-let originalVersion = 0;
+let originalVersion: number | null = null;
 
 async function call(
   method: string,
@@ -142,7 +142,7 @@ beforeAll(async () => {
     data: {
       tenantId: ws.workspaceId,
       agentId,
-      e164: `+1450555${run.replace(/\D/g, '').padEnd(4, '1').slice(0, 4)}`,
+      e164: nanpNumber(), // valid and random: the old `+1450555` + run digits collided on the e164 unique index after enough runs (3 Nov)
       type: 'retell_twilio',
       status: 'active',
       inboundToken: `tok_${run}`,
@@ -159,7 +159,9 @@ afterAll(async () => {
   await adminDb.pricingDraft.deleteMany({});
   // Versions are immutable in production; a test run is not, and the billing suite asserts on
   // the seed's version number. Put the table back the way it was found (price map rows cascade).
-  await adminDb.pricingConfig.deleteMany({ where: { version: { gt: originalVersion } } });
+  // Only once `beforeAll` read the version to keep: `gt: undefined` is no filter at all, and a
+  // failed setup once emptied `pricing_configs` for every suite that ran after this one (3 Nov).
+  if (originalVersion !== null) await adminDb.pricingConfig.deleteMany({ where: { version: { gt: originalVersion } } });
   await h.app.get(RedisCache).del(redisKeys.pricingCurrent);
   await h?.stop();
   await adminDb.$disconnect();
@@ -916,7 +918,7 @@ describe('SA12 jobs and webhook events', () => {
       data: { tenantId: own.workspaceId, name: 'Front desk', status: 'live', tier: 'standard', publishedVersion: 1, draftVersion: 1, retellAgentId, retellLlmId: `llm_nometa_${tag}` },
     });
     await adminDb.agentVersion.create({ data: { agentId: ownAgent.id, versionNo: 1, source: 'generated', briefJson: {}, promptText: 'You are the front desk.', publishedAt: new Date() } });
-    const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+    const e164 = nanpNumber();
     await adminDb.phoneNumber.create({
       data: { tenantId: own.workspaceId, agentId: ownAgent.id, e164, type: 'retell_twilio', status: 'active', inboundToken: `tok_nometa_${tag}`, country: 'CA' },
     });
@@ -1698,8 +1700,18 @@ describe('SA8 call actions and SA12 reconciliation', () => {
     expect((await lastAudit('reconciliation.run_requested'))?.targetId).toBe(day);
     expect((await lastAudit('reconciliation.ran'))?.targetId).toBe(ran.body.id);
 
-    const listed = await call('GET', '/admin/reconciliations?limit=100', staff.readOnly.token);
-    expect((listed.body.items as Array<{ id: string }>).map((r) => r.id)).toContain(ran.body.id);
+    // The list is newest window first and a long-lived dev database keeps every run the
+    // suites leave behind, so the 2001 window may sit past the first page: walk the §16
+    // cursor until the run shows up (3 Nov: 108 rows, and the run was 101st).
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    do {
+      const listed = await call('GET', `/admin/reconciliations?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, staff.readOnly.token);
+      expect(listed.status).toBe(200);
+      seen.push(...(listed.body.items as Array<{ id: string }>).map((r) => r.id));
+      cursor = (listed.body.next_cursor as string | null) ?? null;
+    } while (cursor && !seen.includes(ran.body.id as string));
+    expect(seen).toContain(ran.body.id);
     await adminDb.reconciliationRun.deleteMany({ where: { windowStart: start } });
   });
 });

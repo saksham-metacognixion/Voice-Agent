@@ -6,6 +6,7 @@ import { PlatformConfigService } from '../config';
 import { NotificationsService, WorkspaceAlertsService } from '../notifications';
 import { DuplicateRentalDebit, RENTAL_REF_TYPE, WalletService, addMonths } from '../wallet/wallet.service';
 import { NumberProvisioningService } from './number-provisioning.service';
+import { decideRental } from './rental-rules';
 
 export type RentalOutcome =
   | { outcome: 'charged'; numberId: string; workspaceId: string; credits: number; period: string; balanceAfter: number; duplicate: boolean }
@@ -18,15 +19,7 @@ export type ReleaseOutcome =
   | { outcome: 'released'; numberId: string; workspaceId: string; e164: string | null; daysOverdue: number }
   | { outcome: 'failed'; numberId: string; workspaceId: string; error: string };
 
-/**
- * Pure: charge, or mark overdue? The one rule the wallet asks recurring charges to obey
- * (WalletService.debit): never debit past the grace overdraft — take the §5.3 "release
- * after N days at zero balance" path instead.
- */
-export function decideRental(input: { balance: number; rental: number; grace: number }): 'charge' | 'overdue' {
-  if (input.rental <= 0) return 'charge';
-  return input.balance - input.rental >= -input.grace ? 'charge' : 'overdue';
-}
+export { decideRental } from './rental-rules';
 
 /** Whole days between `since` and `now`, floored. */
 export function daysBetween(since: Date, now: Date): number {

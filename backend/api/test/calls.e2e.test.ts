@@ -950,3 +950,97 @@ describe('the webhook sweeper (§13.11)', () => {
     await (await queue.getJob(pending))?.remove();
   });
 });
+
+// ---------------------------------------------------------------------------
+describe('allowed caller countries and {{business_open}} (ADR 0035, audit §6.1 #3 and #5)', () => {
+  it('a number restricted to Canada declines a US caller as `country` through the webhook itself, and an unreadable caller too; a Canadian caller is answered', async () => {
+    const ws = await readyWorkspace('country');
+    await adminDb.phoneNumber.update({ where: { id: ws.numberId }, data: { allowedCountries: ['CA'] } });
+    await runtimeCache.refresh(ws.tenantId);
+    const us = callId();
+    const refused = await inbound(ws, inboundEvent({ callId: us, to: ws.e164, from: '+19375550100' }));
+    expect(refused.statusCode).toBe(200);
+    expect(refused.json()).toEqual({ call_inbound: { reject: true } });
+    // Nothing reserved, nothing for the agent: a "Missed" row with the reason, and that is all.
+    expect(Object.keys(await cache.client.hgetall(redisKeys.activeCalls(ws.tenantId)))).not.toContain(us);
+    const missed = await waitFor('the declined row', () => callRow(us));
+    expect(missed).toMatchObject({ status: 'declined', declineReason: 'country', fromNumber: '+19375550100' });
+    expect(app.get(InboundAuthorizationService).metrics.declined.country).toBeGreaterThanOrEqual(1);
+
+    for (const from of ['anonymous', '+266696687', '4165550123']) {
+      const id = callId();
+      expect((await inbound(ws, inboundEvent({ callId: id, to: ws.e164, from }))).json(), from).toEqual({ call_inbound: { reject: true } });
+    }
+    const ca = callId();
+    const answered = await inbound(ws, inboundEvent({ callId: ca, to: ws.e164, from: '+14165550123' }));
+    expect(answered.json().call_inbound.override_agent_id).toBe(ws.retellAgentId);
+
+    // Lifting the restriction on D4 reaches the hot path through the same refresh the PATCH runs.
+    await adminDb.phoneNumber.update({ where: { id: ws.numberId }, data: { allowedCountries: [] } });
+    await runtimeCache.refresh(ws.tenantId);
+    expect((await inbound(ws, inboundEvent({ callId: callId(), to: ws.e164, from: '+19375550100' }))).json().call_inbound.override_agent_id).toBe(ws.retellAgentId);
+  });
+
+  it('tells the agent whether the business is open from the workspace hours, on an always-answer number', async () => {
+    const ws = await readyWorkspace('open');
+    // The fixture number answers always; the business keeps Monday–Friday 09:00–17:00 Toronto.
+    const days = Object.fromEntries(['mon', 'tue', 'wed', 'thu', 'fri'].map((d) => [d, [{ open: '09:00', close: '17:00' }]]));
+    await adminDb.tenant.update({ where: { id: ws.tenantId }, data: { businessHoursJson: { days, closed_dates: [] } } });
+    await runtimeCache.refresh(ws.tenantId);
+    const service = app.get(InboundAuthorizationService);
+    // Wednesday 16 Sep 2026, 10:00 and 20:00 Toronto.
+    const open = await service.authorize(ws.token, inboundEvent({ callId: callId(), to: ws.e164 }) as never, new Date('2026-09-16T14:00:00Z'));
+    expect(open.body).toMatchObject({ call_inbound: { dynamic_variables: { business_open: 'true', next_open_time: '', current_time: '10:00' } } });
+    const closed = await service.authorize(ws.token, inboundEvent({ callId: callId(), to: ws.e164 }) as never, new Date('2026-09-17T00:00:00Z'));
+    expect(closed.body).toMatchObject({ call_inbound: { override_agent_id: ws.retellAgentId, dynamic_variables: { business_open: 'false', next_open_time: 'tomorrow at 09:00', current_time: '20:00' } } });
+    // No hours at all: open, never a shut shop by accident.
+    await adminDb.tenant.update({ where: { id: ws.tenantId }, data: { businessHoursJson: Prisma.DbNull } });
+    await runtimeCache.refresh(ws.tenantId);
+    const none = await service.authorize(ws.token, inboundEvent({ callId: callId(), to: ws.e164 }) as never, new Date('2026-09-17T00:00:00Z'));
+    expect(none.body).toMatchObject({ call_inbound: { dynamic_variables: { business_open: 'true' } } });
+  });
+});
+
+describe('recording off keeps no recording (ADR 0035, audit §6.1 #1)', () => {
+  it('a recording link the platform sends for an agent with recording off is dropped on call_ended and call_analyzed', async () => {
+    const ws = await readyWorkspace('norec');
+    await adminDb.agent.update({ where: { id: ws.agentId }, data: { recordingEnabled: false } });
+    const id = callId();
+    const start = Date.now() - 70_000;
+    const end = Date.now();
+    await post('/webhooks/retell', lifecycleEvent('call_ended', { call_id: id, start_timestamp: start, end_timestamp: end, duration_ms: end - start, disconnection_reason: 'user_hangup', call_status: 'ended', recording_url: 'https://recordings.test/should-not-be-kept.mp3', transcript: 'Agent: hello.', metadata: { tenant_id: ws.tenantId, agent_id: ws.agentId } }));
+    const ended = await waitFor('the ended row', async () => {
+      const row = await callRow(id);
+      return row?.status === 'ended' && row.creditsCharged !== null ? row : null;
+    });
+    expect(ended.recordingUrl).toBeNull();
+    expect(ended.transcriptText).toBe('Agent: hello.'); // the transcript still reaches D2
+    expect(ended.creditsCharged!.toNumber()).toBeGreaterThan(0); // metering is untouched
+    await post('/webhooks/retell', lifecycleEvent('call_analyzed', { call_id: id, start_timestamp: start, end_timestamp: end, recording_url: 'https://recordings.test/should-not-be-kept.mp3', call_analysis: { call_summary: 'x' }, metadata: { tenant_id: ws.tenantId, agent_id: ws.agentId } }));
+    const analyzed = await waitFor('the analyzed row', async () => {
+      const row = await callRow(id);
+      return row?.status === 'analyzed' ? row : null;
+    });
+    expect(analyzed.recordingUrl).toBeNull();
+
+    // The version the call ran decides, so a draft under test with recording off is honoured while the live agent records.
+    await adminDb.agent.update({ where: { id: ws.agentId }, data: { recordingEnabled: true } });
+    await adminDb.agentVersion.create({ data: { agentId: ws.agentId, versionNo: 7, source: 'manual', briefJson: {}, settingsJson: { tier: 'standard', primary_language: 'en-US', languages: [], voice_id: null, voice_speed: null, voice_temperature: null, max_call_duration_s: 600, recording_enabled: false } } });
+    const draft = callId();
+    await post('/webhooks/retell', lifecycleEvent('call_ended', { call_id: draft, start_timestamp: start, end_timestamp: end, duration_ms: end - start, disconnection_reason: 'user_hangup', call_status: 'ended', recording_url: 'https://recordings.test/draft.mp3', metadata: { tenant_id: ws.tenantId, agent_id: ws.agentId, version_no: 7, test: true } }));
+    const draftRow = await waitFor('the draft call row', async () => {
+      const row = await callRow(draft);
+      return row?.status === 'ended' ? row : null;
+    });
+    expect(draftRow.agentVersion).toBe(7);
+    expect(draftRow.recordingUrl).toBeNull();
+    // And one that records keeps its link, as before.
+    const live = callId();
+    await post('/webhooks/retell', lifecycleEvent('call_ended', { call_id: live, start_timestamp: start, end_timestamp: end, duration_ms: end - start, disconnection_reason: 'user_hangup', call_status: 'ended', recording_url: 'https://recordings.test/live.mp3', metadata: { tenant_id: ws.tenantId, agent_id: ws.agentId } }));
+    const liveRow = await waitFor('the live call row', async () => {
+      const row = await callRow(live);
+      return row?.status === 'ended' ? row : null;
+    });
+    expect(liveRow.recordingUrl).toBe('https://recordings.test/live.mp3');
+  });
+});

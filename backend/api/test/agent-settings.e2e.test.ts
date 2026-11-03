@@ -6,6 +6,7 @@ import { PlatformConfigService } from '../src/modules/config';
 import { applyGuardrails } from '../src/modules/prompting';
 import { RedisCache, redisKeys } from '../src/modules/redis';
 import { RuntimeCacheService, type NumberRecord } from '../src/modules/runtime-cache';
+import { WalletService } from '../src/modules/wallet';
 import { VoicesService } from '../src/modules/voices';
 import type { FakeAuth0Tenant } from './auth0-double';
 import {
@@ -14,6 +15,7 @@ import {
   type TestWorkspace,
   createWorkspace,
   startD5Harness,
+  nanpNumber,
   waitForJob,
 } from './d5-fixtures';
 
@@ -112,7 +114,7 @@ async function liveAgentWithNumber() {
   const published = await req('POST', `/agents/${agentId}/publish`, {});
   expect(published.statusCode).toBe(201);
 
-  const e164 = `+1438${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+  const e164 = nanpNumber('438');
   await adminDb.phoneNumber.create({
     data: {
       tenantId: ws.workspaceId,
@@ -504,6 +506,35 @@ describe('Save as new version (QA-079)', () => {
 
     const audit = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'agent.version_saved', targetId: agentId } });
     expect(audit?.metaJson).toMatchObject({ version_no: 1, draft_version: 2 });
+  });
+});
+
+describe('recording off is the platform storage setting (ADR 0035, audit §6.1 #1)', () => {
+  it('the version’s recording switch and the workspace retention reach the platform at the draft sync and at publish', async () => {
+    const { agentId } = await liveAgentWithNumber();
+    expect((await req('PATCH', `/agents/${agentId}/draft`, { recording_enabled: false })).statusCode).toBe(200);
+    // The browser test needs credits (§13.4); the shared settings workspace may have spent its trial.
+    await app.get(WalletService).grant(ws.workspaceId, { credits: 20, reason: 'purchase', expiresAt: new Date(Date.now() + 365 * 86_400_000) });
+    retell.calls.length = 0;
+    // The draft sync before a browser test carries the draft's switch.
+    expect((await req('POST', `/agents/${agentId}/test/web`, {})).statusCode).toBe(201);
+    const draftSpec = retell.calls.find((c) => c.method === 'updateAgent')!.args[1] as { recording: boolean; retentionDays: number };
+    expect(draftSpec).toMatchObject({ recording: false, retentionDays: 90 });
+    // The live agent still records until the draft is published.
+    expect((await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } })).recordingEnabled).toBe(true);
+
+    await req('PATCH', '/workspace', { retention_days: 30 });
+    retell.calls.length = 0;
+    expect((await req('POST', `/agents/${agentId}/publish`, {})).statusCode).toBe(201);
+    const publishedSpec = retell.calls.find((c) => c.method === 'updateAgent')!.args[1] as { recording: boolean; retentionDays: number };
+    expect(publishedSpec).toMatchObject({ recording: false, retentionDays: 30 });
+    expect((await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } })).recordingEnabled).toBe(false);
+
+    // Back on: the next publish sends `everything` again.
+    await req('PATCH', `/agents/${agentId}/draft`, { recording_enabled: true });
+    retell.calls.length = 0;
+    await req('POST', `/agents/${agentId}/publish`, {});
+    expect((retell.calls.find((c) => c.method === 'updateAgent')!.args[1] as { recording: boolean }).recording).toBe(true);
   });
 });
 

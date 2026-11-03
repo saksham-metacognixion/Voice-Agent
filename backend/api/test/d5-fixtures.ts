@@ -143,6 +143,7 @@ export class FakeRetellGateway {
     this.knowledgeBases.clear();
     this.providerCalls.length = 0;
     this.callObjects.clear();
+    this.deletedCalls.clear();
     this.kbIngestPolls = 1;
   }
 
@@ -304,6 +305,18 @@ export class FakeRetellGateway {
   /** What `get-call` answers, by call id: a test seeds the platform's copy of a call whose webhooks were lost. Absent → 404 (null). */
   readonly callObjects = new Map<string, RetellCallFacts>();
 
+  /** Calls the §17 purge asked the platform to delete (CallRetentionService). A second delete of one is a 404. */
+  readonly deletedCalls = new Set<string>();
+
+  deleteCall(callId: string) {
+    return this.record('deleteCall', [callId], () => {
+      if (this.deletedCalls.has(callId)) throw notFoundLike(404, `call ${callId} not found`);
+      this.deletedCalls.add(callId);
+      this.callObjects.delete(callId);
+      return undefined;
+    });
+  }
+
   retrieveCallFacts(callId: string): Promise<RetellCallFacts | null> {
     return this.record('retrieveCallFacts', [callId], () => {
       const call = this.callObjects.get(callId);
@@ -353,7 +366,7 @@ export class FakeRetellGateway {
   createPhoneNumber(input: { numberToken: string; agentId: string; country: 'US' | 'CA'; areaCode?: number; tollFree?: boolean; provider?: 'twilio' | 'telnyx'; nickname: string; allowedInboundCountries?: string[] }) {
     return this.record('createPhoneNumber', [input], () => {
       const area = input.areaCode ?? (input.country === 'CA' ? 450 : 620);
-      const e164 = `+1${area}${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+      const e164 = nanpNumber(String(area));
       const number: FakePhoneNumber = {
         phone_number: e164,
         phone_number_type: input.provider === 'telnyx' ? 'retell-telnyx' : 'retell-twilio',
@@ -698,6 +711,18 @@ export interface TestUser {
 }
 
 /** A `users` row with no workspace — what the Auth0 webhook leaves behind. */
+/**
+ * A valid, random NANP number: the exchange and the subscriber part never start with 0
+ * or 1, which libphonenumber rejects. The old `+1450` + seven random digits drew an
+ * invalid exchange one run in nine, and the D17 destination test answered
+ * `VALIDATION_FAILED` before it reached `DESTINATION_IS_AGENT` (audit 29 Oct §6.2).
+ */
+export function nanpNumber(areaCode = '450'): string {
+  const exchange = String(Math.floor(Math.random() * 800) + 200);
+  const line = String(Math.floor(Math.random() * 10_000)).padStart(4, '0');
+  return `+1${areaCode}${exchange}${line}`;
+}
+
 export async function createUser(label: string): Promise<TestUser> {
   const run = randomUUID().slice(0, 8);
   const sub = `auth0|${label}-${run}`;

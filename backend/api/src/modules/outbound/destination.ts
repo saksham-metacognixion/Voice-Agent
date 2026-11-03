@@ -19,13 +19,4 @@ export function readDestination(raw: string | null | undefined): OutboundDestina
   return { ok: true, e164: parsed.number, country: parsed.country };
 }
 
-/**
- * A number for an audit row: the country code and the last two digits. Enough to tell two
- * attempts apart in an investigation; the full number stays on the call row it came from.
- */
-export function maskNumber(e164: string | null | undefined): string | null {
-  if (!e164) return null;
-  const digits = e164.replace(/\D/g, '');
-  if (digits.length < 6) return '•'.repeat(digits.length);
-  return `+${digits.slice(0, 1)}${'•'.repeat(digits.length - 3)}${digits.slice(-2)}`;
-}
+export { maskNumber } from '../../common/mask';

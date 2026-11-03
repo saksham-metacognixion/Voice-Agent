@@ -10,7 +10,7 @@ import { ForwardingTestService } from '../src/modules/numbers/forwarding-test.se
 import { REDIS, type RedisLike, redisKeys } from '../src/modules/redis';
 import { RuntimeCacheService } from '../src/modules/runtime-cache';
 import { WalletService } from '../src/modules/wallet';
-import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness, waitFor } from './d5-fixtures';
+import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness, waitFor, nanpNumber } from './d5-fixtures';
 import { authFor, caller, paidWorkspace, publishedAgent } from './d6-fixtures';
 
 /*
@@ -45,7 +45,7 @@ afterAll(async () => {
 
 /** A live number on `agentId`, as activation leaves one, projected into `num:{e164}`. */
 async function liveNumber(workspaceId: string, agentId: string, extra: { forwardingFrom?: string } = {}) {
-  const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+  const e164 = nanpNumber();
   const token = `tok_${randomUUID().replace(/-/g, '')}`;
   const number = await adminDb.phoneNumber.create({
     data: {
@@ -88,8 +88,9 @@ describe('POST /agents/:id/test/phone — "Call my phone" (W5, Phase 2)', () => 
     const placed = lastArgs<{ fromNumber: string; toNumber: string; agentId: string; agentVersion: number; metadata: Record<string, unknown> }>('createPhoneCall');
     expect(placed).toMatchObject({ fromNumber: number.e164, toNumber: '+14165550123', agentId: agent.retellAgentId, agentVersion: version.retellAgentVersion });
     expect(placed.metadata).toEqual({ tenant_id: ws.workspaceId, agent_id: agentId, version_no: 1, tier: agent.tier, test: true, number_id: number.id });
-    // QA-083: the calling number's transfer-failed message rides along, as on an inbound call (none set = '').
-    expect((placed as { dynamicVariables?: Record<string, string> }).dynamicVariables).toEqual({ transfer_fail_message: '' });
+    // QA-083: the calling number's transfer-failed message rides along, as on an inbound call (none set = ''),
+    // and so do the §9.7 hours variables (ADR 0035; no hours set = open).
+    expect((placed as { dynamicVariables?: Record<string, string> }).dynamicVariables).toEqual({ transfer_fail_message: '', business_open: 'true', next_open_time: '', current_time: expect.stringMatching(/^\d{2}:\d{2}$/) });
     // The country, never the number, in the audit log every admin reads.
     const audit = await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'agent.test_phone_call' } });
     expect(audit.metaJson).toMatchObject({ to_country: 'CA' });

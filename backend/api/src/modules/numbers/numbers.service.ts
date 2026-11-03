@@ -11,6 +11,7 @@ import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService } from '../wallet';
 import { forwardingGuideFor } from './forwarding-guide';
 import { newInboundToken } from './number-provisioning.service';
+import { decideRental } from './rental-rules';
 import { toNumberResponse } from './number-response';
 import { NumberProvisioningService } from './number-provisioning.service';
 
@@ -106,7 +107,7 @@ export class NumbersService {
     const flags = await this.config.flagsFor(ctx.workspaceId);
     if (!flags.gates.sip_import) throw new AppError('PLAN_LIMIT', 'Bringing your own SIP trunk is available on higher plans.');
     if (!this.sip.configured) throw new AppError('NOT_CONFIGURED', 'SIP import is unavailable right now. We have been notified.');
-    await this.assertMayProvision(ctx);
+    await this.assertMayProvision(ctx, true);
 
     const row = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, input.agent_id);
@@ -241,11 +242,20 @@ export class NumbersService {
   }
 
   /** §5.4: no phone number before the first purchase. Off-wizard buys check it here; the activation job checks it in `provision`. */
-  private async assertMayProvision(ctx: WorkspaceContext): Promise<void> {
+  private async assertMayProvision(ctx: WorkspaceContext, sip = false): Promise<void> {
     const paid = await withWorkspace(ctx, (db) => db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }));
     if (paid === 0) throw new AppError('NO_CREDITS', 'Buy a credit pack before adding a phone number.');
     const balance = await this.wallet.balance(ctx.workspaceId);
     if (balance <= 0) throw new AppError('NO_CREDITS', 'Top up your credits before adding a phone number.');
+    // ADR 0035: a bought number's first month is charged when it goes active, so the
+    // wallet has to cover it now rather than buy a number that then fails at bind.
+    if (!sip) {
+      const [{ config: pricing }, { policy }] = await Promise.all([this.config.currentPricing(), this.config.walletPolicy()]);
+      const rental = pricing.recurring.number_rental_credits;
+      if (decideRental({ balance, rental, grace: policy.grace_overdraft_credits }) === 'overdue') {
+        throw new AppError('NO_CREDITS', `Top up at least ${rental} credits to cover the first month of the number's rental.`);
+      }
+    }
   }
 
   private async assertUnderCap(db: WorkspaceDb, ctx: WorkspaceContext): Promise<void> {

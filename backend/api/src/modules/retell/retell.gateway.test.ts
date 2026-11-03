@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { RetellConfig } from './retell.config';
-import { RetellGateway, clampDuration } from './retell.gateway';
+import { RetellGateway, clampDuration, dataStorageSettingFor } from './retell.gateway';
 import { stackFor } from './retell.types';
 
 const env = {
@@ -181,12 +181,31 @@ describe('Retell projection', () => {
       voiceId: '11labs-Adrian',
       language: ['en-US', 'fr-CA'],
       maxCallDurationMs: 600_000,
+      recording: true,
     });
     const body = create.mock.calls[0]![0];
     expect(body.webhook_url).toBe('https://api.example.test/webhooks/retell');
     expect(body.webhook_events).toEqual(expect.arrayContaining(['call_started', 'call_ended', 'call_analyzed']));
     expect(body.agent_name).toBe('dev-Maple Dental');
     expect(body.response_engine).toEqual({ type: 'retell-llm', llm_id: 'llm_1' });
+  });
+
+  // ADR 0035 (audit §6.1 #1): "Recording off" is the platform's storage setting, on create and on update.
+  it('sends recording off as basic_attributes_only, on as everything, and mirrors the retention', async () => {
+    expect(dataStorageSettingFor(true)).toBe('everything');
+    expect(dataStorageSettingFor(false)).toBe('basic_attributes_only');
+    const gw = gateway();
+    const create = vi.spyOn(gw.client.agent, 'create').mockResolvedValue({} as never);
+    const update = vi.spyOn(gw.client.agent, 'update').mockResolvedValue({} as never);
+    const spec = { name: 'Maple Dental', llmId: 'llm_1', voiceId: '11labs-Adrian', language: 'en-US' as const, maxCallDurationMs: 600_000 };
+    await gw.createAgent({ ...spec, recording: false, retentionDays: 30 });
+    expect(create.mock.calls[0]![0]).toMatchObject({ data_storage_setting: 'basic_attributes_only', data_storage_retention_days: 30 });
+    await gw.updateAgent('agent_1', { ...spec, recording: true, retentionDays: 365 });
+    expect(update.mock.calls[0]![1]).toMatchObject({ data_storage_setting: 'everything', data_storage_retention_days: 365 });
+    // No retention given (the spike script): the platform's value is left alone.
+    await gw.updateAgent('agent_1', { ...spec, recording: false });
+    expect(update.mock.calls[1]![1]).toMatchObject({ data_storage_setting: 'basic_attributes_only' });
+    expect(update.mock.calls[1]![1]).not.toHaveProperty('data_storage_retention_days');
   });
 
   it('a web call always names an explicit version — that is the only door to a draft', async () => {

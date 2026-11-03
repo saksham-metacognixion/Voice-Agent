@@ -1,7 +1,11 @@
 /**
  * Dev only: ek workspace ko "paid" bana do taaki D6 ke Postman folders chal sakein.
  *
- *   pnpm --filter @portal/api exec dotenv -e ../../.env -- tsx scripts/dev-seed-workspace.ts <workspace_id> [pack_id]
+ *   pnpm --filter @portal/api exec dotenv -e ../../.env -- tsx scripts/dev-seed-workspace.ts <workspace_id> [pack_id] [--live]
+ *
+ * `--live` (ADR 0035, e2e:restaurant): onboarding ko complete mark karo — jaise W7 ki activation
+ * `mark_live` step karti hai — bina asli number khareede, taaki post-go-live pages (W4 knowledge,
+ * /onboarding/live, /app) browser test me khul sakein. Agent ko live nahi karta.
  *
  * Kyun chahiye: D6 ke saare routes paid state ke peeche hain, jaan-boojh kar —
  *   knowledge      → `knowledge_base` gate + `caps.kb_allowance` (§5.2)
@@ -28,8 +32,10 @@ import { WalletService, addMonths } from '../src/modules/wallet/wallet.service';
 async function main() {
   if (!isDevEnv()) throw new Error(`This script only runs with APP_ENV=dev (got ${process.env.APP_ENV ?? 'unset'}).`);
 
-  const [workspaceId, packId = 'growth'] = process.argv.slice(2);
-  if (!workspaceId) throw new Error('Usage: tsx scripts/dev-seed-workspace.ts <workspace_id> [pack_id]');
+  const args = process.argv.slice(2);
+  const live = args.includes('--live');
+  const [workspaceId, packId = 'growth'] = args.filter((a) => !a.startsWith('--'));
+  if (!workspaceId) throw new Error('Usage: tsx scripts/dev-seed-workspace.ts <workspace_id> [pack_id] [--live]');
 
   const tenant = await adminDb.tenant.findUnique({ where: { id: workspaceId }, select: { id: true, name: true } });
   if (!tenant) throw new Error(`workspace ${workspaceId} does not exist — run dev-link-user.ts first`);
@@ -76,7 +82,13 @@ async function main() {
   // §5.2: plan tier = sabse bada pack jo 12 mahine me khareeda gaya, aur tenant us pack ke caps copy karta hai.
   await adminDb.tenant.update({
     where: { id: workspaceId },
-    data: { planTier: pack.plan_tier as PlanTier, concurrencyCap: pack.concurrency_cap, kbAllowance: pack.kb_allowance },
+    data: {
+      planTier: pack.plan_tier as PlanTier,
+      concurrencyCap: pack.concurrency_cap,
+      kbAllowance: pack.kb_allowance,
+      // `--live`: what the activation's `mark_live` step writes, minus the number.
+      ...(live ? { onboardingCompletedAt: new Date(), onboardingStep: 7 } : {}),
+    },
   });
 
   // Gates 60 s tak cached rehte hain — refresh na karo toh Postman me PLAN_LIMIT dikhta rahega.
@@ -93,6 +105,7 @@ async function main() {
         plan_tier: caps.plan_tier,
         credits_granted: credits,
         balance: write.balance_after,
+        onboarding_completed: live,
         caps: { max_agents: caps.max_agents, max_numbers: caps.max_numbers, kb_allowance: caps.kb_allowance, concurrency_cap: caps.concurrency_cap },
         gates: { knowledge_base: flags.gates.knowledge_base, sip_import: flags.gates.sip_import, auto_topup: flags.gates.auto_topup },
         now_works: ['POST /agents/:id/knowledge', 'PUT /agents/:id/phone-plan', 'POST /numbers/buy', 'POST /agents/:id/activate'],

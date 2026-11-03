@@ -3,7 +3,7 @@ import { adminDb } from '@portal/db';
 import { AgentEvents } from '../agents';
 import { OpsAlertService } from '../alerts';
 import { AutoTopupService, BillingService } from '../billing';
-import { CallReconciliationService, ConcurrencyMonitorService } from '../calls';
+import { CallReconciliationService, ConcurrencyMonitorService, CallRetentionService, type PurgeTick } from '../calls';
 import { EventsService } from '../events';
 import { JobRecordsService, LOST_JOB_REASON, type LostJob, type ScheduleSpec, scheduleLockTtlS } from '../jobs';
 import { DailyDigestService, LowBalanceAlertsService, NotificationsService } from '../notifications';
@@ -61,6 +61,7 @@ export class ScheduledJobsService {
     private readonly cache: RedisCache,
     private readonly ops: OpsAlertService,
     private readonly callRecoveryService: CallRecoveryService,
+    private readonly retention: CallRetentionService,
   ) {}
 
   /** Consecutive skips per schedule, this process. A tick that runs resets its entry. */
@@ -123,6 +124,11 @@ export class ScheduledJobsService {
   /** §13.11 `number-rental`, hourly: every bought number past its anniversary (NumberRentalService). */
   numberRental(): Promise<{ due: number; charged: number; overdue: number; failed: number; credits: number }> {
     return this.rental.chargeDue();
+  }
+
+  /** §17 `data-retention`, hourly: transcripts, recordings and the platform's copy past each workspace's retention (ADR 0035). */
+  dataRetention(): Promise<PurgeTick> {
+    return this.retention.purgeExpired();
   }
 
   /** §13.11 `number-release`, daily: numbers unpaid for `release_after_days_at_zero_balance`. */

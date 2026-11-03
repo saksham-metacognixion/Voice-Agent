@@ -11,6 +11,7 @@ import {
 } from '@portal/schemas';
 import { randomBytes } from 'node:crypto';
 import { portalUrl } from '../../common/env';
+import { businessVariables, parseBusinessHours } from '../runtime-cache';
 import { AppError } from '../../common/errors/app-error';
 import { clientBucket } from '../../common/http/client-bucket';
 import { normaliseOrigin } from '../../common/http/request-limits';
@@ -190,6 +191,8 @@ export class WidgetService {
         agentVersion: published!.retellAgentVersion!,
         metadata: { tenant_id: agent.tenantId, agent_id: agent.id, version_no: agent.publishedVersion, tier: agent.tier, test: false, widget: true },
         maxCallDurationMs: room.maxMs,
+        // A real caller on the web channel: the same §9.7 hours variables as the phone (ADR 0035).
+        dynamicVariables: businessVariables(parseBusinessHours(agent.tenant.businessHoursJson), new Date(), agent.tenant.timezone),
       })
       .catch(async (error: unknown) => {
         await slot.release();
@@ -224,7 +227,7 @@ export class WidgetService {
         deletedAt: true,
         widgetEnabled: true,
         widgetOrigins: true,
-        tenant: { select: { name: true, pausedAt: true } },
+        tenant: { select: { name: true, pausedAt: true, timezone: true, businessHoursJson: true } },
       },
     });
     if (!agent || !agent.widgetEnabled || agent.deletedAt) throw AppError.notFound('Widget');

@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { adminDb } from '@portal/db';
-import { type AgentTier, businessHours, type BusinessHours, rateForTier } from '@portal/schemas';
+import { type AgentTier, rateForTier } from '@portal/schemas';
 import { PlatformConfigService } from '../config';
 import { RedisCache, redisKeys } from '../redis';
 import { briefTransferNumbers, numberTransferTargets, spokenTransferFailMessage } from '../prompting/staff-transfer';
 import { agentStackTiers, type AgentStackTiers } from '../retell';
 import { WalletService } from '../wallet';
+import { parseBusinessHours } from './hours';
 import { NUMBER_RECORD_VERSION, type NumberRecord, normalisePhone } from './number-record';
 
 /**
@@ -69,7 +70,7 @@ export class RuntimeCacheService {
       }),
     ]);
 
-    const tenantHours = parseHours(tenant.businessHoursJson);
+    const tenantHours = parseBusinessHours(tenant.businessHoursJson);
     const briefs = await this.publishedBriefs(numbers.map((n) => n.agent));
     let removed = 0;
     let written = 0;
@@ -102,7 +103,7 @@ export class RuntimeCacheService {
         rate_per_min: pricing ? rateForTier(pricing.config.rates, tier) : null,
         config_version: pricing?.version ?? null,
         hours_mode: number.hoursMode,
-        hours: number.hoursMode === 'custom' ? parseHours(number.hoursOverrideJson) : number.hoursMode === 'business' ? tenantHours : null,
+        hours: number.hoursMode === 'custom' ? parseBusinessHours(number.hoursOverrideJson) : number.hoursMode === 'business' ? tenantHours : null,
         blocklist: [...new Set([...number.blocklist, ...globalBlocklist].map(normalisePhone).filter(Boolean))],
         transfer_numbers: numberTransferTargets(number.transferTargetsJson),
         // The brief's numbers too: they are the `transfer_number_N` defaults wherever the
@@ -111,6 +112,8 @@ export class RuntimeCacheService {
           ...numberTransferTargets(number.transferTargetsJson),
           ...briefTransferNumbers(number.agent ? briefs.get(number.agent.id) : undefined),
         ]),
+        allowed_countries: number.allowedCountries.map((c) => c.toUpperCase()),
+        business_hours: tenantHours,
         refreshed_at: new Date().toISOString(),
       };
       if (await this.cache.setJson(redisKeys.number(number.e164), record, NUMBER_TTL_S)) written += 1;
@@ -179,12 +182,6 @@ export class RuntimeCacheService {
     const parsed = agentStackTiers.safeParse(row.tiersJson);
     return parsed.success ? parsed.data : null;
   }
-}
-
-function parseHours(value: unknown): BusinessHours | null {
-  if (!value) return null;
-  const parsed = businessHours.safeParse(value);
-  return parsed.success ? parsed.data : null;
 }
 
 /** min(agent setting, stack tier max), in ms; null when neither exists (never a constant). */

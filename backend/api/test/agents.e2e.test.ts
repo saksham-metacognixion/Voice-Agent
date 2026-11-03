@@ -9,6 +9,7 @@ import {
   type TestWorkspace,
   addMember,
   createWorkspace,
+  nanpNumber,
   startD5Harness,
 } from './d5-fixtures';
 
@@ -736,7 +737,7 @@ describe('pause, resume and delete', () => {
       data: {
         tenantId: ws.workspaceId,
         agentId,
-        e164: `+1450${Math.floor(Math.random() * 9_000_000) + 1_000_000}`,
+        e164: nanpNumber(),
         type: 'retell_twilio',
         status: 'active',
         inboundToken: `tok_${agentId.replace(/-/g, '')}`,

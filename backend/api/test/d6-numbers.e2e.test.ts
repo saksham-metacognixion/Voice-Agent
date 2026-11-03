@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { isEnvelope } from '../src/modules/crypto';
 import { SipProbe, type SipProbeResult, numberNickname } from '../src/modules/numbers';
 import { RedisCache, redisKeys } from '../src/modules/redis';
-import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness, waitFor } from './d5-fixtures';
+import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness, waitFor, nanpNumber } from './d5-fixtures';
 import { authFor, caller, paidWorkspace, publishedAgent, waitForNumber } from './d6-fixtures';
 
 /*
@@ -174,7 +174,7 @@ describe('POST /numbers/import (Option C)', () => {
     const ws = await paidWorkspace(app, 'import', 'scale');
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
-    const sipNumber = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+    const sipNumber = nanpNumber();
     const accepted = await call('POST', '/numbers/import', headers, {
       agent_id: agentId,
       sip: { number: sipNumber, host: 'sip:pbx.example.com:5060', username: 'trunk', password: 'Imp0rt-pa55' },
@@ -218,7 +218,7 @@ describe('POST /numbers/:id/sip/verify (D16)', () => {
     const ws = await paidWorkspace(app, label, 'scale');
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
-    const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+    const e164 = nanpNumber();
     const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { number: e164, host: 'sip:pbx.example.com:5060', ...sip } });
     expect(accepted.status).toBe(202);
     const row = await waitForNumber((accepted.body.number as { id: string }).id);
@@ -341,7 +341,7 @@ describe('POST /numbers/:id/sip/verify (D16)', () => {
     const other = await paidWorkspace(app, 'sipv-other', 'scale');
     expect((await call('POST', `/numbers/${row.id}/sip/verify`, await auth(other.sub, other.workspaceId), {})).status).toBe(404);
 
-    const bought = await adminDb.phoneNumber.create({ data: { tenantId: ws.workspaceId, type: 'retell_twilio', status: 'active', e164: `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`, inboundToken: `tok_${randomUUID().replace(/-/g, '')}` } });
+    const bought = await adminDb.phoneNumber.create({ data: { tenantId: ws.workspaceId, type: 'retell_twilio', status: 'active', e164: nanpNumber(), inboundToken: `tok_${randomUUID().replace(/-/g, '')}` } });
     const notSip = await call('POST', `/numbers/${bought.id}/sip/verify`, headers, {});
     expect([notSip.status, notSip.body.code]).toEqual([400, 'NOT_SIP_NUMBER']);
 
@@ -362,7 +362,7 @@ describe('per-number business hours (D16)', () => {
     const ws = await paidWorkspace(app, 'hours', 'growth');
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
-    const number = await adminDb.phoneNumber.create({ data: { tenantId: ws.workspaceId, agentId, type: 'retell_twilio', status: 'active', e164: `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`, inboundToken: `tok_${randomUUID().replace(/-/g, '')}` } });
+    const number = await adminDb.phoneNumber.create({ data: { tenantId: ws.workspaceId, agentId, type: 'retell_twilio', status: 'active', e164: nanpNumber(), inboundToken: `tok_${randomUUID().replace(/-/g, '')}` } });
     const hours = {
       timezone: 'Asia/Riyadh',
       days: { sun: [{ open: '09:00', close: '13:00' }, { open: '16:00', close: '22:00' }], thu: [{ open: '20:00', close: '02:00' }] },

@@ -61,6 +61,19 @@ export interface NumberRecord {
    * that would turn every live record into a miss until the next refresh); absent = null.
    */
   transfer_fail_message?: string | null;
+  /**
+   * ADR 0035 (3 Nov 2026): the number's allowed caller countries (ISO 3166-1 alpha-2,
+   * upper case), `phone_numbers.allowed_countries`. Empty = no restriction. Optional for
+   * the same reason as `transfer_fail_message`; absent reads as empty, i.e. the
+   * behaviour before the field existed, until the next refresh writes it.
+   */
+  allowed_countries?: string[];
+  /**
+   * ADR 0035: the *workspace's* hours (`tenants.business_hours_json`), whatever
+   * `hours_mode` says — `hours` above is the answering schedule, this is what
+   * `{{business_open}}` and `{{next_open_time}}` are computed from. Null = none set.
+   */
+  business_hours?: BusinessHours | null;
   refreshed_at: string;
 }
 

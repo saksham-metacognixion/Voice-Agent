@@ -10,7 +10,7 @@ import { OutboundCallService, UNCONFIRMED_ATTEMPT_MS, callingWindowVerdict, insi
 import { REDIS, type RedisLike, redisKeys } from '../src/modules/redis';
 import { RuntimeCacheService } from '../src/modules/runtime-cache';
 import { WalletService } from '../src/modules/wallet';
-import { type D5Harness, type FakeRetellGateway, addMember, startD5Harness, waitFor } from './d5-fixtures';
+import { type D5Harness, type FakeRetellGateway, addMember, startD5Harness, waitFor, nanpNumber } from './d5-fixtures';
 import { authFor, caller, paidWorkspace, publishedAgent } from './d6-fixtures';
 
 /*
@@ -113,7 +113,7 @@ async function setFlag(workspaceId: string, on: boolean) {
 
 /** A live number on the agent, as activation leaves one; `verified: false` = a SIP import staff have not confirmed. */
 async function liveNumber(workspaceId: string, agentId: string, options: { verified?: boolean; type?: 'retell_twilio' | 'custom_sip' } = {}) {
-  const e164 = `+1450${String(Math.floor(Math.random() * 9_000_000) + 1_000_000)}`;
+  const e164 = nanpNumber();
   const verified = options.verified ?? true;
   const number = await adminDb.phoneNumber.create({
     data: {

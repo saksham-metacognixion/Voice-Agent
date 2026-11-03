@@ -183,9 +183,13 @@ export class RetellGateway {
       webhook_url: this.config.agentWebhookUrl,
       webhook_events: ['call_started', 'call_ended', 'call_analyzed', 'transfer_started', 'transfer_bridged', 'transfer_cancelled', 'transfer_ended'],
       webhook_timeout_ms: 10_000,
-      // Keep transcripts and recordings on Retell; §17 retention is enforced by our
-      // own delete job, not by Retell's defaults.
-      data_storage_setting: 'everything',
+      // D3 "Recording on/off" is the platform's storage setting (ADR 0035): off = no
+      // transcript, recording or log kept on the platform for this agent's calls. The
+      // webhook still carries the call's facts, so metering is unaffected. §17 retention
+      // is enforced by our `data-retention` job (delete-call) and mirrored here as the
+      // platform's own backstop.
+      data_storage_setting: dataStorageSettingFor(spec.recording),
+      ...(spec.retentionDays === undefined ? {} : { data_storage_retention_days: spec.retentionDays }),
       opt_in_signed_url: true,
     };
   }
@@ -674,6 +678,16 @@ export function providerCallFacts(raw: unknown): ProviderCallFacts | null {
 export function retellErrorStatus(error: unknown): number | undefined {
   if (error instanceof Retell.APIError) return typeof error.status === 'number' ? error.status : undefined;
   return undefined;
+}
+
+/**
+ * The platform's `data_storage_setting` for an agent (ADR 0035): `everything` records;
+ * `basic_attributes_only` keeps no transcript, recording or log on the platform — the
+ * only value of the three that stops a recording being made (`everything_except_pii`
+ * still records). Pure, so the mapping is unit-tested.
+ */
+export function dataStorageSettingFor(recording: boolean): 'everything' | 'basic_attributes_only' {
+  return recording ? 'everything' : 'basic_attributes_only';
 }
 
 /** True for a Retell answer that means "no such object" — a delete that already happened. */

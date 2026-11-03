@@ -37,6 +37,7 @@ describe('queue and job names', () => {
       'concurrency-monitor',
       'number-release',
       'daily-digest',
+      'data-retention',
     ]);
     // D7: the digest is hourly and timezone-aware, never one UTC midnight run.
     expect(SCHEDULES.find((s) => s.name === 'daily-digest')?.pattern).toMatch(/^\d+ \* \* \* \*$/);

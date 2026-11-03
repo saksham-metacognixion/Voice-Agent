@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessHours } from '@portal/schemas';
-import { isOpen, localClock, nextOpening } from './hours';
+import { businessVariables, isOpen, localClock, nextOpening, parseBusinessHours } from './hours';
 
 /*
  * The §13.9 hours check. Every case here is one a real customer hits: a business in a
@@ -99,5 +99,38 @@ describe('nextOpening', () => {
   it('is null when nothing is scheduled at all', () => {
     expect(nextOpening(hours(), WED_1400_UTC, TORONTO)).toBeNull();
     expect(nextOpening(null, WED_1400_UTC, TORONTO)).toBeNull();
+  });
+});
+
+describe('businessVariables (§9.7, ADR 0035)', () => {
+  const nineToFive = hours({ days: { mon: [{ open: '09:00', close: '17:00' }], wed: [{ open: '09:00', close: '17:00' }] } });
+
+  it('open: true, no next opening, the local clock', () => {
+    expect(businessVariables(nineToFive, WED_1400_UTC, TORONTO)).toEqual({ business_open: 'true', next_open_time: '', current_time: '10:00' });
+  });
+
+  it('closed: false and when it next opens', () => {
+    // Wednesday 18:00 Toronto → Monday.
+    expect(businessVariables(nineToFive, new Date('2026-09-16T22:00:00Z'), TORONTO)).toEqual({ business_open: 'false', next_open_time: 'Monday at 09:00', current_time: '18:00' });
+    // Wednesday 07:00 Toronto → later today.
+    expect(businessVariables(nineToFive, new Date('2026-09-16T11:00:00Z'), TORONTO)).toEqual({ business_open: 'false', next_open_time: 'today at 09:00', current_time: '07:00' });
+  });
+
+  it('no hours = open; an unreadable zone = open with the instant as the time', () => {
+    expect(businessVariables(null, WED_1400_UTC, TORONTO)).toEqual({ business_open: 'true', next_open_time: '', current_time: '10:00' });
+    expect(businessVariables(nineToFive, WED_1400_UTC, 'Not/AZone')).toEqual({ business_open: 'true', next_open_time: '', current_time: WED_1400_UTC.toISOString() });
+  });
+
+  it('is decided in the business zone across a DST change, not the server clock', () => {
+    // Toronto leaves DST on 1 Nov 2026 at 02:00. 13:30 UTC is 09:30 EDT on Sat 31 Oct and 08:30 EST on Mon 2 Nov.
+    const sat = hours({ days: { sat: [{ open: '09:00', close: '12:00' }], mon: [{ open: '09:00', close: '12:00' }] } });
+    expect(businessVariables(sat, new Date('2026-10-31T13:30:00Z'), TORONTO)).toMatchObject({ business_open: 'true', current_time: '09:30' });
+    expect(businessVariables(sat, new Date('2026-11-02T13:30:00Z'), TORONTO)).toMatchObject({ business_open: 'false', current_time: '08:30', next_open_time: 'today at 09:00' });
+  });
+
+  it('parseBusinessHours reads a stored schedule and refuses a broken one', () => {
+    expect(parseBusinessHours(nineToFive)).toEqual(nineToFive);
+    expect(parseBusinessHours(null)).toBeNull();
+    expect(parseBusinessHours({ days: 'nope' })).toBeNull();
   });
 });

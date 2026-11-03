@@ -78,6 +78,8 @@ export const SCHEDULED_JOBS = {
   concurrencyMonitor: 'concurrency-monitor',
   numberRelease: 'number-release',
   dailyDigest: 'daily-digest',
+  /** §17 retention: purges transcripts, recordings and the platform's copy past `tenants.retention_days` (CallRetentionService, ADR 0035). */
+  dataRetention: 'data-retention',
   kbSync: 'kb-sync',
 } as const;
 export type ScheduledJobName = (typeof SCHEDULED_JOBS)[keyof typeof SCHEDULED_JOBS];
@@ -104,7 +106,9 @@ export interface ScheduleSpec {
  * Vancouver at 16:00 (DailyDigestService). `number-rental` is hourly so an anniversary
  * is charged within the hour, and so a workspace that tops up after going overdue is
  * charged the same day. `call-recovery` (every 5 min) asks the platform about calls whose
- * `call_ended` or `call_analyzed` never arrived and stores its answer as that webhook. `kb-sync` (automatic knowledge re-ingest) stays a skeleton — the
+ * `call_ended` or `call_analyzed` never arrived and stores its answer as that webhook.
+ * `data-retention` (hourly, ADR 0035) purges calls past their workspace's `retention_days` —
+ * hourly rather than nightly so a backlog drains at 500 rows a tick without a long night run. `kb-sync` (automatic knowledge re-ingest) stays a skeleton — the
  * platform re-crawls URL sources itself and nothing in P1 needs the schedule yet.
  */
 export const SCHEDULES: readonly ScheduleSpec[] = [
@@ -121,6 +125,7 @@ export const SCHEDULES: readonly ScheduleSpec[] = [
   { name: SCHEDULED_JOBS.concurrencyMonitor, every: 5 * 60_000, status: 'live' },
   { name: SCHEDULED_JOBS.numberRelease, pattern: '0 6 * * *', status: 'live' },
   { name: SCHEDULED_JOBS.dailyDigest, pattern: '10 * * * *', status: 'live', lockTtlS: 50 * 60 },
+  { name: SCHEDULED_JOBS.dataRetention, pattern: '40 * * * *', status: 'live', lockTtlS: 50 * 60 },
   { name: SCHEDULED_JOBS.kbSync, pattern: '0 1 * * *', status: 'skeleton' },
 ];
 

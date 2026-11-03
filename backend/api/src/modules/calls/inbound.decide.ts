@@ -3,8 +3,9 @@ import { rateForTier } from '@portal/schemas';
 import type { CurrentPricing } from '../config';
 import { clampDuration } from '../retell';
 import { transferFailVariables } from '../prompting/transfer-fail-message';
-import { isOpen, nextOpening, type NumberRecord, normalisePhone } from '../runtime-cache';
+import { businessVariables, isOpen, type NumberRecord, normalisePhone } from '../runtime-cache';
 import { roundCredits } from '../wallet/fifo';
+import { callerCountry } from './caller-country';
 
 /*
  * The six §13.9 checks as a pure function of what Redis holds. No I/O, no clock reads,
@@ -142,6 +143,13 @@ export function decide(input: DecisionInput): Decision {
   if (!number.retell_agent_id || !number.agent_live) return decline('paused');
   // 3. Caller on the number's or the platform's blocklist.
   if (input.from && number.blocklist.includes(normalisePhone(input.from))) return decline('blocked');
+  // 3b. Allowed caller countries (ADR 0035, audit §6.1 #3). Only when the number restricts
+  // them: an empty list is "anyone". With a list, the caller's country is read from the
+  // number itself (libphonenumber, never a caller-supplied field) and anything that
+  // cannot be read — withheld, malformed, no country code — is refused too: a toll-fraud
+  // control that lets an unreadable caller through is not a control.
+  const allowedCountries = number.allowed_countries ?? [];
+  if (allowedCountries.length > 0 && !allowedCountries.includes(callerCountry(input.from) ?? '')) return decline('country');
 
   // A retry of this same call is already in `active:{ws}` — Retell resends `call_inbound`
   // with an identical `call_id` up to three times when it does not get an answer it likes
@@ -196,12 +204,18 @@ export function decide(input: DecisionInput): Decision {
   const reservedCredits = rate !== null && maxCallDurationMs !== null ? roundCredits((maxCallDurationMs / 60_000) * rate) : 0;
   if (!input.callId) warnings.push('no_call_id');
 
+  // §9.7 `{{business_open}}` / `{{next_open_time}}` come from the *workspace's* hours,
+  // whatever the answering rule above was (ADR 0035, audit §6.1 #5): an "always" number
+  // still has to tell the caller the shop is shut, and "custom" hours decide when the
+  // agent picks up, not when the business is open. No hours set = open (`no_schedule`),
+  // the same reading `isOpen` gives the answering check.
+  const business = businessVariables(number.business_hours ?? null, now, number.timezone);
   const dynamicVariables: Record<string, string> = {
     business_name: number.business_name,
     agent_name: number.agent_name ?? '',
-    business_open: 'true',
-    next_open_time: nextOpening(number.hours, now, number.timezone) ?? '',
-    current_time: currentTime,
+    ...business,
+    // The answering schedule's own clock when it has one (a `custom` schedule may carry its own zone).
+    current_time: currentTime === now.toISOString() ? business.current_time : currentTime,
     // QA-083: the number's D4 "message if the transfer fails", read word for word by the
     // fixed transfer rule; '' (none set, or a record written before it existed) keeps the
     // rule's own words. Already in `num:{e164}` — no extra round trip.

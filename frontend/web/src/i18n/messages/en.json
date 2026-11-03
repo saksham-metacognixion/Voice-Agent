@@ -1388,6 +1388,7 @@
         "balance": "Declined: the balance was too low.",
         "cap": "Declined: every line was busy.",
         "blocked": "Declined: this caller is blocked.",
+        "country": "Declined: the caller's country is not allowed on this number.",
         "hours": "Declined: outside business hours.",
         "paused": "Declined: the agent or workspace was paused."
       },

@@ -8,7 +8,7 @@ import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
 import { type ActivationJob, JobRecordsService } from '../jobs';
-import { NumberProvisioningService, ProvisioningError, classifyError, newInboundToken } from '../numbers';
+import { NumberProvisioningService, ProvisioningError, classifyError, decideRental, newInboundToken } from '../numbers';
 import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService } from '../wallet';
 import { failActiveSpan, reportError } from '../../observability';
@@ -250,6 +250,14 @@ export class ActivationWorker {
     ]);
     if (paid === 0) throw new ProvisioningError('no_purchase', 'Buy a credit pack before going live on a phone number.', `workspace ${workspaceId} has no paid purchase`);
     if (balance <= 0) throw new ProvisioningError('no_purchase', 'Top up your credits before going live on a phone number.', `workspace ${workspaceId} balance is ${balance}`);
+    // ADR 0035: the first month's rental is charged at bind, so a wallet that cannot cover
+    // it is refused here, before a platform number is bought for nothing.
+    const { config: pricing } = await this.config.currentPricing();
+    const { policy } = await this.config.walletPolicy();
+    const rental = pricing.recurring.number_rental_credits;
+    if (decideRental({ balance, rental, grace: policy.grace_overdraft_credits }) === 'overdue') {
+      throw new ProvisioningError('insufficient_credits', `Top up at least ${rental} credits to cover the first month of the number's rental before going live.`, `workspace ${workspaceId} balance ${balance} cannot cover the ${rental}-credit first month`);
+    }
     if (held >= caps.max_numbers) {
       throw new ProvisioningError('plan_limit', `Your plan includes ${caps.max_numbers} phone number${caps.max_numbers === 1 ? '' : 's'}. Release one or upgrade to add another.`, `workspace ${workspaceId} holds ${held} numbers, cap ${caps.max_numbers}`);
     }

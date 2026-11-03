@@ -104,6 +104,7 @@ async function main() {
         language,
         maxCallDurationMs: 600_000,
         timezone: 'America/Toronto',
+        recording: true,
         // §9.8 assumes text/number/boolean/enum; this is the check.
         postCallAnalysis: [
           { type: 'string', name: 'caller_name', description: 'The caller’s name if given.', examples: ['Jane Doe'] },

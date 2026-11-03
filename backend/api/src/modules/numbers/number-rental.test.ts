@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { daysBetween, decideRental } from './number-rental.service';
+import { firstMonthRentalDue } from './rental-rules';
 
 describe('decideRental (§5.3)', () => {
   it('charges while the balance after the rental stays within the grace overdraft', () => {
@@ -26,5 +27,25 @@ describe('daysBetween', () => {
     expect(daysBetween(since, new Date('2026-09-08T09:59:00Z'))).toBe(6);
     expect(daysBetween(since, new Date('2026-09-08T10:00:00Z'))).toBe(7);
     expect(daysBetween(since, new Date('2026-08-01T10:00:00Z'))).toBe(0);
+  });
+});
+
+// ADR 0035 (audit §6.1 #4): which bind owes the first month.
+describe('firstMonthRentalDue', () => {
+  const bought = { type: 'retell_twilio', status: 'provisioning', rentalCredits: 15, nextRentalAt: null, lastRentalAt: null };
+
+  it('a bought number going active for the first time owes it', () => {
+    expect(firstMonthRentalDue(bought)).toBe(true);
+    expect(firstMonthRentalDue({ ...bought, status: 'failed' })).toBe(true); // a retry after an insufficient-credits failure
+    expect(firstMonthRentalDue({ ...bought, type: 'retell_telnyx' })).toBe(true);
+  });
+
+  it('never a SIP import, a free rental, an already-answering number or one that was charged', () => {
+    expect(firstMonthRentalDue({ ...bought, type: 'custom_sip', rentalCredits: 0 })).toBe(false);
+    expect(firstMonthRentalDue({ ...bought, rentalCredits: 0 })).toBe(false);
+    expect(firstMonthRentalDue({ ...bought, status: 'active' })).toBe(false);
+    expect(firstMonthRentalDue({ ...bought, status: 'paused' })).toBe(false);
+    expect(firstMonthRentalDue({ ...bought, lastRentalAt: new Date() })).toBe(false);
+    expect(firstMonthRentalDue({ ...bought, nextRentalAt: new Date() })).toBe(false);
   });
 });

@@ -17,6 +17,8 @@ export type ProvisioningErrorKind =
   | 'not_published'
   | 'no_plan'
   | 'no_purchase'
+  /** ADR 0035: the wallet cannot cover the number's first month of rental (permanent; top up and retry). */
+  | 'insufficient_credits'
   | 'plan_limit'
   | 'lint_failed'
   | 'workspace_paused'

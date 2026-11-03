@@ -3,8 +3,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, adminDb } from '@portal/db';
 import { SipCredentialsCipher } from '../crypto';
 import { RetellGateway, isRetellNotFound, type PhoneNumberFacts } from '../retell';
+import { PlatformConfigService } from '../config';
 import { RuntimeCacheService } from '../runtime-cache';
-import { addMonths } from '../wallet/wallet.service';
+import { RENTAL_REF_TYPE, WalletService, addMonths } from '../wallet/wallet.service';
+import { decideRental, firstMonthRentalDue } from './rental-rules';
 import { ProvisioningError, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
 import { nanpAreaCode, purchaseAttempts } from './purchase-attempts';
 
@@ -48,8 +50,12 @@ export interface ProvisionOutcome {
  *                        is adopted; the password is decrypted on the stack immediately
  *                        before `import-phone-number` and discarded after.
  *   bind                 `get-phone-number`, compare the agent binding and the inbound
- *                        webhook URL, `update-phone-number` only when they differ, then
- *                        `active` + runtime-cache refresh.
+ *                        webhook URL, `update-phone-number` only when they differ, then —
+ *                        for a bought number going active for the first time — the first
+ *                        month's rental and `active` in one wallet transaction (ADR 0035;
+ *                        spec §13.8 "first month charged now"), then the runtime-cache
+ *                        refresh. A wallet that cannot cover it fails the step
+ *                        (`insufficient_credits`) and the row never goes active.
  *   release              `releasing` → `delete-phone-number` (404 = already gone) →
  *                        `released`, so a platform number is never left behind a
  *                        deleted row, and a row is never deleted ahead of the platform.
@@ -62,6 +68,8 @@ export class NumberProvisioningService {
     private readonly retell: RetellGateway,
     private readonly sip: SipCredentialsCipher,
     private readonly runtimeCache: RuntimeCacheService,
+    private readonly wallet: WalletService,
+    private readonly config: PlatformConfigService,
   ) {}
 
   // ------------------------------------------------------------------ provision
@@ -221,22 +229,77 @@ export class NumberProvisioningService {
     }
 
     const wasActive = row.status === 'active' || row.status === 'paused';
-    await adminDb.phoneNumber.update({
-      where: { id: row.id },
-      data: {
-        agentId: agent.id,
-        // A paused number stays paused: binding is "point here", not "start answering".
-        status: row.status === 'paused' ? 'paused' : 'active',
-        nextRentalAt: row.nextRentalAt ?? (row.rentalCredits > 0 ? addMonths(new Date(), 1) : null),
-        retellMetaJson: metaOf(correct ? facts : await this.retell.getPhoneNumber(row.e164)),
-        error: null,
-        // D18: a number bought on the platform is ours to show as a caller ID. A SIP import
-        // waits for staff, and a staff decision (`via` set) is never overwritten here.
-        ...(row.type !== 'custom_sip' && row.callerIdVerifiedVia === null ? { callerIdVerifiedAt: new Date(), callerIdVerifiedVia: 'purchase' } : {}),
-      },
-    });
+    const meta = metaOf(correct ? facts : await this.retell.getPhoneNumber(row.e164));
+    const activeData = {
+      agentId: agent.id,
+      // A paused number stays paused: binding is "point here", not "start answering".
+      status: row.status === 'paused' ? ('paused' as const) : ('active' as const),
+      retellMetaJson: meta,
+      error: null,
+      // D18: a number bought on the platform is ours to show as a caller ID. A SIP import
+      // waits for staff, and a staff decision (`via` set) is never overwritten here.
+      ...(row.type !== 'custom_sip' && row.callerIdVerifiedVia === null ? { callerIdVerifiedAt: new Date(), callerIdVerifiedVia: 'purchase' } : {}),
+    };
+
+    if (firstMonthRentalDue(row)) {
+      await this.chargeFirstMonth(row, workspaceId, activeData);
+    } else {
+      await adminDb.phoneNumber.update({
+        where: { id: row.id },
+        data: { ...activeData, nextRentalAt: row.nextRentalAt ?? (row.rentalCredits > 0 ? addMonths(new Date(), 1) : null) },
+      });
+    }
     if (!wasActive || !correct) await this.refresh(workspaceId, 'bind');
     return { e164: row.e164, updated: !correct };
+  }
+
+  /**
+   * Spec §13.8 step 2, "first month charged now: −15 credits" (ADR 0035, audit §6.1 #4).
+   * The debit and the row going `active` are one wallet transaction under the workspace
+   * lock: `reason = rental`, `ref_id = <number id>:<period>` — the same shape, index and
+   * pre-check as the hourly sweep, with the activation instant as the period — then
+   * `next_rental_at` = period + 1 month, which is what the sweep charges next. The amount
+   * is the published pricing config's, never the column default.
+   *
+   * No platform I/O in here: the binding above is done. A wallet that cannot cover the
+   * rental past the grace rolls the transaction back and throws `insufficient_credits`
+   * (permanent): the row stays as it was, the activation fails on this attempt with a
+   * reason the customer can act on, and the retry after a top-up meets a bound number
+   * and charges then. A row whose first charge did commit carries `last_rental_at`, so a
+   * retry never charges twice; two runs racing on the period collide on the unique index.
+   */
+  private async chargeFirstMonth(row: NumberRow, workspaceId: string, activeData: Prisma.PhoneNumberUncheckedUpdateInput): Promise<void> {
+    const [{ config, version }, { policy }] = await Promise.all([this.config.currentPricing(), this.config.walletPolicy()]);
+    const rental = Math.round(config.recurring.number_rental_credits * 100) / 100;
+    const grace = policy.grace_overdraft_credits;
+    const period = new Date();
+    const nextPeriod = addMonths(period, 1);
+
+    const write = await this.wallet.withWallet(workspaceId, async (tx, wallet) => {
+      const fresh = await tx.phoneNumber.findUnique({ where: { id: row.id }, select: { status: true, type: true, rentalCredits: true, nextRentalAt: true, lastRentalAt: true } });
+      if (!fresh || !firstMonthRentalDue(fresh)) {
+        // Charged by a run that beat us to the lock: just make sure the row is active.
+        await tx.phoneNumber.update({ where: { id: row.id }, data: activeData });
+        return null;
+      }
+      if (rental > 0) {
+        const balance = await wallet.balanceInTx();
+        if (decideRental({ balance, rental, grace }) === 'overdue') {
+          throw new ProvisioningError(
+            'insufficient_credits',
+            `Top up at least ${rental} credits to cover the first month of this number's rental, then try again.`,
+            `workspace ${workspaceId} balance ${balance.toFixed(2)} cannot cover the ${rental}-credit first month past the ${grace}-credit grace`,
+          );
+        }
+      }
+      const debit = rental > 0 ? await wallet.debit({ credits: rental, reason: 'rental', refType: RENTAL_REF_TYPE, refId: `${row.id}:${period.toISOString()}` }) : null;
+      await tx.phoneNumber.update({
+        where: { id: row.id },
+        data: { ...activeData, nextRentalAt: nextPeriod, lastRentalAt: period, rentalCredits: Math.round(rental), rentalOverdueSince: null },
+      });
+      return debit;
+    });
+    if (write) this.log.log(`number ${row.id} (${workspaceId}): first month charged, ${Math.abs(write.delta)} credits at pricing v${version}; balance ${write.balance_after.toFixed(2)}; next rental ${nextPeriod.toISOString()}`);
   }
 
   // ------------------------------------------------------------------ release

@@ -60,6 +60,7 @@ export class ScheduledModule implements OnModuleInit {
       [SCHEDULED_JOBS.callRecovery]: () => this.jobs.callRecovery(),
       [SCHEDULED_JOBS.concurrencyMonitor]: () => this.jobs.concurrencyMonitor(),
       [SCHEDULED_JOBS.dailyDigest]: () => this.jobs.dailyDigest(),
+      [SCHEDULED_JOBS.dataRetention]: () => this.jobs.dataRetention(),
     };
     for (const spec of SCHEDULES) {
       const handler = live[spec.name];

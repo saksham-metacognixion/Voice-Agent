@@ -201,6 +201,8 @@ enum DeclineReason {
   balance
   cap
   blocked
+  /// 3 Nov 2026 (ADR 0035): caller outside the number's allowed countries, or unreadable while a restriction is set.
+  country
   hours
   paused
 
@@ -873,6 +875,12 @@ model Call {
   /// `{sources: [{source_id, kind, hits}], detail}` — per-source hits; `detail` says whether the
   /// platform's retrieval file was read (`complete`) or only the count is known (`count_only`).
   kbUsageJson            Json?     @map("kb_usage_json")
+  /// ADR 0035 §17 retention: set once the transcript, the recording link and the stored webhook
+  /// bodies were cleared *and* the platform's delete-call answered. Null = still within retention,
+  /// or a purge the platform refused (`purge_attempts` / `purge_error` say how often and why).
+  purgedAt            DateTime?      @map("purged_at")
+  purgeAttempts       Int            @default(0) @map("purge_attempts")
+  purgeError          String?        @map("purge_error")
   createdAt           DateTime       @default(now()) @map("created_at")
 
   tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)

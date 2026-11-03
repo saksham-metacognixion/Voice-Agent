@@ -4,7 +4,7 @@ import { runtimeAddOns } from './agent-runtime';
 
 // QA-079 / QA-081: what a version's add-ons become at the sync, plan gates applied.
 describe('runtimeAddOns', () => {
-  const privacy = { recordingNotice: true, recordingNoticeText: null };
+  const privacy = { recordingNotice: true, recordingNoticeText: null, retentionDays: 90 };
   const on = { ...defaultAgentSettings(), denoise: true, pii_removal: true };
 
   it('sends the add-ons the version has and the plan includes', () => {
@@ -23,6 +23,12 @@ describe('runtimeAddOns', () => {
     const fr = { ...defaultAgentSettings(), primary_language: 'fr-CA' as const };
     expect(runtimeAddOns(fr, {}, privacy).recordingNotice).toBe('Veuillez noter que cet appel est enregistré.');
     expect(runtimeAddOns({ ...fr, recording_enabled: false }, {}, privacy).recordingNotice).toBeNull();
-    expect(runtimeAddOns(fr, {}, { recordingNotice: false, recordingNoticeText: 'x' }).recordingNotice).toBeNull();
+    expect(runtimeAddOns(fr, {}, { recordingNotice: false, recordingNoticeText: 'x', retentionDays: 90 }).recordingNotice).toBeNull();
+  });
+
+  // ADR 0035: the recording switch itself and the workspace retention ride along, ungated.
+  it('carries the version’s recording switch and the workspace retention, with no plan gate', () => {
+    expect(runtimeAddOns(defaultAgentSettings(), {}, privacy)).toMatchObject({ recording: true, retentionDays: 90 });
+    expect(runtimeAddOns({ ...defaultAgentSettings(), recording_enabled: false }, {}, { ...privacy, retentionDays: 30 })).toMatchObject({ recording: false, retentionDays: 30 });
   });
 });

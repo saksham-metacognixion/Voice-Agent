@@ -5,12 +5,17 @@ import { recordingNotice } from '../prompting/recording-notice';
 export interface PrivacyColumns {
   recordingNotice: boolean;
   recordingNoticeText: string | null;
+  /** §17 `tenants.retention_days`, mirrored to the platform at every sync (ADR 0035). */
+  retentionDays: number;
 }
 
 export interface RuntimeAddOns {
   denoise: boolean;
   piiRemoval: boolean;
   recordingNotice: string | null;
+  /** The version's `recording_enabled`, as the platform's storage setting (ADR 0035). No plan gate. */
+  recording: boolean;
+  retentionDays: number;
 }
 
 /**
@@ -38,5 +43,7 @@ export function runtimeAddOns(
       text: privacy.recordingNoticeText,
       language: settings.primary_language,
     }),
+    recording: settings.recording_enabled,
+    retentionDays: privacy.retentionDays,
   };
 }

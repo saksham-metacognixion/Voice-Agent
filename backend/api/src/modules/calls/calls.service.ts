@@ -1,3 +1,4 @@
+import { agentSettings } from '@portal/schemas';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma, adminDb, type DeclineReason, withWorkspace } from '@portal/db';
 import type { AgentTier } from '@portal/schemas';
@@ -423,6 +424,9 @@ export class CallsService {
     const charge = computeCharge(call, rate);
     const endedAt = timestamp(call.end_timestamp) ?? new Date();
     const startedAt = timestamp(call.start_timestamp) ?? existing?.startedAt ?? endedAt;
+    const agentId = existing?.agentId ?? origin?.agentId ?? null;
+    const agentVersion = existing?.agentVersion ?? (await this.versionOf(call, agentId));
+    const recordingUrl = await this.recordingToKeep(call, agentId, agentVersion);
 
     // 1. Finalise the row. `updateMany`/`createMany` so an out-of-order or already-final
     //    row is not a crash; the debit below is what must not run twice, not this.
@@ -430,9 +434,12 @@ export class CallsService {
       endedAt,
       durationS: Math.round(charge.duration_s),
       disconnectionReason: call.disconnection_reason ?? null,
-      transcriptText: call.transcript ?? undefined,
-      transcriptJson: (call.transcript_object ?? undefined) as Prisma.InputJsonValue | undefined,
-      recordingUrl: call.recording_url ?? undefined,
+      // A purged row (§17 retention, ADR 0035) takes no content back from a replay.
+      ...(existing?.purgedAt ? {} : {
+        transcriptText: call.transcript ?? undefined,
+        transcriptJson: (call.transcript_object ?? undefined) as Prisma.InputJsonValue | undefined,
+        recordingUrl: recordingUrl ?? undefined,
+      }),
     };
     // An analyzed row stays analyzed: call_analyzed is the later state (§13.10). The two
     // events can land in the same millisecond, so `existing.status` may already be stale;
@@ -450,9 +457,9 @@ export class CallsService {
           {
             id: call.call_id,
             tenantId: workspaceId,
-            agentId: origin?.agentId ?? null,
+            agentId,
             numberId: origin?.numberId ?? null,
-            agentVersion: await this.versionOf(call, origin?.agentId ?? null),
+            agentVersion,
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
             isTest: isTestCall(call),
@@ -530,12 +537,18 @@ export class CallsService {
 
     const retellCostCents = costCents(call);
     const analysis = call.call_analysis ?? null;
+    const agentId = existing?.agentId ?? origin?.agentId ?? null;
+    const agentVersion = existing?.agentVersion ?? (await this.versionOf(call, agentId));
+    const recordingUrl = await this.recordingToKeep(call, agentId, agentVersion);
     const data: Prisma.CallUpdateInput = {
       analysisJson: (analysis ?? undefined) as Prisma.InputJsonValue | undefined,
       retellCostCents,
-      transcriptText: call.transcript ?? undefined,
-      transcriptJson: (call.transcript_object ?? undefined) as Prisma.InputJsonValue | undefined,
-      recordingUrl: call.recording_url ?? undefined,
+      // A purged row (§17 retention, ADR 0035) takes no content back from a replay.
+      ...(existing?.purgedAt ? {} : {
+        transcriptText: call.transcript ?? undefined,
+        transcriptJson: (call.transcript_object ?? undefined) as Prisma.InputJsonValue | undefined,
+        recordingUrl: recordingUrl ?? undefined,
+      }),
       outcome: outcomeOf(analysis),
       status: 'analyzed',
     };
@@ -551,9 +564,9 @@ export class CallsService {
           {
             id: call.call_id,
             tenantId: workspaceId,
-            agentId: origin?.agentId ?? null,
+            agentId,
             numberId: origin?.numberId ?? null,
-            agentVersion: await this.versionOf(call, origin?.agentId ?? null),
+            agentVersion,
             channel: channelOf(call.call_type),
             direction: directionOf(call.direction),
             isTest: isTestCall(call),
@@ -566,7 +579,7 @@ export class CallsService {
             retellCostCents,
             transcriptText: call.transcript ?? null,
             transcriptJson: (call.transcript_object ?? undefined) as Prisma.InputJsonValue | undefined,
-            recordingUrl: call.recording_url ?? null,
+            recordingUrl,
             outcome: outcomeOf(analysis),
             status: 'analyzed',
           },
@@ -660,6 +673,28 @@ export class CallsService {
    * `metadata.version_no`; a phone call runs `latest_published`, so the platform's number
    * is translated through the published row that recorded it. Unknown → null.
    */
+  /**
+   * The recording link to store, or null (ADR 0035, audit §6.1 #1). The platform keeps
+   * no recording for an agent whose storage setting is off, so normally there is none to
+   * drop; this is the belt for a payload that carries one anyway — a call minted before
+   * the sync that switched it off, or a replayed event — so a customer who turned
+   * recording off never finds a player in D2. The version the call ran is asked first
+   * (a draft under test may differ from the live agent), then the agent's live column; a
+   * call whose agent we cannot name keeps what the platform sent.
+   */
+  private async recordingToKeep(call: RetellCallFacts, agentId: string | null, versionNo: number | null): Promise<string | null> {
+    const url = call.recording_url ?? null;
+    if (!url || !agentId) return url;
+    if (versionNo !== null) {
+      const version = await adminDb.agentVersion.findUnique({ where: { agentId_versionNo: { agentId, versionNo } }, select: { settingsJson: true } }).catch(() => null);
+      const settings = version ? agentSettings.safeParse(version.settingsJson) : null;
+      if (settings?.success) return settings.data.recording_enabled ? url : null;
+    }
+    const agent = await adminDb.agent.findUnique({ where: { id: agentId }, select: { recordingEnabled: true } }).catch(() => null);
+    if (agent && !agent.recordingEnabled) return null;
+    return url;
+  }
+
   private async versionOf(call: RetellCallFacts, agentId: string | null): Promise<number | null> {
     const fromMetadata = metadataOf(call).version_no;
     if (typeof fromMetadata === 'number' && Number.isInteger(fromMetadata) && fromMetadata > 0) return fromMetadata;
@@ -698,7 +733,7 @@ export class CallsService {
   private load(callId: string) {
     return adminDb.call.findUnique({
       where: { id: callId },
-      select: { id: true, tenantId: true, agentId: true, status: true, rate: true, configVersion: true, tier: true, startedAt: true, fromNumber: true, toNumber: true, creditsCharged: true },
+      select: { id: true, tenantId: true, agentId: true, agentVersion: true, status: true, rate: true, configVersion: true, tier: true, startedAt: true, fromNumber: true, toNumber: true, creditsCharged: true, purgedAt: true },
     });
   }
 

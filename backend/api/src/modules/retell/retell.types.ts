@@ -203,6 +203,19 @@ export interface AgentSpec {
   piiRemoval?: boolean;
   sttMode?: TierStack['stt_mode'];
   timezone?: string;
+  /**
+   * D3 Settings "Recording on/off" (ADR 0035, audit §6.1 #1): the version's
+   * `recording_enabled`, sent as the platform's data-storage setting
+   * (`dataStorageSettingFor`). Off means the platform keeps no recording of the call —
+   * not a hidden player. Required so a caller cannot forget it.
+   */
+  recording: boolean;
+  /**
+   * §17 retention mirrored to the platform (`data_storage_retention_days`): the
+   * workspace's `retention_days`. Our `data-retention` job is the enforcement; this is the
+   * platform's own backstop. Undefined leaves the platform's value alone.
+   */
+  retentionDays?: number;
 }
 
 /**

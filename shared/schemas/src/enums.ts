@@ -23,8 +23,12 @@ export type AgentStatus = z.infer<typeof agentStatus>;
 export const versionSource = z.enum(['generated', 'feedback', 'manual', 'regenerate']);
 export type VersionSource = z.infer<typeof versionSource>;
 
-/** Spec §13.9 — why an inbound call was declined. */
-export const declineReason = z.enum(['balance', 'cap', 'blocked', 'hours', 'paused']);
+/**
+ * Spec §13.9 — why an inbound call was declined. `country` (3 Nov 2026, ADR 0035): the
+ * caller's number is outside the number's allowed caller countries, or could not be read
+ * while a restriction is set.
+ */
+export const declineReason = z.enum(['balance', 'cap', 'blocked', 'country', 'hours', 'paused']);
 export type DeclineReason = z.infer<typeof declineReason>;
 
 /** Spec §9.2 — template catalogue ids. */

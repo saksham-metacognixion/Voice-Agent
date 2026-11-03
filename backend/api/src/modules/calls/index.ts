@@ -16,6 +16,8 @@ export type { TransferFacts, TransferEventFact, TransferCharge, TransferStatus }
 export { RecordingSigner, RECORDING_URL_TTL_S } from './recording';
 export type { RecordingClaims } from './recording';
 export { CallReconciliationService } from './call-reconciliation.service';
+export { CallRetentionService, PURGE_ALERT_AFTER_ATTEMPTS } from './call-retention.service';
+export type { PurgeOutcome, PurgeTick } from './call-retention.service';
 export type { ReconciliationOutcome, ReconciliationStatus } from './call-reconciliation.service';
 export { reconcile, driftThresholdPct, previousUtcDay } from './reconcile';
 export type { InternalCallFacts, ReconciliationMetrics } from './reconcile';

@@ -536,6 +536,14 @@ Paths are relative to the repo root unless they start with a module name (`backe
 
 ### 6.1 Defects in shipped behaviour
 
+> **Status 3 Nov 2026 (ADR 0035):** #1–#5 fixed — recording off is now the platform's
+> `data_storage_setting` (`basic_attributes_only`); the hourly `data-retention` schedule purges
+> transcripts, recording links and stored webhook bodies and calls `delete-call`; `decide()`
+> declines callers outside `allowed_countries` as `country`; the first month of rental is
+> debited in `bind` in one wallet transaction and a wallet that cannot cover it never goes
+> active; `{{business_open}}` is computed from the workspace hours on every channel. #6–#12
+> remain open (timeline tasks 8–16).
+
 | #   | Severity          | Finding                                                             | Evidence                                                                                                                                                                           | Impact                                                                              |
 | --- | ----------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | 1   | High (privacy)    | Recording cannot be disabled on the platform                        | `retell.gateway.ts:188` sends `data_storage_setting: 'everything'`; `recording_enabled` only controls the spoken notice                                                            | A customer who turns recording off is still recorded                                |
@@ -552,6 +560,12 @@ Paths are relative to the repo root unless they start with a module name (`backe
 | 12  | Low               | Agent max-duration default is 10 min, spec 15                       | `shared/schemas/src/agents.ts:637`                                                                                                                                                 | Calls cut earlier than documented                                                   |
 
 ### 6.2 Test-suite problems
+
+> **Status 3 Nov 2026 (ADR 0035):** the destination fixture now mints valid NANP numbers
+> (`nanpNumber()` in `test/d5-fixtures.ts`, used across the suite; 12/12 isolated runs green);
+> `e2e-restaurant.mjs` follows W3 → W5 → pay → go-live → knowledge, with the unpaid and
+> paid-but-not-live refusals asserted. The missing-test item (unverified email on `test/web`
+> and checkout, the MFA branch) is still open.
 
 - **Flaky destination test (the one e2e failure).** `backend/api/test/d17-channels.e2e.test.ts:48` mints the "own number" as `+1450` plus seven random digits. When the exchange starts with 1, which happens about one run in nine, libphonenumber rejects the number as invalid and the route answers `VALIDATION_FAILED` before it reaches the `DESTINATION_IS_AGENT` check. Confirmed by parsing the failing number `+14501527053` (invalid) against `+14505550199` (valid). Fix the fixture to draw exchanges from 2–9.
 - **Restaurant browser script is out of date.** `frontend/web/scripts/e2e-restaurant.mjs:160,265` expects W3's Continue to land on `/onboarding/knowledge/`, but W3 now goes to W5 (`app/onboarding/voice/page.tsx:64-65`, ADR 0024). The script will fail at its first W4 assertion. ADR 0024's Consequences already note this.

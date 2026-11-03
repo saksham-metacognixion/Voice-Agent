@@ -259,6 +259,9 @@ export class AgentRetellService {
       // Arabic always transcribes `accurate`, whatever the tier says (ADR 0027).
       sttMode: sttModeFor(input.primaryLanguage, input.stack.stt_mode),
       timezone: input.timezone,
+      // The version's recording switch and the workspace's retention (ADR 0035).
+      recording: input.recording,
+      retentionDays: input.retentionDays,
     };
   }
 
@@ -331,6 +334,10 @@ export interface RetellSyncInput {
   piiRemoval: boolean;
   /** Said before the greeting when the agent records (QA-081); null = nothing. */
   recordingNotice: string | null;
+  /** The version's `recording_enabled` → the platform's data-storage setting (ADR 0035). */
+  recording: boolean;
+  /** `tenants.retention_days`, mirrored to the platform as its own backstop (ADR 0035). */
+  retentionDays: number;
 }
 
 export interface RetellSyncResult {

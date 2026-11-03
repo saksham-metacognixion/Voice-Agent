@@ -7,6 +7,8 @@ import { RELEASE_LOCK_SCRIPT, REDIS, type RedisLike, redisKeys } from '../redis'
 import { type InboundResponse, RetellGateway, type RetellInboundEvent } from '../retell';
 import { isNumberRecord, type NumberRecord } from '../runtime-cache';
 import { forwardingTestMatch, parseForwardingTestMarker } from './forwarding-test';
+import { maskNumber } from '../../common/mask';
+import { callerCountry } from './caller-country';
 import { ACTIVE_SLACK_MS, type Decision, RETELL_MAX_CALL_MS, decide, parseActiveHash } from './inbound.decide';
 import { type ReserveResult, reserveActive } from './reserve.script';
 
@@ -105,7 +107,7 @@ export class InboundAuthorizationService {
   readonly metrics: InboundMetrics = {
     requests: 0,
     allowed: 0,
-    declined: { balance: 0, cap: 0, blocked: 0, hours: 0, paused: 0 },
+    declined: { balance: 0, cap: 0, blocked: 0, country: 0, hours: 0, paused: 0 },
     failOpen: 0,
     redisDown: 0,
     overBudget: 0,
@@ -237,6 +239,11 @@ export class InboundAuthorizationService {
       answered = 'decline';
       body = RetellGateway.inboundDecline();
       this.metrics.declined[decision.reason] += 1;
+      if (decision.reason === 'country') {
+        // Security log (ADR 0035): the workspace, the number and the caller's country —
+        // never the caller's full number. The `calls` row carries the reason for D2.
+        this.log.warn(`inbound ${callId ?? '?'}: declined on country — workspace ${decision.workspaceId}, number ${decision.numberId}, caller ${callerCountry(from) ?? 'unreadable'} ${maskNumber(from) ?? '(withheld)'}`);
+      }
     } else {
       // Unknown number. Nothing to authorise against and nothing to write a row for; the
       // policy decides between the bound agent answering and a busy tone (ADR 0011 §2).
