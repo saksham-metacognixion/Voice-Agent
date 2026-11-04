@@ -1,0 +1,475 @@
+{
+  "fetched_at": "2026-11-04T06:07:48.841Z",
+  "source": "GET /v2/get-call, trimmed: no transcript, recording or phone numbers",
+  "calls": [
+    {
+      "call_id": "call_5b1b1fe15ad14611cd2a6e546ab",
+      "call_type": "phone_call",
+      "direction": "inbound",
+      "call_status": "ended",
+      "disconnection_reason": "agent_hangup",
+      "start_timestamp": 1789979413931,
+      "end_timestamp": 1789979488073,
+      "duration_ms": 74142,
+      "to_number_country": "US",
+      "metadata_tier": "standard",
+      "agent_version": 0,
+      "call_cost": {
+        "total_duration_seconds": 75,
+        "product_costs": [
+          {
+            "unit_price": 0.0916667,
+            "cost": 6.8750025,
+            "product": "retell_voice_engine"
+          },
+          {
+            "cost": 5.0000025,
+            "unit_price": 0.0666667,
+            "product": "elevenlabs_tts_03_2026"
+          },
+          {
+            "product": "gpt_5_mini",
+            "cost": 0.9999975,
+            "unit_price": 0.0133333
+          },
+          {
+            "product": "us_twilio_telephony",
+            "unit_price": 0.025,
+            "cost": 1.875
+          },
+          {
+            "unit_price": 0.0083333,
+            "product": "knowledge_base_usage",
+            "cost": 0.6249975
+          },
+          {
+            "product": "gpt_5_6_terra_text_testing",
+            "unit_price": 2.08,
+            "cost": 2.08
+          }
+        ],
+        "combined_cost": 17.455,
+        "total_duration_unit_price": 0.205
+      },
+      "llm_token_usage": {
+        "values": [
+          583,
+          591,
+          582,
+          625,
+          951,
+          1011,
+          754,
+          806,
+          1138,
+          1090,
+          881
+        ],
+        "average": 819.2727272727273,
+        "num_requests": 11
+      },
+      "latency_llm": {
+        "p50": 804,
+        "p90": 1272.5999999999995,
+        "p95": 1519.7999999999997,
+        "num": 9
+      }
+    },
+    {
+      "call_id": "call_1e30de1a6304d878d280e2d01db",
+      "call_type": "phone_call",
+      "direction": "outbound",
+      "call_status": "ended",
+      "disconnection_reason": "user_hangup",
+      "start_timestamp": 1789979413964,
+      "end_timestamp": 1789979488596,
+      "duration_ms": 74632,
+      "to_number_country": "US",
+      "metadata_tier": null,
+      "agent_version": 1,
+      "call_cost": {
+        "combined_cost": 16.8300025,
+        "product_costs": [
+          {
+            "product": "retell_voice_engine",
+            "unit_price": 0.0916667,
+            "cost": 6.8750025
+          },
+          {
+            "product": "elevenlabs_tts_03_2026",
+            "unit_price": 0.0666667,
+            "cost": 5.0000025
+          },
+          {
+            "product": "gpt_5_mini",
+            "cost": 0.9999975,
+            "unit_price": 0.0133333
+          },
+          {
+            "unit_price": 0.025,
+            "product": "us_twilio_telephony",
+            "cost": 1.875
+          },
+          {
+            "cost": 2.08,
+            "product": "gpt_5_6_terra_text_testing",
+            "unit_price": 2.08
+          }
+        ],
+        "total_duration_seconds": 75,
+        "total_duration_unit_price": 0.1966667
+      },
+      "llm_token_usage": {
+        "values": [
+          424,
+          477,
+          489,
+          502,
+          545,
+          622,
+          671,
+          692,
+          668,
+          726,
+          748,
+          697
+        ],
+        "average": 605.0833333333334,
+        "num_requests": 12
+      },
+      "latency_llm": {
+        "p50": 725.5,
+        "p90": 802.1999999999999,
+        "p95": 947.0999999999997,
+        "num": 10
+      }
+    },
+    {
+      "call_id": "call_ab325ab8bf1288e19c1201e8558",
+      "call_type": "phone_call",
+      "direction": "inbound",
+      "call_status": "ended",
+      "disconnection_reason": "user_hangup",
+      "start_timestamp": 1790322214850,
+      "end_timestamp": 1790322275440,
+      "duration_ms": 60590,
+      "to_number_country": "CA",
+      "metadata_tier": "standard",
+      "agent_version": 1,
+      "call_cost": {
+        "total_duration_seconds": 61,
+        "product_costs": [
+          {
+            "unit_price": 0.0916667,
+            "cost": 5.5916687,
+            "product": "retell_voice_engine"
+          },
+          {
+            "cost": 1.525,
+            "product": "cartesia_tts_new",
+            "unit_price": 0.025
+          },
+          {
+            "cost": 0.8133313,
+            "unit_price": 0.0133333,
+            "product": "gpt_5_mini"
+          },
+          {
+            "product": "canada_twilio_telephony",
+            "unit_price": 0.05,
+            "cost": 3.05
+          },
+          {
+            "product": "gpt_5_6_terra_text_testing",
+            "unit_price": 2.08,
+            "cost": 2.08
+          }
+        ],
+        "total_duration_unit_price": 0.18,
+        "combined_cost": 13.06
+      },
+      "llm_token_usage": {
+        "values": [
+          1035,
+          1069,
+          1035,
+          1071,
+          1092,
+          1103,
+          1170,
+          1176,
+          1250
+        ],
+        "average": 1111.2222222222222,
+        "num_requests": 9
+      },
+      "latency_llm": {
+        "p50": 569,
+        "p90": 669,
+        "p95": 695,
+        "num": 9
+      }
+    },
+    {
+      "call_id": "call_63a0291107d61acfdd8949e060b",
+      "call_type": "phone_call",
+      "direction": "inbound",
+      "call_status": "ended",
+      "disconnection_reason": "user_hangup",
+      "start_timestamp": 1790322120307,
+      "end_timestamp": 1790322180858,
+      "duration_ms": 60551,
+      "to_number_country": "CA",
+      "metadata_tier": "standard",
+      "agent_version": 1,
+      "call_cost": {
+        "total_duration_seconds": 61,
+        "product_costs": [
+          {
+            "unit_price": 0.0916667,
+            "cost": 5.5916687,
+            "product": "retell_voice_engine"
+          },
+          {
+            "product": "cartesia_tts_new",
+            "unit_price": 0.025,
+            "cost": 1.525
+          },
+          {
+            "unit_price": 0.0133333,
+            "cost": 0.8133313,
+            "product": "gpt_5_mini"
+          },
+          {
+            "cost": 3.05,
+            "unit_price": 0.05,
+            "product": "canada_twilio_telephony"
+          },
+          {
+            "product": "gpt_5_6_terra_text_testing",
+            "cost": 2.08,
+            "unit_price": 2.08
+          }
+        ],
+        "combined_cost": 13.06,
+        "total_duration_unit_price": 0.18
+      },
+      "llm_token_usage": {
+        "values": [
+          1032,
+          1050,
+          1096,
+          1159,
+          1224,
+          1289
+        ],
+        "average": 1141.6666666666667,
+        "num_requests": 6
+      },
+      "latency_llm": {
+        "p50": 928,
+        "p90": 1102.2,
+        "p95": 1131.6,
+        "num": 7
+      }
+    },
+    {
+      "call_id": "call_7b9914bc6e82b5a1fc11510735a",
+      "call_type": "phone_call",
+      "direction": "inbound",
+      "call_status": "ended",
+      "disconnection_reason": "user_hangup",
+      "start_timestamp": 1790322049656,
+      "end_timestamp": 1790322110212,
+      "duration_ms": 60556,
+      "to_number_country": "CA",
+      "metadata_tier": "standard",
+      "agent_version": 1,
+      "call_cost": {
+        "combined_cost": 13.06,
+        "total_duration_seconds": 61,
+        "total_duration_unit_price": 0.18,
+        "product_costs": [
+          {
+            "cost": 5.5916687,
+            "product": "retell_voice_engine",
+            "unit_price": 0.0916667
+          },
+          {
+            "product": "cartesia_tts_new",
+            "unit_price": 0.025,
+            "cost": 1.525
+          },
+          {
+            "cost": 0.8133313,
+            "unit_price": 0.0133333,
+            "product": "gpt_5_mini"
+          },
+          {
+            "unit_price": 0.05,
+            "product": "canada_twilio_telephony",
+            "cost": 3.05
+          },
+          {
+            "cost": 2.08,
+            "unit_price": 2.08,
+            "product": "gpt_5_6_terra_text_testing"
+          }
+        ]
+      },
+      "llm_token_usage": {
+        "values": [
+          1033,
+          1052,
+          1061,
+          1100,
+          1150,
+          1159,
+          1229,
+          1238,
+          1303
+        ],
+        "average": 1147.2222222222222,
+        "num_requests": 9
+      },
+      "latency_llm": {
+        "p50": 606.5,
+        "p90": 885.9,
+        "p95": 932.4499999999999,
+        "num": 8
+      }
+    },
+    {
+      "call_id": "call_5d7cbe8cfd78bf584430b2e1cc3",
+      "call_type": "phone_call",
+      "direction": "outbound",
+      "call_status": "ended",
+      "disconnection_reason": "max_duration_reached",
+      "start_timestamp": 1790322214884,
+      "end_timestamp": 1790322274896,
+      "duration_ms": 60012,
+      "to_number_country": "CA",
+      "metadata_tier": null,
+      "agent_version": 1,
+      "call_cost": {
+        "product_costs": [
+          {
+            "unit_price": 0.0916667,
+            "cost": 5.5916687,
+            "product": "retell_voice_engine"
+          },
+          {
+            "cost": 4.0666687,
+            "product": "elevenlabs_tts_03_2026",
+            "unit_price": 0.0666667
+          },
+          {
+            "product": "gpt_5_mini",
+            "unit_price": 0.0133333,
+            "cost": 0.8133313
+          },
+          {
+            "product": "canada_twilio_telephony",
+            "cost": 3.05,
+            "unit_price": 0.05
+          },
+          {
+            "unit_price": 2.08,
+            "cost": 2.08,
+            "product": "gpt_5_6_terra_text_testing"
+          }
+        ],
+        "total_duration_seconds": 61,
+        "combined_cost": 15.6016687,
+        "total_duration_unit_price": 0.2216667
+      },
+      "llm_token_usage": {
+        "values": [
+          424,
+          426,
+          442,
+          417,
+          451,
+          472,
+          472,
+          480,
+          522,
+          590,
+          596,
+          643,
+          601,
+          648,
+          656,
+          663,
+          666,
+          621,
+          671
+        ],
+        "average": 550.578947368421,
+        "num_requests": 19
+      },
+      "latency_llm": {
+        "p50": 539.5,
+        "p90": 612,
+        "p95": 640.25,
+        "num": 16
+      }
+    },
+    {
+      "call_id": "call_c1483baf4157629437ee1161c5d",
+      "call_type": "web_call",
+      "direction": null,
+      "call_status": "ended",
+      "disconnection_reason": "user_hangup",
+      "start_timestamp": 1793363018928,
+      "end_timestamp": 1793363081730,
+      "duration_ms": 62802,
+      "to_number_country": null,
+      "metadata_tier": "premium",
+      "agent_version": 0,
+      "call_cost": {
+        "combined_cost": 15.499,
+        "product_costs": [
+          {
+            "cost": 5.7750021,
+            "product": "retell_voice_engine",
+            "unit_price": 0.0916667
+          },
+          {
+            "cost": 6.3,
+            "product": "elevenlabs_multilingual_v2_tts",
+            "unit_price": 0.1
+          },
+          {
+            "cost": 1.3439979,
+            "product": "gpt_4_1_mini",
+            "unit_price": 0.0213333
+          },
+          {
+            "cost": 2.08,
+            "product": "gpt_5_6_terra_text_testing",
+            "unit_price": 2.08
+          }
+        ],
+        "total_duration_seconds": 63,
+        "total_duration_unit_price": 0.213
+      },
+      "llm_token_usage": {
+        "values": [
+          2423,
+          2477,
+          2513,
+          2550
+        ],
+        "average": 2490.75,
+        "num_requests": 4
+      },
+      "latency_llm": {
+        "p50": 599,
+        "p90": 656.4,
+        "p95": 660.2,
+        "num": 5
+      }
+    }
+  ]
+}

@@ -456,3 +456,10 @@ after the SDK's own 408/409/429/5xx retries. `retell-spike.ts`'s `calls` and `nu
 commands read pages too. `retell.endpoints.test.ts` pins every replacement in the guide;
 `retell.pagination.test.ts` drives the gateway's paging through the real SDK. Not deprecated
 and unchanged: `list-voices`, `list-knowledge-bases` (still an array), `list-agent-versions`.
+
+## Addendum, 4 Nov 2026 — §20 item 3 and the priced call
+
+The quality benchmark the Consequences above left open ran on 4 Nov. GPT-4.1 mini is the Standard-tier
+model. The same ADR set a real Standard call against the pricing page: every published rate matched
+the bill. Two lines are not on the page: the flat post-call analysis charge (§3 above), and Canadian
+telephony, billed at $0.030/min against the $0.015 that item 4 records. See ADR 0037.

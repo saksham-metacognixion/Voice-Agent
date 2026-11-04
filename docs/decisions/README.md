@@ -38,6 +38,13 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0028](0028-p2-transfer-hours-knowledge-sip.md)         | D16: transfer leg as its own ledger row folded from stored events, per-number date overrides, knowledge use per call, SIP re-verify by OPTIONS + digest, Arabic over fr-CA | accepted (§5 amended by 0030) |
 | [0029](0029-p2-call-my-phone-forwarding-test-widget.md) | D17: "Call my phone", the forwarding test as an inbound decline, the website widget as a public key | accepted                      |
 | [0030](0030-canadian-french-portal.md)                  | Canadian French in the portal beside Arabic: `fr-CA` as the locale id, `matchLocale`, one glossary | accepted                      |
+| [0031](0031-p2-outbound-click-to-call-compliance.md) | D18: outbound click-to-call behind its compliance gates | accepted |
+| [0032](0032-qa-batch-spec-gaps-d2-d6.md) | QA batch, 28 Oct: the D2–D6 spec gaps and three console fixes | accepted |
+| [0033](0033-admin-p1-gaps-and-sessions.md) | The admin P1 gaps from 28 Oct QA, and the portal's own-session list | accepted |
+| [0034](0034-migrations-on-deploy.md) | Migrations run on every deploy, before the code restarts | accepted |
+| [0035](0035-audit-defects-privacy-fraud-revenue.md) | The 29 Oct audit's §6.1 defects: recording off, retention, caller countries, first-month rental, `{{business_open}}` | accepted |
+| [0036](0036-sign-in-session-and-money-protection.md) | Sign-in, sessions, MFA and money protection (§6.2, §6.3, §17) | accepted |
+| [0037](0037-p0-close-incall-model-and-call-cost.md) | P0 close: Standard-tier in-call model is GPT-4.1 mini (§20 #3), a real call priced against the pricing page | accepted |
 
 Template:
 

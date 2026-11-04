@@ -146,7 +146,11 @@ protection — 15-minute backend tokens enforced by the API (`TOKEN_EXPIRED`, re
 money-at-risk MFA rule in `WorkspaceGuard`, the first-purchase review as pre-approval (no Stripe
 session until staff approve), the Terms screen, A2 resend limits, the invite `login_hint`, the
 log-stream sign-in audit, the password-change revocation, and magic link / Microsoft / CAPTCHA
-retired or deviated pending the spec owner (3 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+retired or deviated pending the spec owner (3 Nov), 0037 the P0 close — §20 #3 decided for GPT-4.1 mini
+on `bench:incall` (the production prompt through `playground.completion`, scripted callers, mechanical
+checks), a real Standard call priced line by line against Retell's page (0.0 % on every published rate;
+the flat 2.08 ¢ analysis line and Canadian telephony at $0.030/min are not on it), and no prompt that
+reads `{{business_open}}` (4 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -1765,7 +1769,8 @@ deploy and verification: `docs/runbooks/staging.md`.
 1. ~~Working name and domain~~ — resolved 22 Sep 2026: **oraly.ai** (Namecheap, BasicDNS). Hosts
    `api` / `app` / `admin.oraly.ai`, staging with a `-staging` suffix (ADR 0015).
 2. USD vs CAD; merchant of record (Metacognixion Canada vs Gritbyte India).
-3. Standard-tier LLM: GPT-5 mini vs GPT-4.1 mini, after the P0 benchmark.
+3. ~~Standard-tier LLM~~ — decided 4 Nov 2026: **GPT-4.1 mini** (ADR 0037, `pnpm --filter @portal/api bench:incall`). The
+   SA6 stack row still says `gpt-5-mini` until Full Scope 05 switches it, after a rerun of the bench.
 4. Launch countries for numbers: US + CA only, or include India.
 5. Trial size (20 credits proposed) and whether a card is required at sign-up.
 6. Credit expiry of 12 months against prepaid-credit consumer rules in target provinces and states.

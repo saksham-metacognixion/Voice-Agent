@@ -13,7 +13,7 @@
 
 **We are not yet meeting the specification, and no phase meets the strict completion bar.**
 
-- **P0 (spike)** is functionally done. All three exit criteria are met with recorded evidence, but one scope item, the in-call LLM benchmark (GPT-5 mini vs GPT-4.1 mini), was never run. The tier stack was seeded without it.
+- **P0 (spike)** is complete (updated 4 Nov 2026, ADR 0037). The in-call benchmark ran and decided §20 #3 for GPT-4.1 mini, and a real call was priced against the pricing page. The toll-free rate stays unverified until the first invoice. At the 29 Oct audit the benchmark had never run and the tier stack was seeded without it.
 - **P1 (MVP)** is the phase in progress. Of 286 requirements, 141 pass with evidence, and code exists for 252 of them. The core money and call paths are strong: metering, the ledger, inbound authorisation, webhooks, activation and Checkout all pass with tests and live fixtures. What holds P1 open is a set of privacy and fraud controls that do not work, a revenue rule that is not applied, a long tail of missing UI detail, and P1 exit criteria with no evidence at all.
 - **P1b (Leads module)** has not started. Only the compliance pieces delivered by D18 exist, and outbound is switched off pending legal sign-off.
 - **P2** is mostly built ahead of P1 closing: seven of ten scope items have code, but the calendar tool, multi-agent numbers and the admin P2 screens are absent.
@@ -62,25 +62,25 @@
 
 | Phase (spec §19)                 | Requirements | PASS    | PARTIAL | FAIL   | NOT IMPL. | UNVERIFIED | Verified (PASS %) | Code present* | Status                                         |
 | -------------------------------- | ------------ | ------- | ------- | ------ | --------- | ---------- | ----------------- | ------------- | ---------------------------------------------- |
-| **P0** Spike                     | 16           | 13      | 1       | 0      | 1         | 1          | **81 %**          | 94 %          | PARTIALLY COMPLETE                             |
+| **P0** Spike                     | 16           | 15      | 1       | 0      | 0         | 0          | **94 %**          | 100 %         | COMPLETE (4 Nov, ADR 0037)                     |
 | **P1** MVP (portal)              | 286          | 141     | 79      | 12     | 34        | 20         | **49 %**          | 88 %          | PARTIALLY COMPLETE                             |
 | P1 admin subset (companion spec) | 19           | 12      | 3       | 0      | 2         | 2          | **63 %**          | 89 %          | PARTIALLY COMPLETE                             |
 | **P1b** Leads module             | 21           | 1       | 5       | 0      | 14        | 1          | **5 %**           | 33 %          | NOT STARTED (compliance gate BLOCKED on legal) |
 | **P2**                           | 14           | 5       | 2       | 0      | 5         | 2          | **36 %**          | 64 %          | PARTIALLY COMPLETE                             |
 | **P3**                           | 7            | 0       | 0       | 0      | 7         | 0          | **0 %**           | 0 %           | NOT STARTED (future phase)                     |
-| **All**                          | **363**      | **172** | **90**  | **12** | **63**    | **26**     | **47 %**          | 83 %          | —                                              |
+| **All**                          | **363**      | **174** | **90**  | **12** | **62**    | **25**     | **48 %**          | 83 %          | —                                              |
 
 \* Code present = every row except NOT IMPLEMENTED, i.e. some implementation exists whether or not it is verified.
 
 **Critical missing requirements per phase**
 
-- **P0:** in-call LLM benchmark (P0-05); cost per call against the pricing page (P0-07); toll-free rate (P0-09).
+- **P0:** toll-free rate (P0-09). The benchmark (P0-05) and the priced call (P0-07) closed on 4 Nov, ADR 0037.
 - **P1:** recording off (SEC-03); retention purge (SEC-11); caller-country enforcement (SEC-07, Z-45); first-month rental (F-04); `{{business_open}}` constant (G-15); MFA rule (A-12); > $1,000 review (SEC-10); generation p95 15.5 s (Z-14); 15-min JWT (A-14); production environment (ENV-03); all four exit criteria without evidence (EXIT-01..04).
 - **P1 admin:** staff recording access with reason (AD-14); Support PII masking (AD-19); live Stripe refund and price sync unverified (AD-06, AD-11).
 - **P1b:** everything except the D18 compliance gate (L-01..L-11, L-16, L-20, L-21).
 - **P2:** calendar tool (P2-08), multi-agent per number (P2-09), admin P2 screens (P2-10).
 
-**Readiness:** no phase is ready to be signed off. P0 needs one benchmark run. P1 needs the §6 fixes, the exit evidence and a production environment.
+**Readiness:** P0 is signed off as of 4 Nov (ADR 0037). P1 needs the §6 fixes, the exit evidence and a production environment.
 
 ## 4. Detailed requirement-by-requirement audit
 
@@ -94,11 +94,11 @@ Paths are relative to the repo root unless they start with a module name (`backe
 | P0-02 | P0    | §19, §21       | `call_cost` shape and units confirmed                                                    | PASS            | ADR 0003 §3; `call_analyzed-*.json`; `metering.test.ts`                                                                                                                                                                                                       | —                                           |
 | P0-03 | P0    | §19, §21       | Decline mechanism confirmed, decline costs nothing                                       | PASS            | ADR 0003 §1; `call_inbound-decline_*.json`; `inbound.decide.test.ts`                                                                                                                                                                                          | —                                           |
 | P0-04 | P0    | §19, §21       | `max_call_duration_ms` override honoured                                                 | PASS            | ADR 0003 §2; `call_ended-inbound-max_duration_reached.json`                                                                                                                                                                                                   | —                                           |
-| P0-05 | P0    | §19 P0, §20 #3 | Benchmark GPT-5 mini vs GPT-4.1 mini on the receptionist template                        | NOT IMPLEMENTED | ADR 0003 Consequences says it is still needed; `generation-bench.ts` benchmarks the brief→prompt model, not the in-call model; seed picks `gpt-5-mini` / `gpt-4.1-mini` without a recorded comparison (`backend/db/prisma/seed-data/agent-stack-v1.ts:24,32`) | Run the in-call benchmark and record §20 #3 |
+| P0-05 | P0    | §19 P0, §20 #3 | Benchmark GPT-5 mini vs GPT-4.1 mini on the receptionist template | PASS (4 Nov) | ADR 0037 §1: `bench:incall`, 10 English scenarios plus a French caller, 3 runs each per model, through `playground.completion` on the production prompt assembly; `docs/evidence/2026-11-04-p0-close/incall-bench.json` + transcripts | Full Scope 05 applies the decision (GPT-4.1 mini) to the stack row |
 | P0-06 | P0    | §19 P0         | Stripe Checkout + webhook in test mode                                                   | PASS            | `backend/api/scripts/checkout-spike.ts`; `test/fixtures/stripe/*`; `billing.e2e` with real signatures (passed in this audit)                                                                                                                                  | —                                           |
-| P0-07 | P0    | §19 exit       | Cost per test call within ±5 % of the pricing page                                       | PARTIAL         | `metering.test.ts:52` checks ±5 % against Retell's reported cost on fixtures; no comparison against the pricing page is recorded                                                                                                                              | Record one priced call against §4 rates     |
+| P0-07 | P0    | §19 exit       | Cost per test call within ±5 % of the pricing page | PASS (4 Nov) | ADR 0037 §2: `call_5b1b1fe1…` (Standard, US number) billed every published Retell rate at 0.0 %; flat 2.08 ¢ analysis line not on the page; `call-costs.json` | Enter the measured cost inputs in SA5 |
 | P0-08 | P0    | §19 exit       | Brief → live number end to end by hand                                                   | PASS            | ADR 0003 spike; staging go-live 24 Sep (ADR 0013 §9, CLAUDE.md) covers Checkout → credit → activation                                                                                                                                                         | —                                           |
-| P0-09 | P0    | §21 #4         | Toll-free and non-US telephony rates                                                     | UNVERIFIED      | ADR 0003 §4 is docs-only; no toll-free number bought                                                                                                                                                                                                          | Confirm on first invoice                    |
+| P0-09 | P0    | §21 #4         | Toll-free and non-US telephony rates | PARTIAL (4 Nov) | Canada measured: `canada_twilio_telephony` $0.030/min on four calls, against the page's $0.015 (ADR 0037 §2) | Toll-free: confirm on first invoice |
 | P0-10 | P0    | §21 #5         | Retell sub-accounts evaluated                                                            | PASS            | ADR 0003: dashboard-only, one workspace per environment                                                                                                                                                                                                       | —                                           |
 | P0-11 | P0    | §21 #6         | `language: multi` behaviour, locale list, multilingual voices                            | PASS            | ADR 0003 §6 + D8 addendum; `agent-retell.test.ts:220`; `voice-languages.ts`                                                                                                                                                                                   | —                                           |
 | P0-12 | P0    | §21 #7         | Version tags and publish API                                                             | PASS            | ADR 0003 §7; `api/update-phone-number-bind-latest_published.json`; `verify:d5-retell`                                                                                                                                                                         | —                                           |
@@ -600,7 +600,7 @@ Grouped by theme; IDs point to §4.
 | ------ | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------- |
 | 1      | Name and domain                             | Resolved: oraly.ai                                                  | ADR 0015                        |
 | 2      | Credit unit, USD vs CAD, merchant of record | Unit resolved (1.5× premium); **currency and MoR open**, USD seeded | `pricing-v1.ts:26`; ADR 0033 §6 |
-| 3      | Standard-tier LLM                           | **Open**, seeded as `gpt-5-mini` without the benchmark              | P0-05                           |
+| 3      | Standard-tier LLM                           | **Decided 4 Nov: GPT-4.1 mini** (stack row still `gpt-5-mini` until Full Scope 05) | ADR 0037; P0-05 |
 | 4      | Launch countries                            | De facto US + CA; formally open                                     | `purchasableCountry`            |
 | 5      | Trial size, card at sign-up                 | Implemented as proposed (20, no card); formally open                | `pricing-v1.ts:102-113`         |
 | 6      | 12-month expiry vs consumer law             | Implemented; legal check open                                       | —                               |
@@ -656,7 +656,7 @@ These are priorities, not spec phases.
 6. Gather P1 exit evidence: design-partner count, sign-up-to-live median from PostHog, reconciliation results, a pen test (EXIT-01..04).
 7. Run the live checks that move UNVERIFIED rows to PASS: `verify:auth0`, one auto top-up, one refund, one pricing publish, one SIP import, toll-free rate.
 8. Stand up production (ENV-03).
-9. Run the in-call LLM benchmark and settle §20 #3 (P0-05).
+9. ~~Run the in-call LLM benchmark and settle §20 #3 (P0-05).~~ Done 4 Nov, ADR 0037.
 
 **Priority P2 — finish the spec's P1 detail and P2 scope**
 

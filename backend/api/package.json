@@ -24,6 +24,7 @@
     "load:inbound": "k6 run test/load/inbound.k6.js",
     "load:reset": "dotenv -e ../../.env -- tsx scripts/inbound-load-fixture.ts reset",
     "bench:generation": "dotenv -e ../../.env -- tsx scripts/generation-bench.ts",
+    "bench:incall": "dotenv -e ../../.env -- tsx scripts/incall-bench.ts",
     "verify:d5-retell": "dotenv -e ../../.env -- tsx scripts/d5-retell-verify.ts",
     "verify:auth0": "dotenv -e ../../.env -- tsx scripts/auth0-verify.ts",
     "verify:d6": "tsc -p tsconfig.scripts.json && dotenv -e ../../.env -- node dist-scripts/scripts/d6-staging-verify.js",

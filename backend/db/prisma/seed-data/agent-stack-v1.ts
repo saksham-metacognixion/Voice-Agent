@@ -11,8 +11,9 @@
  * value it does not know by silently using its default, so Premium was running the
  * Standard voice model. `eleven_multilingual_v2` is a real one and suits a bilingual
  * en/fr-CA agent; SA6 can retune it without a deploy. The standard
- * LLM is still §20 item 3 — GPT-5 mini until the P0 benchmark says otherwise — which is
- * exactly why it is a row and not a constant.
+ * LLM was §20 item 3; the P0 benchmark decided it for GPT-4.1 mini on 4 Nov (ADR 0037).
+ * Version 1 keeps GPT-5 mini because it is the bootstrap of an empty table: Full Scope 05
+ * moves the live row through SA6, which is exactly why it is a row and not a constant.
  *
  * The guardrail text is duplicated by `modules/prompting/guardrails.ts`, on purpose: the
  * backend must still append guardrails on an environment whose stack table is empty. The
