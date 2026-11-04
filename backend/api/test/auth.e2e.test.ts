@@ -7,6 +7,8 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AllExceptionsFilter } from '../src/common/errors/all-exceptions.filter';
 import { AuthModule } from '../src/modules/auth';
+import { PlatformConfigModule } from '../src/modules/config';
+import { RedisModule } from '../src/modules/redis';
 import { FakeAuth0Tenant } from './auth0-double';
 import { ProbeController } from './probe.controller';
 
@@ -47,7 +49,8 @@ beforeAll(async () => {
   await seed();
 
   @Module({
-    imports: [AuthModule],
+    // WorkspaceGuard's §6.2 MFA rule reads Redis and the pricing config (ADR 0036).
+    imports: [AuthModule, RedisModule, PlatformConfigModule],
     controllers: [ProbeController],
     providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],
   })
@@ -251,6 +254,8 @@ describe('workspace context', () => {
       userId: owner.userId,
       workspaceId: workspaceA,
       role: 'owner',
+      // §6.2 MFA rule input (ADR 0036): this token passed no second factor.
+      mfa: false,
       ip: '127.0.0.1',
       requestId: expect.any(String),
     });

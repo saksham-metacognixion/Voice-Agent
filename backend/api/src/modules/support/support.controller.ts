@@ -7,7 +7,7 @@ import {
   supportTicketsQuery,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { Ctx, Roles } from '../auth';
+import { AllowWithoutMfa, Ctx, Roles } from '../auth';
 import type { WorkspaceContext } from '../auth';
 import { SupportService } from './support.service';
 
@@ -22,6 +22,8 @@ export class SupportController {
 
   @Post()
   @Roles('owner', 'admin', 'editor')
+  // ADR 0036: an owner held up by the money-at-risk MFA rule can still ask for help.
+  @AllowWithoutMfa()
   create(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<SupportTicketResponse> {
     return this.support.create(ctx, createSupportTicketRequest.parse(body));
   }
@@ -33,6 +35,7 @@ export class SupportController {
 
   @Post(':id/messages')
   @Roles('owner', 'admin', 'editor')
+  @AllowWithoutMfa()
   reply(@Ctx() ctx: WorkspaceContext, @Param('id') id: string, @Body() body: unknown): Promise<SupportTicketResponse> {
     return this.support.reply(ctx, ticketParam(id), supportTicketMessageRequest.parse(body));
   }

@@ -9,6 +9,7 @@ import { DashboardLiveProvider } from '@/src/dashboard/dashboard-live';
 import { LAST_IMPLEMENTED_STEP, routes, stepPath } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { BalancePill } from './balance-pill';
+import { MfaBanner } from './mfa-banner';
 import { NAV_GROUPS, NAV_ITEMS, TAB_BAR_KEYS, isNavActive, type NavItem } from './nav-items';
 import { UserMenu } from './user-menu';
 import { WorkspaceSwitcher } from './workspace-switcher';
@@ -71,6 +72,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                   {workspace.paused_reason ? t('shell.pausedReason', { reason: workspace.paused_reason }) : null}
                 </Alert>
               ) : null}
+              <MfaBanner />
               {setupIncomplete ? (
                 <Alert
                   variant="info"

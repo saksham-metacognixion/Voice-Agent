@@ -31,7 +31,7 @@ import { PRICING_STALE_MS } from '@/src/lib/pricing';
  */
 export default function KnowledgePage() {
   return (
-    <LiveGuard>
+    <LiveGuard writes>
       <OnboardingAgentLoader>{(agent) => <KnowledgeInner agent={agent} />}</OnboardingAgentLoader>
     </LiveGuard>
   );

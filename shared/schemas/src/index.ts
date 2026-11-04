@@ -12,6 +12,7 @@ export * from './calls.js';
 export * from './events.js';
 export * from './business-hours.js';
 export * from './workspaces.js';
+export * from './security.js';
 export * from './data-requests.js';
 export * from './agents.js';
 export * from './voices.js';

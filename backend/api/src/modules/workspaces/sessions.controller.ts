@@ -2,7 +2,7 @@ import { Controller, Delete, Get, Logger, Param, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { AccountSessionsResponse, EndSessionResponse } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { Auth0ManagementService, NoWorkspace } from '../auth';
+import { Auth0ManagementService, NoWorkspace, recordAccountEvent } from '../auth';
 import type { AuthenticatedUser } from '../auth';
 
 /**
@@ -50,6 +50,8 @@ export class SessionsController {
     if (result.outcome === 'not_found') throw AppError.notFound('Session');
     if (result.outcome === 'skipped') throw new AppError('NOT_CONFIGURED', 'Sessions cannot be managed in this environment.');
     this.log.log(`user ${auth.userId} ended session ${id} (${result.refreshTokensRevoked} refresh tokens revoked)`);
+    // §6.2 audit (ADR 0036 §9): signing a device out is a sign-in event of the person's.
+    await recordAccountEvent({ userId: auth.userId, action: 'auth.session_ended', ip: request.ip ?? null, meta: { session_id: id, refresh_tokens_revoked: result.refreshTokensRevoked } });
     return { ended: true, refresh_tokens_revoked: result.refreshTokensRevoked };
   }
 }

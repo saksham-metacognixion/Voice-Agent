@@ -84,6 +84,43 @@ export class Auth0ManagementService {
     return 'applied';
   }
 
+  /**
+   * Lifts the brute-force blocks on one account (ADR 0036 §8, `update:users`): by `sub`
+   * when the log named the user, else by the address typed. Every IP's block on that
+   * account goes at once — the API takes no IP. A block set by a staff member
+   * (`setBlocked`) is not a brute-force block and stays. `not_found` = no such user.
+   */
+  async liftBruteForceBlocks(target: { sub: string | null; identifier: string | null }): Promise<'applied' | 'not_found' | 'skipped'> {
+    if (!this.configured) return 'skipped';
+    const path = target.sub
+      ? `/api/v2/user-blocks/${encodeURIComponent(target.sub)}`
+      : target.identifier
+        ? `/api/v2/user-blocks?identifier=${encodeURIComponent(target.identifier)}`
+        : null;
+    if (!path) return 'not_found';
+    try {
+      await this.call('DELETE', path);
+    } catch (error) {
+      if (error instanceof Auth0NotFound) return 'not_found';
+      throw error;
+    }
+    return 'applied';
+  }
+
+  /**
+   * D6 "connected SSO accounts": the identities linked to the person (`read:users`). Only
+   * the provider and connection names leave this method — never a provider's token or
+   * profile. Null when the Management API is not configured.
+   */
+  async identities(sub: string): Promise<Array<{ provider: string; connection: string }> | null> {
+    if (!this.configured) return null;
+    const body = (await this.call('GET', `/api/v2/users/${encodeURIComponent(sub)}?fields=identities&include_fields=true`)) as { identities?: unknown[] };
+    return (body.identities ?? []).flatMap((raw) => {
+      const identity = raw as { provider?: unknown; connection?: unknown };
+      return typeof identity.provider === 'string' && typeof identity.connection === 'string' ? [{ provider: identity.provider, connection: identity.connection }] : [];
+    });
+  }
+
   /** Removes every enrolled authenticator; the next sign-in enrols afresh (A5). */
   async resetMfa(sub: string): Promise<'applied' | 'skipped'> {
     if (!this.configured) return 'skipped';
@@ -99,6 +136,29 @@ export class Auth0ManagementService {
     if (!this.configured) return 'skipped';
     await this.call('DELETE', `/api/v2/users/${encodeURIComponent(sub)}/sessions`);
     await this.call('DELETE', `/api/v2/users/${encodeURIComponent(sub)}/refresh-tokens`);
+    return 'applied';
+  }
+
+  /**
+   * A2 "Resend" (ADR 0036 §8): Auth0 mails a fresh verification link
+   * (`POST /api/v2/jobs/verification-email`, `update:users`). The rate limits are ours and
+   * are checked before this is called.
+   */
+  async sendVerificationEmail(sub: string): Promise<'applied' | 'skipped'> {
+    if (!this.configured) return 'skipped';
+    await this.call('POST', '/api/v2/jobs/verification-email', { user_id: sub });
+    return 'applied';
+  }
+
+  /**
+   * "Remember this device" ends (ADR 0036 §4): every browser that skipped the second
+   * factor for 30 days is asked for it again at its next sign-in
+   * (`invalidate-remember-browser`, `update:users`). Run after a password change, a staff
+   * MFA reset or lock, and when the person signs out everywhere.
+   */
+  async forgetRememberedDevices(sub: string): Promise<'applied' | 'skipped'> {
+    if (!this.configured) return 'skipped';
+    await this.call('POST', `/api/v2/users/${encodeURIComponent(sub)}/multifactor/actions/invalidate-remember-browser`, {});
     return 'applied';
   }
 

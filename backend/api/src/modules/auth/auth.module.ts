@@ -7,6 +7,8 @@ import { ImpersonationTokenService } from './impersonation-token';
 import { JwtVerifier } from './jwt-verifier.service';
 import { UsersService } from './users.service';
 import { WorkspaceGuard } from './workspace.guard';
+import { WorkspaceMfaService } from './workspace-mfa.service';
+import { AccountEventsService } from './account-events.service';
 
 /**
  * Authentication is on by default. A route is reachable without a token only if it says
@@ -32,10 +34,15 @@ import { WorkspaceGuard } from './workspace.guard';
     { provide: ImpersonationTokenService, useFactory: () => new ImpersonationTokenService(process.env) },
     // D12 SA3: the customer tenant's Management API (verify email, reset MFA, block, revoke sessions).
     { provide: Auth0ManagementService, useFactory: () => new Auth0ManagementService(process.env) },
+    // §6.2 money-at-risk MFA rule (ADR 0036). Reads Redis and the pricing config, both
+    // global; a test module that imports AuthModule imports those two as well.
+    WorkspaceMfaService,
+    // ADR 0036 §5, §9: sign-in audit rows and the password-change revocation.
+    AccountEventsService,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: WorkspaceGuard },
     { provide: APP_GUARD, useClass: StaffRolesGuard },
   ],
-  exports: [AuthConfig, JwtVerifier, UsersService, ImpersonationTokenService, Auth0ManagementService],
+  exports: [AuthConfig, JwtVerifier, UsersService, ImpersonationTokenService, Auth0ManagementService, WorkspaceMfaService, AccountEventsService],
 })
 export class AuthModule {}

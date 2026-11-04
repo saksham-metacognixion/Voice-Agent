@@ -1,12 +1,13 @@
 'use client';
 
-import { useAdminListFailedTopups, useAdminListPurchases, useApi } from '@portal/api-client';
+import { useAdminListFailedTopups, useAdminListPurchaseReviews, useAdminListPurchases, useApi } from '@portal/api-client';
 import { purchaseStatus, type AdminRange, type PurchaseStatus } from '@portal/schemas';
 import { Input, Tabs, TabsList, TabsTrigger, cn } from '@portal/ui';
 import * as React from 'react';
 import { AdminShell } from '@/src/components/shell/admin-shell';
 import { PageHeader } from '@/src/components/shell/page-header';
 import { FailedTopupsTable } from '@/src/components/billing/failed-topups-table';
+import { PurchaseReviewsTable } from '@/src/components/billing/purchase-reviews-table';
 import { PurchaseSheet, PurchasesTable } from '@/src/components/billing/purchases-table';
 import { BreakageTab, CogsTab, DeferredTab } from '@/src/components/billing/reports-tabs';
 import { RevenueTab } from '@/src/components/billing/revenue-tab';
@@ -69,6 +70,7 @@ function Billing() {
       >
         <TabsList>
           <TabsTrigger value="purchases">Purchases</TabsTrigger>
+          <TabsTrigger value="reviews">Reviews</TabsTrigger>
           <TabsTrigger value="topups">Failed top-ups</TabsTrigger>
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
           <TabsTrigger value="cogs">COGS</TabsTrigger>
@@ -82,6 +84,7 @@ function Billing() {
           <PurchaseSheet id={id} onClose={close} />
         </>
       ) : null}
+      {tab === 'reviews' ? <ReviewsTab params={params} setQuery={setQuery} /> : null}
       {tab === 'topups' ? <TopupsTab params={params} /> : null}
       {tab === 'revenue' ? <RevenueTab range={range} /> : null}
       {tab === 'cogs' ? <CogsTab range={range} /> : null}
@@ -122,6 +125,30 @@ function PurchasesTab({ params, setQuery }: { params: URLSearchParams; setQuery:
       </FilterBar>
       <QueryList query={list} rows={list.data?.items} empty={{ title: 'No purchases match' }}>
         {(rows) => <PurchasesTable rows={rows} onOpen={(purchaseId) => setQuery((n) => setParam(n, 'id', purchaseId), 'replace')} />}
+      </QueryList>
+      <Pager page={pager.page} pageSize={LIMIT} count={list.data?.items.length} total={list.data?.total} hasPrevious={pager.hasPrevious} hasNext={Boolean(list.data?.next_cursor)} onPrevious={pager.previous} onNext={() => pager.next(list.data?.next_cursor)} />
+    </>
+  );
+}
+
+const REVIEW_STATUS = ['open', 'approved', 'rejected'] as const;
+
+/** §17 first purchases over the review limit (ADR 0036 §3). Open ones first by default. */
+function ReviewsTab({ params, setQuery }: { params: URLSearchParams; setQuery: Setter }) {
+  const api = useApi();
+  const pager = useCursorPager();
+  const status = pickParam(params, 'status', REVIEW_STATUS, 'open');
+  const tenantId = params.get('tenant_id') || undefined;
+  const { reset } = pager;
+  React.useEffect(() => reset(), [status, tenantId, reset]);
+  const list = useAdminListPurchaseReviews(api, { status, tenant_id: tenantId, cursor: pager.cursor, limit: LIMIT }, { refetchInterval: 30_000 });
+  return (
+    <>
+      <FilterBar>
+        <FilterSelect label="Review" allLabel="Open" value={status === 'open' ? undefined : status} onChange={(v) => setQuery((n) => setParam(n, 'status', v))} options={[{ value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }]} />
+      </FilterBar>
+      <QueryList query={list} rows={list.data?.items} empty={{ title: status === 'open' ? 'Nothing waiting for review' : 'No reviews', description: 'A first purchase over the review limit waits here before the customer can pay.' }}>
+        {(rows) => <PurchaseReviewsTable rows={rows} />}
       </QueryList>
       <Pager page={pager.page} pageSize={LIMIT} count={list.data?.items.length} total={list.data?.total} hasPrevious={pager.hasPrevious} hasNext={Boolean(list.data?.next_cursor)} onPrevious={pager.previous} onNext={() => pager.next(list.data?.next_cursor)} />
     </>

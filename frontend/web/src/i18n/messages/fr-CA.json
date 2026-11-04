@@ -114,7 +114,14 @@
       "pro": "Pro",
       "volume": "Volume"
     },
-    "balanceAria": "Solde : {credits} crédits. Ouvrir le portefeuille."
+    "balanceAria": "Solde : {credits} crédits. Ouvrir le portefeuille.",
+    "mfaBanner": {
+      "title": "Confirmation à deux facteurs requise",
+      "auto_topup": "La recharge automatique est activée : les propriétaires et les administrateurs confirment avec une application d’authentification avant de modifier quoi que ce soit.",
+      "balance": "Le solde est élevé : les propriétaires et les administrateurs confirment avec une application d’authentification avant de modifier quoi que ce soit.",
+      "action": "Confirmer maintenant"
+    },
+    "viewOnly": "Vous avez un accès en lecture seule à cet espace de travail. Demandez à un propriétaire ou à un administrateur si vous devez modifier quelque chose."
   },
   "auth": {
     "brand": "De la conversation à l’action.",
@@ -141,7 +148,7 @@
       "cta": "Créer un compte",
       "haveAccount": "Vous avez déjà un compte?",
       "signIn": "Se connecter",
-      "terms": "En continuant, vous acceptez les Conditions d’utilisation et la Politique de confidentialité."
+      "terms": "Vous lirez et accepterez les conditions d’utilisation et la politique de confidentialité avant de commencer."
     },
     "verify": {
       "title": "Confirmez votre courriel",
@@ -151,7 +158,14 @@
       "checking": "Vérification…",
       "stillUnverified": "Votre courriel n’est pas encore confirmé. Laissez un instant au lien, puis réessayez.",
       "spam": "Rien dans votre boîte de réception? Vérifiez le dossier des pourriels.",
-      "useAnother": "Utiliser un autre compte"
+      "useAnother": "Utiliser un autre compte",
+      "resend": "Renvoyer le courriel",
+      "resendIn": "Renvoyer dans {seconds} s",
+      "resent": "Envoyé. Vérifiez votre boîte de réception à {email}.",
+      "resendFailed": "Nous n’avons pas pu envoyer le courriel. Réessayez dans un instant.",
+      "resendLimited": "Vous avez demandé plusieurs courriels. Vous pourrez réessayer dans {seconds} s.",
+      "alreadyVerified": "Votre adresse courriel est déjà confirmée.",
+      "expired": "Lien expiré ou perdu? Envoyez-en un nouveau."
     },
     "forgot": {
       "title": "Réinitialiser votre mot de passe",
@@ -178,7 +192,14 @@
       "onHint": "L’authentification à deux facteurs est activée. Chaque connexion demande un code de votre application d’authentification.",
       "enable": "Configurer l’authentification à deux facteurs",
       "verifying": "Vous devrez vous reconnecter et inscrire une application d’authentification.",
-      "done": "L’authentification à deux facteurs est activée. Un code de votre application d’authentification vous sera demandé à chaque connexion."
+      "done": "L’authentification à deux facteurs est activée. Un code de votre application d’authentification vous sera demandé à chaque connexion.",
+      "verifyNow": "Confirmer avec deux facteurs maintenant",
+      "verifyHint": "Cette session n’a pas été confirmée avec votre application d’authentification. Les propriétaires et les administrateurs en ont besoin lorsque la recharge automatique est activée ou que le solde est élevé.",
+      "rememberHint": "À l’écran du code, vous pouvez cocher « Mémoriser cet appareil » pour ne plus saisir de code sur ce navigateur pendant 30 jours.",
+      "forgetTitle": "Appareils mémorisés",
+      "forgetBody": "Les appareils que vous avez choisi de mémoriser ne demandent pas de code pendant 30 jours. Oubliez-les tous si l’un d’eux a été perdu ou partagé.",
+      "forget": "Oublier les appareils mémorisés",
+      "forgetDone": "C’est fait. Chaque appareil mémorisé demandera un code à sa prochaine connexion."
     },
     "callback": {
       "title": "Connexion en cours…",
@@ -207,7 +228,9 @@
       "website": "Site web",
       "cta": "Créer l’espace de travail",
       "creating": "Création…",
-      "trialNote": "Vous commencez avec 20 crédits gratuits pour des appels test dans le navigateur."
+      "trialNote": "Vous commencez avec 20 crédits gratuits pour des appels test dans le navigateur.",
+      "comingSoon": "{country} (bientôt)",
+      "launchNote": "Nous sommes d’abord offerts aux États-Unis et au Canada. D’autres pays suivront bientôt."
     },
     "invite": {
       "title": "Rejoindre l’espace de travail",
@@ -231,6 +254,21 @@
     "configMissing": {
       "title": "La connexion n’est pas configurée dans cette version",
       "body": "Les variables {vars} doivent être définies à la compilation."
+    },
+    "invited": {
+      "as": "Invité à l’adresse {email}",
+      "hint": "Cette invitation est destinée à {email}. Connectez-vous ou créez votre compte avec cette adresse. Une autre adresse ne peut pas l’accepter."
+    },
+    "terms": {
+      "title": "Avant de commencer",
+      "body": "Lisez et acceptez nos conditions d’utilisation et notre politique de confidentialité pour utiliser Oraly.",
+      "updated": "Nos conditions d’utilisation ou notre politique de confidentialité ont changé. Lisez-les et acceptez-les pour continuer.",
+      "checkbox": "J’ai lu et j’accepte les conditions d’utilisation et la politique de confidentialité.",
+      "termsLink": "Conditions d’utilisation",
+      "privacyLink": "Politique de confidentialité",
+      "accept": "Continuer",
+      "accepting": "Enregistrement…",
+      "version": "Version {version}"
     }
   },
   "errors": {
@@ -280,7 +318,8 @@
     "ORIGIN_NOT_ALLOWED": "Cette requête provient d’une page que nous ne reconnaissons pas. Rechargez le portail et réessayez.",
     "WORKSPACE_REQUIRED": "Choisissez un espace de travail et réessayez.",
     "INVALID_CURSOR": "Cette page de résultats n’est plus à jour. Revenez à la première page.",
-    "MFA_REQUIRED": "Reconnectez-vous avec l’authentification à deux facteurs pour continuer.",
+    "MFA_REQUIRED": "Les propriétaires et les administrateurs confirment avec l’authentification à deux facteurs lorsque la recharge automatique est activée ou que le solde est élevé. Confirmez, puis réessayez.",
+    "MFA_STILL_REQUIRED": "L’authentification à deux facteurs reste activée tant que vous êtes propriétaire ou administrateur d’un espace de travail où la recharge automatique est activée ou le solde est élevé.",
     "AGENT_IN_USE": "Un numéro de téléphone répond encore avec cet agent. Déplacez ou libérez d’abord le numéro.",
     "PUBLISH_IN_PROGRESS": "La publication de cet agent est en cours. Réessayez dans un instant.",
     "VERSION_IMMUTABLE": "Cette version est publiée et ne peut plus être modifiée. Votre modification crée un nouveau brouillon.",
@@ -334,7 +373,9 @@
     "NO_PRIOR_CONTACT": "Votre agent peut seulement rappeler une personne qui vous a appelé récemment.",
     "OUTSIDE_CALLING_WINDOW": "Nous sommes en dehors des heures d’appel permises là où vit cette personne.",
     "OUTBOUND_DAILY_CAP": "Vous avez fait aujourd’hui tous les rappels que votre formule permet. Réessayez demain.",
-    "OUTBOUND_IN_PROGRESS": "Un rappel à cette personne est déjà en cours. Attendez qu’il se termine."
+    "OUTBOUND_IN_PROGRESS": "Un rappel à cette personne est déjà en cours. Attendez qu’il se termine.",
+    "TERMS_NOT_ACCEPTED": "Acceptez les conditions d’utilisation et la politique de confidentialité pour continuer.",
+    "TOKEN_EXPIRED": "Votre session devait être actualisée. Réessayez."
   },
   "validation": {
     "required": "Obligatoire",
@@ -1202,7 +1243,12 @@
         "topupHint": "Nous achetons un autre forfait {pack} quand votre solde descend à {threshold} crédits, pour que votre agent réponde toujours.",
         "pay": "Payer {price} et passer en service",
         "redirecting": "Ouverture du paiement sécurisé…",
-        "secure": "Paiement sécurisé par Stripe"
+        "secure": "Paiement sécurisé par Stripe",
+        "reviewTitle": "Votre achat est en cours d’examen",
+        "reviewBody": "Nous examinons un premier achat de plus de 1 000 $ avant de prélever le paiement. Rien n’a été facturé. Nous vous écrirons par courriel, habituellement en moins d’un jour ouvrable.",
+        "mfaTitle": "Confirmez d’abord avec deux facteurs",
+        "mfaBody": "Cet achat met de l’argent en jeu : les propriétaires et les administrateurs confirment d’abord avec une application d’authentification.",
+        "mfaAction": "Confirmer maintenant"
       },
       "progress": {
         "connecting": "Connexion…",
@@ -2406,10 +2452,15 @@
         "body": "Toutes les personnes qui peuvent ouvrir cet espace de travail.",
         "label": "Membres de l’espace de travail",
         "you": "Vous",
+        "neverActive": "Pas encore",
+        "mfaOn": "Activée",
+        "mfaOff": "Désactivée",
         "columns": {
           "name": "Nom",
           "email": "Courriel",
           "role": "Rôle",
+          "lastActive": "Dernière activité",
+          "mfa": "Authentification à deux facteurs",
           "joined": "Membre depuis",
           "actions": "Actions"
         },
@@ -2507,9 +2558,26 @@
         "endSession": "Déconnecter",
         "endTitle": "Déconnecter {device}?",
         "endBody": "La personne qui l’utilise devra se reconnecter.",
-        "endWindow": "Il peut continuer de fonctionner jusqu’à deux heures, le temps que l’accès qu’il détient déjà expire.",
+        "endWindow": "Il peut continuer de fonctionner jusqu’à 15 minutes, le temps que l’accès qu’il détient déjà expire.",
         "endConfirm": "Déconnecter l’appareil",
-        "ended": "Appareil déconnecté"
+        "ended": "Appareil déconnecté",
+        "mfaOff": "Désactiver",
+        "mfaOffTitle": "Désactiver l’authentification à deux facteurs?",
+        "mfaOffBody": "Vous confirmez d’abord avec un code de votre application d’authentification.",
+        "mfaOffPassword": "La connexion demandera seulement votre mot de passe.",
+        "mfaOffDevices": "Les navigateurs mémorisés sont oubliés.",
+        "mfaOffConfirm": "Désactiver l’authentification à deux facteurs",
+        "mfaOffDone": "L’authentification à deux facteurs est désactivée.",
+        "methodsTitle": "Vos façons de vous connecter",
+        "methodsBody": "Les comptes avec lesquels vous pouvez vous connecter à Oraly.",
+        "methodsUnavailable": "Vos méthodes de connexion ne peuvent pas être affichées dans cet environnement.",
+        "methodsNone": "Aucune méthode de connexion trouvée.",
+        "methods": {
+          "password": "Courriel et mot de passe",
+          "google": "Google",
+          "microsoft": "Microsoft",
+          "other": "Autre ({connection})"
+        }
       },
       "dataRequests": {
         "exportTitle": "Exporter vos données",

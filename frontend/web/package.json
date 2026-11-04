@@ -13,6 +13,7 @@
     "e2e:wizard": "node scripts/e2e-wizard.mjs",
     "e2e:dashboard": "node scripts/e2e-dashboard.mjs",
     "e2e:dashboard-d11": "node scripts/e2e-dashboard-d11.mjs",
+    "e2e:auth-d20": "node scripts/e2e-auth-d20.mjs",
     "e2e:restaurant": "node scripts/e2e-restaurant.mjs"
   },
   "dependencies": {

@@ -27,6 +27,12 @@ export function namespaceForPath(path: string): AuthNamespace {
     : 'customer';
 }
 
+/** D6 Team "last active" is kept to the nearest five minutes: one write per person per window. */
+const LAST_ACTIVE_EVERY_MS = 5 * 60_000;
+
+const USER_SELECT = { id: true, email: true, lockedAt: true, sessionsRevokedAt: true, lastActiveAt: true, mfaEnabled: true } as const;
+type GuardUser = { id: string; email: string; lockedAt: Date | null; sessionsRevokedAt: Date | null; lastActiveAt: Date | null; mfaEnabled: boolean };
+
 /**
  * Authentication, first of the two global guards.
  *
@@ -145,7 +151,7 @@ export class AuthGuard implements CanActivate {
     const user =
       (await adminDb.user.findUnique({
         where: { authProviderId: verified.subject },
-        select: { id: true, email: true, lockedAt: true, sessionsRevokedAt: true },
+        select: USER_SELECT,
       })) ?? (await this.provision(verified));
 
     if (!user) {
@@ -181,8 +187,33 @@ export class AuthGuard implements CanActivate {
       email: user.email,
       emailVerified: verified.emailVerified,
       mfa: verified.mfa,
+      mfaAt: verified.mfaAt,
     };
+    this.noteActivity(user, verified.mfaEnrolled);
     return true;
+  }
+
+  /**
+   * D6 Team "last active" and "MFA ✓". At most one write per person per
+   * `LAST_ACTIVE_EVERY_MS`, plus one whenever the token's enrolled claim disagrees with the
+   * row. Never awaited and never fatal: the request does not wait on bookkeeping, and the
+   * conditional update makes two tabs racing write once.
+   */
+  private noteActivity(user: GuardUser, mfaEnrolled: boolean | null): void {
+    const now = new Date();
+    const stale = !user.lastActiveAt || now.getTime() - user.lastActiveAt.getTime() >= LAST_ACTIVE_EVERY_MS;
+    const mfaChanged = mfaEnrolled !== null && mfaEnrolled !== user.mfaEnabled;
+    if (!stale && !mfaChanged) return;
+    const data = { ...(stale ? { lastActiveAt: now } : {}), ...(mfaChanged ? { mfaEnabled: mfaEnrolled } : {}) };
+    void adminDb.user
+      .updateMany({
+        where: {
+          id: user.id,
+          ...(stale && !mfaChanged ? { OR: [{ lastActiveAt: null }, { lastActiveAt: { lt: new Date(now.getTime() - LAST_ACTIVE_EVERY_MS) } }] } : {}),
+        },
+        data,
+      })
+      .catch((error: unknown) => this.logger.warn(`users ${user.id}: activity not recorded (${error instanceof Error ? error.message : String(error)})`));
   }
 
   /**
@@ -251,7 +282,7 @@ export class AuthGuard implements CanActivate {
    * Only the namespaced claim is trusted. A standard `email` claim is not: nothing in our
    * pipeline vouches for it, and a row is what every membership points at.
    */
-  private async provision(verified: VerifiedToken): Promise<{ id: string; email: string; lockedAt: Date | null; sessionsRevokedAt: Date | null } | null> {
+  private async provision(verified: VerifiedToken): Promise<GuardUser | null> {
     if (!verified.email) return null;
     const outcome = await this.users.upsert({
       event_type: 'user.login',
@@ -263,7 +294,7 @@ export class AuthGuard implements CanActivate {
     if (outcome.outcome === 'created') {
       this.logger.warn(`users row for ${verified.subject} provisioned from the access token — the registration webhook never arrived`);
     }
-    return adminDb.user.findUnique({ where: { id: outcome.userId }, select: { id: true, email: true, lockedAt: true, sessionsRevokedAt: true } });
+    return adminDb.user.findUnique({ where: { id: outcome.userId }, select: USER_SELECT });
   }
 }
 

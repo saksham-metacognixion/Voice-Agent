@@ -53,6 +53,11 @@ export const JOBS = {
    * recover-<call_id>`, delayed, freed when it settles — at most one per call per delay.
    */
   recoverCall: 'recover-call',
+  /**
+   * §6.2 "login 5 failures / 15 min" (ADR 0036 §8): lifts a brute-force block 15 minutes
+   * after the provider set it. `jobId = unblock-<log id>`, delayed.
+   */
+  liftSignInBlock: 'lift-sign-in-block',
   /** D16: what the agent looked up during one call (`CallKnowledgeService`). `jobId = kb-<call_id>`, freed when it settles. */
   callKnowledge: 'call-knowledge',
   /** D17: the inbound path saw a "Test forwarding" come back. `jobId = fwdtest-landed-<test id>`. */
@@ -164,6 +169,13 @@ export interface InboundDecisionJob {
 
 export interface RecoverCallJob {
   callId: string;
+}
+
+/** ADR 0036 §8: one brute-force block to lift. `sub` when the log named the user, else the address typed. */
+export interface LiftSignInBlockJob {
+  logId: string;
+  sub: string | null;
+  identifier: string | null;
 }
 
 export interface CallKnowledgeJob {

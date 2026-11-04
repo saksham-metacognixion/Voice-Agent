@@ -32,7 +32,8 @@ beforeAll(async () => {
   const harness = await startD5Harness({ workers: true });
   app = harness.app;
   stop = harness.stop;
-  auth = authFor(harness.customerTenant);
+  // Paid fixtures run past the §6.2 MFA balance threshold; their owners passed a second factor (ADR 0036).
+  auth = authFor(harness.customerTenant, { mfa: true });
   call = caller(app);
   wallet = app.get(WalletService);
   lowBalance = app.get(LowBalanceAlertsService);

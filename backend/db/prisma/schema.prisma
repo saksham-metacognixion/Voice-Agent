@@ -232,6 +232,12 @@ enum PurchaseStatus {
   paid
   abandoned
   refunded
+  /// §17 first-purchase review (ADR 0036): waiting for staff, no Stripe session yet.
+  in_review
+  /// Staff approved the review; the customer's next checkout of this pack pays it.
+  approved
+  /// Staff declined the review. Nothing was charged.
+  rejected
 
   @@map("purchase_status")
 }
@@ -361,12 +367,16 @@ model User {
   avatarUrl      String?   @map("avatar_url")
   mfaEnabled     Boolean   @default(false) @map("mfa_enabled")
   tosAcceptedAt  DateTime? @map("tos_accepted_at")
+  /// §6.3 A1 (ADR 0036): the Terms version `tos_accepted_at` is for. History is `terms_acceptances`.
+  tosVersion     String?   @map("tos_version")
   /// SA3 (D12): staff locked this sign-in. AuthGuard refuses a locked user; Auth0 is blocked too.
   lockedAt       DateTime? @map("locked_at")
   lockedReason   String?   @map("locked_reason")
   /// SA3 "Force logout" (D12): an access token issued at or before this instant is refused by
   /// AuthGuard, so a logout holds for tokens already in a browser, not only after they expire.
   sessionsRevokedAt DateTime? @map("sessions_revoked_at")
+  /// D6 Team "last active": the last authenticated request, written by AuthGuard at most every 5 minutes.
+  lastActiveAt   DateTime? @map("last_active_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   memberships          Membership[]
@@ -376,8 +386,24 @@ model User {
   agentVersions        AgentVersion[]
   supportTickets       SupportTicket[]
   notifications        Notification[]
+  termsAcceptances     TermsAcceptance[]
 
   @@map("users")
+}
+
+/// §6.3 A1 (ADR 0036): one row per person per Terms version they accepted. Inserted only.
+model TermsAcceptance {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  version    String
+  acceptedAt DateTime @default(now()) @map("accepted_at")
+  ip         String?
+  userAgent  String?  @map("user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, version], map: "terms_acceptances_user_version_key")
+  @@map("terms_acceptances")
 }
 
 /// A workspace = a business = a tenant. Everything billable hangs off this row.
@@ -1035,6 +1061,7 @@ model Purchase {
   lots     CreditLot[]
   refunds  Refund[]
   invoices Invoice[]
+  review   FraudReview?
 
   @@index([tenantId, createdAt(sort: Desc)])
   @@index([tenantId, isAutoTopup, status])
@@ -1666,19 +1693,26 @@ model Blocklist {
   @@map("blocklists")
 }
 
+/// §17 manual reviews. `trigger = first_purchase_over_limit` (ADR 0036) names its purchase;
+/// `status` open → approved | rejected, decided by staff with a reason code.
 model FraudReview {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  tenantId   String   @map("tenant_id") @db.Uuid
-  trigger    String
-  score      Int?
-  status     String   @default("open")
-  reviewerId String?  @map("reviewer_id") @db.Uuid
-  decision   String?
-  note       String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  trigger     String
+  score       Int?
+  status      String    @default("open")
+  reviewerId  String?   @map("reviewer_id") @db.Uuid
+  decision    String?
+  note        String?
+  purchaseId  String?   @unique @map("purchase_id") @db.Uuid
+  amountCents Int?      @map("amount_cents")
+  currency    String?   @db.Char(3)
+  decidedAt   DateTime? @map("decided_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   reviewer StaffUser? @relation(fields: [reviewerId], references: [id], onDelete: SetNull)
+  purchase Purchase?  @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@map("fraud_reviews")

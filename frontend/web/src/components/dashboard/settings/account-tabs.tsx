@@ -1,9 +1,9 @@
 'use client';
 
-import { endSession, updateNotificationSettings, updateWorkspace, useApi, useGetNotificationSettings, useListSessions } from '@portal/api-client';
-import type { AccountSession, NewMessageMode, NotificationSettingsResponse, WorkspaceResponse } from '@portal/schemas';
+import { disableMfa, endSession, isApiError, updateNotificationSettings, updateWorkspace, useApi, useGetNotificationSettings, useGetSignInMethods, useListSessions } from '@portal/api-client';
+import type { AccountSession, NewMessageMode, NotificationSettingsResponse, SignInMethodsResponse, WorkspaceResponse } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, RadioCard, RadioGroup, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch, Textarea, toast } from '@portal/ui';
-import { KeyRound, LogOut, Mail, MonitorSmartphone, ShieldCheck } from 'lucide-react';
+import { KeyRound, LogIn, LogOut, Mail, MonitorSmartphone, ShieldCheck } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -17,7 +17,7 @@ import { DataRequestsCards } from '@/src/components/dashboard/settings/data-requ
 import { sessionDevice } from '@/src/dashboard/session-device';
 import { errorMessage } from '@/src/lib/errors';
 import { formatDateTime } from '@/src/lib/format';
-import { routes } from '@/src/routes';
+import { routes, settingsPath } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 
 const MODES: NewMessageMode[] = ['instant', 'daily', 'off'];
@@ -112,6 +112,37 @@ export function SecurityTab() {
   const email = auth.user?.email ?? null;
   const [sending, setSending] = React.useState(false);
   const [sent, setSent] = React.useState(false);
+  const api = useApi();
+  const [turningOff, setTurningOff] = React.useState(false);
+
+  // Back from the fresh challenge `turnOff` asked for: reopen the confirmation once.
+  React.useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('confirm') !== MFA_OFF_CONFIRM) return;
+    url.searchParams.delete('confirm');
+    window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+    if (mfaOn) setTurningOff(true);
+  }, [mfaOn]);
+
+  /**
+   * D6 "disable (with re-auth)": the API wants a challenge passed in the last five
+   * minutes. Without one it answers MFA_REQUIRED, and the person is sent through a fresh
+   * challenge that lands back here with the dialog open. Any other refusal (a workspace
+   * that still needs it) stays in the dialog.
+   */
+  async function turnOff() {
+    try {
+      await disableMfa(api);
+    } catch (e) {
+      if (!isApiError(e, 'MFA_REQUIRED')) throw e;
+      track('mfa_disable_reauth', {});
+      await auth.login({ requireMfa: true, returnTo: `${settingsPath('security')}&confirm=${MFA_OFF_CONFIRM}` });
+      return;
+    }
+    track('mfa_disabled', {});
+    await auth.refresh();
+    toast.success(t('mfaOffDone'));
+  }
 
   async function reset() {
     if (!email || sending) return;
@@ -139,13 +170,27 @@ export function SecurityTab() {
           </div>
           <CardDescription>{mfaOn ? tc('auth.mfa.onHint') : tc('auth.mfa.body')}</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-wrap gap-2">
           <Button variant="outline" asChild>
             <Link href={routes.mfa}>
               <ShieldCheck /> {tc('auth.mfa.title')}
             </Link>
           </Button>
+          {mfaOn && !auth.impersonating ? (
+            <Button variant="ghost" onClick={() => setTurningOff(true)}>
+              {t('mfaOff')}
+            </Button>
+          ) : null}
         </CardContent>
+        <ConfirmDialog
+          open={turningOff}
+          onOpenChange={setTurningOff}
+          title={t('mfaOffTitle')}
+          description={t('mfaOffBody')}
+          consequences={[t('mfaOffPassword'), t('mfaOffDevices')]}
+          confirmLabel={t('mfaOffConfirm')}
+          onConfirm={turnOff}
+        />
       </Card>
       <Card>
         <CardHeader>
@@ -164,6 +209,7 @@ export function SecurityTab() {
           <p className="text-xs text-muted-foreground">{t('passwordSocial')}</p>
         </CardContent>
       </Card>
+      <SignInMethodsCard />
       <SessionsCard />
       <Card className="lg:col-span-2">
         <CardHeader>
@@ -179,6 +225,55 @@ export function SecurityTab() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** The query value that reopens the turn-off dialog after the fresh challenge. */
+const MFA_OFF_CONFIRM = 'mfa-off';
+
+/**
+ * D6 Security "connected SSO accounts": each way this person can sign in (password,
+ * Google, Microsoft), read from the identity provider. Read-only: linking and unlinking
+ * are not in the spec. Like the sessions card, it is the person's, not the workspace's.
+ */
+function SignInMethodsCard() {
+  const t = useTranslations('dashboard.settings.sec');
+  const api = useApi();
+  const auth = useAuth();
+  const methods = useGetSignInMethods(api, { enabled: !auth.impersonating });
+  if (auth.impersonating) return null;
+
+  const label = (m: SignInMethodsResponse['methods'][number]) =>
+    m.method === 'other' ? t('methods.other', { connection: m.connection }) : t(`methods.${m.method}`);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <LogIn className="size-4 text-primary" aria-hidden /> {t('methodsTitle')}
+        </CardTitle>
+        <CardDescription>{t('methodsBody')}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {methods.isPending ? (
+          <Skeleton className="h-12" />
+        ) : methods.isError ? (
+          <LoadError error={methods.error} onRetry={() => void methods.refetch()} compact />
+        ) : !methods.data.available ? (
+          <p className="text-sm text-muted-foreground">{t('methodsUnavailable')}</p>
+        ) : methods.data.methods.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t('methodsNone')}</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {methods.data.methods.map((m) => (
+              <li key={`${m.method}:${m.connection}`} className="text-sm font-medium">
+                {label(m)}
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

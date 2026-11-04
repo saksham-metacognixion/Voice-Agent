@@ -15,7 +15,7 @@ import {
   ledgerQuery,
 } from '@portal/schemas';
 import { z } from 'zod';
-import { Ctx, RequireEmailVerified, Roles } from '../auth';
+import { AllowWithoutMfa, Ctx, RequireEmailVerified, Roles } from '../auth';
 import type { WorkspaceContext } from '../auth';
 import { BillingService } from '../billing/billing.service';
 import { WalletService } from './wallet.service';
@@ -87,6 +87,9 @@ export class WalletController {
    */
   @Post('checkout/confirm')
   @Roles('owner', 'admin')
+  // ADR 0036: settles what Stripe already took — money in, never out. A Scale buyer back
+  // from Stripe is over the MFA threshold the moment it lands and must not be stranded.
+  @AllowWithoutMfa()
   confirmCheckout(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<CheckoutConfirmResponse> {
     return this.billing.confirmCheckout(ctx, checkoutConfirmRequest.parse(body).session_id);
   }

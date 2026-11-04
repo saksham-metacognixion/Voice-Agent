@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { businessHours, businessHoursInput, isTimeZone } from './business-hours.js';
 import { e164, isoDateTime, paginationQuery, uuid } from './common.js';
 import { memberRole, planTier } from './enums.js';
+import { workspaceMfa } from './security.js';
 
 /*
  * Workspaces, members and invites (§6, §13.2, §16).
@@ -91,6 +92,8 @@ export const workspaceResponse = z.object({
   paused_reason: z.string().nullable(),
   /** The caller's own role in this workspace, so the UI can gate without a second call. */
   role: memberRole,
+  /** §6.2 MFA rule for the caller here (ADR 0036): the shell's banner and A5's copy read it. */
+  mfa: workspaceMfa,
   created_at: isoDateTime,
 });
 export type WorkspaceResponse = z.infer<typeof workspaceResponse>;
@@ -125,6 +128,10 @@ export const memberResponse = z.object({
   avatar_url: z.string().nullable(),
   role: memberRole,
   joined_at: isoDateTime,
+  /** D6 Team "last active": the person's last authenticated request, to the nearest 5 minutes. Null = never seen since it was recorded. */
+  last_active_at: isoDateTime.nullable(),
+  /** D6 Team "MFA ✓": a second factor is enrolled (`users.mfa_enabled`). */
+  mfa_enabled: z.boolean(),
 });
 export type MemberResponse = z.infer<typeof memberResponse>;
 
@@ -275,8 +282,20 @@ export type AuditEntryResponse = z.infer<typeof auditEntryResponse>;
  * exactly the same upsert.
  */
 export const authWebhookEvent = z.object({
-  event_type: z.enum(['user.registered', 'user.created', 'user.login']),
+  /**
+   * `user.password_changed` (ADR 0036 §5): the Post-Change-Password Action. §6.3 A6 "all
+   * other sessions revoked" — the API ends every session, refresh token and remembered
+   * device the person had at `occurred_at`.
+   */
+  event_type: z.enum(['user.registered', 'user.created', 'user.login', 'user.password_changed']),
   external_id: z.string().min(1).max(200),
+  /**
+   * The dedupe key when one person sends this event type more than once (a second password
+   * change). Absent, the key is `external_id` — one event per person, as before.
+   */
+  event_id: z.string().min(1).max(200).optional(),
+  /** When it happened, on the provider's clock (ISO). */
+  occurred_at: z.string().max(64).optional(),
   email: z.string().email().max(254),
   email_verified: z.boolean().default(false),
   name: z.string().max(200).nullable().optional(),
@@ -284,3 +303,27 @@ export const authWebhookEvent = z.object({
   created_at: z.string().max(64).optional(),
 });
 export type AuthWebhookEvent = z.infer<typeof authWebhookEvent>;
+
+/**
+ * One entry of the customer tenant's log stream (`POST /webhooks/auth/logs`, ADR 0036 §9):
+ * Auth0's own record of a sign-in, a failed one, a second-factor outcome or a block. Only
+ * the fields the audit row needs are read; the rest of the provider's object is dropped.
+ */
+export const authLogEntry = z.object({
+  log_id: z.string().min(1).max(200),
+  data: z
+    .object({
+      type: z.string().min(1).max(40),
+      date: z.string().max(64).optional(),
+      ip: z.string().max(64).nullable().optional(),
+      user_id: z.string().max(200).nullable().optional(),
+      // The address typed at sign-in. A brute-force block (`limit_wc`) may carry it without
+      // a `user_id`, and it is then what lifts the block (ADR 0036 §8).
+      user_name: z.string().max(254).nullable().optional(),
+      connection: z.string().max(200).nullable().optional(),
+      strategy: z.string().max(100).nullable().optional(),
+      user_agent: z.string().max(500).nullable().optional(),
+    })
+    .passthrough(),
+});
+export type AuthLogEntry = z.infer<typeof authLogEntry>;

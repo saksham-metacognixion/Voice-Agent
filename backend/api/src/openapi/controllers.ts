@@ -43,6 +43,7 @@ import { WalletController } from '../modules/wallet/wallet.controller';
 import { WebhooksController } from '../modules/webhooks/webhooks.controller';
 import { WorkspacesController } from '../modules/workspaces/workspaces.controller';
 import { SessionsController } from '../modules/workspaces/sessions.controller';
+import { AccountController } from '../modules/workspaces/account.controller';
 
 /**
  * Every controller the API serves in staging and prod, for route discovery. The one
@@ -56,6 +57,7 @@ export const CONTROLLERS = [
   ConfigController,
   WorkspacesController,
   SessionsController,
+  AccountController,
   AgentsController,
   TemplatesController,
   PromptingController,

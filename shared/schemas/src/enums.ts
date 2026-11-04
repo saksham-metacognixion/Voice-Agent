@@ -112,8 +112,16 @@ export const CLAIM_MFA = 'https://portal/mfa';
  * Customer ID-token claim: the person has a second factor enrolled (§6.2, A5). Set by the
  * customer Post-Login Action from `event.user.enrolledFactors`, which is read before the
  * enrolment the same sign-in may trigger, so A5 also accepts `amr` containing `mfa`.
+ * Also on the access token, where AuthGuard keeps `users.mfa_enabled` in step with it
+ * (D6 Team "MFA ✓").
  */
 export const CLAIM_MFA_ENROLLED = 'https://portal/mfa_enrolled';
+/**
+ * Customer access-token claim: when this session last passed a second factor, in epoch
+ * seconds (the sign-in that challenged, else the newest `mfa` method on the session).
+ * D6 "MFA disable (with re-auth)" requires it to be recent (`MFA_REAUTH_WINDOW_S`).
+ */
+export const CLAIM_MFA_AT = 'https://portal/mfa_at';
 /**
  * The signed-in person's email and display name, stamped on the customer access token
  * by the Post-Login Action. Auth0 access tokens carry neither by default, and the API

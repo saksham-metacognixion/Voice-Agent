@@ -74,3 +74,21 @@ describe('namespaceForPath', () => {
     expect(namespaceForPath('/admin-tools')).toBe('customer');
   });
 });
+
+describe('AuthConfig — the §6.2 15-minute customer token (ADR 0036 §1)', () => {
+  it('defaults to 900 seconds for customers and no limit for staff', () => {
+    const config = new AuthConfig(env());
+    expect(config.customer.maxTokenAgeS).toBe(900);
+    expect(config.staff.maxTokenAgeS).toBeUndefined();
+  });
+
+  it('takes a whole number of seconds, and 0 switches the check off', () => {
+    expect(new AuthConfig(env({ AUTH_CUSTOMER_MAX_TOKEN_AGE_S: '600' })).customer.maxTokenAgeS).toBe(600);
+    expect(new AuthConfig(env({ AUTH_CUSTOMER_MAX_TOKEN_AGE_S: '0' })).customer.maxTokenAgeS).toBeUndefined();
+  });
+
+  it('refuses to boot on a value it cannot read rather than guess', () => {
+    expect(() => new AuthConfig(env({ AUTH_CUSTOMER_MAX_TOKEN_AGE_S: '15m' }))).toThrow(/whole number/);
+    expect(() => new AuthConfig(env({ AUTH_CUSTOMER_MAX_TOKEN_AGE_S: '-1' }))).toThrow(/whole number/);
+  });
+});

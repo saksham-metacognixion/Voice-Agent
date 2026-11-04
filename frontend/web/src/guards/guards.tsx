@@ -1,9 +1,10 @@
 'use client';
 
-import { Button, ErrorState, PageLoader } from '@portal/ui';
+import { Button, ErrorState, PageLoader, toast } from '@portal/ui';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
+import { useApi, useGetAccount } from '@portal/api-client';
 import { useAuth } from '../auth/auth-provider';
 import { currentPathWithQuery, readQuery } from '../lib/query-string';
 import { errorMessage } from '../lib/errors';
@@ -47,7 +48,31 @@ export function RequireVerified({ children }: { children: React.ReactNode }) {
     if (unverified) router.replace(withNext(routes.verifyEmail, currentPathWithQuery()));
   }, [unverified, router]);
 
-  return <RequireAuth>{unverified ? <PageLoader label={t('common.loading')} /> : children}</RequireAuth>;
+  return <RequireAuth>{unverified ? <PageLoader label={t('common.loading')} /> : <TermsGate>{children}</TermsGate>}</RequireAuth>;
+}
+
+/**
+ * §6.3 A1 (ADR 0036 §6): the Terms in force accepted, else `/terms/?next=`. The API refuses
+ * the three doors that matter (a workspace, joining one, paying) on its own; this is what
+ * puts the checkbox in front of the person before they reach one. A view-as session is the
+ * customer's workspace seen by staff, not a person signing up, and is never asked. A
+ * `GET /me` that fails lets the page through: the doors still hold.
+ */
+function TermsGate({ children }: { children: React.ReactNode }) {
+  const auth = useAuth();
+  const api = useApi();
+  const router = useRouter();
+  const t = useTranslations();
+  const skip = Boolean(auth.impersonating);
+  const me = useGetAccount(api, { enabled: !skip, staleTime: 5 * 60_000 });
+  const required = !skip && me.data?.terms.required === true;
+
+  React.useEffect(() => {
+    if (required) router.replace(withNext(routes.terms, currentPathWithQuery()));
+  }, [required, router]);
+
+  if (!skip && (me.isPending || required)) return <PageLoader label={t('common.loading')} />;
+  return <>{children}</>;
 }
 
 /** Verified AND an active workspace, else the setup page or the switcher. */
@@ -145,16 +170,21 @@ export function OnboardingStepGuard({ step, completeRedirect, children }: { step
  * written by the activation job's `mark_live`, so a refresh here never restarts
  * anything, and someone who is not live yet is sent back to their wizard step.
  */
-export function LiveGuard({ children }: { children: React.ReactNode }) {
+export function LiveGuard({ writes = false, children }: { writes?: boolean; children: React.ReactNode }) {
   const pathname = usePathname();
   const gate = useSessionGate(pathname);
+  const ws = useWorkspace();
   const router = useRouter();
   const t = useTranslations();
-  const redirect = gate.ready && !gate.settling && gate.onboardingStep !== null && !gate.onboardingComplete ? stepPath(gate.onboardingStep) : null;
+  // §6.4 "Viewer tries to open a write route → /app with toast" (ADR 0036 §10). Only once
+  // live: before that `/app` would send them straight back here.
+  const viewerOut = writes && gate.ready && gate.onboardingComplete && ws.workspace?.role === 'viewer';
+  const redirect = viewerOut ? routes.app.home : gate.ready && !gate.settling && gate.onboardingStep !== null && !gate.onboardingComplete ? stepPath(gate.onboardingStep) : null;
 
   React.useEffect(() => {
+    if (viewerOut) toast.warning(t('shell.viewOnly'), { id: 'forbidden-role' });
     if (redirect) router.replace(redirect);
-  }, [redirect, router]);
+  }, [redirect, router, viewerOut, t]);
 
   if (!gate.ready || redirect || !gate.onboardingComplete) return <PageLoader label={t('common.loading')} />;
   return <>{children}</>;

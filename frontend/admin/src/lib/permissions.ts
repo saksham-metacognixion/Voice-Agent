@@ -65,6 +65,8 @@ export function can(me: StaffMeResponse | null | undefined) {
     },
     /** The refund ceiling per purchase in cents (all refunds on it counted), null when unlimited. */
     refundCap: (): number | null => limits?.refund_max_cents ?? null,
+    /** §17 first-purchase reviews (ADR 0036): a fraud decision, the commercial roles — not the support desk. */
+    purchaseReview: (): Denied => needsRole(role, R.commercial),
     /** SA9 top-up actions: the same MONEY matrix. */
     topupActions: (): Denied => needsRole(role, R.money),
     /** SA5 cost inputs: the draft's matrix and limit — the server asserts `can_edit_pricing_draft` (QA-054). */

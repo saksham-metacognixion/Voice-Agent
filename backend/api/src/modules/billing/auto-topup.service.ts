@@ -3,7 +3,7 @@ import { Prisma, adminDb, withWorkspace } from '@portal/db';
 import { type AutoTopup, type AutoTopupRequest, type PricingConfig, autoTopup as autoTopupSchema } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { OpsAlertService } from '../alerts';
-import type { WorkspaceContext } from '../auth';
+import { type WorkspaceContext, WorkspaceMfaService } from '../auth';
 import { PlatformConfigService } from '../config';
 import { WalletService, addMonths } from '../wallet/wallet.service';
 import { BillingService, isStripeNotFound } from './billing.service';
@@ -94,6 +94,7 @@ export class AutoTopupService {
     @Inject(forwardRef(() => WalletService)) private readonly wallet: WalletService,
     @Inject(forwardRef(() => BillingService)) private readonly billing: BillingService,
     private readonly alerts: OpsAlertService,
+    private readonly mfa: WorkspaceMfaService,
   ) {}
 
   onAbandoned(listener: TopupAbandonedListener): void {
@@ -132,6 +133,10 @@ export class AutoTopupService {
       if (!pack) throw new AppError('PACK_UNAVAILABLE', 'Pick a pack to top up with.', [{ field: 'pack_id', message: 'Unknown or inactive pack' }]);
       const threshold = input.threshold ?? current.threshold ?? Math.round((pack.credits * config.wallet_policy.auto_topup_threshold_pct) / 100);
       const next: AutoTopup = { ...current, enabled: true, pack_id: pack.id, threshold };
+      // §6.2 (ADR 0036): turning auto top-up on is what puts a saved card at risk, so it is
+      // the first change that needs a second factor — asked after the checks that would
+      // refuse it anyway, so nobody sets up a factor to be told they have no card.
+      await this.mfa.assert({ workspaceId: ctx.workspaceId, role: ctx.role, mfa: ctx.mfa ?? false }, { autoTopupEnabled: true });
       await this.saveSettings(ctx, next, 'enabled');
       return next;
     }
@@ -307,6 +312,18 @@ export class AutoTopupService {
         return { outcome: 'ignored' as const, reason: 'amount mismatch' };
       }
       await tx.purchase.update({ where: { id: fresh.id }, data: { status: 'paid', stripePaymentIntent: intent.id, failureReason: null } });
+      // §6.2 purchase audit (ADR 0036 §9): in the transaction that credits, so a replayed
+      // intent — which stops at `paid` above — never writes a second row.
+      await tx.auditLog.create({
+        data: {
+          tenantId: fresh.tenantId,
+          actorUserId: null,
+          action: 'purchase.completed',
+          targetType: 'purchase',
+          targetId: fresh.id,
+          metaJson: { via: 'auto_topup', pack_id: fresh.packId, amount_cents: fresh.amountCents, currency: fresh.currency, credits: fresh.credits } as Prisma.InputJsonValue,
+        },
+      });
       const write = await wallet.grant({
         credits: fresh.credits,
         reason: 'topup',

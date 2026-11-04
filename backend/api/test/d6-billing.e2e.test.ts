@@ -26,7 +26,8 @@ beforeAll(async () => {
   app = harness.app;
   alerts = harness.alerts;
   stop = harness.stop;
-  auth = authFor(harness.customerTenant);
+  // Auto top-up is switched on here, which needs an owner who passed a second factor (§6.2, ADR 0036).
+  auth = authFor(harness.customerTenant, { mfa: true });
   call = caller(app);
   stripe = app.get(StripeGateway);
   wallet = app.get(WalletService);

@@ -70,3 +70,15 @@ export const pendingInvite = {
     }
   },
 };
+
+/**
+ * The invite token in `next` (or, failing that, in the remembered invite), for A8's
+ * "email pre-filled and locked to invitee address" (ADR 0036 §7). Only an `/invite/` path
+ * yields one, so a crafted `next` cannot make the sign-in page ask the API about anything
+ * else.
+ */
+export function inviteTokenFrom(next: string | null | undefined): string | null {
+  const path = invitePath(next) ?? pendingInvite.peek();
+  if (!path) return null;
+  return new URL(path, 'https://portal.invalid').searchParams.get('token');
+}

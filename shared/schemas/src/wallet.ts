@@ -18,7 +18,12 @@ export const ledgerReason = z.enum([
 ]);
 export type LedgerReason = z.infer<typeof ledgerReason>;
 
-export const purchaseStatus = z.enum(['pending', 'paid', 'abandoned', 'refunded']);
+/**
+ * `in_review` / `approved` / `rejected` are the §17 first-purchase review (ADR 0036): a
+ * purchase over the limit waits for staff before any Stripe session exists, so nothing is
+ * charged until it is approved and nothing needs refunding when it is not.
+ */
+export const purchaseStatus = z.enum(['pending', 'paid', 'abandoned', 'refunded', 'in_review', 'approved', 'rejected']);
 export type PurchaseStatus = z.infer<typeof purchaseStatus>;
 
 /** `tenants.auto_topup_json` (§5.4). */
@@ -103,8 +108,11 @@ export const checkoutRequest = z.object({
 export type CheckoutRequest = z.infer<typeof checkoutRequest>;
 
 export const checkoutResponse = z.object({
-  checkout_url: z.string().url(),
+  /** null while the purchase waits for staff review, or after they declined it (§17). */
+  checkout_url: z.string().url().nullable(),
   purchase_id: z.string().uuid(),
+  /** `checkout`: go to `checkout_url`. `in_review`: we email when it is approved. */
+  status: z.enum(['checkout', 'in_review']),
 });
 export type CheckoutResponse = z.infer<typeof checkoutResponse>;
 

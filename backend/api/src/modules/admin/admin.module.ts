@@ -11,6 +11,7 @@ import { RetellModule } from '../retell';
 import { RuntimeCacheModule } from '../runtime-cache';
 import { WalletModule } from '../wallet';
 import { WebhooksModule } from '../webhooks';
+import { NotificationsModule } from '../notifications';
 import { NumbersModule } from '../numbers';
 import { AdminAgentsService } from './admin-agents.service';
 import { AdminAuditService } from './admin-audit.service';
@@ -35,6 +36,7 @@ import { AdminUsersService } from './admin-users.service';
 import { AdminSupportService } from './admin-support.service';
 import { AdminWebhooksService } from './admin-webhooks.service';
 import { AdminBillingService } from './admin-billing.service';
+import { AdminPurchaseReviewsService } from './admin-purchase-reviews.service';
 import { AdminBillingController, AdminCustomerBillingController } from './admin-billing.controller';
 import {
   AdminAgentsController,
@@ -82,6 +84,8 @@ import { StaffLimitsService } from './staff-limits.service';
     AlertsModule,
     ActivationModule,
     NumbersModule,
+    // ADR 0036: the purchase-review decision emails the workspace through the outbox.
+    NotificationsModule,
   ],
   controllers: [
     AdminMeController,
@@ -135,6 +139,7 @@ import { StaffLimitsService } from './staff-limits.service';
     AdminStaffService,
     AdminOperationsService,
     AdminBillingService,
+    AdminPurchaseReviewsService,
   ],
   exports: [StaffAuditService, StaffLimitsService, ImpersonationService],
 })

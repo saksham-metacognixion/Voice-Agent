@@ -66,9 +66,10 @@ export async function paidWorkspace(app: NestFastifyApplication, label: string, 
   return { ...ws, purchaseId: purchase.id, stripeCustomerId };
 }
 
-export function authFor(tenant: FakeAuth0Tenant) {
+/** `mfa`: the owner's session passed a second factor — the §6.2 money-at-risk rule (ADR 0036) lets it change things. */
+export function authFor(tenant: FakeAuth0Tenant, claims: { mfa?: boolean } = {}) {
   return async (sub: string, workspaceId?: string): Promise<Record<string, string>> => ({
-    authorization: `Bearer ${await tenant.mint(sub)}`,
+    authorization: `Bearer ${await tenant.mint(sub, claims)}`,
     ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
   });
 }

@@ -2,7 +2,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { Body, Controller, HttpCode, Logger, Param, Post, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AppError } from '../../common/errors/app-error';
-import { Public, UsersService } from '../auth';
+import { authLogEntry } from '@portal/schemas';
+import { Public, UsersService, auditActionForLog } from '../auth';
 import { StripeGateway } from '../billing';
 import { InboundAuthorizationService } from '../calls';
 import { JobQueues } from '../jobs';
@@ -216,7 +217,7 @@ export class WebhooksController {
 
     const stored = await this.events.store({
       provider: 'auth',
-      externalId: event.external_id,
+      externalId: event.event_id ?? event.external_id,
       eventType: event.event_type,
       payload: event,
     });
@@ -228,6 +229,37 @@ export class WebhooksController {
     const queued = await this.queues.enqueueWebhook(stored.id, 'auth');
     if (queued === 'failed') this.log.error(`auth ${event.event_type} ${event.external_id}: stored but not queued; the sweeper will retry`);
     void reply.code(200).send({ received: true });
+  }
+
+  /**
+   * The customer tenant's log stream (ADR 0036 §9): Auth0's record of every sign-in, failed
+   * sign-in, second-factor outcome, block and password change, in batches. Same shared
+   * secret as the Actions, sent by the stream as `Authorization: Bearer <secret>`. Each
+   * entry we audit is stored under its own `log_id` and queued; everything else in the
+   * batch (token exchanges, API calls) is dropped here. A batch Auth0 re-sends is a set of
+   * duplicates, so a sign-in is never audited twice. Always 200 once authenticated: a
+   * retried batch would only be duplicates, and a malformed entry is skipped, not fatal.
+   */
+  @Post('auth/logs')
+  @HttpCode(200)
+  async authLogs(@Req() request: FastifyRequest, @Body() body: unknown, @Res() reply: FastifyReply): Promise<void> {
+    if (!verifyAuthSecret(request)) {
+      this.log.warn('POST /webhooks/auth/logs without a valid shared secret; refusing');
+      throw new AppError('INVALID_SIGNATURE', 'That request is not from our identity provider.');
+    }
+    const entries = Array.isArray(body) ? body : body && typeof body === 'object' && Array.isArray((body as { logs?: unknown }).logs) ? (body as { logs: unknown[] }).logs : [body];
+    let stored = 0;
+    for (const raw of entries.slice(0, 500)) {
+      const parsed = authLogEntry.safeParse(raw);
+      if (!parsed.success || !auditActionForLog(parsed.data.data.type)) continue;
+      const entry = parsed.data;
+      const result = await this.events.store({ provider: 'auth', externalId: entry.log_id, eventType: `log.${entry.data.type}`, payload: entry });
+      if (result.kind === 'duplicate') continue;
+      stored += 1;
+      const queued = await this.queues.enqueueWebhook(result.id, 'auth');
+      if (queued === 'failed') this.log.error(`auth log ${entry.log_id}: stored but not queued; the sweeper will retry`);
+    }
+    void reply.code(200).send({ received: true, stored });
   }
 
   /**
@@ -260,8 +292,9 @@ export class WebhooksController {
 function verifyAuthSecret(request: FastifyRequest): boolean {
   const expected = process.env.AUTH0_CUSTOMER_ACTION_SECRET?.trim() ?? '';
   if (!expected) return false;
-  const header = request.headers['x-action-secret'];
-  const provided = (Array.isArray(header) ? header[0] : header)?.trim() ?? '';
+  // Actions send `x-action-secret`; a log stream can only set `Authorization` (ADR 0036 §9).
+  const header = request.headers['x-action-secret'] ?? request.headers.authorization;
+  const provided = ((Array.isArray(header) ? header[0] : header)?.trim() ?? '').replace(/^Bearer\s+/i, '');
   const left = Buffer.from(provided);
   const right = Buffer.from(expected);
   return left.length === right.length && timingSafeEqual(left, right);

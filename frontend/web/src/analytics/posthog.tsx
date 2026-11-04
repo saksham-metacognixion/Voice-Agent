@@ -107,8 +107,14 @@ export type AnalyticsEvent =
   | 'onboarding_live_viewed'
   | 'forwarding_confirmed'
   | 'mfa_enrol_started'
+  // ADR 0036: the step-up an owner/admin takes when money is at risk, the Terms checkbox, a first purchase over the review limit.
+  | 'mfa_step_up_started'
+  | 'terms_accepted'
+  | 'purchase_review_requested'
   | 'password_reset_requested'
   | 'session_ended'
+  | 'mfa_disable_reauth'
+  | 'mfa_disabled'
   | 'theme_changed'
   // D10 dashboard
   | 'calls_filtered'

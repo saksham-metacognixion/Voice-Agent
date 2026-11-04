@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { BalancePill } from '@/src/components/shell/balance-pill';
+import { MfaBanner } from '@/src/components/shell/mfa-banner';
 import { UserMenu } from '@/src/components/shell/user-menu';
 import { WorkspaceSwitcher } from '@/src/components/shell/workspace-switcher';
 import { LAST_IMPLEMENTED_STEP, WIZARD_STEPPER, routes } from '@/src/routes';
@@ -77,7 +78,12 @@ export function WizardShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">{children}</main>
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6">
+        <div className="mb-6 empty:hidden">
+          <MfaBanner />
+        </div>
+        {children}
+      </main>
     </div>
   );
 }

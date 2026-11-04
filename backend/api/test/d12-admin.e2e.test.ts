@@ -1340,7 +1340,7 @@ describe('read-only impersonation (admin §7.4)', () => {
     expect(workspace.status).toBe(200);
     expect(workspace.body.id).toBe(ws.workspaceId);
     const mine = await call('GET', '/workspaces', key);
-    expect(mine.body).toEqual([{ id: ws.workspaceId, name: expect.any(String), role: 'owner' }]);
+    expect(mine.body).toEqual([{ id: ws.workspaceId, name: expect.any(String), role: 'owner', balance: null }]);
     // §6.2 sessions are the owner's own devices and addresses, not the workspace's: refused, both ways.
     const auth0 = h.app.get(Auth0ManagementService);
     const listSpy = vi.spyOn(auth0, 'listSessions');

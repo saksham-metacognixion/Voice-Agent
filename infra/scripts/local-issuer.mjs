@@ -50,13 +50,21 @@ const readBody = (req) => new Promise((r) => { let d = ''; req.on('data', (c) =>
 const parseBody = (raw, type) => (type?.includes('json') ? JSON.parse(raw || '{}') : Object.fromEntries(new URLSearchParams(raw)));
 const now = () => Math.floor(Date.now() / 1000);
 // Access/ID token lifetime; `LOCAL_ISSUER_TTL_S=5` makes expiry testable in seconds (the SPA refreshes on its own).
-const ttl = Number(process.env.LOCAL_ISSUER_TTL_S ?? 3600);
-function tokens({ nonce, audience, clientId, mfa }) {
+// 15 minutes by default, the §6.2 ceiling the API enforces (ADR 0036 §1).
+const ttl = Number(process.env.LOCAL_ISSUER_TTL_S ?? 900);
+function tokens({ nonce, audience, clientId, mfa, mfaAt }) {
   const u = user(); const iat = now();
-  // Staff mode: the MFA claim is what AuthGuard requires on /admin/*; a customer-mode token never carries it.
-  const access = sign({ iss: issuer, sub: u.sub, aud: [audience], iat, exp: iat + ttl, scope: 'openid profile email offline_access', azp: clientId, 'https://portal/email_verified': u.email_verified !== false, 'https://portal/email': u.email, 'https://portal/name': u.name, ...(staffMode && u.mfa !== false ? { 'https://portal/mfa': true } : {}) });
-  const id = sign({ iss: issuer, sub: u.sub, aud: clientId, iat, exp: iat + ttl, ...(nonce ? { nonce } : {}), email: u.email, email_verified: u.email_verified !== false, name: u.name, picture: u.picture ?? null, amr: mfa ? ['mfa', 'pwd'] : ['pwd'] });
-  const refresh = randomBytes(24).toString('base64url'); refreshTokens.set(refresh, { audience, clientId, mfa });
+  // When the factor was passed: this sign-in when it asked for one, else the session's earlier
+  // time (a refresh grant), like the Action's `https://portal/mfa_at`.
+  const passedAt = mfa ? (mfaAt ?? iat) : null;
+  // Customer mode: `mfa_enrolled` on both tokens, as the Action stamps it. The user file's
+  // `mfa_enrolled` wins when set (a test removing the factor writes false), else a passed factor.
+  const enrolled = !staffMode ? { 'https://portal/mfa_enrolled': typeof u.mfa_enrolled === 'boolean' ? u.mfa_enrolled : Boolean(mfa) } : {};
+  // Staff mode: the MFA claim is what AuthGuard requires on /admin/*. Customer mode carries it
+  // only when the sign-in asked for the second factor (A5, a step-up), like the Action (ADR 0036 §2).
+  const access = sign({ iss: issuer, sub: u.sub, aud: [audience], iat, exp: iat + ttl, scope: 'openid profile email offline_access', azp: clientId, 'https://portal/email_verified': u.email_verified !== false, 'https://portal/email': u.email, 'https://portal/name': u.name, ...enrolled, ...((staffMode && u.mfa !== false) || (!staffMode && mfa) ? { 'https://portal/mfa': true } : {}), ...(!staffMode && passedAt ? { 'https://portal/mfa_at': passedAt } : {}) });
+  const id = sign({ iss: issuer, sub: u.sub, aud: clientId, iat, exp: iat + ttl, ...(nonce ? { nonce } : {}), email: u.email, email_verified: u.email_verified !== false, name: u.name, picture: u.picture ?? null, amr: mfa ? ['mfa', 'pwd'] : ['pwd'], ...enrolled });
+  const refresh = randomBytes(24).toString('base64url'); refreshTokens.set(refresh, { audience, clientId, mfa, mfaAt: passedAt });
   return { access_token: access, id_token: id, refresh_token: refresh, token_type: 'Bearer', expires_in: ttl, scope: 'openid profile email offline_access' };
 }
 createServer(async (req, res) => {

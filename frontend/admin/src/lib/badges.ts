@@ -85,6 +85,12 @@ export function purchaseStatusVariant(status: string): Variant {
       return 'outline';
     case 'refunded':
       return 'info';
+    case 'in_review':
+      return 'warning';
+    case 'approved':
+      return 'primary';
+    case 'rejected':
+      return 'danger';
     default:
       return 'default';
   }

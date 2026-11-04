@@ -37,12 +37,17 @@ export function subscribeEvents(api: ApiClient, opts: SubscribeOptions): () => v
   win?.addEventListener('pagehide', onPageHide);
 
   class FatalError extends Error {}
+  // ADR 0036 §1: one 401 is answered with a freshly minted token before giving up — the
+  // cached one may be past the API's 15-minute limit. Cleared again on every good open.
+  let freshTried = false;
+  let wantFresh = false;
 
   void fetchEventSource(`${api.baseUrl}/events${query}`, {
     signal,
     openWhenHidden: true,
     async fetch(input, init) {
-      const token = await api.options.getToken();
+      const token = await api.options.getToken(wantFresh ? { fresh: true } : undefined);
+      wantFresh = false;
       const ws = api.options.getWorkspaceId();
       const headers = new Headers(init?.headers);
       if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -51,8 +56,14 @@ export function subscribeEvents(api: ApiClient, opts: SubscribeOptions): () => v
     },
     async onopen(response) {
       if (response.ok && (response.headers.get('content-type') ?? '').startsWith(EventStreamContentType)) {
+        freshTried = false;
         opts.onOpen?.();
         return;
+      }
+      if (response.status === 401 && !freshTried) {
+        freshTried = true;
+        wantFresh = true;
+        throw new Error('events stream refused: 401, retrying with a fresh token');
       }
       if (response.status === 401 || response.status === 403 || response.status === 404) {
         throw new FatalError(`events stream refused: ${response.status}`);

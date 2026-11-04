@@ -4,10 +4,12 @@ import {
   type AcceptInviteResponse,
   type AuditEntryResponse,
   type Page,
+  type InviteHintResponse,
   type InvitePreviewResponse,
   type InviteResponse,
   type MemberResponse,
   type WorkspaceChecklist,
+  type WorkspaceMembershipSummary,
   type WorkspaceResponse,
   advanceOnboardingRequest,
   auditLogQuery,
@@ -19,7 +21,7 @@ import {
   uuid,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { Ctx, NoWorkspace, RequireEmailVerified, Roles } from '../auth';
+import { Ctx, NoWorkspace, Public, RequireEmailVerified, Roles } from '../auth';
 import type { AuthenticatedUser, WorkspaceContext } from '../auth';
 import { MembersService } from './members.service';
 import { WorkspacesService } from './workspaces.service';
@@ -56,11 +58,11 @@ export class WorkspacesController {
   /** A7 workspace switcher: name, role and id for each membership. */
   @Get('workspaces')
   @NoWorkspace()
-  mine(@Req() request: FastifyRequest): Promise<Array<{ id: string; name: string; role: string }>> {
+  mine(@Req() request: FastifyRequest): Promise<WorkspaceMembershipSummary[]> {
     // Admin §7.4 (D12): a view-as session sees exactly the workspace it was opened for,
     // not every workspace the owner belongs to — the switcher must not become a way in.
     if (request.impersonation) {
-      return Promise.resolve([{ id: request.impersonation.tenantId, name: request.impersonation.tenantName, role: 'owner' }]);
+      return Promise.resolve([{ id: request.impersonation.tenantId, name: request.impersonation.tenantName, role: 'owner', balance: null }]);
     }
     return this.workspaces.listForUser(authOf(request).userId);
   }
@@ -159,6 +161,19 @@ export class WorkspacesController {
       throw new AppError('INVITE_INVALID', 'That invite link is not valid.');
     }
     return this.members.previewInvite(authOf(request), token);
+  }
+
+  /**
+   * A8 before sign-in (ADR 0036 §7): the invited address, so the login and sign-up pages
+   * can pre-fill Universal Login with it. Public, read-only, one uniform refusal.
+   */
+  @Get('invites/:token/hint')
+  @Public()
+  inviteHint(@Param('token') token: string): Promise<InviteHintResponse> {
+    if (!token || token.length < 16 || token.length > 200) {
+      throw new AppError('INVITE_INVALID', 'That invite link is not valid.');
+    }
+    return this.members.inviteHint(token);
   }
 
   /**

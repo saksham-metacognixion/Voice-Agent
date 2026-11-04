@@ -6,7 +6,7 @@ import {
   Alert, Avatar, AvatarFallback, AvatarImage, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Input, Select, SelectContent, SelectItem,
   SelectTrigger, SelectValue, Skeleton, cn, initials, toast,
 } from '@portal/ui';
-import { Copy, Crown, MailPlus, RotateCw, UserMinus, Users } from 'lucide-react';
+import { Copy, Crown, MailPlus, RotateCw, ShieldCheck, UserMinus, Users } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
@@ -16,7 +16,7 @@ import { ConfirmDialog } from '@/src/components/dashboard/confirm-dialog';
 import { DataTable, type DataColumn } from '@/src/components/dashboard/data-table';
 import { LoadError } from '@/src/components/dashboard/query-states';
 import { errorMessage } from '@/src/lib/errors';
-import { formatDate } from '@/src/lib/format';
+import { formatDate, formatDateTime } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -98,6 +98,24 @@ export function TeamTab() {
           </Select>
         ) : (
           <Badge variant={m.role === 'owner' ? 'primary' : 'outline'}>{t(`roles.${m.role}`)}</Badge>
+        ),
+    },
+    {
+      key: 'lastActive',
+      header: t('columns.lastActive'),
+      className: 'hidden md:table-cell',
+      cell: (m) => (m.last_active_at ? formatDateTime(m.last_active_at, tz) : <span className="text-muted-foreground">{t('neverActive')}</span>),
+    },
+    {
+      key: 'mfa',
+      header: t('columns.mfa'),
+      cell: (m) =>
+        m.mfa_enabled ? (
+          <Badge variant="success">
+            <ShieldCheck aria-hidden /> {t('mfaOn')}
+          </Badge>
+        ) : (
+          <span className="text-sm text-muted-foreground">{t('mfaOff')}</span>
         ),
     },
     { key: 'joined', header: t('columns.joined'), className: 'hidden md:table-cell', cell: (m) => formatDate(m.joined_at, tz) },

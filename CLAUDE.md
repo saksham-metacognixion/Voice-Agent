@@ -141,7 +141,12 @@ purge (provider first, `purged_at` only once delete-call answered), allowed call
 enforced in `decide()` (`country` decline, unreadable = refused), the first month of rental
 charged inside `bind` in one wallet transaction (`insufficient_credits` never goes active),
 `{{business_open}}` from the workspace hours on every channel, plus the valid-NANP fixture and
-the restaurant script on the post-ADR 0024 journey (3 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+the restaurant script on the post-ADR 0024 journey (3 Nov), 0036 sign-in, sessions and money
+protection — 15-minute backend tokens enforced by the API (`TOKEN_EXPIRED`, retried once), the
+money-at-risk MFA rule in `WorkspaceGuard`, the first-purchase review as pre-approval (no Stripe
+session until staff approve), the Terms screen, A2 resend limits, the invite `login_hint`, the
+log-stream sign-in audit, the password-change revocation, and magic link / Microsoft / CAPTCHA
+retired or deviated pending the spec owner (3 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -1245,7 +1250,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   answers `available: false`, never an empty list. A view-as credential is refused on both
   (`@NoWorkspace()` skips the guard that makes view-as read-only). The portal marks this device by
   the ID token's `sid` (`AuthUser.sessionId`) and names the device with `sessionDevice()`. A signed-out
-  device keeps the access token it holds, up to the 2 h SPA token lifetime; the copy says so.
+  device keeps the access token it holds, up to the 15-minute token lifetime (ADR 0036 §1); the copy says so.
 - Credit adjustments take an `idempotency_key` (the console makes one per opened dialog; it is
   the adjustment id): a double click, a retry or a second tab moves credits once. A ticket number
   is linked only when `support_tickets` holds it and is otherwise kept in the audit row. The
@@ -1388,6 +1393,68 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 - Every customer-affecting staff write requires a reason code (admin Appendix B) and an audit row.
   Role limits are enforced server-side, never only in the UI.
 
+**Sign-in, sessions and money protection (§6.2, §6.3, §17 — ADR 0036)**
+
+- **A customer access token lives 15 minutes, and the API says so**: `JwtVerifier` refuses an
+  `iat` older than `AUTH_CUSTOMER_MAX_TOKEN_AGE_S` (default 900; `0` = off; staff not checked)
+  with `401 TOKEN_EXPIRED`, whatever lifetime the tenant stamped. The api client and the SSE
+  client re-mint (`getToken({fresh: true})`) and retry **once** on that code only; any other
+  401 signs out. Tenant: 900 s access, refresh 30 d idle / 90 d absolute, rotating.
+- **MFA for owners/admins while money is at risk** is `mfaRequiredFor()` in `@portal/schemas`
+  (auto top-up on, or balance strictly over `wallet_policy.mfa_required_above_balance`) and is
+  enforced in `WorkspaceGuard` on every non-GET from a session without the `https://portal/mfa`
+  claim (`403 MFA_REQUIRED`), read fresh per request by `WorkspaceMfaService` — never cached
+  against the person, so an open session is refused the moment a top-up lands. Prospective
+  checks where the risk is created: enabling auto top-up, and a checkout that would charge a
+  card on file into the risk. `@AllowWithoutMfa()` only on auto top-up *off*, checkout confirm
+  (money in) and support tickets. Editors and viewers are never asked. The claim is stamped by
+  the customer Post-Login Action when it calls `api.multifactor.enable()` or the session
+  already passed a factor; a step-up (`acr_values`) never accepts a remembered device.
+- **A first purchase over the limit is pre-approved, never held**: `purchaseNeedsReview()`
+  (no paid/refunded purchase yet, published pack price strictly over
+  `max_first_purchase_cents_without_review`) → purchase `in_review` + open `fraud_reviews` row
+  and **no Stripe session**; staff (`STAFF_ROUTE_ROLES.commercial`) approve or reject with a
+  reason; approved = the next checkout of that pack at that price takes it. `fulfil()` refuses
+  to credit an unreviewed first purchase over the limit (`review_required`, critical alert)
+  and any `in_review`/`approved`/`rejected` purchase.
+- **Terms gate three doors**: `POST /workspaces`, invite accept and checkout refuse
+  `403 TERMS_NOT_ACCEPTED` until `users.tos_version = TERMS_VERSION`; every acceptance is an
+  insert-only `terms_acceptances` row. Raising `TERMS_VERSION` asks everyone again. Test
+  fixtures (`createUser`) are created as having accepted it.
+- **Sign-in audit comes from the tenant log stream** (`POST /webhooks/auth/logs`, bearer =
+  `AUTH0_CUSTOMER_ACTION_SECRET`), one `webhook_events` row per `log_id`, mapped by
+  `AUTH_LOG_ACTIONS` and written to every workspace of the person by `recordAccountEvent()`.
+  Never a password, token or code in `meta`. A password change (`customer-post-change-password`
+  Action → `user.password_changed`) moves `sessions_revoked_at` forward to the change, revokes
+  provider sessions and forgets remembered devices.
+- **Purchase audit rows** are written inside the transaction that changes the purchase
+  (`purchase.completed` in the crediting one), so a replayed webhook never logs twice.
+- **D6 Team "last active" and "MFA ✓"** (4 Nov): `users.last_active_at`, written by `AuthGuard`
+  at most every 5 minutes, never awaited; `users.mfa_enabled` kept in step with the
+  `https://portal/mfa_enrolled` access-token claim (`enrolled || challenged` in the Action: the
+  enrolling sign-in reads `enrolledFactors` before it enrols) and the `gd_enrollment_complete` /
+  `gd_unenroll` log entries. The portal trusts that claim over `amr`, which can still show
+  `mfa` after a factor is removed.
+- **D6 Security "MFA disable (with re-auth)"** is `POST /me/mfa/disable`: the session must have
+  passed a factor within `MFA_REAUTH_WINDOW_S` (the `https://portal/mfa_at` claim, epoch
+  seconds) else `MFA_REQUIRED` and the portal steps up and reopens the dialog
+  (`?confirm=mfa-off`); refused `409 MFA_STILL_REQUIRED` while the person is an owner/admin of a
+  workspace `mfaRequiredFor()` binds; then authenticators and remembered devices are removed,
+  `auth.mfa_disabled` audited. "Connected SSO accounts" is `GET /me/sign-in-methods`
+  (`signInMethodOf()`; `available: false` without the Management API).
+- **A brute-force block lasts 15 minutes** (§6.2, ADR 0036 §8): Auth0 blocks at the fifth
+  failure and never lifts it on a timer, so the `limit_wc` log entry queues
+  `lift-sign-in-block` (`webhooks` queue, `unblock-<log id>`, delayed to 15 min after the
+  block's own time) → `DELETE /api/v2/user-blocks/…` + `auth.sign_in_unblocked`. A staff
+  block is never lifted.
+- **Owed by the spec, not retired** (ADR 0036 "Open spec requirements", 4 Nov): the CAPTCHA
+  step (paid Bot Detection), Microsoft sign-in (Azure app registration), the 15-minute
+  reset-link TTL (custom email provider), A2's 6-digit code, magic link and A5's "5 then
+  15 min" (the last three collide with §6.2's "no hand-rolled auth"). The locked email field
+  on the hosted page stays a deviation (the API's `INVITE_WRONG_EMAIL` is the lock).
+- Exit check: `test/d20-auth-money.e2e.test.ts`; the Action branches in
+  `modules/auth/customer-actions.test.ts`.
+
 **Hardening and observability (§6.2, §17 — ADR 0025, D14)**
 
 - **Disposable email is refused twice**: the `customer-pre-registration` Action denies the
@@ -1447,6 +1514,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `fwdtest:{e164}`             | the "Test forwarding" ringing for a number, `SET NX` 90 s — the lease and the inbound path's cue (D17, ADR 0029)        |
 | `ratelimit:fwd-test:{number}` | forwarding tests this hour, per number (D17)                                                                           |
 | `ratelimit:data-export:{ws}` | D6 "Export all data" zips this hour, 5 max (ADR 0032)                                                                    |
+| `ratelimit:verify-email:{user}` / `…:{hour}` | A2 "Resend": the 60 s cooldown (value = when it started) / sends in one clock hour, 5 max (ADR 0036) |
 | `ratelimit:widget:{key}` / `ratelimit:widget-ip:{key}:{ip}` | website widget calls per widget per hour / per visitor address per 10 min (D17)          |
 
 Keys are built only in `modules/redis/redis.keys.ts`. Cache reads go through `RedisCache`, which never

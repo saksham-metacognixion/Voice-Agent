@@ -10,6 +10,8 @@ export const routes = {
   forgotPassword: '/forgot-password/',
   resetPassword: '/reset-password/',
   mfa: '/mfa/',
+  /** §6.3 A1 (ADR 0036): the Terms checkbox, after sign-in and before anything else. */
+  terms: '/terms/',
   /** `/invite/[token]` in the spec; a static export cannot serve an arbitrary segment, so the token is `?token=`. */
   invite: '/invite/',
   /** Admin §7.4 (D12): where the console's "View as" lands — `#session=&key=` (the fragment, never logged), kept for the tab. */

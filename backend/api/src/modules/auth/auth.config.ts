@@ -5,7 +5,16 @@ export interface NamespaceConfig {
   issuer: string;
   audience: string;
   jwksUri: string;
+  /**
+   * §6.2 "short-lived JWT (≤ 15 min)": the oldest `iat` this namespace accepts, in
+   * seconds, whatever lifetime the tenant stamped into `exp` (ADR 0036 §1). Customers
+   * only; undefined = no limit beyond `exp`.
+   */
+  maxTokenAgeS?: number;
 }
+
+/** §6.2: a customer access token lives at most 15 minutes. */
+export const CUSTOMER_MAX_TOKEN_AGE_S = 900;
 
 /**
  * Auth0, two tenants (ADR 0002): customers in one, staff in another with Google
@@ -36,6 +45,7 @@ export class AuthConfig {
       issuer: customerIssuer,
       audience: required(env, 'AUTH0_CUSTOMER_AUDIENCE'),
       jwksUri: `${customerIssuer}.well-known/jwks.json`,
+      maxTokenAgeS: maxTokenAge(env.AUTH_CUSTOMER_MAX_TOKEN_AGE_S),
     };
     this.staff = {
       issuer: staffIssuer,
@@ -50,6 +60,18 @@ export class AuthConfig {
   for(namespace: 'customer' | 'staff'): NamespaceConfig {
     return namespace === 'staff' ? this.staff : this.customer;
   }
+}
+
+/**
+ * `AUTH_CUSTOMER_MAX_TOKEN_AGE_S`: unset = the §6.2 15 minutes; `0` switches the check off
+ * (a local stand-in issuer minting long tokens); anything else must be a positive whole
+ * number of seconds, or the API refuses to boot rather than guess.
+ */
+function maxTokenAge(raw: string | undefined): number | undefined {
+  if (raw === undefined || raw.trim() === '') return CUSTOMER_MAX_TOKEN_AGE_S;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) throw new Error(`AUTH_CUSTOMER_MAX_TOKEN_AGE_S must be a whole number of seconds, got "${raw}"`);
+  return n === 0 ? undefined : n;
 }
 
 /**

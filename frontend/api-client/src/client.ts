@@ -34,12 +34,18 @@ export function isApiError(error: unknown, code?: string): error is ApiError {
 
 export interface ApiClientOptions {
   baseUrl: string;
-  /** Returns the current Auth0 access token, or null when signed out. */
-  getToken: () => Promise<string | null>;
+  /**
+   * Returns the current Auth0 access token, or null when signed out. `fresh` asks for a
+   * newly minted one (the API answered `TOKEN_EXPIRED`: the cached token is past the §6.2
+   * 15 minutes even though its `exp` is not).
+   */
+  getToken: (options?: { fresh?: boolean }) => Promise<string | null>;
   /** Returns the active workspace id for X-Workspace-Id, or null on account-level routes. */
   getWorkspaceId: () => string | null;
   /** Called on every 401 — the token was refused, not merely missing. */
   onUnauthorized?: (error: ApiError) => void;
+  /** Called on every refused request with its method, after the retry rules above (ADR 0036 §10: the viewer toast). */
+  onError?: (error: ApiError, method: string) => void;
   fetch?: typeof fetch;
 }
 
@@ -82,9 +88,10 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
     schema: T,
     body?: unknown,
     ro: RequestOptions = {},
+    fresh = false,
   ): Promise<z.infer<T>> {
     const headers: Record<string, string> = { Accept: 'application/json' };
-    const token = await opts.getToken();
+    const token = await opts.getToken(fresh ? { fresh: true } : undefined);
     if (token) headers.Authorization = `Bearer ${token}`;
     const ws = ro.noWorkspace ? null : (ro.workspaceId ?? opts.getWorkspaceId());
     if (ws) headers['X-Workspace-Id'] = ws;
@@ -110,7 +117,11 @@ export function createApiClient(opts: ApiClientOptions): ApiClient {
         res.status,
         parsed.success ? parsed.data : { code: res.status === 401 ? 'UNAUTHENTICATED' : 'INTERNAL', message: res.statusText || 'Request failed' },
       );
+      // ADR 0036 §1: a token past the API's 15-minute limit is re-minted and the request
+      // sent once more. Only a second refusal is a lost session.
+      if (res.status === 401 && error.code === 'TOKEN_EXPIRED' && !fresh) return request(method, path, schema, body, ro, true);
       if (res.status === 401) opts.onUnauthorized?.(error);
+      opts.onError?.(error, method);
       throw error;
     }
     if (res.status === 204) return schema.parse(undefined);

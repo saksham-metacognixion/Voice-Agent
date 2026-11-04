@@ -1,9 +1,10 @@
 'use client';
 
-import { createCheckout, useApi, useGetPricing } from '@portal/api-client';
+import { createCheckout, isApiError, useApi, useGetPricing } from '@portal/api-client';
 import type { PricingResponse } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Field, RadioCard, RadioGroup, Skeleton, Switch } from '@portal/ui';
 import { CreditCard, Lock } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
@@ -13,6 +14,8 @@ import { checkoutMarker } from '@/src/wizard/checkout-marker';
 import { formatCredits, formatMoney } from '@/src/wizard/plan-gates';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { PRICING_STALE_MS } from '@/src/lib/pricing';
+import { currentPathWithQuery } from '@/src/lib/query-string';
+import { routes, withNext } from '@/src/routes';
 
 type Pack = PricingResponse['packs'][number];
 
@@ -38,6 +41,10 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
   const [autoTopup, setAutoTopup] = React.useState<boolean | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [redirecting, setRedirecting] = React.useState(false);
+  // ADR 0036: a first purchase over the §17 limit waits for staff; a purchase that puts
+  // money at risk on a stored card asks an owner or admin for a second factor first.
+  const [inReview, setInReview] = React.useState(false);
+  const [needsMfa, setNeedsMfa] = React.useState(false);
 
   const canBuy = ws.workspace?.role === 'owner' || ws.workspace?.role === 'admin';
   const selected = packs.find((p) => p.id === packId) ?? null;
@@ -55,6 +62,7 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
   async function pay() {
     if (!selected || redirecting || !canBuy) return;
     setError(null);
+    setNeedsMfa(false);
     setRedirecting(true);
     try {
       const res = await createCheckout(api, {
@@ -62,12 +70,19 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
         ...(agentId ? { agent_id: agentId } : {}),
         ...(threshold !== null ? { auto_topup: { enabled: topupOn, ...(topupOn ? { threshold } : {}) } } : {}),
       });
+      if (res.status === 'in_review' || !res.checkout_url) {
+        track('purchase_review_requested', { pack_id: selected.id });
+        setInReview(true);
+        setRedirecting(false);
+        return;
+      }
       if (agentId) checkoutMarker.set({ purchaseId: res.purchase_id, agentId, packId: selected.id, startedAt: Date.now() });
       track('pack_selected', { pack_id: selected.id, ...(agentId ? { agent_id: agentId } : {}), auto_topup: topupOn, from: agentId ? 'wizard' : 'wallet' });
       window.location.assign(res.checkout_url);
       // Stay in the redirecting state: the page is being replaced.
     } catch (e) {
-      setError(errorMessage(e, t));
+      if (isApiError(e, 'MFA_REQUIRED')) setNeedsMfa(true);
+      else setError(errorMessage(e, t));
       setRedirecting(false);
     }
   }
@@ -111,8 +126,22 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
               </Field>
             ) : null}
             {error ? <Alert variant="danger">{error}</Alert> : null}
+            {inReview ? <Alert variant="info" title={tp('reviewTitle')}>{tp('reviewBody')}</Alert> : null}
+            {needsMfa ? (
+              <Alert
+                variant="warning"
+                title={tp('mfaTitle')}
+                actions={
+                  <Button size="sm" asChild>
+                    <Link href={withNext(routes.mfa, currentPathWithQuery())}>{tp('mfaAction')}</Link>
+                  </Button>
+                }
+              >
+                {tp('mfaBody')}
+              </Alert>
+            ) : null}
             <div className="flex flex-wrap items-center gap-3">
-              <Button size="lg" onClick={() => void pay()} disabled={!canBuy || redirecting} loading={redirecting}>
+              <Button size="lg" onClick={() => void pay()} disabled={!canBuy || redirecting || inReview} loading={redirecting}>
                 {redirecting ? null : <CreditCard />} {redirecting ? tp('redirecting') : tp('pay', { price: formatMoney(selected.price_cents, selected.currency) })}
               </Button>
               <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">

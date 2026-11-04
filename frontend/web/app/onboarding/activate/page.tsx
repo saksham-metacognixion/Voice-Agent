@@ -5,6 +5,7 @@ import type { AgentDetail } from '@portal/schemas';
 import { Alert, Button } from '@portal/ui';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import type { PurchaseStatus } from '@portal/schemas';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
@@ -74,7 +75,7 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
   const [retryError, setRetryError] = React.useState<string | null>(null);
   const [patienceOver, setPatienceOver] = React.useState(false);
   /** What the API said about the checkout after asking Stripe; null until it has answered. */
-  const [confirmed, setConfirmed] = React.useState<'pending' | 'paid' | 'abandoned' | 'refunded' | null>(null);
+  const [confirmed, setConfirmed] = React.useState<PurchaseStatus | null>(null);
   const [confirmError, setConfirmError] = React.useState<string | null>(null);
   const confirming = React.useRef(false);
   const refetchActivation = React.useRef(activation.refetch);

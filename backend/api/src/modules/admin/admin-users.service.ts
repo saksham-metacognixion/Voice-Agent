@@ -88,6 +88,13 @@ export class AdminUsersService {
     return { user: await this.get(user.id), provider };
   }
 
+  /** Best effort, logged: the action it follows has happened whatever the provider says. */
+  private async forgetDevices(user: { id: string; authProviderId: string }): Promise<void> {
+    await this.auth0.forgetRememberedDevices(user.authProviderId).catch((error: unknown) => {
+      this.log.error(`remembered devices of ${user.id} not forgotten: ${String(error)}`);
+    });
+  }
+
   async resetMfa(
     staff: StaffContext,
     idRaw: string,
@@ -96,6 +103,9 @@ export class AdminUsersService {
   ): Promise<AdminUserActionResponse> {
     const user = await this.load(idRaw);
     const provider = await this.provider(() => this.auth0.resetMfa(user.authProviderId));
+    // ADR 0036 §4: a reset second factor also ends every "remember this device" — a
+    // browser trusted under the old factor must not skip the next one.
+    await this.forgetDevices(user);
     await this.commit(
       user,
       'user.mfa_reset',
@@ -128,6 +138,7 @@ export class AdminUsersService {
     let providerError: string | null = null;
     try {
       sessions = await this.auth0.revokeSessions(user.authProviderId);
+      await this.forgetDevices(user);
     } catch (error) {
       sessions = 'failed';
       providerError = 'The account is locked, but the identity provider did not revoke its sessions. Tokens already issued are refused by the API; force logout to retry the revoke.';

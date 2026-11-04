@@ -15,6 +15,7 @@ export const REQUIRED_ROLES = 'auth:roles';
 export const REQUIRED_STAFF_ROLES = 'auth:staff-roles';
 export const REQUIRE_EMAIL_VERIFIED = 'auth:email-verified';
 export const ALLOW_IMPERSONATION_WRITE = 'auth:allow-impersonation-write';
+export const ALLOW_WITHOUT_MFA = 'auth:allow-without-mfa';
 
 /** No token at all: webhooks (§16), health, and the public pricing/flags reads. */
 export const Public = (): CustomDecorator => SetMetadata(IS_PUBLIC, true);
@@ -40,6 +41,15 @@ export const RequireEmailVerified = (): CustomDecorator =>
  * session is not itself refused as a write.
  */
 export const AllowImpersonationWrite = (): CustomDecorator => SetMetadata(ALLOW_IMPERSONATION_WRITE, true);
+
+/**
+ * §6.2 / ADR 0036: this write stays open to an owner or admin who has not passed a second
+ * factor while the workspace has money at risk. For the few routes that lower the risk or
+ * ask for help — turning auto top-up *off* (the service still demands the factor to turn it
+ * on), and writing to support. Everything else that changes something is refused by
+ * `WorkspaceGuard` with `403 MFA_REQUIRED`.
+ */
+export const AllowWithoutMfa = (): CustomDecorator => SetMetadata(ALLOW_WITHOUT_MFA, true);
 
 /** ctx = {userId, workspaceId, role} — the §6.2 request context. */
 export const Ctx = createParamDecorator(

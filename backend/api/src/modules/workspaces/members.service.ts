@@ -14,7 +14,7 @@ import { AppError } from '../../common/errors/app-error';
 import { portalUrl } from '../../common/env';
 import { NotificationsService } from '../notifications';
 import { inviteLink, renderInviteEmail } from './invite-email';
-import type { AuthenticatedUser, WorkspaceContext } from '../auth';
+import { type AuthenticatedUser, type WorkspaceContext, assertTermsAccepted } from '../auth';
 
 /** A8: "Token single-use, 7-day TTL." */
 export const INVITE_TTL_MS = 7 * 86_400_000;
@@ -48,7 +48,7 @@ export class MembersService {
     const rows = await withWorkspace(ctx, (db) =>
       db.membership.findMany({
         where: { tenantId: ctx.workspaceId },
-        include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
+        include: { user: { select: { id: true, email: true, name: true, avatarUrl: true, mfaEnabled: true, lastActiveAt: true } } },
         orderBy: { createdAt: 'asc' },
       }),
     );
@@ -60,6 +60,8 @@ export class MembersService {
       avatar_url: row.user.avatarUrl,
       role: row.role,
       joined_at: row.createdAt.toISOString(),
+      last_active_at: row.user.lastActiveAt?.toISOString() ?? null,
+      mfa_enabled: row.user.mfaEnabled,
     }));
   }
 
@@ -74,7 +76,7 @@ export class MembersService {
     const updated = await withWorkspace(ctx, async (db) => {
       const membership = await db.membership.findFirst({
         where: { id: membershipId, tenantId: ctx.workspaceId },
-        include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
+        include: { user: { select: { id: true, email: true, name: true, avatarUrl: true, mfaEnabled: true, lastActiveAt: true } } },
       });
       if (!membership) throw AppError.notFound('Member');
 
@@ -89,7 +91,7 @@ export class MembersService {
       const row = await db.membership.update({
         where: { id: membershipId },
         data: { role: input.role },
-        include: { user: { select: { id: true, email: true, name: true, avatarUrl: true } } },
+        include: { user: { select: { id: true, email: true, name: true, avatarUrl: true, mfaEnabled: true, lastActiveAt: true } } },
       });
       await this.audit(db, ctx, 'member.role_changed', membership.userId, { from: membership.role, to: input.role });
       return row;
@@ -103,6 +105,8 @@ export class MembersService {
       avatar_url: updated.user.avatarUrl,
       role: updated.role,
       joined_at: updated.createdAt.toISOString(),
+      last_active_at: updated.user.lastActiveAt?.toISOString() ?? null,
+      mfa_enabled: updated.user.mfaEnabled,
     };
   }
 
@@ -347,6 +351,24 @@ export class MembersService {
   }
 
   /**
+   * GET /invites/:token/hint — A8 "sign up/login with email pre-filled and locked to
+   * invitee address" (ADR 0036 §7). Public: the person has no session yet, which is the
+   * point. The token is the authorisation — it was mailed to that address, so handing the
+   * address back to whoever holds it tells them nothing they could not read in the email.
+   * Every refusal is the same `INVITE_INVALID`: an expired, used or made-up token learns
+   * nothing about whether it ever existed. The lock that matters stays in `acceptInvite`,
+   * which refuses any other signed-in address.
+   */
+  async inviteHint(token: string): Promise<{ email: string }> {
+    const tokenHash = hashToken(token);
+    const invite = await adminDb.invite.findUnique({ where: { tokenHash }, select: { tokenHash: true, email: true, expiresAt: true, acceptedAt: true } });
+    if (!invite || !constantTimeEqual(invite.tokenHash, tokenHash) || invite.acceptedAt || invite.expiresAt.getTime() < Date.now()) {
+      throw new AppError('INVITE_INVALID', 'That invite link is not valid.');
+    }
+    return { email: invite.email.toLowerCase() };
+  }
+
+  /**
    * POST /invites/:token/accept — A8 "Join workspace".
    *
    * Runs on `adminDb` and nothing else could: the caller is, by definition, not yet a
@@ -360,6 +382,8 @@ export class MembersService {
    */
   async acceptInvite(user: AuthenticatedUser, token: string, ip?: string): Promise<AcceptInviteResponse> {
     const tokenHash = hashToken(token);
+    // §6.3 A1 (ADR 0036): joining is one of the three doors the Terms gate.
+    await assertTermsAccepted(user.userId);
 
     return adminDb.$transaction(async (tx) => {
       const invite = await tx.invite.findUnique({

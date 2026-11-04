@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@portal/schemas';
 import { nanpNumber } from './d5-fixtures';
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
@@ -114,7 +115,7 @@ export interface CallWorkspace {
 export async function createCallWorkspace(label: string, overrides: { tier?: 'standard' | 'premium'; maxCallDurationS?: number } = {}): Promise<CallWorkspace> {
   const run = randomUUID().slice(0, 8);
   const tenant = await adminDb.tenant.create({ data: { name: `${label} ${run}`, country: 'CA', timezone: 'America/Toronto' } });
-  const user = await adminDb.user.create({ data: { authProviderId: `auth0|${label}-${run}`, email: `${label}-${run}@example.test`, name: label } });
+  const user = await adminDb.user.create({ data: { authProviderId: `auth0|${label}-${run}`, email: `${label}-${run}@example.test`, name: label, tosVersion: TERMS_VERSION, tosAcceptedAt: new Date() } });
   await adminDb.membership.create({ data: { tenantId: tenant.id, userId: user.id, role: 'owner' } });
   const retellAgentId = `agent_${run}${'0'.repeat(18)}`.slice(0, 26);
   const agent = await adminDb.agent.create({

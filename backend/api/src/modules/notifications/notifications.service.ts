@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: EffectiveSettings = { new_message: 'instant', low
 export interface DeliverInput {
   workspaceId: string;
   userId: string | null;
-  kind: 'low_balance' | 'rental_overdue' | 'number_released' | 'daily_digest' | 'auto_topup_failed' | 'invite';
+  kind: 'low_balance' | 'rental_overdue' | 'number_released' | 'daily_digest' | 'auto_topup_failed' | 'invite' | 'purchase_review';
   /** Exactly-once key. Same key → the second call is a `duplicate` and sends nothing. */
   dedupeKey: string;
   email: OutboundEmail;

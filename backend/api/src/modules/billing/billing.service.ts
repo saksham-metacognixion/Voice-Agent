@@ -1,8 +1,19 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
-import { Prisma, adminDb, withWorkspace, type PlanTier } from '@portal/db';
-import { type AutoTopup, type CheckoutConfirmResponse, type CheckoutRequest, type CheckoutResponse, type PricingConfig, type PricingPack, planTier as planTierEnum } from '@portal/schemas';
+import { Prisma, adminDb, isUniqueViolation, withWorkspace, type PlanTier } from '@portal/db';
+import {
+  type AutoTopup,
+  type CheckoutConfirmResponse,
+  type CheckoutRequest,
+  type CheckoutResponse,
+  FIRST_PURCHASE_REVIEW_TRIGGER,
+  type PricingConfig,
+  type PricingPack,
+  planTier as planTierEnum,
+  purchaseNeedsReview,
+} from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import type { WorkspaceContext } from '../auth';
+import { OpsAlertService } from '../alerts';
+import { type WorkspaceContext, WorkspaceMfaService, assertTermsAccepted } from '../auth';
 import { PlatformConfigService } from '../config';
 import { WalletService, addMonths } from '../wallet/wallet.service';
 import { type CheckoutSessionFacts, StripeGateway } from './stripe.gateway';
@@ -41,6 +52,8 @@ export class BillingService {
     private readonly stripe: StripeGateway,
     private readonly config: PlatformConfigService,
     @Inject(forwardRef(() => WalletService)) private readonly wallet: WalletService,
+    private readonly mfa: WorkspaceMfaService,
+    private readonly alerts: OpsAlertService,
   ) {}
 
   /** §13.8: the activation module starts the go-live job from here when W7's session carried `agent_id`. */
@@ -64,6 +77,8 @@ export class BillingService {
     if (await this.config.killSwitch('pause_purchases')) {
       throw new AppError('PURCHASES_PAUSED', 'Purchases are paused for a few minutes. Please try again shortly.');
     }
+    // §6.3 A1 (ADR 0036): paying is one of the three doors the Terms gate.
+    await assertTermsAccepted(ctx.userId);
     const found = await this.config.purchasablePack(body.pack_id);
     if (!found) throw new AppError('PACK_UNAVAILABLE', 'That pack is not available.');
     const { pack, configVersion } = found;
@@ -89,23 +104,54 @@ export class BillingService {
       if (!agent) throw AppError.notFound('Agent');
     }
 
-    const buyer = await adminDb.user.findUnique({ where: { id: ctx.userId }, select: { email: true } });
+    const credits = pack.credits + pack.bonus_credits;
 
-    // 1. The pending purchase is the durable record; its id is the Stripe client_reference_id.
-    const purchase = await withWorkspace(ctx, (db) =>
-      db.purchase.create({
-        data: {
-          tenantId: ctx.workspaceId,
-          packId: pack.id,
-          amountCents: pack.price_cents,
-          currency: pack.currency,
-          credits: pack.credits + pack.bonus_credits,
-          status: 'pending',
-          promoCode: body.promo_code,
-        },
-        select: { id: true },
-      }),
-    );
+    // §6.2 (ADR 0036): with a card already on file, a purchase that leaves money at risk
+    // (a balance over the threshold, auto top-up on) needs a second factor *before* it
+    // charges that card. A first purchase types a card in at Stripe, so it is not asked —
+    // the rule binds the very next change instead.
+    if (tenant.stripeCustomerId) {
+      const balance = await this.wallet.balance(ctx.workspaceId);
+      await this.mfa.assert(
+        { workspaceId: ctx.workspaceId, role: ctx.role, mfa: ctx.mfa ?? false },
+        { balance: balance + credits, ...(body.auto_topup?.enabled ? { autoTopupEnabled: true } : {}) },
+      );
+    }
+
+    // §17 "manual review flag for > $1,000 first purchase" (ADR 0036 §3). The amount is the
+    // published pack's, never the request's. A purchase that needs review either rides an
+    // approval staff already gave for this pack at this price, or waits for one: no Stripe
+    // session exists until then, so nothing can be charged, replayed or webhooked past it.
+    const { policy } = await this.config.walletPolicy();
+    const hasPaidBefore = (await adminDb.purchase.count({ where: { tenantId: ctx.workspaceId, status: { in: ['paid', 'refunded'] } } })) > 0;
+    const needsReview = purchaseNeedsReview({ hasPaidBefore, amountCents: pack.price_cents, limitCents: policy.max_first_purchase_cents_without_review });
+
+    let purchase: { id: string };
+    let fromApproval = false;
+    if (needsReview) {
+      const approved = await this.takeApproval(ctx.workspaceId, pack);
+      if (!approved) return this.requestReview(ctx, pack, credits);
+      purchase = approved;
+      fromApproval = true;
+    } else {
+      // 1. The pending purchase is the durable record; its id is the Stripe client_reference_id.
+      purchase = await withWorkspace(ctx, (db) =>
+        db.purchase.create({
+          data: {
+            tenantId: ctx.workspaceId,
+            packId: pack.id,
+            amountCents: pack.price_cents,
+            currency: pack.currency,
+            credits,
+            status: 'pending',
+            promoCode: body.promo_code,
+          },
+          select: { id: true },
+        }),
+      );
+    }
+
+    const buyer = await adminDb.user.findUnique({ where: { id: ctx.userId }, select: { email: true } });
 
     // 2. The Stripe Price from the SA5 sync when it exists; inline price data until then.
     const priceMap = await adminDb.stripePriceMap.findFirst({
@@ -116,7 +162,8 @@ export class BillingService {
 
     // 3. Stripe, with no transaction open. If Stripe refuses, the purchase must not stay
     //    `pending`: with no session there will never be a `checkout.session.expired` to
-    //    abandon it, and SA9 would list a ghost forever.
+    //    abandon it, and SA9 would list a ghost forever. An approved purchase goes back to
+    //    `approved`, so the approval is not lost to a Stripe outage.
     let session: { id: string; url: string };
     try {
       session = await this.stripe.createCheckoutSession({
@@ -131,16 +178,101 @@ export class BillingService {
         agentId: body.agent_id,
       });
     } catch (error) {
-      await withWorkspace(ctx, (db) => db.purchase.update({ where: { id: purchase.id }, data: { status: 'abandoned' } })).catch((e) =>
-        this.log.error(`purchase ${purchase.id}: Stripe failed and the row could not be abandoned: ${String(e)}`),
-      );
+      await adminDb.purchase
+        .updateMany({ where: { id: purchase.id, status: 'pending' }, data: { status: fromApproval ? 'approved' : 'abandoned' } })
+        .catch((e) => this.log.error(`purchase ${purchase.id}: Stripe failed and the row could not be released: ${String(e)}`));
       throw error;
     }
 
     // 4. Remember the session so expiry and support can find the purchase from Stripe's side.
-    await withWorkspace(ctx, (db) => db.purchase.update({ where: { id: purchase.id }, data: { stripeSessionId: session.id } }));
+    await withWorkspace(ctx, async (db) => {
+      await db.purchase.update({ where: { id: purchase.id }, data: { stripeSessionId: session.id } });
+      // §6.2 audit (ADR 0036 §9): who started paying for what, and from where.
+      await db.auditLog.create({
+        data: {
+          tenantId: ctx.workspaceId,
+          actorUserId: ctx.userId,
+          action: 'purchase.checkout_started',
+          targetType: 'purchase',
+          targetId: purchase.id,
+          ip: ctx.ip ?? null,
+          metaJson: { pack_id: pack.id, amount_cents: pack.price_cents, currency: pack.currency, credits, reviewed: fromApproval } as Prisma.InputJsonValue,
+        },
+      });
+    });
 
-    return { checkout_url: session.url, purchase_id: purchase.id };
+    return { checkout_url: session.url, purchase_id: purchase.id, status: 'checkout' };
+  }
+
+  /**
+   * The approved first purchase for exactly this pack at exactly this price, moved to
+   * `pending` by a conditional update so two tabs cannot both take it. Null when there is
+   * none — a pack whose price changed after approval needs a review of its own.
+   */
+  private async takeApproval(workspaceId: string, pack: PricingPack): Promise<{ id: string } | null> {
+    const approved = await adminDb.purchase.findFirst({
+      where: { tenantId: workspaceId, status: 'approved', packId: pack.id, amountCents: pack.price_cents, currency: pack.currency, review: { status: 'approved' } },
+      select: { id: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (!approved) return null;
+    const taken = await adminDb.purchase.updateMany({ where: { id: approved.id, status: 'approved' }, data: { status: 'pending', stripeSessionId: null } });
+    return taken.count === 1 ? approved : null;
+  }
+
+  /**
+   * Files the §17 review: an `in_review` purchase and its open `fraud_reviews` row in one
+   * transaction, plus the workspace's audit row. One open review per workspace
+   * (`fraud_reviews_one_open_first_purchase_idx`): a second request — another tab, a
+   * retry, a different pack — answers with the one already waiting. Ops is told after the
+   * commit; the customer is emailed by staff's decision.
+   */
+  private async requestReview(ctx: WorkspaceContext, pack: PricingPack, credits: number): Promise<CheckoutResponse> {
+    const open = () =>
+      adminDb.fraudReview.findFirst({ where: { tenantId: ctx.workspaceId, trigger: FIRST_PURCHASE_REVIEW_TRIGGER, status: 'open' }, select: { id: true, purchaseId: true } });
+    const existing = await open();
+    if (existing?.purchaseId) return { checkout_url: null, purchase_id: existing.purchaseId, status: 'in_review' };
+
+    let created: { reviewId: string; purchaseId: string };
+    try {
+      created = await adminDb.$transaction(async (tx) => {
+        const purchase = await tx.purchase.create({
+          data: { tenantId: ctx.workspaceId, packId: pack.id, amountCents: pack.price_cents, currency: pack.currency, credits, status: 'in_review' },
+          select: { id: true },
+        });
+        const review = await tx.fraudReview.create({
+          data: { tenantId: ctx.workspaceId, trigger: FIRST_PURCHASE_REVIEW_TRIGGER, status: 'open', purchaseId: purchase.id, amountCents: pack.price_cents, currency: pack.currency },
+          select: { id: true },
+        });
+        await tx.auditLog.create({
+          data: {
+            tenantId: ctx.workspaceId,
+            actorUserId: ctx.userId,
+            action: 'purchase.review_requested',
+            targetType: 'purchase',
+            targetId: purchase.id,
+            ip: ctx.ip ?? null,
+            metaJson: { pack_id: pack.id, amount_cents: pack.price_cents, currency: pack.currency, credits, review_id: review.id } as Prisma.InputJsonValue,
+          },
+        });
+        return { reviewId: review.id, purchaseId: purchase.id };
+      });
+    } catch (error) {
+      // Lost the race to a concurrent request: theirs is the open review.
+      if (!isUniqueViolation(error)) throw error;
+      const winner = await open();
+      if (!winner?.purchaseId) throw error;
+      return { checkout_url: null, purchase_id: winner.purchaseId, status: 'in_review' };
+    }
+
+    void this.alerts.send({
+      kind: 'purchase_review_requested',
+      severity: 'warning',
+      title: 'A first purchase is waiting for review',
+      fields: { workspace_id: ctx.workspaceId, purchase_id: created.purchaseId, review_id: created.reviewId, pack_id: pack.id, amount_cents: pack.price_cents, currency: pack.currency },
+    });
+    this.log.warn(`purchase ${created.purchaseId} (${pack.price_cents} ${pack.currency}, first for ${ctx.workspaceId}) is waiting for review ${created.reviewId}`);
+    return { checkout_url: null, purchase_id: created.purchaseId, status: 'in_review' };
   }
 
   /**
@@ -275,6 +407,20 @@ export class BillingService {
         return { outcome: 'ignored' as const, reason: 'workspace mismatch' };
       }
       if (purchase.status === 'paid' || purchase.status === 'refunded') return { outcome: 'already_paid' as const, purchaseId };
+      if (purchase.status === 'in_review' || purchase.status === 'approved' || purchase.status === 'rejected') {
+        // No session is ever made for these (ADR 0036 §3); a paid one here is not ours to credit.
+        this.log.error(`session ${session.id}: purchase ${purchaseId} is ${purchase.status}; refusing to credit`);
+        return { outcome: 'ignored' as const, reason: `purchase is ${purchase.status}` };
+      }
+      // §17 backstop: a first purchase over the limit is credited only with an approved
+      // review, however its session came to exist (an older build, a hand-made session).
+      // Stripe has the money, so the row stays `pending` for SA9 like an amount mismatch.
+      const unreviewed = await this.unreviewedFirstPurchase(tx, purchase, policy.max_first_purchase_cents_without_review);
+      if (unreviewed) {
+        this.log.error(`session ${session.id}: purchase ${purchaseId} is a first purchase over the review limit with no approval; refusing to credit`);
+        await tx.purchase.update({ where: { id: purchaseId }, data: { stripeSessionId: purchase.stripeSessionId ?? session.id, stripePaymentIntent: session.payment_intent, failureReason: 'review_required' } });
+        return { outcome: 'review_required' as const, purchaseId };
+      }
 
       const mismatch = amountMismatch(session, purchase);
       if (mismatch) {
@@ -309,9 +455,30 @@ export class BillingService {
       });
 
       await this.applyPlanTier(tx, workspaceId, pricing.config, session.customer);
+      // §6.2 purchase audit (ADR 0036 §9). Inside the crediting transaction: a replay
+      // stops at `already_paid` above, so a purchase completes once in the log too.
+      await tx.auditLog.create({
+        data: {
+          tenantId: workspaceId,
+          actorUserId: null,
+          action: 'purchase.completed',
+          targetType: 'purchase',
+          targetId: purchaseId,
+          metaJson: { via: 'checkout', pack_id: purchase.packId, amount_cents: purchase.amountCents, currency: purchase.currency, credits: purchase.credits } as Prisma.InputJsonValue,
+        },
+      });
       return { outcome: 'credited' as const, purchaseId, credits: purchase.credits, balance: write.balance_after };
     });
 
+    if (result.outcome === 'review_required') {
+      void this.alerts.send({
+        kind: 'purchase_review_bypassed',
+        severity: 'critical',
+        title: 'A paid first purchase over the review limit was not credited',
+        fields: { workspace_id: workspaceId, purchase_id: purchaseId, session_id: session.id },
+      });
+      return { outcome: 'ignored', reason: 'first purchase needs review' };
+    }
     if (result.outcome !== 'credited') return result;
 
     // Post-commit, best effort, network allowed: caps cache, saved card, invoice link.
@@ -325,15 +492,42 @@ export class BillingService {
     return result;
   }
 
-  /** `checkout.session.expired` (and a failed delayed payment): a pending purchase is abandoned. */
+  /**
+   * `checkout.session.expired` (and a failed delayed payment): a pending purchase is
+   * abandoned. One that staff approved (ADR 0036 §3) goes back to `approved` instead, so
+   * a customer who closed the Stripe tab can pay later without a second review.
+   */
   async abandon(session: CheckoutSessionFacts): Promise<FulfilmentOutcome> {
     const ids = this.identify(session);
     if ('reason' in ids) return { outcome: 'ignored', reason: ids.reason };
+    const review = await adminDb.fraudReview.findUnique({ where: { purchaseId: ids.purchaseId }, select: { status: true } });
+    const approved = review?.status === 'approved';
     const updated = await adminDb.purchase.updateMany({
       where: { id: ids.purchaseId, tenantId: ids.workspaceId, status: 'pending' },
-      data: { status: 'abandoned', stripeSessionId: session.id },
+      data: approved ? { status: 'approved', stripeSessionId: null } : { status: 'abandoned', stripeSessionId: session.id },
     });
+    if (updated.count && !approved) {
+      await adminDb.auditLog
+        .create({ data: { tenantId: ids.workspaceId, actorUserId: null, action: 'purchase.abandoned', targetType: 'purchase', targetId: ids.purchaseId, metaJson: { session_status: session.status } as Prisma.InputJsonValue } })
+        .catch((e) => this.log.warn(`purchase ${ids.purchaseId}: abandon not audited: ${String(e)}`));
+    }
     return updated.count ? { outcome: 'unpaid', purchaseId: ids.purchaseId } : { outcome: 'ignored', reason: 'purchase not pending' };
+  }
+
+  /**
+   * True when crediting this purchase would skip the §17 review: it is the workspace's
+   * first paid purchase, over the limit, and no approved review names it.
+   */
+  private async unreviewedFirstPurchase(
+    tx: Prisma.TransactionClient,
+    purchase: { id: string; tenantId: string; amountCents: number; isAutoTopup: boolean },
+    limitCents: number,
+  ): Promise<boolean> {
+    if (purchase.isAutoTopup) return false;
+    const hasPaidBefore = (await tx.purchase.count({ where: { tenantId: purchase.tenantId, id: { not: purchase.id }, status: { in: ['paid', 'refunded'] } } })) > 0;
+    if (!purchaseNeedsReview({ hasPaidBefore, amountCents: purchase.amountCents, limitCents })) return false;
+    const review = await tx.fraudReview.findUnique({ where: { purchaseId: purchase.id }, select: { status: true } });
+    return review?.status !== 'approved';
   }
 
   // ------------------------------------------------------------------ helpers

@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@portal/schemas';
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -59,7 +60,7 @@ afterAll(async () => {
 
 async function addMember(tenantId: string, role: 'admin' | 'editor' | 'viewer'): Promise<string> {
   const run = randomUUID().slice(0, 8);
-  const user = await adminDb.user.create({ data: { authProviderId: `auth0|data-req-${role}-${run}`, email: `data-req-${role}-${run}@example.test`, name: `Data ${role}` } });
+  const user = await adminDb.user.create({ data: { authProviderId: `auth0|data-req-${role}-${run}`, email: `data-req-${role}-${run}@example.test`, name: `Data ${role}`, tosVersion: TERMS_VERSION, tosAcceptedAt: new Date() } });
   await adminDb.membership.create({ data: { tenantId, userId: user.id, role } });
   return user.authProviderId;
 }

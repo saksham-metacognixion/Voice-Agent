@@ -13,6 +13,7 @@ import {
   QUEUES,
   type QueueName,
   type RecoverCallJob,
+  type LiftSignInBlockJob,
   type CallKnowledgeJob,
   type ForwardingTestJob,
   type RefreshNumberJob,
@@ -326,6 +327,20 @@ export class JobQueues implements OnApplicationShutdown {
       { ...REPAIR_JOB_OPTIONS, attempts: 1, delay: RECOVER_CALL_DELAY_MS, jobId: `recover-${safeId(callId)}` },
       250,
     );
+  }
+
+  /**
+   * ADR 0036 §8: lift one brute-force block once its 15 minutes are up. Rides the
+   * `webhooks` queue because it follows from a stored log entry. The id is the log
+   * entry's, so the stream re-sending a batch queues nothing twice.
+   */
+  enqueueLiftSignInBlock(job: LiftSignInBlockJob, delayMs: number): Promise<EnqueueResult> {
+    return this.add<LiftSignInBlockJob>(QUEUES.webhooks, JOBS.liftSignInBlock, job, {
+      ...REPAIR_JOB_OPTIONS,
+      attempts: 5,
+      delay: Math.max(0, delayMs),
+      jobId: `unblock-${safeId(job.logId)}`,
+    });
   }
 
   /**

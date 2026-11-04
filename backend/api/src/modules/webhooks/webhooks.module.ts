@@ -1,9 +1,9 @@
 import { Module, type OnModuleInit } from '@nestjs/common';
 import type { Job } from 'bullmq';
-import { AuthModule } from '../auth';
+import { AccountEventsService, AuthModule } from '../auth';
 import { BillingModule } from '../billing';
 import { CallsModule } from '../calls';
-import { JOBS, JobHandlerRegistry, type ProcessWebhookJob, QUEUES, type RecoverCallJob } from '../jobs';
+import { JOBS, JobHandlerRegistry, type LiftSignInBlockJob, type ProcessWebhookJob, QUEUES, type RecoverCallJob } from '../jobs';
 import { RetellModule } from '../retell';
 import { CallRecoveryService } from './call-recovery.service';
 import { FixtureWriter } from './fixture-writer.service';
@@ -39,6 +39,7 @@ export class WebhooksModule implements OnModuleInit {
     private readonly registry: JobHandlerRegistry,
     private readonly processing: WebhookProcessingService,
     private readonly recovery: CallRecoveryService,
+    private readonly accountEvents: AccountEventsService,
   ) {}
 
   onModuleInit(): void {
@@ -47,6 +48,9 @@ export class WebhooksModule implements OnModuleInit {
     );
     this.registry.register<RecoverCallJob>(QUEUES.webhooks, JOBS.recoverCall, (job: Job<RecoverCallJob>) =>
       this.recovery.recoverOne(job.data.callId),
+    );
+    this.registry.register<LiftSignInBlockJob>(QUEUES.webhooks, JOBS.liftSignInBlock, (job: Job<LiftSignInBlockJob>) =>
+      this.accountEvents.liftSignInBlock(job.data),
     );
   }
 }

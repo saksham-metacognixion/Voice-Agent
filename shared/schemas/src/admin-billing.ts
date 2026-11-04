@@ -266,3 +266,39 @@ export const adminKbResponse = z.object({
   updated_at: isoDateTime,
 });
 export type AdminKbResponse = z.infer<typeof adminKbResponse>;
+
+// ---------------------------------------------------------------------- purchase reviews
+
+/*
+ * §17 "manual review flag for > $1,000 first purchase" (ADR 0036 §3). A first purchase
+ * over `wallet_policy.max_first_purchase_cents_without_review` waits `in_review` with no
+ * Stripe session; staff approve (the customer may then pay) or reject (nothing was
+ * charged). Every decision carries a reason code and lands in `staff_audit_log`.
+ */
+export const adminPurchaseReviewsQuery = paginationQuery.extend({
+  status: z.enum(['open', 'approved', 'rejected']).optional(),
+  tenant_id: uuid.optional(),
+});
+export type AdminPurchaseReviewsQuery = z.infer<typeof adminPurchaseReviewsQuery>;
+
+export const adminPurchaseReview = z.object({
+  id: uuid,
+  tenant_id: uuid,
+  tenant_name: z.string(),
+  tenant_country: z.string(),
+  purchase_id: uuid.nullable(),
+  purchase_status: purchaseStatus.nullable(),
+  pack_id: z.string().nullable(),
+  amount_cents: z.number().int().nullable(),
+  currency: z.string().nullable(),
+  credits: z.number().int().nullable(),
+  status: z.enum(['open', 'approved', 'rejected']),
+  /** The workspace's age and who asked — what a reviewer weighs. */
+  tenant_created_at: isoDateTime,
+  requested_by_email: z.string().nullable(),
+  reviewer_email: z.string().nullable(),
+  decision_note: z.string().nullable(),
+  decided_at: isoDateTime.nullable(),
+  created_at: isoDateTime,
+});
+export type AdminPurchaseReview = z.infer<typeof adminPurchaseReview>;

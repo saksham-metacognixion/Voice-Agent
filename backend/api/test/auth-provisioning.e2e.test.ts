@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@portal/schemas';
 import { randomUUID } from 'node:crypto';
 import { adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -109,9 +110,17 @@ describe('the registration webhook was missed', () => {
     expect(rows[0]).toMatchObject({ email: p.email, name: p.name });
   });
 
-  it('a provisioned person can go straight on to create a workspace (A4)', async () => {
+  it('a provisioned person can go straight on to create a workspace (A4) once they accept the Terms (A1)', async () => {
     const p = person('missed-a4');
     const token = await customerTenant.mint(p.sub, { email: p.email });
+    // ADR 0036 §6: the Terms screen comes first, whatever path made the row.
+    const terms = await app.inject({
+      method: 'POST',
+      url: '/me/terms',
+      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      payload: JSON.stringify({ version: TERMS_VERSION, accepted: true }),
+    });
+    expect(terms.statusCode).toBe(201);
     const res = await app.inject({
       method: 'POST',
       url: '/workspaces',

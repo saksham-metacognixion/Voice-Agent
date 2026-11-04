@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import * as React from 'react';
 import { useAuth } from '@/src/auth/auth-provider';
+import { InvitedAs, useInvitedEmail } from '@/src/auth/invite-hint';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RedirectIfSignedIn } from '@/src/guards/guards';
 import { readQuery } from '@/src/lib/query-string';
@@ -27,6 +28,7 @@ function LoginInner() {
   // Carried to "Create an account" too: an invitee without an account signs up from here,
   // and dropping `next` sent them to set up a workspace instead of the invite (BUG-008, QA-003).
   const [next, setNext] = React.useState('');
+  const invited = useInvitedEmail(next);
 
   React.useEffect(() => {
     setReason(readQuery().get('reason'));
@@ -36,7 +38,7 @@ function LoginInner() {
   async function go() {
     setBusy(true);
     try {
-      await auth.login({ returnTo: safeNext(readQuery().get('next'), routes.root) });
+      await auth.login({ returnTo: safeNext(readQuery().get('next'), routes.root), ...(invited ? { loginHint: invited } : {}) });
     } catch {
       setBusy(false);
     }
@@ -62,6 +64,7 @@ function LoginInner() {
             {t('auth.login.failedHint', { reason: auth.error })}
           </Alert>
         ) : null}
+        {invited ? <InvitedAs email={invited} /> : null}
         <Button size="lg" onClick={go} loading={busy} disabled={!auth.configured} className="w-full">
           {busy ? t('auth.login.redirecting') : t('auth.login.cta')}
         </Button>

@@ -70,12 +70,15 @@ clients:
       - '##PORTAL_ALT_URL?##'
     cross_origin_authentication: false
     # Refresh Token Rotation — without it a SPA cannot hold a session past the access token.
+    # §6.2 "30-day sliding expiry" (ADR 0036 §1): 30 days idle, so a person who uses the
+    # portal stays signed in, with a 90-day absolute ceiling after which they sign in
+    # again whatever their activity. Each refresh rotates the token (reuse = revocation).
     refresh_token:
       rotation_type: rotating
       expiration_type: expiring
       leeway: 30
-      token_lifetime: 2592000
-      idle_token_lifetime: 1209600
+      token_lifetime: 7776000
+      idle_token_lifetime: 2592000
       infinite_token_lifetime: false
       infinite_idle_token_lifetime: false
     jwt_configuration:
@@ -88,8 +91,12 @@ resourceServers:
     # second API and orphans every token minted for the first one.
     identifier: '##AUTH0_CUSTOMER_AUDIENCE##'
     signing_alg: RS256
-    token_lifetime: 86400
-    token_lifetime_for_web: 7200
+    # §6.2 "Short-lived JWT (≤ 15 min)" (ADR 0036 §1). The SPA renews through its rotating
+    # refresh token, so a short access token costs one silent token call per quarter hour.
+    # The API refuses an older `iat` regardless (AUTH_CUSTOMER_MAX_TOKEN_AGE_S), so this
+    # setting drifting back up cannot lengthen what a stolen token is worth.
+    token_lifetime: 900
+    token_lifetime_for_web: 900
     skip_consent_for_verifiable_first_party_clients: true
     # Refresh tokens for the SPA come from here, not from the client.
     allow_offline_access: true
@@ -108,7 +115,12 @@ databases:
       requires_username: false
       disable_signup: false
       brute_force_protection: true
+      # §6.3 A1 "≥ 10 chars, not in breached list" (ADR 0036 §6). `good` = three of four
+      # character classes; the length is the spec's. The breach check is
+      # breachedPasswordDetection below, blocking at sign-up and at sign-in.
       passwordPolicy: good
+      password_complexity_options:
+        min_length: 10
       # password_history (last 5) and password_no_personal_info are the paid
       # "password-advanced-options" entitlement: the 30 Sep 2026 deploy answered 403
       # feature_not_entitled on this plan. Restore both on a plan that includes them.
@@ -124,12 +136,17 @@ connections:
   # is written by `pnpm auth0:google-picker customer --apply` (docs/runbooks/auth0.md §3).
 
 # §6.2 rate limiting: "login 5 failures / 15 min per email+IP, then CAPTCHA; sign-up
-# 3 / hour / IP". Brute force counts per email+IP and blocks at the fifth failure (Auth0
-# lifts the block on a password reset or from the dashboard — not after 15 minutes; the
-# window is Auth0's, not ours). Sign-up throttling is suspicious-IP throttling's
+# 3 / hour / IP". Brute force counts per email+IP and blocks at the fifth failure. Auth0
+# lifts a block only on the unblock link, a password reset or the dashboard, so the API
+# lifts it 15 minutes after the `limit_wc` log entry (ADR 0036 §8; needs the `portal-audit`
+# log stream and `update:users` on the M2M app). Sign-up throttling is suspicious-IP throttling's
 # pre-user-registration stage: 3 attempts, one regained every 20 minutes (the rate is in
 # milliseconds) = 3 per hour per IP. The CAPTCHA step is Auth0 Bot Detection, an Attack
 # Protection add-on this tenant's plan does not include — recorded, not configured.
+#
+# ADR 0036 §8: CAPTCHA is still owed (Bot Detection is not on this plan) and the fifth
+# failure blocks instead; `user_notification` mails the person an unblock link as well as
+# the 15-minute lift.
 attackProtection:
   bruteForceProtection:
     enabled: true
@@ -137,11 +154,22 @@ attackProtection:
     max_attempts: 5
     shields:
       - block
+      - user_notification
+  # §6.3 A1 "not in breached list" (ADR 0036 §6): refused at sign-up, and a sign-in with a
+  # password found in a breach is blocked until reset. Auth0 matches a hash prefix against
+  # its breach corpus; the password never leaves Auth0 and never reaches us.
   breachedPasswordDetection:
     enabled: true
     method: standard
     shields:
+      - block
+      - user_notification
       - admin_notification
+    stage:
+      pre-user-registration:
+        shields:
+          - block
+          - admin_notification
     # Required by the Management API alongside the admin_notification shield (400
     # "Please provide an admin_notification_frequency" on the 30 Sep 2026 deploy).
     admin_notification_frequency:
@@ -232,6 +260,21 @@ actions:
       - id: post-login
         version: v3
 
+  # §6.3 A6 "all other sessions revoked" (ADR 0036 §5).
+  - name: customer-post-change-password
+    code: ./actions/customer-post-change-password.js
+    dependencies: []
+    deployed: true
+    status: built
+    secrets:
+      - name: API_PUBLIC_URL
+        value: '##API_PUBLIC_URL##'
+      - name: ACTION_SECRET
+        value: '##AUTH0_CUSTOMER_ACTION_SECRET##'
+    supported_triggers:
+      - id: post-change-password
+        version: v2
+
 # Built is not running. This is the binding.
 triggers:
   pre-user-registration:
@@ -243,3 +286,20 @@ triggers:
   post-login:
     - action_name: customer-post-login
       display_name: customer-post-login
+  post-change-password:
+    - action_name: customer-post-change-password
+      display_name: customer-post-change-password
+
+# §6.2 "Audit log: login …" (ADR 0036 §9). Auth0's own record of every sign-in outcome —
+# success, failure, second factor, block, password change, sign-out — streamed to the API,
+# which keeps the ones it audits (`auditActionForLog`) and drops token exchanges. Same
+# shared secret as the Actions, as a bearer header (a stream cannot set x-action-secret).
+logStreams:
+  - name: portal-audit
+    type: http
+    status: active
+    sink:
+      httpEndpoint: '##API_PUBLIC_URL##/webhooks/auth/logs'
+      httpContentType: application/json
+      httpContentFormat: JSONARRAY
+      httpAuthorization: 'Bearer ##AUTH0_CUSTOMER_ACTION_SECRET##'

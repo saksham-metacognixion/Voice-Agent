@@ -3,11 +3,13 @@
 import { Badge, Button, EmptyState, ErrorState, PageLoader } from '@portal/ui';
 import { Building2, ChevronRight, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import * as React from 'react';
 import Link from 'next/link';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { useSwitchWorkspace } from '@/src/components/shell/workspace-switcher';
 import { RequireVerified } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
+import { formatCreditsValue } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
@@ -28,6 +30,11 @@ function SelectInner() {
   // Back to the page that sent the person here, else `/` works out where they belong —
   // the same switch as the header and the account menu (QA-013).
   const choose = (id: string) => switchTo(id, { force: true });
+  // A7: the balance pills are read fresh each time the switcher opens, never a minute-old list.
+  const refetchMemberships = ws.refetchMemberships;
+  React.useEffect(() => {
+    void refetchMemberships();
+  }, [refetchMemberships]);
 
   return (
     <AuthLayout title={t('auth.select.title')} subtitle={t('auth.select.subtitle')}>
@@ -57,7 +64,15 @@ function SelectInner() {
                 <span className="flex size-9 items-center justify-center rounded-md bg-primary/12 text-sm font-semibold uppercase text-accent-foreground">{m.name.slice(0, 1)}</span>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate text-sm font-medium">{m.name}</span>
-                  <Badge variant="outline" className="mt-1 w-fit">{t(`shell.role.${m.role}` as never)}</Badge>
+                  <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Badge variant="outline" className="w-fit">{t(`shell.role.${m.role}` as never)}</Badge>
+                    {/* A7 balance pill (§6.3): that workspace's own balance, from the list the API answered. */}
+                    {m.balance !== null ? (
+                      <Badge variant={m.balance <= 0 ? 'danger' : 'default'} className="w-fit tabular-nums">
+                        {t('shell.balance', { credits: formatCreditsValue(m.balance) })}
+                      </Badge>
+                    ) : null}
+                  </span>
                 </span>
                 <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
               </button>

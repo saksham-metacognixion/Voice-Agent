@@ -114,7 +114,14 @@
       "pro": "Pro",
       "volume": "Volume"
     },
-    "balanceAria": "Balance: {credits} credits. Open the wallet."
+    "balanceAria": "Balance: {credits} credits. Open the wallet.",
+    "mfaBanner": {
+      "title": "Two-factor verification needed",
+      "auto_topup": "Auto top-up is on, so owners and admins verify with an authenticator app before changing anything.",
+      "balance": "The balance is high, so owners and admins verify with an authenticator app before changing anything.",
+      "action": "Verify now"
+    },
+    "viewOnly": "You have view-only access to this workspace. Ask an owner or admin if you need to change something."
   },
   "auth": {
     "brand": "From conversation to action.",
@@ -141,7 +148,7 @@
       "cta": "Create account",
       "haveAccount": "Already have an account?",
       "signIn": "Sign in",
-      "terms": "By continuing you agree to the Terms of Service and Privacy Policy."
+      "terms": "You will read and accept the Terms of Service and Privacy Policy before you start."
     },
     "verify": {
       "title": "Confirm your email",
@@ -151,7 +158,14 @@
       "checking": "Checking…",
       "stillUnverified": "Your email is not confirmed yet. Give the link a moment, then try again.",
       "spam": "Not in your inbox? Check the spam folder.",
-      "useAnother": "Use a different account"
+      "useAnother": "Use a different account",
+      "resend": "Resend email",
+      "resendIn": "Resend in {seconds} s",
+      "resent": "Sent. Check your inbox at {email}.",
+      "resendFailed": "We could not send the email. Try again in a moment.",
+      "resendLimited": "You have asked for several emails. You can ask again in {seconds} s.",
+      "alreadyVerified": "Your email is already confirmed.",
+      "expired": "Link expired or lost? Send a new one."
     },
     "forgot": {
       "title": "Reset your password",
@@ -178,7 +192,14 @@
       "onHint": "Two-factor authentication is on. Every sign-in asks for a code from your authenticator app.",
       "enable": "Set up two-factor",
       "verifying": "You will be asked to sign in again and enrol an authenticator app.",
-      "done": "Two-factor authentication is on. You will be asked for a code from your authenticator app each time you sign in."
+      "done": "Two-factor authentication is on. You will be asked for a code from your authenticator app each time you sign in.",
+      "verifyNow": "Verify with two-factor now",
+      "verifyHint": "This session has not been verified with your authenticator app. Owners and admins need that while auto top-up is on or the balance is high.",
+      "rememberHint": "On the code screen you can tick “Remember this device” to skip the code on this browser for 30 days.",
+      "forgetTitle": "Remembered devices",
+      "forgetBody": "Devices you chose to remember skip the code for 30 days. Forget them all if one was lost or shared.",
+      "forget": "Forget remembered devices",
+      "forgetDone": "Done. Every remembered device will ask for a code at its next sign-in."
     },
     "callback": {
       "title": "Signing you in…",
@@ -207,7 +228,9 @@
       "website": "Website",
       "cta": "Create workspace",
       "creating": "Creating…",
-      "trialNote": "You start with 20 free credits for browser test calls."
+      "trialNote": "You start with 20 free credits for browser test calls.",
+      "comingSoon": "{country} (coming soon)",
+      "launchNote": "We are live in the United States and Canada first. Other countries are coming soon."
     },
     "invite": {
       "title": "Join workspace",
@@ -231,6 +254,21 @@
     "configMissing": {
       "title": "Sign-in is not configured on this build",
       "body": "{vars} must be set at build time."
+    },
+    "invited": {
+      "as": "Invited as {email}",
+      "hint": "This invitation is for {email}. Sign in or create your account with that address. Another address cannot accept it."
+    },
+    "terms": {
+      "title": "Before you start",
+      "body": "Read and accept our Terms of Service and Privacy Policy to use Oraly.",
+      "updated": "Our Terms of Service or Privacy Policy have changed. Read them and accept to continue.",
+      "checkbox": "I have read and agree to the Terms of Service and the Privacy Policy.",
+      "termsLink": "Terms of Service",
+      "privacyLink": "Privacy Policy",
+      "accept": "Continue",
+      "accepting": "Saving…",
+      "version": "Version {version}"
     }
   },
   "errors": {
@@ -280,7 +318,8 @@
     "ORIGIN_NOT_ALLOWED": "That request came from a page we do not recognise. Reload the portal and try again.",
     "WORKSPACE_REQUIRED": "Choose a workspace and try again.",
     "INVALID_CURSOR": "This page of results is out of date. Go back to the first page.",
-    "MFA_REQUIRED": "Sign in again with two-factor authentication to continue.",
+    "MFA_REQUIRED": "Owners and admins verify with two-factor authentication for this while auto top-up is on or the balance is high. Verify, then try again.",
+    "MFA_STILL_REQUIRED": "Two-step verification stays on while you are an owner or admin of a workspace with auto top-up on or a high balance.",
     "AGENT_IN_USE": "A phone number still answers with this agent. Move or release the number first.",
     "PUBLISH_IN_PROGRESS": "This agent is being published. Try again in a moment.",
     "VERSION_IMMUTABLE": "This version is published and can no longer be changed. Your edit starts a new draft.",
@@ -334,7 +373,9 @@
     "NO_PRIOR_CONTACT": "Your agent can only call back someone who called you recently.",
     "OUTSIDE_CALLING_WINDOW": "It is outside the legal calling hours where this person lives.",
     "OUTBOUND_DAILY_CAP": "You have placed every callback your plan allows today. Try again tomorrow.",
-    "OUTBOUND_IN_PROGRESS": "A callback to this person is already in progress. Wait until it ends."
+    "OUTBOUND_IN_PROGRESS": "A callback to this person is already in progress. Wait until it ends.",
+    "TERMS_NOT_ACCEPTED": "Accept the Terms of Service and Privacy Policy to continue.",
+    "TOKEN_EXPIRED": "Your session needed refreshing. Try again."
   },
   "validation": {
     "required": "Required",
@@ -1202,7 +1243,12 @@
         "topupHint": "Buy another {pack} pack when your balance falls to {threshold} credits, so your agent never stops answering.",
         "pay": "Pay {price} and go live",
         "redirecting": "Opening secure checkout…",
-        "secure": "Secure checkout by Stripe"
+        "secure": "Secure checkout by Stripe",
+        "reviewTitle": "Your purchase is being reviewed",
+        "reviewBody": "We review a first purchase over $1,000 before taking payment. Nothing has been charged. We will email you, usually within one business day.",
+        "mfaTitle": "Verify with two-factor first",
+        "mfaBody": "This purchase puts money at risk, so owners and admins verify with an authenticator app first.",
+        "mfaAction": "Verify now"
       },
       "progress": {
         "connecting": "Connecting…",
@@ -2406,10 +2452,15 @@
         "body": "Everyone who can open this workspace.",
         "label": "Workspace members",
         "you": "You",
+        "neverActive": "Not yet",
+        "mfaOn": "On",
+        "mfaOff": "Off",
         "columns": {
           "name": "Name",
           "email": "Email",
           "role": "Role",
+          "lastActive": "Last active",
+          "mfa": "Two-factor",
           "joined": "Joined",
           "actions": "Actions"
         },
@@ -2507,9 +2558,26 @@
         "endSession": "Sign out",
         "endTitle": "Sign out {device}?",
         "endBody": "Anyone using it will have to sign in again.",
-        "endWindow": "It can keep working for up to two hours, until the access it already holds expires.",
+        "endWindow": "It can keep working for up to 15 minutes, until the access it already holds expires.",
         "endConfirm": "Sign out device",
-        "ended": "Device signed out"
+        "ended": "Device signed out",
+        "mfaOff": "Turn off",
+        "mfaOffTitle": "Turn off two-step verification?",
+        "mfaOffBody": "You confirm with a code from your authenticator app first.",
+        "mfaOffPassword": "Signing in will ask for your password only.",
+        "mfaOffDevices": "Browsers you chose to remember are forgotten.",
+        "mfaOffConfirm": "Turn off two-step verification",
+        "mfaOffDone": "Two-step verification is off.",
+        "methodsTitle": "Ways you sign in",
+        "methodsBody": "The accounts you can use to sign in to Oraly.",
+        "methodsUnavailable": "Your sign-in methods cannot be listed in this environment.",
+        "methodsNone": "No sign-in methods found.",
+        "methods": {
+          "password": "Email and password",
+          "google": "Google",
+          "microsoft": "Microsoft",
+          "other": "Other ({connection})"
+        }
       },
       "dataRequests": {
         "exportTitle": "Export your data",

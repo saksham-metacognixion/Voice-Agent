@@ -29,6 +29,19 @@ export const COUNTRIES: Array<{ code: string; name: string }> = [
   { code: 'JP', name: 'Japan' },
 ];
 
+/**
+ * §6.3 A3 "Country — US, CA at launch; others 'coming soon'" (ADR 0036 §10). The workspace
+ * country chooses packs, numbers and the default allowed caller countries, so A3 offers
+ * only these; the rest are listed, disabled. §20 item 4 (whether India joins) is still the
+ * owner's: adding a country here is the whole change. Number and outbound settings keep the
+ * full `COUNTRIES` list — callers ring from anywhere.
+ */
+export const LAUNCH_COUNTRIES: readonly string[] = ['US', 'CA'];
+
+export function isLaunchCountry(code: string | null | undefined): boolean {
+  return Boolean(code && LAUNCH_COUNTRIES.includes(code.toUpperCase()));
+}
+
 const regions = new Map<string, Intl.DisplayNames | null>();
 
 /** The country's name in the portal's language ("Canada", "كندا"), the English name when the runtime has none. */

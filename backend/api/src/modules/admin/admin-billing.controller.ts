@@ -9,11 +9,13 @@ import {
   type AdminDeferredReport,
   type AdminFailedTopup,
   type AdminPurchaseDetail,
+  type AdminPurchaseReview,
   type AdminTopupRetryResponse,
   type Page,
   adminFailedTopupsQuery,
   adminKpisQuery,
   adminPurchasesQuery,
+  adminPurchaseReviewsQuery,
   adminRefundRequest,
   staffActionRequest,
   STAFF_ROUTE_ROLES,
@@ -21,6 +23,7 @@ import {
 import { StaffCtx, StaffRoles } from '../auth';
 import type { StaffContext } from '../auth';
 import { AdminBillingService } from './admin-billing.service';
+import { AdminPurchaseReviewsService } from './admin-purchase-reviews.service';
 import { AdminReportsService } from './admin-reports.service';
 
 /*
@@ -37,7 +40,27 @@ export class AdminBillingController {
   constructor(
     private readonly billing: AdminBillingService,
     private readonly reports: AdminReportsService,
+    private readonly reviews: AdminPurchaseReviewsService,
   ) {}
+
+  /** §17 first-purchase reviews (ADR 0036 §3). Reads: any staff. */
+  @Get('purchase-reviews')
+  purchaseReviews(@Query() query: Record<string, unknown>): Promise<Page<AdminPurchaseReview>> {
+    return this.reviews.list(adminPurchaseReviewsQuery.parse(query));
+  }
+
+  /** A fraud decision, so the commercial roles — not the support desk. */
+  @Post('purchase-reviews/:id/approve')
+  @StaffRoles(...STAFF_ROUTE_ROLES.commercial)
+  approveReview(@StaffCtx() staff: StaffContext, @Param('id') id: string, @Body() body: unknown, @Req() request: FastifyRequest): Promise<AdminPurchaseReview> {
+    return this.reviews.decide(staff, id, 'approve', staffActionRequest.parse(body), request);
+  }
+
+  @Post('purchase-reviews/:id/reject')
+  @StaffRoles(...STAFF_ROUTE_ROLES.commercial)
+  rejectReview(@StaffCtx() staff: StaffContext, @Param('id') id: string, @Body() body: unknown, @Req() request: FastifyRequest): Promise<AdminPurchaseReview> {
+    return this.reviews.decide(staff, id, 'reject', staffActionRequest.parse(body), request);
+  }
 
   @Get('purchases')
   purchases(@Query() query: Record<string, unknown>): Promise<Page<AdminBillingPurchase>> {

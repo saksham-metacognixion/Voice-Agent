@@ -8,7 +8,7 @@ import {
   invoicesQuery,
   portalSessionRequest,
 } from '@portal/schemas';
-import { Ctx, Roles } from '../auth';
+import { AllowWithoutMfa, Ctx, Roles } from '../auth';
 import type { WorkspaceContext } from '../auth';
 import { AutoTopupService } from './auto-topup.service';
 import { BillingService } from './billing.service';
@@ -32,9 +32,13 @@ export class BillingController {
     private readonly invoices: InvoicesService,
   ) {}
 
-  /** §5.4 D5 "Auto top-up". */
+  /**
+   * §5.4 D5 "Auto top-up". Open to an owner without a second factor so the switch can
+   * always be turned *off*; turning it on asks for the factor in the service (ADR 0036).
+   */
   @Put('auto-topup')
   @Roles('owner', 'admin')
+  @AllowWithoutMfa()
   autoTopup(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<AutoTopup> {
     return this.topups.update(ctx, autoTopupRequest.parse(body));
   }

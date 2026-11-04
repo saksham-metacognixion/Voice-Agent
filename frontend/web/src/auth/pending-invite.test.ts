@@ -84,3 +84,13 @@ describe('pendingInvite', () => {
     expect(() => pendingInvite.clear()).not.toThrow();
   });
 });
+
+describe('inviteTokenFrom (A8 pre-fill, ADR 0036 §7)', () => {
+  it('reads the token from an /invite/ next only', async () => {
+    const { inviteTokenFrom } = await import('./pending-invite');
+    expect(inviteTokenFrom('/invite/?token=abc123')).toBe('abc123');
+    expect(inviteTokenFrom('/app/?token=abc123')).toBeNull();
+    expect(inviteTokenFrom('https://evil.example/invite/?token=abc')).toBeNull();
+    expect(inviteTokenFrom('//evil.example/invite/?token=abc')).toBeNull();
+  });
+});

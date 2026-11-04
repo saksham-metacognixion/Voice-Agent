@@ -8,6 +8,11 @@ export { isDisposableEmail } from './disposable-email';
 export { ImpersonationTokenService, IMPERSONATION_PREFIX, IMPERSONATION_TTL_S } from './impersonation-token';
 export type { ImpersonationClaims } from './impersonation-token';
 export { Auth0ManagementService } from './auth0-management.service';
+export { WorkspaceMfaService } from './workspace-mfa.service';
+export { assertTermsAccepted } from './terms';
+export { recordAccountEvent } from './account-audit';
+export { AccountEventsService } from './account-events.service';
+export { auditActionForLog, signInBlockLift, SIGN_IN_BLOCK_MS } from './auth-log-events';
 export type { ProviderUserFacts } from './auth0-management.service';
 export type { AuthUpsertOutcome } from './users.service';
 export {
@@ -17,6 +22,7 @@ export {
   StaffRoles,
   RequireEmailVerified,
   AllowImpersonationWrite,
+  AllowWithoutMfa,
   Ctx,
   StaffCtx,
 } from './auth.decorators';

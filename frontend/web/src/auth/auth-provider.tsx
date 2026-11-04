@@ -63,7 +63,7 @@ interface AuthContextValue {
   login: (opts?: LoginOptions) => Promise<void>;
   /** Ends the Auth0 session and returns to the origin, which routes to /login. */
   logout: () => Promise<void>;
-  getToken: () => Promise<string | null>;
+  getToken: (options?: { fresh?: boolean }) => Promise<string | null>;
   /** Re-mint the session and re-read claims (email_verified, mfa). Returns the fresh user. */
   refresh: () => Promise<AuthUser | null>;
   configured: boolean;
@@ -93,7 +93,9 @@ function toUser(u: User | undefined): AuthUser | null {
     name: u.name ?? u.nickname ?? null,
     picture: u.picture ?? null,
     emailVerified: u.email_verified === true,
-    mfa: u[CLAIM_MFA_ENROLLED] === true || amr.includes('mfa'),
+    // The claim when the Action stamped one (it is right after a factor is removed, when
+    // `amr` can still show `mfa`); `amr` only for a token from an older Action build.
+    mfa: typeof u[CLAIM_MFA_ENROLLED] === 'boolean' ? u[CLAIM_MFA_ENROLLED] === true : amr.includes('mfa'),
     sessionId: typeof u.sid === 'string' ? u.sid : null,
   };
 }
@@ -231,13 +233,13 @@ export function AuthProvider({ children, onSignedIn }: { children: React.ReactNo
     await client().logout({ logoutParams: { returnTo: origin() } });
   }, []);
 
-  const getToken = React.useCallback(async (): Promise<string | null> => {
+  const getToken = React.useCallback(async (options?: { fresh?: boolean }): Promise<string | null> => {
     const stored = impersonationStore.get();
     if (stored) return stored.key;
     if (impersonating) throw new AuthRequiredError();
     if (!authConfigured) return null;
     try {
-      return (await client().getTokenSilently()) ?? null;
+      return (await client().getTokenSilently(options?.fresh ? { cacheMode: 'off' } : undefined)) ?? null;
     } catch (e) {
       const code = (e as { error?: string }).error;
       if (code === 'login_required' || code === 'consent_required' || code === 'missing_refresh_token' || code === 'invalid_grant') {

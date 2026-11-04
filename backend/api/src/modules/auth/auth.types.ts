@@ -8,6 +8,8 @@ export interface AuthenticatedUser {
   email: string;
   emailVerified: boolean;
   mfa: boolean;
+  /** Epoch seconds this session last passed a second factor (`https://portal/mfa_at`), or null. */
+  mfaAt?: number | null;
 }
 
 /** Spec §6.2 — what the middleware attaches once the membership is loaded. */
@@ -15,6 +17,11 @@ export interface WorkspaceContext {
   userId: string;
   workspaceId: string;
   role: MemberRole;
+  /**
+   * This request's session passed a second factor (`https://portal/mfa`). Read by the §6.2
+   * money-at-risk rule (ADR 0036). Absent off the request path.
+   */
+  mfa?: boolean;
   /**
    * The client address, set once by `WorkspaceGuard` from the request, so every
    * `audit_log` row a request writes carries it (QA-074). Absent off the request path

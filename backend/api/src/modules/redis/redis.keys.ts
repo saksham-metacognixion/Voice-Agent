@@ -20,6 +20,8 @@
  *   ratelimit:widget:{key}  website widget calls this hour, per widget (D17)
  *   ratelimit:widget-ip:{key}:{ip}  website widget calls from one visitor address (D17)
  *   ratelimit:data-export:{ws}  D6 "Export all data" zips started this hour (QA-081)
+ *   ratelimit:verify-email:{user}  A2 "Resend": the 60-second cooldown, value = when it started (ADR 0036)
+ *   ratelimit:verify-email:{user}:{hour}  A2 "Resend": sends in one clock hour, at most 5 (ADR 0036)
  *   alert:platform_concurrency  the open platform-wide concurrency incident (D7)
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
  *
@@ -82,6 +84,10 @@ export const redisKeys = {
   widgetIpWindow: (key: string, ip: string) => `ratelimit:widget-ip:{${key}}:${ip}`,
   /** QA-081: D6 "Export all data" archives started in the current hour, per workspace — each reads every section. */
   dataExportWindow: (workspaceId: string) => `ratelimit:data-export:{${workspaceId}}`,
+  /** A2 "Resend" cooldown for one person; the value is the epoch ms it started (ADR 0036). */
+  verifyEmailCooldown: (userId: string) => `ratelimit:verify-email:{${userId}}`,
+  /** A2 "Resend" sends in one clock hour (`hour` = epoch hours) for one person (ADR 0036). */
+  verifyEmailHour: (userId: string, hour: number) => `ratelimit:verify-email:{${userId}}:${hour}`,
   /** §6.2 / D14: API requests from one client IP in one fixed minute (`window` = epoch minute). */
   apiRequestWindow: (ip: string, window: number) => `ratelimit:api:${ip}:${window}`,
   /**

@@ -29,6 +29,11 @@ export const config = {
      */
     statusPageUrl: safeHttpsUrl(process.env.NEXT_PUBLIC_STATUS_PAGE_URL),
   },
+  /** §6.3 A1 (ADR 0036): what the Terms screen links to. `https:` only; the oraly.ai pages by default. */
+  legal: {
+    termsUrl: safeHttpsUrl(process.env.NEXT_PUBLIC_TERMS_URL) || 'https://oraly.ai/terms',
+    privacyUrl: safeHttpsUrl(process.env.NEXT_PUBLIC_PRIVACY_URL) || 'https://oraly.ai/privacy',
+  },
 } as const;
 
 /** An `https:` URL, or '' — a build-time value that is not one is dropped rather than linked. */

@@ -78,6 +78,62 @@
         ],
         "type": "object"
       },
+      "accountResponse": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "email_verified": {
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mfa": {
+            "type": "boolean"
+          },
+          "name": {
+            "nullable": true,
+            "type": "string"
+          },
+          "terms": {
+            "properties": {
+              "accepted_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "accepted_version": {
+                "nullable": true,
+                "type": "string"
+              },
+              "current_version": {
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "current_version",
+              "accepted_version",
+              "accepted_at",
+              "required"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "name",
+          "email_verified",
+          "mfa",
+          "terms"
+        ],
+        "type": "object"
+      },
       "accountSessionsResponse": {
         "properties": {
           "available": {
@@ -649,7 +705,10 @@
               "pending",
               "paid",
               "abandoned",
-              "refunded"
+              "refunded",
+              "in_review",
+              "approved",
+              "rejected"
             ],
             "type": "string"
           },
@@ -2399,7 +2458,10 @@
               "pending",
               "paid",
               "abandoned",
-              "refunded"
+              "refunded",
+              "in_review",
+              "approved",
+              "rejected"
             ],
             "type": "string"
           },
@@ -6801,7 +6863,10 @@
               "pending",
               "paid",
               "abandoned",
-              "refunded"
+              "refunded",
+              "in_review",
+              "approved",
+              "rejected"
             ],
             "type": "string"
           },
@@ -6890,7 +6955,10 @@
               "pending",
               "paid",
               "abandoned",
-              "refunded"
+              "refunded",
+              "in_review",
+              "approved",
+              "rejected"
             ],
             "type": "string"
           },
@@ -6926,6 +6994,111 @@
           "invoice_url",
           "created_at",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "adminPurchaseReview": {
+        "properties": {
+          "amount_cents": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credits": {
+            "nullable": true,
+            "type": "integer"
+          },
+          "currency": {
+            "nullable": true,
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "decision_note": {
+            "nullable": true,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pack_id": {
+            "nullable": true,
+            "type": "string"
+          },
+          "purchase_id": {
+            "format": "uuid",
+            "nullable": true,
+            "type": "string"
+          },
+          "purchase_status": {
+            "enum": [
+              "pending",
+              "paid",
+              "abandoned",
+              "refunded",
+              "in_review",
+              "approved",
+              "rejected"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "requested_by_email": {
+            "nullable": true,
+            "type": "string"
+          },
+          "reviewer_email": {
+            "nullable": true,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "approved",
+              "rejected"
+            ],
+            "type": "string"
+          },
+          "tenant_country": {
+            "type": "string"
+          },
+          "tenant_created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tenant_id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenant_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "tenant_id",
+          "tenant_name",
+          "tenant_country",
+          "purchase_id",
+          "purchase_status",
+          "pack_id",
+          "amount_cents",
+          "currency",
+          "credits",
+          "status",
+          "tenant_created_at",
+          "requested_by_email",
+          "reviewer_email",
+          "decision_note",
+          "decided_at",
+          "created_at"
         ],
         "type": "object"
       },
@@ -13462,6 +13635,23 @@
         ],
         "type": "object"
       },
+      "authLogStreamReceived": {
+        "properties": {
+          "received": {
+            "type": "boolean"
+          },
+          "stored": {
+            "exclusiveMinimum": false,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "received",
+          "stored"
+        ],
+        "type": "object"
+      },
       "autoTopup": {
         "properties": {
           "card_last4": {
@@ -14521,7 +14711,10 @@
               "pending",
               "paid",
               "abandoned",
-              "refunded"
+              "refunded",
+              "in_review",
+              "approved",
+              "rejected"
             ],
             "type": "string"
           }
@@ -14575,16 +14768,25 @@
         "properties": {
           "checkout_url": {
             "format": "uri",
+            "nullable": true,
             "type": "string"
           },
           "purchase_id": {
             "format": "uuid",
             "type": "string"
+          },
+          "status": {
+            "enum": [
+              "checkout",
+              "in_review"
+            ],
+            "type": "string"
           }
         },
         "required": [
           "checkout_url",
-          "purchase_id"
+          "purchase_id",
+          "status"
         ],
         "type": "object"
       },
@@ -15280,6 +15482,17 @@
         ],
         "type": "object"
       },
+      "forgetDevicesResponse": {
+        "properties": {
+          "forgotten": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "forgotten"
+        ],
+        "type": "object"
+      },
       "forwardingGuide": {
         "properties": {
           "carrier": {
@@ -15629,6 +15842,17 @@
         "required": [
           "agent_id",
           "sip"
+        ],
+        "type": "object"
+      },
+      "inviteHintResponse": {
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
         ],
         "type": "object"
       },
@@ -16342,6 +16566,14 @@
             "format": "date-time",
             "type": "string"
           },
+          "last_active_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "mfa_enabled": {
+            "type": "boolean"
+          },
           "name": {
             "nullable": true,
             "type": "string"
@@ -16367,7 +16599,20 @@
           "name",
           "avatar_url",
           "role",
-          "joined_at"
+          "joined_at",
+          "last_active_at",
+          "mfa_enabled"
+        ],
+        "type": "object"
+      },
+      "mfaDisableResponse": {
+        "properties": {
+          "disabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "disabled"
         ],
         "type": "object"
       },
@@ -18856,6 +19101,42 @@
         ],
         "type": "object"
       },
+      "signInMethodsResponse": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "methods": {
+            "items": {
+              "properties": {
+                "connection": {
+                  "type": "string"
+                },
+                "method": {
+                  "enum": [
+                    "password",
+                    "google",
+                    "microsoft",
+                    "other"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "method",
+                "connection"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "available",
+          "methods"
+        ],
+        "type": "object"
+      },
       "sipVerifyRequest": {
         "properties": {
           "host": {
@@ -19564,6 +19845,49 @@
         ],
         "type": "object"
       },
+      "termsAcceptRequest": {
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "version": {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "accepted"
+        ],
+        "type": "object"
+      },
+      "termsStatus": {
+        "properties": {
+          "accepted_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "accepted_version": {
+            "nullable": true,
+            "type": "string"
+          },
+          "current_version": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "current_version",
+          "accepted_version",
+          "accepted_at",
+          "required"
+        ],
+        "type": "object"
+      },
       "testPhoneCallRequest": {
         "properties": {
           "to": {
@@ -20001,6 +20325,27 @@
         ],
         "type": "object"
       },
+      "verificationEmailResponse": {
+        "properties": {
+          "retry_after_s": {
+            "exclusiveMinimum": false,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "sent",
+              "already_verified"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "retry_after_s"
+        ],
+        "type": "object"
+      },
       "voicePreviewRequest": {
         "properties": {
           "text": {
@@ -20364,6 +20709,11 @@
       },
       "workspaceMembershipSummary": {
         "properties": {
+          "balance": {
+            "default": null,
+            "nullable": true,
+            "type": "number"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -20479,6 +20829,32 @@
           "kb_allowance": {
             "type": "integer"
           },
+          "mfa": {
+            "properties": {
+              "reasons": {
+                "items": {
+                  "enum": [
+                    "auto_topup",
+                    "balance"
+                  ],
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "satisfied": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "required",
+              "satisfied",
+              "reasons"
+            ],
+            "type": "object"
+          },
           "name": {
             "type": "string"
           },
@@ -20561,6 +20937,7 @@
           "paused",
           "paused_reason",
           "role",
+          "mfa",
           "created_at"
         ],
         "type": "object"
@@ -28332,6 +28709,381 @@
         ]
       }
     },
+    "/admin/purchase-reviews": {
+      "get": {
+        "description": "Spec §17, ADR 0036.",
+        "operationId": "adminListPurchaseReviews",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "open",
+                "approved",
+                "rejected"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenant_id",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "items": {
+                        "$ref": "#/components/schemas/adminPurchaseReview"
+                      },
+                      "type": "array"
+                    },
+                    "next_cursor": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next_cursor"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "One page (§16 cursor pagination)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "§17 first purchases over the review limit, open and decided",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/purchase-reviews/{id}/approve": {
+      "post": {
+        "description": "Spec §17, ADR 0036.",
+        "operationId": "adminApprovePurchaseReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminPurchaseReview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Approve a first purchase over the limit: the customer may now pay for it",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance"
+        ]
+      }
+    },
+    "/admin/purchase-reviews/{id}/reject": {
+      "post": {
+        "description": "Spec §17, ADR 0036.",
+        "operationId": "adminRejectPurchaseReview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminPurchaseReview"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Reject a first purchase over the limit: nothing was charged, the customer is told",
+        "tags": [
+          "admin-billing"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance"
+        ]
+      }
+    },
     "/admin/purchases": {
       "get": {
         "description": "Spec admin §4 SA9.",
@@ -28378,7 +29130,10 @@
                 "pending",
                 "paid",
                 "abandoned",
-                "refunded"
+                "refunded",
+                "in_review",
+                "approved",
+                "rejected"
               ],
               "type": "string"
             }
@@ -38651,9 +39406,10 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED}",
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, TERMS_NOT_ACCEPTED}",
             "x-error-codes": [
-              "EMAIL_UNVERIFIED"
+              "EMAIL_UNVERIFIED",
+              "TERMS_NOT_ACCEPTED"
             ]
           },
           "409": {
@@ -38681,6 +39437,53 @@
         ],
         "x-auth": "user",
         "x-email-verified": true
+      }
+    },
+    "/invites/{token}/hint": {
+      "get": {
+        "description": "Spec §6.3 A8.",
+        "operationId": "inviteHint",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/inviteHintResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVITE_INVALID}",
+            "x-error-codes": [
+              "INVITE_INVALID"
+            ]
+          }
+        },
+        "security": [],
+        "summary": "A8 public — the invited address, so sign-in and sign-up open with it filled in",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "public"
       }
     },
     "/invites/{token}/preview": {
@@ -39273,6 +40076,454 @@
           "knowledge"
         ],
         "x-auth": "workspace"
+      }
+    },
+    "/me": {
+      "get": {
+        "description": "Spec §6.3.",
+        "operationId": "getAccount",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/accountResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "The signed-in person: email, verification, this session’s second factor, Terms status",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
+      }
+    },
+    "/me/devices/forget": {
+      "post": {
+        "description": "Spec §6.3 A4.",
+        "operationId": "forgetRememberedDevices",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/forgetDevicesResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED, UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "NOT_CONFIGURED",
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A4 — every remembered device asks for the second factor again",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
+      }
+    },
+    "/me/mfa/disable": {
+      "post": {
+        "description": "Spec §10 D6 Security.",
+        "operationId": "disableMfa",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/mfaDisableResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY, MFA_REQUIRED}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY",
+              "MFA_REQUIRED"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_STILL_REQUIRED}",
+            "x-error-codes": [
+              "MFA_STILL_REQUIRED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED, UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "NOT_CONFIGURED",
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 — turn two-factor off, after a fresh challenge",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
+      }
+    },
+    "/me/sign-in-methods": {
+      "get": {
+        "description": "Spec §10 D6 Security.",
+        "operationId": "getSignInMethods",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/signInMethodsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D6 — the sign-in methods linked to this person",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
+      }
+    },
+    "/me/terms": {
+      "post": {
+        "description": "Spec §6.3 A1.",
+        "operationId": "acceptTerms",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/termsAcceptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/termsStatus"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A1 — accept the Terms of Service and Privacy Policy in force (409 for another version)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
+      }
+    },
+    "/me/verification-email": {
+      "post": {
+        "description": "Spec §6.3 A2.",
+        "operationId": "resendVerificationEmail",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/verificationEmailResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {IMPERSONATION_READ_ONLY}",
+            "x-error-codes": [
+              "IMPERSONATION_READ_ONLY"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {RATE_LIMITED}",
+            "x-error-codes": [
+              "RATE_LIMITED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED, UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "NOT_CONFIGURED",
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "A2 — send the verification email again (60-second cooldown, 5 an hour)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "user"
       }
     },
     "/members": {
@@ -42204,9 +43455,10 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, NOT_A_MEMBER, WORKSPACE_PAUSED}",
             "x-error-codes": [
               "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
               "NOT_A_MEMBER",
               "WORKSPACE_PAUSED"
             ]
@@ -42307,11 +43559,13 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, MFA_REQUIRED, NOT_A_MEMBER, TERMS_NOT_ACCEPTED, WORKSPACE_PAUSED}",
             "x-error-codes": [
               "EMAIL_UNVERIFIED",
               "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
               "NOT_A_MEMBER",
+              "TERMS_NOT_ACCEPTED",
               "WORKSPACE_PAUSED"
             ]
           },
@@ -42360,7 +43614,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "§13.7 — a hosted Checkout session for a pack",
+        "summary": "§13.7 — a hosted Checkout session for a pack, or `in_review` for a first purchase over the §17 limit",
         "tags": [
           "wallet"
         ],
@@ -43104,6 +44358,51 @@
         },
         "security": [],
         "summary": "Auth0 Post-User-Registration / Post-Login → users upsert",
+        "tags": [
+          "webhooks"
+        ],
+        "x-auth": "webhook:auth0",
+        "x-client": false
+      }
+    },
+    "/webhooks/auth/logs": {
+      "post": {
+        "operationId": "auth0LogStream",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Auth0Secret"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/authLogStreamReceived"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "204": {
+            "description": "Duplicate of an event already processed — nothing to do (§13.10)."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_SIGNATURE}",
+            "x-error-codes": [
+              "INVALID_SIGNATURE"
+            ]
+          }
+        },
+        "security": [],
+        "summary": "Auth0 log stream → sign-in audit rows (ADR 0036 §9)",
         "tags": [
           "webhooks"
         ],
@@ -44481,9 +45780,10 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED}",
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, TERMS_NOT_ACCEPTED}",
             "x-error-codes": [
-              "EMAIL_UNVERIFIED"
+              "EMAIL_UNVERIFIED",
+              "TERMS_NOT_ACCEPTED"
             ]
           },
           "422": {

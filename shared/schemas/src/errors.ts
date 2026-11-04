@@ -43,6 +43,8 @@ export const ErrorCode = {
   UNAUTHENTICATED: 'UNAUTHENTICATED',
   INVALID_TOKEN: 'INVALID_TOKEN',
   INVALID_SIGNATURE: 'INVALID_SIGNATURE',
+  /** §6.2: the access token is older than the 15 minutes a backend token may live. The SPA re-mints and retries once. */
+  TOKEN_EXPIRED: 'TOKEN_EXPIRED',
   /** D17: a forwarding test is for an Option B number — one with the customer's own line forwarded to it. */
   NOT_FORWARDING_NUMBER: 'NOT_FORWARDING_NUMBER',
   // 402
@@ -53,7 +55,19 @@ export const ErrorCode = {
   EMAIL_UNVERIFIED: 'EMAIL_UNVERIFIED',
   FORBIDDEN_ROLE: 'FORBIDDEN_ROLE',
   NOT_A_MEMBER: 'NOT_A_MEMBER',
+  /**
+   * Staff: every console sign-in. Customers (§6.2, ADR 0036): an owner or admin of a
+   * workspace with auto top-up on or more than the MFA balance threshold, on a change, in a
+   * session that did not pass a second factor.
+   */
   MFA_REQUIRED: 'MFA_REQUIRED',
+  /**
+   * D6 Security: two-factor cannot be turned off while the person is an owner or admin of
+   * a workspace whose money is at risk — §6.2 requires it of them there.
+   */
+  MFA_STILL_REQUIRED: 'MFA_STILL_REQUIRED',
+  /** §6.3 A1: the current Terms of Service have not been accepted (ADR 0036). */
+  TERMS_NOT_ACCEPTED: 'TERMS_NOT_ACCEPTED',
   OWNER_ONLY: 'OWNER_ONLY',
   STAFF_ONLY: 'STAFF_ONLY',
   STAFF_LIMIT_EXCEEDED: 'STAFF_LIMIT_EXCEEDED',
@@ -191,12 +205,15 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   UNAUTHENTICATED: 401,
   INVALID_TOKEN: 401,
   INVALID_SIGNATURE: 401,
+  TOKEN_EXPIRED: 401,
   NO_CREDITS: 402,
   PURCHASE_REQUIRED: 402,
   EMAIL_UNVERIFIED: 403,
   FORBIDDEN_ROLE: 403,
   NOT_A_MEMBER: 403,
   MFA_REQUIRED: 403,
+  MFA_STILL_REQUIRED: 409,
+  TERMS_NOT_ACCEPTED: 403,
   OWNER_ONLY: 403,
   STAFF_ONLY: 403,
   STAFF_LIMIT_EXCEEDED: 403,

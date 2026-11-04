@@ -25,7 +25,8 @@ beforeAll(async () => {
   app = harness.app;
   retell = harness.retell;
   stop = harness.stop;
-  auth = authFor(harness.customerTenant);
+  // Paid fixtures run past the §6.2 MFA balance threshold; their owners passed a second factor (ADR 0036).
+  auth = authFor(harness.customerTenant, { mfa: true });
   call = caller(app);
 });
 

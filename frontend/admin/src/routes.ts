@@ -82,7 +82,7 @@ export function systemPath(tab: SystemTab = 'health', id?: string): string {
 }
 
 /** SA9 Billing & finance (D13): purchases, failed auto top-ups, the revenue report. */
-export const BILLING_TABS = ['purchases', 'topups', 'revenue', 'cogs', 'deferred', 'breakage'] as const;
+export const BILLING_TABS = ['purchases', 'reviews', 'topups', 'revenue', 'cogs', 'deferred', 'breakage'] as const;
 export type BillingTab = (typeof BILLING_TABS)[number];
 
 export function billingPath(tab: BillingTab = 'purchases', id?: string): string {

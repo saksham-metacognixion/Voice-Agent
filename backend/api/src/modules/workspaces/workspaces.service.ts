@@ -12,7 +12,7 @@ import {
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { decodeCursor, invalidCursor, toPage } from '../../common/pagination';
-import type { AuthenticatedUser, WorkspaceContext } from '../auth';
+import { type AuthenticatedUser, type WorkspaceContext, WorkspaceMfaService, assertTermsAccepted } from '../auth';
 import { PlatformConfigService } from '../config';
 import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService } from '../wallet';
@@ -43,6 +43,7 @@ export class WorkspacesService {
     private readonly wallet: WalletService,
     private readonly config: PlatformConfigService,
     private readonly runtimeCache: RuntimeCacheService,
+    private readonly mfa: WorkspaceMfaService,
   ) {}
 
   /**
@@ -56,6 +57,7 @@ export class WorkspacesService {
    */
   async create(user: AuthenticatedUser, input: CreateWorkspaceRequest, ip?: string): Promise<WorkspaceResponse> {
     assertTimezone(input.timezone);
+    await assertTermsAccepted(user.userId);
     const { policy, configVersion } = await this.config.walletPolicy();
 
     const { workspaceId, reused, writes } = await adminDb.$transaction(
@@ -119,7 +121,7 @@ export class WorkspacesService {
 
     if (reused) {
       this.log.warn(`user ${user.userId} re-submitted "${input.name}"; returning the existing workspace ${workspaceId}`);
-      return this.get({ userId: user.userId, workspaceId, role: 'owner' });
+      return this.get({ userId: user.userId, workspaceId, role: 'owner', mfa: user.mfa });
     }
 
     // After the commit: a `wallet` SSE frame for a balance that then rolled back would be
@@ -133,13 +135,13 @@ export class WorkspacesService {
       .catch((error: unknown) => this.log.warn(`runtime-cache warm for the new workspace failed: ${String(error)}`));
 
     this.log.log(`workspace ${workspaceId} created by ${user.userId} with ${policy.trial_credits} trial credits`);
-    return this.get({ userId: user.userId, workspaceId, role: 'owner' });
+    return this.get({ userId: user.userId, workspaceId, role: 'owner', mfa: user.mfa });
   }
 
   /** GET /workspace — the signed-in workspace, with the caller's own role. */
   async get(ctx: WorkspaceContext): Promise<WorkspaceResponse> {
     const tenant = await withWorkspace(ctx, (db) => db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId } }));
-    return toResponse(tenant, ctx.role);
+    return this.respond(tenant, ctx);
   }
 
   /**
@@ -152,7 +154,7 @@ export class WorkspacesService {
       await db.tenant.updateMany({ where: { id: ctx.workspaceId, onboardingStep: { lt: step } }, data: { onboardingStep: step } });
       return db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId } });
     });
-    return toResponse(tenant, ctx.role);
+    return this.respond(tenant, ctx);
   }
 
   /** PATCH /workspace — D6 Settings. Owner or admin (§6.1 "change workspace settings"). */
@@ -205,7 +207,7 @@ export class WorkspacesService {
         .refresh(ctx.workspaceId)
         .catch((error: unknown) => this.log.warn(`runtime-cache refresh after a settings change failed: ${String(error)}`));
     }
-    return toResponse(tenant, ctx.role);
+    return this.respond(tenant, ctx);
   }
 
   /**
@@ -287,13 +289,32 @@ export class WorkspacesService {
     };
   }
 
-  async listForUser(userId: string): Promise<Array<{ id: string; name: string; role: string }>> {
+  /**
+   * A7 switcher (§6.3): name, role and the balance pill for each membership. Each balance
+   * is that workspace's own `bal:{ws}` (rebuilt from its ledger on a miss), read for this
+   * request — never the active workspace's number carried over. One that cannot be read is
+   * `null`, and the pill is left out rather than showing a wrong figure.
+   */
+  async listForUser(userId: string): Promise<Array<{ id: string; name: string; role: string; balance: number | null }>> {
     const rows = await adminDb.membership.findMany({
       where: { userId },
       include: { tenant: { select: { id: true, name: true } } },
       orderBy: { createdAt: 'asc' },
     });
-    return rows.map((row) => ({ id: row.tenant.id, name: row.tenant.name, role: row.role }));
+    return Promise.all(
+      rows.map(async (row) => ({
+        id: row.tenant.id,
+        name: row.tenant.name,
+        role: row.role,
+        balance: await this.wallet.balance(row.tenant.id).catch(() => null),
+      })),
+    );
+  }
+
+  /** The §6.2 MFA rule for the caller rides on every workspace response (ADR 0036). */
+  private async respond(tenant: Parameters<typeof toResponse>[0], ctx: WorkspaceContext): Promise<WorkspaceResponse> {
+    const mfa = await this.mfa.describe(tenant.id, ctx.role, ctx.mfa ?? false);
+    return toResponse(tenant, ctx.role, mfa);
   }
 }
 
@@ -322,6 +343,7 @@ function toResponse(
     createdAt: Date;
   },
   role: WorkspaceContext['role'],
+  mfa: WorkspaceResponse['mfa'],
 ): WorkspaceResponse {
   return {
     id: tenant.id,
@@ -343,6 +365,7 @@ function toResponse(
     paused: tenant.pausedAt !== null,
     paused_reason: tenant.pausedReason,
     role,
+    mfa,
     created_at: tenant.createdAt.toISOString(),
   };
 }

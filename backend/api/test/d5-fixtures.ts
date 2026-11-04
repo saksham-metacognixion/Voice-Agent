@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@portal/schemas';
 import { randomUUID } from 'node:crypto';
 import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
@@ -727,7 +728,9 @@ export async function createUser(label: string): Promise<TestUser> {
   const run = randomUUID().slice(0, 8);
   const sub = `auth0|${label}-${run}`;
   const email = `${label}-${run}@example.test`;
-  const user = await adminDb.user.create({ data: { authProviderId: sub, email, name: label } });
+  // Accepted the Terms in force (§6.3 A1, ADR 0036 §6): every fixture person has been
+  // through the portal's Terms screen. Tests of the gate itself use a fresh row.
+  const user = await adminDb.user.create({ data: { authProviderId: sub, email, name: label, tosVersion: TERMS_VERSION, tosAcceptedAt: new Date() } });
   return { userId: user.id, sub, email };
 }
 

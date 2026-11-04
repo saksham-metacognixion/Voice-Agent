@@ -2,10 +2,11 @@ import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/com
 import { Reflector } from '@nestjs/core';
 import type { FastifyRequest } from 'fastify';
 import { adminDb } from '@portal/db';
-import { type MemberRole, WORKSPACE_HEADER } from '@portal/schemas';
+import { MFA_PROTECTED_ROLES, type MemberRole, WORKSPACE_HEADER } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
-import { ALLOW_IMPERSONATION_WRITE, IS_PUBLIC, NO_WORKSPACE, REQUIRED_ROLES } from './auth.decorators';
+import { ALLOW_IMPERSONATION_WRITE, ALLOW_WITHOUT_MFA, IS_PUBLIC, NO_WORKSPACE, REQUIRED_ROLES } from './auth.decorators';
 import { namespaceForPath } from './auth.guard';
+import { WorkspaceMfaService } from './workspace-mfa.service';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -24,7 +25,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  */
 @Injectable()
 export class WorkspaceGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly mfa: WorkspaceMfaService,
+  ) {}
 
   async canActivate(host: ExecutionContext): Promise<boolean> {
     if (host.getType() !== 'http') return true;
@@ -69,10 +73,26 @@ export class WorkspaceGuard implements CanActivate {
       throw new AppError('NOT_A_MEMBER', 'You do not have access to that workspace.');
     }
 
-    request.ctx = { userId: auth.userId, workspaceId, role: membership.role, ip: request.ip ?? null, requestId: String(request.id) };
+    request.ctx = { userId: auth.userId, workspaceId, role: membership.role, mfa: auth.mfa, ip: request.ip ?? null, requestId: String(request.id) };
 
     this.assertRole(host, membership.role);
+    await this.assertMfa(host, request, membership.role);
     return true;
+  }
+
+  /**
+   * §6.2 (ADR 0036): an owner or admin of a workspace with money at risk changes nothing
+   * from a session that did not pass a second factor. Reads stay open, so the dashboard
+   * still renders and can say why — and editors and viewers are never asked. Evaluated on
+   * every write, so a session that was fine before a top-up or before auto top-up went on
+   * is refused from that moment, with no token to revoke.
+   */
+  private async assertMfa(host: ExecutionContext, request: FastifyRequest, role: MemberRole): Promise<void> {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase())) return;
+    if (!MFA_PROTECTED_ROLES.includes(role) || request.auth?.mfa) return;
+    const exempt = this.reflector.getAllAndOverride<boolean>(ALLOW_WITHOUT_MFA, [host.getHandler(), host.getClass()]) === true;
+    if (exempt) return;
+    await this.mfa.assert({ workspaceId: request.ctx!.workspaceId, role, mfa: false });
   }
 
   /**

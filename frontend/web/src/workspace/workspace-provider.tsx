@@ -67,6 +67,8 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
       workspaceStore.set(id);
       // Everything workspace-scoped is stale the moment the header changes.
       void queryClient.resetQueries({ predicate: (q) => q.queryKey[0] !== 'listMyWorkspaces' });
+      // The list stays on screen, but its balance pills are re-read (A7, ADR 0036 §10).
+      void queryClient.invalidateQueries({ queryKey: ['listMyWorkspaces'] });
     },
     [queryClient],
   );

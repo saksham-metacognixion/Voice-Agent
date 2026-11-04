@@ -365,7 +365,7 @@ describe('POST /webhooks/stripe', () => {
 
 describe('POST /wallet/checkout/confirm — the return path when the webhook is late or lost', () => {
   async function headers() {
-    return { authorization: `Bearer ${await customerTenant.mint(ws.sub)}`, 'x-workspace-id': ws.tenantId, 'content-type': 'application/json' };
+    return { authorization: `Bearer ${await customerTenant.mint(ws.sub, { mfa: true })}`, 'x-workspace-id': ws.tenantId, 'content-type': 'application/json' };
   }
   async function confirm(sessionId: string) {
     return app.inject({ method: 'POST', url: '/wallet/checkout/confirm', headers: await headers(), payload: { session_id: sessionId } });
@@ -545,7 +545,7 @@ describe('GET /pricing and GET /flags', () => {
   it('serves per-workspace flags to a member and refuses without a token', async () => {
     expect((await app.inject({ method: 'GET', url: '/flags' })).statusCode).toBe(401);
 
-    const token = await customerTenant.mint(ws.sub);
+    const token = await customerTenant.mint(ws.sub, { mfa: true });
     const res = await app.inject({ method: 'GET', url: '/flags', headers: { authorization: `Bearer ${token}`, 'x-workspace-id': ws.tenantId } });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -560,7 +560,7 @@ describe('GET /pricing and GET /flags', () => {
   it('a kill switch flips within one read after being set, and publish invalidates everything', async () => {
     await config.setKillSwitch('pause_purchases', { on: true, reason: 'e2e' });
     expect(await config.killSwitch('pause_purchases')).toBe(true);
-    const token = await customerTenant.mint(ws.sub);
+    const token = await customerTenant.mint(ws.sub, { mfa: true });
     const res = await app.inject({ method: 'GET', url: '/flags', headers: { authorization: `Bearer ${token}`, 'x-workspace-id': ws.tenantId } });
     expect(res.json().kill_switches.pause_purchases).toBe(true);
 
@@ -586,7 +586,7 @@ describe('GET /pricing and GET /flags', () => {
   });
 
   it('GET /wallet reflects the purchases above', async () => {
-    const token = await customerTenant.mint(ws.sub);
+    const token = await customerTenant.mint(ws.sub, { mfa: true });
     const res = await app.inject({ method: 'GET', url: '/wallet', headers: { authorization: `Bearer ${token}`, 'x-workspace-id': ws.tenantId } });
     expect(res.statusCode).toBe(200);
     const body = res.json();
@@ -618,7 +618,7 @@ describe('POST /wallet/checkout, the half before Stripe', () => {
   it('a Stripe failure abandons the pending purchase instead of leaving a ghost for SA9', async () => {
     const billing = app.get(BillingService);
     const spy = vi.spyOn(stripe, 'createCheckoutSession').mockRejectedValueOnce(new Error('stripe is down'));
-    const ctx = { userId: ws.userId, workspaceId: ws.tenantId, role: 'owner' as const };
+    const ctx = { userId: ws.userId, workspaceId: ws.tenantId, role: 'owner' as const, mfa: true };
     await expect(billing.createCheckout(ctx, { pack_id: 'starter' })).rejects.toThrow('stripe is down');
     spy.mockRestore();
 

@@ -1,3 +1,4 @@
+import { TERMS_VERSION } from '@portal/schemas';
 import { randomUUID } from 'node:crypto';
 import { adminDb } from '@portal/db';
 import { PlatformConfigService } from '../src/modules/config';
@@ -24,7 +25,7 @@ export async function createWorkspace(label: string): Promise<{ tenantId: string
   const tenant = await adminDb.tenant.create({ data: { name: `${label} ${run}`, country: 'CA' } });
   const email = `${label}-${run}@example.test`;
   const user = await adminDb.user.create({
-    data: { authProviderId: `auth0|${label}-${run}`, email, name: label },
+    data: { authProviderId: `auth0|${label}-${run}`, email, name: label, tosVersion: TERMS_VERSION, tosAcceptedAt: new Date() },
   });
   await adminDb.membership.create({ data: { tenantId: tenant.id, userId: user.id, role: 'owner' } });
   return { tenantId: tenant.id, userId: user.id, email };

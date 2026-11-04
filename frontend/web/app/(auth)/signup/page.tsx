@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import * as React from 'react';
 import { useAuth } from '@/src/auth/auth-provider';
+import { InvitedAs, useInvitedEmail } from '@/src/auth/invite-hint';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RedirectIfSignedIn } from '@/src/guards/guards';
 import { readQuery } from '@/src/lib/query-string';
@@ -25,6 +26,7 @@ function SignupInner() {
   const [busy, setBusy] = React.useState(false);
   // "Sign in" keeps the return path as well (BUG-008, QA-003).
   const [next, setNext] = React.useState('');
+  const invited = useInvitedEmail(next);
 
   React.useEffect(() => {
     setNext(safeNext(readQuery().get('next'), ''));
@@ -33,7 +35,7 @@ function SignupInner() {
   async function go() {
     setBusy(true);
     try {
-      await auth.login({ screenHint: 'signup', returnTo: safeNext(readQuery().get('next'), routes.root) });
+      await auth.login({ screenHint: 'signup', returnTo: safeNext(readQuery().get('next'), routes.root), ...(invited ? { loginHint: invited } : {}) });
     } catch {
       setBusy(false);
     }
@@ -53,6 +55,7 @@ function SignupInner() {
       }
     >
       <div className="flex flex-col gap-4">
+        {invited ? <InvitedAs email={invited} /> : null}
         <Button size="lg" onClick={go} loading={busy} disabled={!auth.configured} className="w-full">
           {t('auth.signup.cta')}
         </Button>

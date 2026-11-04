@@ -4,7 +4,7 @@
 // Regenerate: pnpm --filter @portal/api openapi:generate   Verify: pnpm --filter @portal/api openapi:check
 import { useMutation, useQuery } from '@tanstack/react-query';
 import type { z } from 'zod';
-import { acceptInviteResponse, acceptedJob, accountSessionsResponse, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminBreakageReport, adminCallFlagRequest, adminCallRefundRequest, adminCallResponse, adminCallerIdRequest, adminCallsQuery, adminCannedResponseRequest, adminCogsReport, adminConcurrencyAllowanceRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminDeferredReport, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKbResponse, adminKbsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminKycDecisionRequest, adminKycResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumberResyncResponse, adminNumbersQuery, adminOverridesRequest, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchasesQuery, adminReconciliationRun, adminReconciliationRunRequest, adminReconciliationsQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminSettingsResponse, adminSettingsUpdateRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callbackCheck, callbackRequest, callbackResponse, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deleteWorkspaceRequest, deletedResponse, dismissAlertResponse, dncAddRequest, dncEntryResponse, dncQuery, duplicateAgentRequest, endSessionResponse, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, kycDetails, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, notificationSettingsResponse, numberAccepted, outboundOverview, outboundSettings, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, saveVersionResponse, selectVersionRequest, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceDeletionRequest, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
+import { acceptInviteResponse, acceptedJob, accountResponse, accountSessionsResponse, activateRequest, activationView, activeAlertsResponse, adminAgentResponse, adminAgentsQuery, adminAuditEntry, adminAuditQuery, adminAutoTopupStatusResponse, adminBillingPurchase, adminBillingSummaryResponse, adminBreakageReport, adminCallFlagRequest, adminCallRefundRequest, adminCallResponse, adminCallerIdRequest, adminCallsQuery, adminCannedResponseRequest, adminCogsReport, adminConcurrencyAllowanceRequest, adminConcurrencyResponse, adminCreateTicketRequest, adminCreditAdjustRequest, adminCreditAdjustResponse, adminCustomerAuditEntry, adminCustomerAuditQuery, adminCustomerDetail, adminCustomerSummary, adminCustomerUpdateRequest, adminCustomerWallet, adminCustomersQuery, adminDeferredReport, adminFailedTopup, adminFailedTopupsQuery, adminFeatureFlag, adminFlagsResponse, adminFunnelResponse, adminImpersonateRequest, adminInviteStaffRequest, adminJobResponse, adminJobsQuery, adminKbResponse, adminKbsQuery, adminKillSwitch, adminKpisQuery, adminKpisResponse, adminKycDecisionRequest, adminKycResponse, adminMemberResponse, adminMemberUpdateRequest, adminNumberResponse, adminNumberResyncResponse, adminNumbersQuery, adminOverridesRequest, adminPricingDraftRequest, adminPricingDraftResponse, adminPricingPreviewResponse, adminPricingPublishRequest, adminPricingRollbackRequest, adminPricingVersion, adminPricingVersionDetail, adminProvisioningJob, adminProvisioningQuery, adminPurchaseDetail, adminPurchaseResponse, adminPurchaseReview, adminPurchaseReviewsQuery, adminPurchasesQuery, adminReconciliationRun, adminReconciliationRunRequest, adminReconciliationsQuery, adminRefundRequest, adminRetellCostsResponse, adminSearchQuery, adminSearchResponse, adminSetKillSwitchRequest, adminSettingsResponse, adminSettingsUpdateRequest, adminStaffLimitsRequest, adminStaffLimitsResponse, adminSystemHealthResponse, adminTenantStatusResponse, adminTestAlertResponse, adminTicketDetail, adminTicketMacroRequest, adminTicketMacroResponse, adminTicketMessageRequest, adminTicketSummary, adminTicketsQuery, adminTopupRetryResponse, adminUpdateStaffRequest, adminUpdateTicketRequest, adminUpsertFlagRequest, adminUserActionResponse, adminUserResponse, adminUsersQuery, adminWebhookEventDetail, adminWebhookEventResponse, adminWebhookEventsQuery, adminWebhookReplayResponse, advanceOnboardingRequest, agentDetail, agentDraftPatch, agentSummary, agentVersionDetail, agentVersionSummary, agentWidget, agentWidgetUpdate, agentsQuery, auditEntryResponse, auditLogQuery, autoTopup, autoTopupRequest, buyNumberRequest, callDetail, callPatch, callSummary, callbackCheck, callbackRequest, callbackResponse, callsBulkPatch, callsBulkResponse, callsQuery, cannedResponse, checkoutConfirmRequest, checkoutConfirmResponse, checkoutRequest, checkoutResponse, createAgentRequest, createKnowledgeRequest, createKnowledgeSourceRequest, createSupportTicketRequest, createWorkspaceRequest, creditLotResponse, deleteWorkspaceRequest, deletedResponse, dismissAlertResponse, dncAddRequest, dncEntryResponse, dncQuery, duplicateAgentRequest, endSessionResponse, endedResponse, extractDocumentRequest, extractDocumentResponse, feedbackRequest, flagsResponse, forgetDevicesResponse, forwardingGuide, forwardingGuideQuery, generateRequest, healthResponse, impersonationContext, impersonationResponse, importNumberRequest, inviteHintResponse, invitePreviewResponse, inviteRequest, inviteResponse, invoiceResponse, invoicesQuery, jobResponse, knowledgeDeletedResponse, knowledgeQuery, knowledgeSourceResponse, knowledgeStatsQuery, knowledgeStatsResponse, kycDetails, ledgerEntryResponse, ledgerQuery, lintRequest, lintResult, memberResponse, mfaDisableResponse, notificationSettingsResponse, numberAccepted, outboundOverview, outboundSettings, paginated, paginationQuery, phoneNumberResponse, phonePlanRequest, phonePlanResponse, portalSessionRequest, portalSessionResponse, pricingQuery, pricingResponse, promptUpdate, publishRequest, publishResponse, readinessResponse, recordingResponse, releasedResponse, removedResponse, retellCostInputs, revokedResponse, saveVersionResponse, selectVersionRequest, signInMethodsResponse, sipVerifyRequest, staffActionRequest, staffMeResponse, staffMemberResponse, statsQuery, statsResponse, supportTicketMessageRequest, supportTicketResponse, supportTicketsQuery, templateSummary, termsAcceptRequest, termsStatus, testPhoneCallRequest, testPhoneCallResponse, testWebCallRequest, testWebCallResponse, transferOwnershipRequest, updateMemberRequest, updateNotificationSettingsRequest, updateNumberRequest, updateWorkspaceRequest, verificationEmailResponse, voicePreviewRequest, voicePreviewResponse, voicesQuery, voicesResponse, walletResponse, widgetCallRequest, widgetCallResponse, widgetConfig, workspaceChecklist, workspaceDeletionRequest, workspaceMembershipSummary, workspaceResponse } from '@portal/schemas';
 import type { ApiClient } from '../client';
 
 const enc = encodeURIComponent;
@@ -668,6 +668,33 @@ export function adminRetryProvisioning(api: ApiClient, params: { jobId: string }
 
 export function useAdminRetryProvisioning(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { jobId: string }; body: z.input<typeof staffActionRequest> }) => adminRetryProvisioning(api, vars.params, vars.body) });
+}
+
+/** GET /admin/purchase-reviews — §17 first purchases over the review limit, open and decided — §17, ADR 0036. */
+export function adminListPurchaseReviews(api: ApiClient, query?: z.input<typeof adminPurchaseReviewsQuery>) {
+  return api.get(`/admin/purchase-reviews${qs(query)}`, paginated(adminPurchaseReview));
+}
+
+export function useAdminListPurchaseReviews(api: ApiClient, query?: z.input<typeof adminPurchaseReviewsQuery>, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['adminListPurchaseReviews', query ?? null], queryFn: () => adminListPurchaseReviews(api, query), ...options });
+}
+
+/** POST /admin/purchase-reviews/:id/approve — Approve a first purchase over the limit: the customer may now pay for it (staff: super_admin, ops, finance) — §17, ADR 0036. */
+export function adminApprovePurchaseReview(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/purchase-reviews/${enc(params.id)}/approve`, body, adminPurchaseReview);
+}
+
+export function useAdminApprovePurchaseReview(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminApprovePurchaseReview(api, vars.params, vars.body) });
+}
+
+/** POST /admin/purchase-reviews/:id/reject — Reject a first purchase over the limit: nothing was charged, the customer is told (staff: super_admin, ops, finance) — §17, ADR 0036. */
+export function adminRejectPurchaseReview(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/purchase-reviews/${enc(params.id)}/reject`, body, adminPurchaseReview);
+}
+
+export function useAdminRejectPurchaseReview(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminRejectPurchaseReview(api, vars.params, vars.body) });
 }
 
 /** GET /admin/purchases — SA9 — purchases across workspaces, newest first, with what is still refundable — admin §4 SA9. */
@@ -1498,6 +1525,15 @@ export function useAcceptInvite(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { token: string } }) => acceptInvite(api, vars.params) });
 }
 
+/** GET /invites/:token/hint — A8 public — the invited address, so sign-in and sign-up open with it filled in — §6.3 A8. */
+export function inviteHint(api: ApiClient, params: { token: string }) {
+  return api.get(`/invites/${enc(params.token)}/hint`, inviteHintResponse);
+}
+
+export function useInviteHint(api: ApiClient, params: { token: string }, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['inviteHint', params], queryFn: () => inviteHint(api, params), ...options });
+}
+
 /** GET /invites/:token/preview — A8 — the workspace, inviter and role behind an invitation, for the invited address only. */
 export function previewInvite(api: ApiClient, params: { token: string }) {
   return api.get(`/invites/${enc(params.token)}/preview`, invitePreviewResponse);
@@ -1550,6 +1586,60 @@ export function getKnowledge(api: ApiClient, params: { id: string }) {
 
 export function useGetKnowledge(api: ApiClient, params: { id: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['getKnowledge', params], queryFn: () => getKnowledge(api, params), ...options });
+}
+
+/** GET /me — The signed-in person: email, verification, this session’s second factor, Terms status — §6.3. */
+export function getAccount(api: ApiClient) {
+  return api.get(`/me`, accountResponse);
+}
+
+export function useGetAccount(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['getAccount'], queryFn: () => getAccount(api), ...options });
+}
+
+/** POST /me/devices/forget — A4 — every remembered device asks for the second factor again — §6.3 A4. */
+export function forgetRememberedDevices(api: ApiClient) {
+  return api.post(`/me/devices/forget`, {}, forgetDevicesResponse);
+}
+
+export function useForgetRememberedDevices(api: ApiClient) {
+  return useMutation({ mutationFn: (_vars: void) => forgetRememberedDevices(api) });
+}
+
+/** POST /me/mfa/disable — D6 — turn two-factor off, after a fresh challenge — §10 D6 Security. */
+export function disableMfa(api: ApiClient) {
+  return api.post(`/me/mfa/disable`, {}, mfaDisableResponse);
+}
+
+export function useDisableMfa(api: ApiClient) {
+  return useMutation({ mutationFn: (_vars: void) => disableMfa(api) });
+}
+
+/** GET /me/sign-in-methods — D6 — the sign-in methods linked to this person — §10 D6 Security. */
+export function getSignInMethods(api: ApiClient) {
+  return api.get(`/me/sign-in-methods`, signInMethodsResponse);
+}
+
+export function useGetSignInMethods(api: ApiClient, options: QueryHookOptions = {}) {
+  return useQuery({ queryKey: ['getSignInMethods'], queryFn: () => getSignInMethods(api), ...options });
+}
+
+/** POST /me/terms — A1 — accept the Terms of Service and Privacy Policy in force (409 for another version) — §6.3 A1. */
+export function acceptTerms(api: ApiClient, body: z.input<typeof termsAcceptRequest>) {
+  return api.post(`/me/terms`, body, termsStatus);
+}
+
+export function useAcceptTerms(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { body: z.input<typeof termsAcceptRequest> }) => acceptTerms(api, vars.body) });
+}
+
+/** POST /me/verification-email — A2 — send the verification email again (60-second cooldown, 5 an hour) — §6.3 A2. */
+export function resendVerificationEmail(api: ApiClient) {
+  return api.post(`/me/verification-email`, {}, verificationEmailResponse);
+}
+
+export function useResendVerificationEmail(api: ApiClient) {
+  return useMutation({ mutationFn: (_vars: void) => resendVerificationEmail(api) });
 }
 
 /** GET /members — Members and their roles. */
@@ -1795,7 +1885,7 @@ export function useUpdateAutoTopup(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { body: z.input<typeof autoTopupRequest> }) => updateAutoTopup(api, vars.body) });
 }
 
-/** POST /wallet/checkout — §13.7 — a hosted Checkout session for a pack (roles: owner, admin). */
+/** POST /wallet/checkout — §13.7 — a hosted Checkout session for a pack, or `in_review` for a first purchase over the §17 limit (roles: owner, admin). */
 export function createCheckout(api: ApiClient, body: z.input<typeof checkoutRequest>) {
   return api.post(`/wallet/checkout`, body, checkoutResponse);
 }

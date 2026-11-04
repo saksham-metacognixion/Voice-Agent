@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { track } from '@/src/analytics/posthog';
 import { AuthLayout } from '@/src/components/auth/auth-layout';
 import { RequireVerified } from '@/src/guards/guards';
-import { COUNTRIES, browserTimezone, countryName, countryOfZone, defaultZoneFor, timezoneLabel, timezones, zoneInCountry } from '@/src/lib/countries';
+import { COUNTRIES, browserTimezone, countryName, countryOfZone, defaultZoneFor, isLaunchCountry, timezoneLabel, timezones, zoneInCountry } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
@@ -54,7 +54,9 @@ function SetupInner() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: (() => {
-      const country = countryOfZone(browserZone) ?? 'CA';
+      // The browser's country when we launch there, else Canada (§6.3 A3, ADR 0036 §10).
+      const zoneCountry = countryOfZone(browserZone);
+      const country = zoneCountry && isLaunchCountry(zoneCountry) ? zoneCountry : 'CA';
       return { name: '', country, timezone: defaultZoneFor(country, browserZone), phone: '', website: '' };
     })(),
   });
@@ -104,7 +106,7 @@ function SetupInner() {
           <Input id="name" autoFocus autoComplete="organization" placeholder={t('auth.setup.namePlaceholder')} invalid={Boolean(err.name)} {...form.register('name')} />
         </Field>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field id="country" label={t('auth.setup.country')} required error={err.country ? t('validation.required') : undefined}>
+          <Field id="country" label={t('auth.setup.country')} description={t('auth.setup.launchNote')} required error={err.country ? t('validation.required') : undefined}>
             <Controller
               control={form.control}
               name="country"
@@ -114,11 +116,17 @@ function SetupInner() {
                     <SelectValue placeholder={t('auth.setup.countryPlaceholder')} />
                   </SelectTrigger>
                   <SelectContent>
-                    {COUNTRIES.map((c) => (
-                      <SelectItem key={c.code} value={c.code}>
-                        {countryName(c.code)}
-                      </SelectItem>
-                    ))}
+                    {COUNTRIES.map((c) =>
+                      isLaunchCountry(c.code) ? (
+                        <SelectItem key={c.code} value={c.code}>
+                          {countryName(c.code)}
+                        </SelectItem>
+                      ) : (
+                        <SelectItem key={c.code} value={c.code} disabled>
+                          {t('auth.setup.comingSoon', { country: countryName(c.code) })}
+                        </SelectItem>
+                      ),
+                    )}
                   </SelectContent>
                 </Select>
               )}

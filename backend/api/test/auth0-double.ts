@@ -1,7 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import { type AddressInfo } from 'node:net';
 import { SignJWT, exportJWK, generateKeyPair, type CryptoKey, type JWK } from 'jose';
-import { CLAIM_EMAIL, CLAIM_EMAIL_VERIFIED, CLAIM_MFA, CLAIM_NAME } from '@portal/schemas';
+import { CLAIM_EMAIL, CLAIM_EMAIL_VERIFIED, CLAIM_MFA, CLAIM_MFA_AT, CLAIM_MFA_ENROLLED, CLAIM_NAME } from '@portal/schemas';
 
 /**
  * A stand-in Auth0 tenant: an RS256 key pair and a JWKS endpoint on localhost.
@@ -68,12 +68,14 @@ export class FakeAuth0Tenant {
    */
   async mint(
     subject: string,
-    claims: { emailVerified?: boolean; mfa?: boolean; audience?: string; expired?: boolean; email?: string; name?: string } = {},
+    claims: { emailVerified?: boolean; mfa?: boolean; mfaEnrolled?: boolean; mfaAt?: number; audience?: string; expired?: boolean; email?: string; name?: string; issuedAgoS?: number } = {},
   ): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     return new SignJWT({
       [CLAIM_EMAIL_VERIFIED]: claims.emailVerified ?? true,
       [CLAIM_MFA]: claims.mfa ?? false,
+      ...(claims.mfaEnrolled !== undefined ? { [CLAIM_MFA_ENROLLED]: claims.mfaEnrolled } : {}),
+      ...(claims.mfaAt !== undefined ? { [CLAIM_MFA_AT]: claims.mfaAt } : {}),
       ...(claims.email ? { [CLAIM_EMAIL]: claims.email } : {}),
       ...(claims.name ? { [CLAIM_NAME]: claims.name } : {}),
       email: `${subject.replace(/[^a-z0-9]/gi, '')}@example.test`,
@@ -82,7 +84,9 @@ export class FakeAuth0Tenant {
       .setSubject(subject)
       .setIssuer(this.issuer)
       .setAudience(claims.audience ?? this.audience)
-      .setIssuedAt(claims.expired ? now - 7200 : now)
+      // `issuedAgoS`: a token still inside its `exp` but older than the API's §6.2
+      // 15-minute limit — what a tenant minting 2-hour tokens hands out (ADR 0036 §1).
+      .setIssuedAt(claims.expired ? now - 7200 : now - (claims.issuedAgoS ?? 0))
       .setExpirationTime(claims.expired ? now - 3600 : now + 3600)
       .sign(this.privateKey);
   }

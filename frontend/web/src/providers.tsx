@@ -1,9 +1,10 @@
 'use client';
 
 import { ApiProvider, createApiClient, createQueryClient } from '@portal/api-client';
-import { ThemeProvider, Toaster, TooltipProvider } from '@portal/ui';
+import { ThemeProvider, Toaster, TooltipProvider, toast } from '@portal/ui';
 import { initErrorReporting } from '@portal/ui/error-reporting';
 import { usePathname } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { AnalyticsProvider, identify, resetAnalytics, track } from './analytics/posthog';
 import { AuthProvider, useAuth, type AuthUser } from './auth/auth-provider';
@@ -106,12 +107,15 @@ function ApiBridge({ children }: { children: React.ReactNode }) {
   getTokenRef.current = auth.getToken;
   const logoutRef = React.useRef(auth.logout);
   logoutRef.current = auth.logout;
+  const t = useTranslations();
+  const viewOnlyRef = React.useRef('');
+  viewOnlyRef.current = t('shell.viewOnly');
 
   const [queryClient] = React.useState(createQueryClient);
   const [client] = React.useState(() =>
     createApiClient({
       baseUrl: config.apiUrl,
-      getToken: () => getTokenRef.current(),
+      getToken: (options) => getTokenRef.current(options),
       getWorkspaceId: () => workspaceStore.get(),
       // A view-as session ended from the console answers 401 on the next request; the
       // tab forgets the key and goes to the sign-in page instead of looping on errors.
@@ -124,6 +128,12 @@ function ApiBridge({ children }: { children: React.ReactNode }) {
         // The API refused a token the SPA still holds (support ended the sessions, or the
         // account was locked): sign out rather than leave the person on a page of errors.
         void logoutRef.current();
+      },
+      // §6.4 "Viewer tries a write → toast 'You don't have permission'" (ADR 0036 §10). The
+      // API refused it (the role matrix is enforced there); this only says so, once per
+      // burst, wherever the attempt came from — a button, a form, a dialog.
+      onError: (error, method) => {
+        if (error.code === 'FORBIDDEN_ROLE' && method !== 'GET') toast.warning(viewOnlyRef.current, { id: 'forbidden-role' });
       },
     }),
   );

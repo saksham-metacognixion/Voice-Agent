@@ -5,6 +5,8 @@ import { WalletModule } from '../wallet';
 import { MembersService } from './members.service';
 import { WorkspacesController } from './workspaces.controller';
 import { SessionsController } from './sessions.controller';
+import { AccountController } from './account.controller';
+import { AccountService } from './account.service';
 import { WorkspacesService } from './workspaces.service';
 
 /**
@@ -20,8 +22,8 @@ import { WorkspacesService } from './workspaces.service';
  */
 @Module({
   imports: [WalletModule, RuntimeCacheModule, NotificationsModule],
-  controllers: [WorkspacesController, SessionsController],
-  providers: [WorkspacesService, MembersService],
+  controllers: [WorkspacesController, SessionsController, AccountController],
+  providers: [WorkspacesService, MembersService, AccountService],
   exports: [WorkspacesService, MembersService],
 })
 export class WorkspacesModule {}

@@ -3,7 +3,8 @@ import { adminDb } from '@portal/db';
 import type Stripe from 'stripe';
 import { StripeEventHandler } from '../billing';
 import { JobQueues } from '../jobs';
-import { DisposableEmailRefused, SecondIdentityRefused, UsersService } from '../auth';
+import { authLogEntry } from '@portal/schemas';
+import { AccountEventsService, DisposableEmailRefused, SecondIdentityRefused, UsersService, signInBlockLift } from '../auth';
 import { RetellEventHandler } from './retell-events.handler';
 import { WebhookEventsService, settledWithNote } from './webhook-events.service';
 
@@ -30,6 +31,7 @@ export class WebhookProcessingService {
     private readonly stripe: StripeEventHandler,
     private readonly users: UsersService,
     private readonly queues: JobQueues,
+    private readonly accountEvents: AccountEventsService,
   ) {}
 
   /**
@@ -73,7 +75,7 @@ export class WebhookProcessingService {
     return result as { outcome: string; reason?: string };
   }
 
-  private async dispatch(row: { provider: string; payloadJson: unknown }): Promise<unknown> {
+  private async dispatch(row: { provider: string; eventType: string; payloadJson: unknown }): Promise<unknown> {
     {
       switch (row.provider) {
         case 'retell':
@@ -89,8 +91,25 @@ export class WebhookProcessingService {
           // it settles the event instead of throwing: thrown, it spent eight attempts and
           // then the sweeper replaced the spent job and started over, for ever. The
           // reason stays on the row for SA12.
+          // ADR 0036 §9: an entry of the tenant's log stream — a sign-in outcome to audit.
+          if (row.eventType.startsWith('log.')) {
+            const audited = await this.accountEvents.handleLog(row.payloadJson);
+            // §6.2: a brute-force block lasts 15 minutes, not until an unblock link (ADR 0036 §8).
+            const parsed = authLogEntry.safeParse(row.payloadJson);
+            const lift = parsed.success ? signInBlockLift(parsed.data) : null;
+            if (lift) {
+              const queued = await this.queues.enqueueLiftSignInBlock({ logId: lift.logId, sub: lift.sub, identifier: lift.identifier }, lift.delayMs);
+              // Thrown, the row stays unprocessed and the sweeper runs it again; the audit row dedupes.
+              if (queued === 'failed') throw new Error(`auth log ${lift.logId}: the block lift was not queued`);
+            }
+            return audited;
+          }
           try {
-            return await this.users.upsert(this.users.parse(row.payloadJson));
+            const event = this.users.parse(row.payloadJson);
+            const upserted = await this.users.upsert(event);
+            // ADR 0036 §5: §6.3 A6 "all other sessions revoked".
+            if (event.event_type === 'user.password_changed') return { ...upserted, ...(await this.accountEvents.passwordChanged(event)) };
+            return upserted;
           } catch (error) {
             if (error instanceof DisposableEmailRefused) {
               return settledWithNote({ outcome: 'refused', reason: 'disposable_email' }, error.message);
