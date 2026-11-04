@@ -178,7 +178,7 @@ Paths are relative to the repo root unless they start with a module name (`backe
 | Z-11 | P1    | §8 W2 #11        | Personality sliders + free text                                        | UNVERIFIED      | `brief-editors.tsx:254-283`; no assertion                                                             | Add a test                                          |
 | Z-12 | P1    | §8 W2            | Autosave 1.5 s debounced, Saved/Saving                                 | PASS            | `use-brief-autosave.ts:60-116`; `brief-patch.test.ts`; `e2e-wizard.mjs`                               | —                                                   |
 | Z-13 | P1    | §8 W2            | Generate gated on fields 1–2, three-stage progress                     | PARTIAL         | `generate-panel.tsx:225-257` stages differ ("Done" not "Setting up analysis")                         | Rename or accept                                    |
-| Z-14 | P1    | §8 W2, §9.3, §18 | Generation p95 < 10 s                                                  | FAIL            | ADR 0012 measured p95 15.5 s on `claude-sonnet-5`                                                     | Owner decision pending (ADR 0012 options)           |
+| Z-14 | P1    | §8 W2, §9.3, §18 | Generation p95 < 10 s                                                  | ADR-AMENDED (4 Nov) | 45 samples on `claude-sonnet-5`: p95 16.7 s before, 16.4 s after, 15.2 s with thinking off; none under 10 s (`docs/evidence/2026-11-04-prompt-gaps/generation-*.json`) | ADR 0038 §5: target p95 ≤ 16 s, thinking off by default; spec owner sign-off pending |
 | Z-15 | P1    | §8 W2            | Regenerate with confirm dialog                                         | PARTIAL         | Button exists (`generate-panel.tsx:288`); no confirm                                                  | Add ConfirmDialog                                   |
 | Z-16 | P1    | §8 W2            | Advanced ▸ view prompt                                                 | PASS            | Editable `PromptTab` on W2 (`brief/page.tsx:177-196`)                                                 | Exceeds spec (editable); record in ADR              |
 | Z-17 | P1    | §8 W2            | "Free — no credits used" note on Generate                              | NOT IMPLEMENTED | Hint text differs                                                                                     | Add copy                                            |
@@ -242,16 +242,16 @@ Paths are relative to the repo root unless they start with a module name (`backe
 | G-06 | P1    | §9.3        | Claude Sonnet-class generation model                                                           | PASS            | `claude-sonnet-5` (`anthropic.provider.ts:68`, ADR 0009)                                                   | —                                                    |
 | G-07 | P1    | §9.3, §13.3 | 20 s timeout, one retry; jobs > 15 s time out                                                  | PARTIAL         | 45 s budget, 3 attempts (`anthropic.provider.ts:69-73`)                                                    | Amended by ADR 0012                                  |
 | G-08 | P1    | §9.4        | Guardrails 1–6 present in the appended block                                                   | PASS            | `guardrails.ts:81-86`; `guardrails.test.ts:32`                                                             | —                                                    |
-| G-09 | P1    | §9.4        | Guardrail 7: respect `{{business_open}}`                                                       | PARTIAL         | Text says "respect business hours" without the variable; the variable is constant (G-15)                   | Wire the variable                                    |
+| G-09 | P1    | §9.4        | Guardrail 7: respect `{{business_open}}`                                                       | PASS (4 Nov)    | Fixed `HOURS_RULE` names `{{business_open}}`, `{{next_open_time}}`, `{{current_time}}` on every prompt (`prompting/guardrails.ts`); `guardrails.test.ts` "the business-hours rule"; live: closed call handled 3/3 per model with no script line (`docs/evidence/2026-11-04-prompt-gaps/incall-bench-v2.json`) | ADR 0038 §1 |
 | G-10 | P1    | §9.5        | Lint: length, missing hand-off, no greeting, long greeting, always/guarantee                   | PASS            | `lint.ts`; `lint.test.ts`                                                                                  | —                                                    |
-| G-11 | P1    | §9.5        | Lint: transfer number set but no transfer tool                                                 | PARTIAL         | Rule exists, but no production caller passes `transferNumbers`, so it never fires                          | Feed it the tool list or drop it                     |
-| G-12 | P1    | §9.5        | Lint: prompt language ≠ primary language                                                       | PARTIAL         | Stopwords for en/fr/es only; Arabic agents skip it                                                         | Add Arabic                                           |
+| G-11 | P1    | §9.5        | Lint: transfer number set but no transfer tool                                                 | PASS (4 Nov)    | Fed the sync's tools (`transferRoutes`) and each answering number's D4 targets (`agentNumberTransferTargets`, all six lint callers); `lint.test.ts` "transfer_tool_missing" (10) | ADR 0038 §2; now a warning. Found: D4 targets are never dialled (open) |
+| G-12 | P1    | §9.5        | Lint: prompt language ≠ primary language                                                       | PASS (4 Nov)    | Arabic stopwords with vowel-mark, tatweel, alef/yeh and bidi folding (`lint.ts`); `lint.test.ts` "language_mismatch — Arabic" (8) | ADR 0038 §2 |
 | G-13 | P1    | §9.6, §13.5 | Feedback loop: 10–500 chars, new `feedback` version, guardrail conflict → `changes: []`        | PASS            | `generation.worker.ts:356-424`; `prompting.e2e.test.ts:490-543`                                            | —                                                    |
 | G-14 | P1    | §9.7        | `{{business_name}}`, `{{agent_name}}`, `{{next_open_time}}` set per inbound call               | PASS            | `inbound.decide.ts:199-203`; `inbound.decide.test.ts`                                                      | —                                                    |
 | G-15 | P1    | §9.7        | `{{business_open}}` true/false                                                                 | FAIL            | Literal `'true'` (`inbound.decide.ts:202`); an `always` number tells the agent it is open while closed     | Compute from `isOpen`                                |
-| G-16 | P1    | §9.7        | `{{current_time}}` in workspace time zone                                                      | PARTIAL         | UTC ISO when hours mode is `always`                                                                        | Always local                                         |
-| G-17 | P1    | §9.7        | `{{caller_number}}`, `{{primary_language}}`                                                    | NOT IMPLEMENTED | Never set                                                                                                  | Add or strike                                        |
-| G-18 | P1    | §9.7, §13.4 | Variables computed at web-test token creation                                                  | NOT IMPLEMENTED | Only transfer variables (`test-call.service.ts:185`); generation never tells the model the variables exist | Compute at mint; describe in the user turn           |
+| G-16 | P1    | §9.7        | `{{current_time}}` in workspace time zone                                                      | PASS (4 Nov)    | `spokenClock()` / `callVariables()`: day, date and time in the workspace hours' zone on every channel, never a custom number's zone; `hours.test.ts`, `inbound.decide.test.ts`, `calls.e2e` (Toronto 10:00 / Vancouver 07:00) | ADR 0038 §1 |
+| G-17 | P1    | §9.7        | `{{caller_number}}`, `{{primary_language}}`                                                    | PASS (4 Nov)    | `callVariables()` on inbound (platform `from_number`, E.164), "Call my phone" and callback (person rung), web (`''`); language in `num:{e164}`; `inbound.decide.test.ts`, `calls.e2e`, `d17`, `d18` | ADR 0038 §1 |
+| G-18 | P1    | §9.7, §13.4 | Variables computed at web-test token creation                                                  | PASS (4 Nov)    | All seven at mint (`test-call.service.ts` `testCallVariables`); `callVariablesSection()` in generation and feedback turns; `d9-test-call.e2e`, `prompt-builder.test.ts`; live: 11/15 generated scripts use a variable, 0/15 without | ADR 0038 §1 |
 | G-19 | P1    | §9.8        | Analysis fields: types, ≤ 15, Growth+ user fields, mapped to platform                          | PASS            | `analysisField`; `agent-settings.e2e.test.ts:392-465`; `agent-retell.test.ts:122-160`                      | —                                                    |
 | G-20 | P1    | §9.9, §13.6 | Publish: lint gate, platform publish, audit, SSE; roll back; drafts tested by explicit version | PASS            | `agent-publish.service.ts:82-268`; `agents.e2e.test.ts:474-657`; ADR 0003 §7                               | —                                                    |
 
@@ -600,7 +600,7 @@ Grouped by theme; IDs point to §4.
 | ------ | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------- |
 | 1      | Name and domain                             | Resolved: oraly.ai                                                  | ADR 0015                        |
 | 2      | Credit unit, USD vs CAD, merchant of record | Unit resolved (1.5× premium); **currency and MoR open**, USD seeded | `pricing-v1.ts:26`; ADR 0033 §6 |
-| 3      | Standard-tier LLM                           | **Decided 4 Nov: GPT-4.1 mini** (stack row still `gpt-5-mini` until Full Scope 05) | ADR 0037; P0-05 |
+| 3      | Standard-tier LLM                           | **Decided 4 Nov: GPT-4.1 mini**; seeded as `agent_stack_configs` v2 (Premium stays GPT-4.1 mini, ADR 0038) | ADR 0037; ADR 0038; P0-05 |
 | 4      | Launch countries                            | De facto US + CA; formally open                                     | `purchasableCountry`            |
 | 5      | Trial size, card at sign-up                 | Implemented as proposed (20, no card); formally open                | `pricing-v1.ts:102-113`         |
 | 6      | 12-month expiry vs consumer law             | Implemented; legal check open                                       | —                               |
@@ -707,4 +707,46 @@ shields, the Post-Login and Post-Change-Password Actions, the log stream), the M
 `update:users` scope, and the email provider for a 15-minute reset link. Rows that depend on
 them say so. Retirements and deviations (A-07, A-09, A-18, A-30, parts of A-24, A-25, A-27,
 A-34) await the spec owner's sign-off.
+
+---
+
+## Addendum — 4 Nov 2026: prompt-system gaps (ADR 0038, Full Scope 05)
+
+Rows G-09, G-11, G-12, G-16, G-17, G-18 and Z-14 above were re-assessed after ADR 0038. The
+phase counts in §3 were **not** recounted.
+
+| Row | Requirement | Before | Status now | Evidence |
+| --- | --- | --- | --- | --- |
+| G-09 | §9.4 rule 7 with `{{business_open}}` | PARTIAL | **PASS** | `HOURS_RULE` (fixed, every prompt); unit `guardrails.test.ts`; live `bench:incall` closed call 3/3 per model without a script line |
+| G-11 | Transfer number set, no transfer tool | PARTIAL (could not fire) | **PASS** | real tools + each number's D4 targets; `lint.test.ts` 10 cases |
+| G-12 | Language mismatch incl. Arabic | PARTIAL | **PASS** | Arabic stopwords + folding; `lint.test.ts` 8 cases |
+| G-16 | `{{current_time}}` in workspace TZ | PARTIAL | **PASS** | `callVariables()`; unit + `calls.e2e` per-workspace clock |
+| G-17 | `{{caller_number}}`, `{{primary_language}}` | NOT IMPLEMENTED | **PASS** | every channel; `inbound.decide.test.ts`, `calls`, `d17`, `d18` e2e |
+| G-18 | Variables at web-test mint; generator told | NOT IMPLEMENTED | **PASS** | `d9-test-call.e2e` (all seven); `prompt-builder.test.ts`; 11/15 live scripts use them |
+| Z-14 | Generation p95 ≤ 10 s | FAIL | **ADR-AMENDED** | 45 live samples, p95 15.2–16.7 s; ADR 0038 §5 sets p95 ≤ 16 s with thinking off; decided in session on the recommendation, spec owner sign-off pending |
+
+Also changed by ADR 0038 and recorded here: `agent_stack_configs` v2 (Standard GPT-4.1 mini +
+`cartesia-Adrian`; Premium stays GPT-4.1 mini after GPT-4.1 hung up early in 14/30
+conversations against Standard's 9/30) answers §8.2 #3; `retell_cost_inputs` is itemised and
+seeded (AD-15's "not seeded" gap; super-admin audit AS-222..AS-224), with a margin per pack
+and tier. G-15 (`{{business_open}}` constant) was fixed by ADR 0035 on 3 Nov.
+
+Commands run on 4 Nov against the local stack (Postgres + Redis; the voice platform and
+Stripe stubbed at their gateways except where marked live):
+
+| Check | Result |
+| --- | --- |
+| `pnpm test` | all pass: api 974 for this tree's own files (1,252 with 13 test files another session was adding concurrently), web 297, schemas 67, admin 17, api-client 6, db 5, ui 3 |
+| `pnpm --filter @portal/db test:e2e` | 74 / 74 |
+| `pnpm --filter @portal/api test:e2e` | final full run 737 / 745; the three files rerun alone 86 / 87. Remaining failures are the shared local database, not this change: two in `billing.e2e` (138 stale pending checkouts against `reconcilePendingCheckouts()`'s oldest-100 batch) and the daily-digest test in `d7-notifications.e2e` (14,009 accumulated workspaces; the tick walks every unpaused one past the 30 s test limit; it passed in the first full run). The others in that run were a pricing draft this work's console click-through left behind (d12, 59 / 59 once cleared) and a SIP lease timing (d6, passes alone). The files this work touches: 167 / 167 |
+| `pnpm typecheck` / `pnpm lint` | lint pass; typecheck clean for this work, five errors only in the concurrent session's untracked test files |
+| `pnpm --filter @portal/api openapi:check` | current, 238 operations |
+| `pnpm db:seed` twice + a fresh database migrated and seeded twice | v1 + v2 stack and the cost list created once, untouched on the second run |
+| Live `bench:incall` (GPT-4.1 mini, GPT-4.1) | ADR 0038 §3 |
+| Live `bench:generation` ×3 runs of 15 | ADR 0038 §5 |
+| Console click-through, headless Chrome (`console/costs-check.mjs`) | 19 / 19 at desktop, 390 px and dark |
+
+Open from this work: D4 phone-number transfer targets are never dialled (the tools dial the
+brief's number), now surfaced by `transfer_tool_missing` and left for its own change; the spec
+owner's sign-off on the 16 s target and the Premium model.
 

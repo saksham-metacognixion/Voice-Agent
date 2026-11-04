@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BusinessHours } from '@portal/schemas';
-import { businessVariables, isOpen, localClock, nextOpening, parseBusinessHours } from './hours';
+import { businessVariables, callVariables, isOpen, localClock, nextOpening, parseBusinessHours, spokenAgentName, spokenClock } from './hours';
 
 /*
  * The §13.9 hours check. Every case here is one a real customer hits: a business in a
@@ -106,26 +106,26 @@ describe('businessVariables (§9.7, ADR 0035)', () => {
   const nineToFive = hours({ days: { mon: [{ open: '09:00', close: '17:00' }], wed: [{ open: '09:00', close: '17:00' }] } });
 
   it('open: true, no next opening, the local clock', () => {
-    expect(businessVariables(nineToFive, WED_1400_UTC, TORONTO)).toEqual({ business_open: 'true', next_open_time: '', current_time: '10:00' });
+    expect(businessVariables(nineToFive, WED_1400_UTC, TORONTO)).toEqual({ business_open: 'true', next_open_time: '', current_time: 'Wednesday 16 September 2026, 10:00' });
   });
 
   it('closed: false and when it next opens', () => {
     // Wednesday 18:00 Toronto → Monday.
-    expect(businessVariables(nineToFive, new Date('2026-09-16T22:00:00Z'), TORONTO)).toEqual({ business_open: 'false', next_open_time: 'Monday at 09:00', current_time: '18:00' });
+    expect(businessVariables(nineToFive, new Date('2026-09-16T22:00:00Z'), TORONTO)).toEqual({ business_open: 'false', next_open_time: 'Monday at 09:00', current_time: 'Wednesday 16 September 2026, 18:00' });
     // Wednesday 07:00 Toronto → later today.
-    expect(businessVariables(nineToFive, new Date('2026-09-16T11:00:00Z'), TORONTO)).toEqual({ business_open: 'false', next_open_time: 'today at 09:00', current_time: '07:00' });
+    expect(businessVariables(nineToFive, new Date('2026-09-16T11:00:00Z'), TORONTO)).toEqual({ business_open: 'false', next_open_time: 'today at 09:00', current_time: 'Wednesday 16 September 2026, 07:00' });
   });
 
-  it('no hours = open; an unreadable zone = open with the instant as the time', () => {
-    expect(businessVariables(null, WED_1400_UTC, TORONTO)).toEqual({ business_open: 'true', next_open_time: '', current_time: '10:00' });
-    expect(businessVariables(nineToFive, WED_1400_UTC, 'Not/AZone')).toEqual({ business_open: 'true', next_open_time: '', current_time: WED_1400_UTC.toISOString() });
+  it('no hours = open, still on the local clock; an unreadable zone = open, on a clock that says it is UTC', () => {
+    expect(businessVariables(null, WED_1400_UTC, TORONTO)).toEqual({ business_open: 'true', next_open_time: '', current_time: 'Wednesday 16 September 2026, 10:00' });
+    expect(businessVariables(nineToFive, WED_1400_UTC, 'Not/AZone')).toEqual({ business_open: 'true', next_open_time: '', current_time: 'Wednesday 16 September 2026, 14:00 UTC' });
   });
 
   it('is decided in the business zone across a DST change, not the server clock', () => {
     // Toronto leaves DST on 1 Nov 2026 at 02:00. 13:30 UTC is 09:30 EDT on Sat 31 Oct and 08:30 EST on Mon 2 Nov.
     const sat = hours({ days: { sat: [{ open: '09:00', close: '12:00' }], mon: [{ open: '09:00', close: '12:00' }] } });
-    expect(businessVariables(sat, new Date('2026-10-31T13:30:00Z'), TORONTO)).toMatchObject({ business_open: 'true', current_time: '09:30' });
-    expect(businessVariables(sat, new Date('2026-11-02T13:30:00Z'), TORONTO)).toMatchObject({ business_open: 'false', current_time: '08:30', next_open_time: 'today at 09:00' });
+    expect(businessVariables(sat, new Date('2026-10-31T13:30:00Z'), TORONTO)).toMatchObject({ business_open: 'true', current_time: 'Saturday 31 October 2026, 09:30' });
+    expect(businessVariables(sat, new Date('2026-11-02T13:30:00Z'), TORONTO)).toMatchObject({ business_open: 'false', current_time: 'Monday 2 November 2026, 08:30', next_open_time: 'today at 09:00' });
   });
 
   it('parseBusinessHours reads a stored schedule and refuses a broken one', () => {
@@ -134,3 +134,72 @@ describe('businessVariables (§9.7, ADR 0035)', () => {
     expect(parseBusinessHours({ days: 'nope' })).toBeNull();
   });
 });
+
+/*
+ * Every §9.7 variable (ADR 0038, audit G-16..G-18): one builder for every channel, so the
+ * seven names are always present and always strings — an unsupplied `{{variable}}` is read
+ * out by the platform as literal braces.
+ */
+describe('callVariables (§9.7, ADR 0038)', () => {
+  const nineToFive = hours({ days: { wed: [{ open: '09:00', close: '17:00' }] } });
+  const facts = {
+    businessName: 'Maple Dental',
+    agentName: 'Sophie',
+    callerNumber: '+14165550199',
+    primaryLanguage: 'fr-CA',
+    businessHours: nineToFive,
+    timeZone: TORONTO,
+  };
+
+  it('sets all seven, from the facts of this call', () => {
+    expect(callVariables(facts, WED_1400_UTC)).toEqual({
+      business_name: 'Maple Dental',
+      agent_name: 'Sophie',
+      caller_number: '+14165550199',
+      current_time: 'Wednesday 16 September 2026, 10:00',
+      business_open: 'true',
+      next_open_time: '',
+      primary_language: 'fr-CA',
+    });
+  });
+
+  it('never leaves a value out: no caller number and no hours are empty and open', () => {
+    const vars = callVariables({ ...facts, callerNumber: null, businessHours: null }, new Date('2026-09-16T23:30:00Z'));
+    expect(Object.keys(vars).sort()).toEqual(['agent_name', 'business_name', 'business_open', 'caller_number', 'current_time', 'next_open_time', 'primary_language']);
+    expect(Object.values(vars).every((v) => typeof v === 'string')).toBe(true);
+    expect(vars).toMatchObject({ caller_number: '', business_open: 'true', current_time: 'Wednesday 16 September 2026, 19:30' });
+  });
+
+  it('is the workspace that decides, not the call: two workspaces at the same instant differ', () => {
+    const vancouver = callVariables({ ...facts, businessName: 'Pacific Plumbing', timeZone: 'America/Vancouver', businessHours: null }, WED_1400_UTC);
+    const toronto = callVariables(facts, WED_1400_UTC);
+    expect(vancouver).toMatchObject({ business_name: 'Pacific Plumbing', current_time: 'Wednesday 16 September 2026, 07:00' });
+    expect(toronto).toMatchObject({ business_name: 'Maple Dental', current_time: 'Wednesday 16 September 2026, 10:00' });
+  });
+
+  it('closed: false, with the next opening and the date the agent needs to say "tomorrow"', () => {
+    expect(callVariables(facts, new Date('2026-09-15T22:00:00Z'))).toMatchObject({
+      business_open: 'false',
+      next_open_time: 'tomorrow at 09:00',
+      current_time: 'Tuesday 15 September 2026, 18:00',
+    });
+  });
+});
+
+describe('spokenAgentName', () => {
+  it("is the brief's agent_name, else the agent's own name", () => {
+    expect(spokenAgentName({ agent_name: ' Sophie ' }, 'Front desk')).toBe('Sophie');
+    expect(spokenAgentName({ agent_name: '' }, 'Front desk')).toBe('Front desk');
+    expect(spokenAgentName({}, 'Front desk')).toBe('Front desk');
+    expect(spokenAgentName(null, 'Front desk')).toBe('Front desk');
+    expect(spokenAgentName({ agent_name: 42 }, 'Front desk')).toBe('Front desk');
+  });
+});
+
+describe('spokenClock', () => {
+  it('names the day and the date, at midnight too', () => {
+    expect(spokenClock(new Date('2026-12-31T05:00:00Z'), TORONTO)).toBe('Thursday 31 December 2026, 00:00');
+    expect(spokenClock(new Date('2026-01-01T00:00:00Z'), 'Asia/Riyadh')).toBe('Thursday 1 January 2026, 03:00');
+  });
+});
+

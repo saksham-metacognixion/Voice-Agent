@@ -1,3 +1,4 @@
+import type { WorkspaceDb } from '@portal/db';
 import type { Brief } from '@portal/schemas';
 import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
 import { cleanTransferFailMessage, transferFailVariables } from './transfer-fail-message';
@@ -107,6 +108,20 @@ export function numberTransferTargets(value: unknown): string[] {
     }
   }
   return out;
+}
+
+/**
+ * The D4 transfer targets of every phone number that answers for one agent, in number
+ * order: what the §9.5 lint checks the agent's transfer tools against (ADR 0038). A
+ * released, releasing or failed number answers nothing and is left out.
+ */
+export async function agentNumberTransferTargets(db: Pick<WorkspaceDb, 'phoneNumber'>, agentId: string): Promise<string[]> {
+  const rows = await db.phoneNumber.findMany({
+    where: { agentId, status: { notIn: ['released', 'releasing', 'failed'] } },
+    orderBy: { createdAt: 'asc' },
+    select: { transferTargetsJson: true },
+  });
+  return [...new Set(rows.flatMap((row) => numberTransferTargets(row.transferTargetsJson)))];
 }
 
 /**

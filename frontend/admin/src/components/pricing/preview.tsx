@@ -105,6 +105,7 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
             <table className="w-full text-left text-sm">
               <thead className="bg-muted/60 text-xs text-muted-foreground">
                 <tr>
+                  <th className="px-3 py-2 font-medium">Pack</th>
                   <th className="px-3 py-2 font-medium">Tier</th>
                   <th className="px-3 py-2 text-right font-medium">Revenue ¢/min</th>
                   <th className="px-3 py-2 text-right font-medium">Cost ¢/min</th>
@@ -114,10 +115,11 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
               </thead>
               <tbody className="divide-y divide-border">
                 {p.margins.map((m) => (
-                  <tr key={m.tier} className={cn(m.below_floor && 'bg-danger/5')}>
+                  <tr key={`${m.pack_id}-${m.tier}`} className={cn(m.below_floor && 'bg-danger/5')}>
+                    <td className="px-3 py-1.5">{humanize(m.pack_id)}</td>
                     <td className="px-3 py-1.5">{humanize(m.tier)}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums">{formatNumber(m.revenue_cents_per_min, 2)}</td>
-                    <td className="px-3 py-1.5 text-right tabular-nums">{m.cost_cents_per_min === null ? <span className="text-muted-foreground">not set</span> : formatNumber(m.cost_cents_per_min, 2)}</td>
+                    <td className="px-3 py-1.5 text-right tabular-nums">{m.cost_cents_per_min === null ? <span className="text-muted-foreground">{m.missing.length ? `missing ${m.missing.join(', ')}` : 'not set'}</span> : formatNumber(m.cost_cents_per_min, 2)}</td>
                     <td className={cn('px-3 py-1.5 text-right tabular-nums', m.below_floor && 'font-semibold text-danger')}>{formatPercent(m.margin_pct)}{m.below_floor ? ' ↓' : ''}</td>
                     <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{formatPercent(m.floor_pct, 0)}</td>
                   </tr>
@@ -231,7 +233,7 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
           <DialogDescription>A new version, then the Stripe price sync, then it takes effect and every cache drops.</DialogDescription>
         </DialogHeader>
         {stripeFailed ? (
-          <Alert variant="danger" title="Stripe sync failed — the version is NOT in effect">
+          <Alert variant="danger" title="Stripe sync failed: the version is NOT in effect">
             <p>{stripeFailed}</p>
             <p className="mt-1">The version was saved with its Stripe sync marked failed. Fix the cause and publish again: the sync resumes from where it stopped and nothing is created twice.</p>
           </Alert>
@@ -246,7 +248,7 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
           </RadioGroup>
         </Field>
         <Field id="pub-summary" label="Change summary" optional>
-          <Textarea id="pub-summary" value={summary} onChange={(e) => setSummary(e.target.value)} rows={2} maxLength={500} className="min-h-16" placeholder="What changed and why — shown on the Versions tab." />
+          <Textarea id="pub-summary" value={summary} onChange={(e) => setSummary(e.target.value)} rows={2} maxLength={500} className="min-h-16" placeholder="What changed and why, shown on the Versions tab." />
         </Field>
         {marginBlocked ? (
           <div className="flex flex-col gap-2 rounded-md border border-danger/40 bg-danger/5 p-3">

@@ -68,22 +68,6 @@ describe('rules that block a publish', () => {
     expect(result.publishable).toBe(false);
   });
 
-  it('transfer_tool_missing — the brief promises a transfer the agent cannot perform', () => {
-    const withTransfer = brief({
-      handoff_rules: [{ condition: 'Caller asks for a person', action: 'transfer', transfer_number: '+15145550123' }],
-    });
-    const result = lintPrompt({
-      prompt: CLEAN_PROMPT,
-      greeting: GREETING,
-      brief: withTransfer,
-      primaryLanguage: 'en-US',
-      // No transfer target reached the agent — the failure this rule exists to catch.
-      transferNumbers: [],
-    });
-    expect(result.findings.map((f) => f.rule)).toContain('transfer_tool_missing');
-    expect(result.publishable).toBe(false);
-  });
-
   it('transfer_number_invalid — E.164 in shape, no real number (staging, 28 Oct: the platform refused the agent)', () => {
     const rule = (transfer_number: string) =>
       brief({ handoff_rules: [{ condition: 'Caller asks for a person', action: 'transfer', transfer_number }] });
@@ -248,6 +232,134 @@ describe('rules that warn but still publish', () => {
     expect(rules({ prompt: french, greeting: 'Bonjour.', brief: brief(), primaryLanguage: 'fr-CA' })).not.toContain(
       'language_mismatch',
     );
+  });
+});
+
+/*
+ * §9.5 "transfer number set but no transfer tool" (ADR 0038, audit G-11). The rule used to
+ * be fed nothing and compared the brief with itself, so it never fired. Now it is given the
+ * transfer targets of the numbers answering for the agent, and reads the tools the sync
+ * builds (`transferRoutes`). A warning: the call still runs, the transfer does not.
+ */
+describe('transfer_tool_missing', () => {
+  const STAFF = '+15145550123';
+  const OTHER = '+14165550199';
+  const withTransfer = brief({ handoff_rules: [{ condition: 'Caller asks for a person', action: 'transfer', transfer_number: STAFF }] });
+  const lint = (over: Partial<Parameters<typeof lintPrompt>[0]> = {}) =>
+    lintPrompt({ prompt: CLEAN_PROMPT, greeting: GREETING, brief: withTransfer, primaryLanguage: 'en-US', ...over }, DEFAULT_LINT_CONFIG, new Date('2026-11-04T00:00:00Z'));
+  const finding = (result: ReturnType<typeof lintPrompt>) => result.findings.find((f) => f.rule === 'transfer_tool_missing');
+
+  it('is silent when the transfer the brief asks for has its tool', () => {
+    expect(finding(lint())).toBeUndefined();
+    expect(finding(lint({ numberTransferTargets: [] }))).toBeUndefined();
+  });
+
+  it('is silent when the number transfers to the same number the brief does', () => {
+    expect(finding(lint({ numberTransferTargets: [STAFF] }))).toBeUndefined();
+  });
+
+  it('is silent for an agent that transfers nowhere', () => {
+    expect(finding(lint({ brief: brief(), prompt: applyGuardrails('You are Sophie. Take a message for the team and confirm it back.') }))).toBeUndefined();
+  });
+
+  it('warns when a phone number transfers to a number no tool dials', () => {
+    const result = lint({ numberTransferTargets: [OTHER] });
+    expect(finding(result)).toMatchObject({ severity: 'warning', field: 'numbers.transfer_targets' });
+    expect(finding(result)?.message).toContain('none of its hand-off rules uses');
+    expect(result.publishable).toBe(true);
+  });
+
+  it('warns when a phone number has a transfer number but the agent cannot transfer at all', () => {
+    const result = lint({ brief: brief(), numberTransferTargets: [OTHER] });
+    expect(finding(result)?.message).toContain('no hand-off rule that transfers');
+  });
+
+  it('warns when the script names a transfer tool the agent does not have', () => {
+    const second = applyGuardrails(`${CLEAN_BODY}\nFor billing questions, use transfer_2.`);
+    expect(finding(lint({ prompt: second }))).toMatchObject({ field: 'prompt' });
+    expect(finding(lint({ prompt: second }))?.message).toContain('"transfer_2"');
+    const none = applyGuardrails(`${CLEAN_BODY}\nUse the transfer_call tool for emergencies.`);
+    expect(finding(lint({ brief: brief(), prompt: none }))?.message).toContain('cannot transfer');
+  });
+
+  it('reads tool names as the platform does: transfer_1 exists when there is one tool, transfer_number_1 is not a tool', () => {
+    expect(finding(lint({ prompt: applyGuardrails(`${CLEAN_BODY}\nUse transfer_1 when the caller agrees.`) }))).toBeUndefined();
+    expect(finding(lint({ prompt: applyGuardrails(`${CLEAN_BODY}\nThe line is {{transfer_number_1}}.`) }))).toBeUndefined();
+  });
+
+  it('ignores the platform rules block, which mentions transfers for every agent', () => {
+    expect(finding(lint({ brief: brief(), prompt: CLEAN_PROMPT }))).toBeUndefined();
+  });
+
+  it('judges each agent on its own numbers: the same brief, two workspaces, two answers', () => {
+    expect(finding(lint({ numberTransferTargets: [STAFF] }))).toBeUndefined();
+    expect(finding(lint({ numberTransferTargets: [STAFF, OTHER] }))).toBeDefined();
+  });
+
+  it('a stack row that still says error makes it block, as v1 does', () => {
+    const v1 = lintConfigFrom({ severities: { transfer_tool_missing: 'error' } });
+    const result = lintPrompt({ prompt: CLEAN_PROMPT, greeting: GREETING, brief: withTransfer, primaryLanguage: 'en-US', numberTransferTargets: [OTHER] }, v1);
+    expect(result.publishable).toBe(false);
+  });
+});
+
+/*
+ * §9.5 "language mismatch" for Arabic (ADR 0038, audit G-12). The Gulf agents of ADR 0027
+ * skipped the rule because Arabic had no stopwords.
+ */
+describe('language_mismatch — Arabic', () => {
+  const ARABIC = [
+    'أنت سارة، موظفة الاستقبال في عيادة الابتسامة في الرياض.',
+    'رحّب بالمتصل باختصار واسأله عن حاجته في سؤال واحد.',
+    'أجب من معلومات العيادة فقط، وإذا لم تعرف الجواب فقل إنك لا تملك هذه المعلومة واعرض أن تأخذ رسالة.',
+    'اطلب من المتصل اسمه ورقم هاتفه وسبب الاتصال، ثم أكّد التفاصيل معه قبل إنهاء المكالمة.',
+    'لا تعطِ أي نصيحة طبية أبداً، ولا تَعِد بموعد محدد.',
+    'عند انتهاء المتصل من طلبه، اشكره على اتصاله وأنهِ المكالمة.',
+    'تعمل العيادة من الأحد إلى الخميس، من الساعة التاسعة صباحاً إلى الخامسة مساءً.',
+  ].join('\n');
+  const ENGLISH = `${CLEAN_BODY}\nYou never give a price that is not in the brief, and you are always polite with the caller.\nYou take a message for the team when you cannot help with the call.`;
+  const lang = (prompt: string, primaryLanguage: string) =>
+    lintPrompt({ prompt: applyGuardrails(prompt), greeting: 'أهلاً', brief: brief(), primaryLanguage }).findings.find((f) => f.rule === 'language_mismatch');
+
+  it('recognises an Arabic script, with or without vowel marks', () => {
+    expect(detectLanguage(ARABIC)).toBe('ar');
+    expect(detectLanguage(ARABIC.replace(/[\u064b-\u065f]/g, ''))).toBe('ar');
+  });
+
+  it('is not thrown by right-to-left marks or tatweel inside words', () => {
+    const marked = ARABIC.replace(/المتصل/g, 'الم\u200fتصـل').replace(/في/g, '\u200fفي\u200f');
+    expect(detectLanguage(marked)).toBe('ar');
+  });
+
+  it('passes an Arabic script on an Arabic agent, Saudi or Emirati', () => {
+    expect(lang(ARABIC, 'ar-SA')).toBeUndefined();
+    expect(lang(ARABIC, 'ar-AE')).toBeUndefined();
+  });
+
+  it('warns on an English script for an Arabic agent — the W2-before-W3 case', () => {
+    expect(lang(ENGLISH, 'ar-SA')).toMatchObject({ severity: 'warning', message: expect.stringContaining('main language is Arabic') });
+  });
+
+  it('warns on an Arabic script for an English agent', () => {
+    expect(lang(ARABIC, 'en-US')?.message).toContain('reads as Arabic');
+  });
+
+  it('reads mixed content by what most of it is', () => {
+    const arabicWithEnglishHeadings = `## Identity\n${ARABIC}\n## Hand-off\nBright Smile Dental — Dr. Ahmed.`;
+    expect(detectLanguage(arabicWithEnglishHeadings)).toBe('ar');
+    const englishWithArabicGreeting = `${ENGLISH}\nIf the caller greets you in Arabic, say "أهلاً وسهلاً" and carry on in English.`;
+    expect(detectLanguage(englishWithArabicGreeting)).toBe('en');
+  });
+
+  it('leaves English, French and Spanish as they were', () => {
+    expect(lang(ENGLISH, 'en-US')).toBeUndefined();
+    expect(detectLanguage(`${CLEAN_BODY}\n${CLEAN_BODY}`)).toBe('en');
+  });
+
+  it('says nothing for a language it cannot judge, or none', () => {
+    expect(lang(ARABIC, 'de-DE')).toBeUndefined();
+    expect(lang(ARABIC, '')).toBeUndefined();
+    expect(lang(ARABIC, 'xx')).toBeUndefined();
   });
 });
 

@@ -50,7 +50,6 @@ Book the caller into the next free slot, or take a message with their name and n
 ## Business facts
 Hours: Monday to Friday 9am to 5pm, closed Saturday and Sunday · Address: 120 King St W, Toronto, ON · Services: check-ups, cleanings, fillings, emergencies, for adults and children · Pricing basics: Check-up and cleaning from $150.
 FAQ: none provided beyond the above.
-Right now it is {{current_time}}. Open now: {{business_open}} (true or false). Next opening: {{next_open_time}}.
 
 ## Conversation guide
 1. Greet in English (en-US); this agent only speaks English.
@@ -96,8 +95,17 @@ const BRIEF = {
   ],
 };
 
-const OPEN_VARS = { business_open: 'true', current_time: 'Tuesday 4 November 2026, 10:15 AM', next_open_time: '', transfer_fail_message: '' };
-const CLOSED_VARS = { business_open: 'false', current_time: 'Saturday 7 November 2026, 8:10 PM', next_open_time: 'Monday 9 November at 9:00 AM', transfer_fail_message: '' };
+/**
+ * ADR 0037 run 2 added a script line naming the hours variables, because nothing else did.
+ * Since ADR 0038 the fixed `HOURS_RULE` names them for every agent, so the script runs as
+ * generated; `--hours-line` puts the line back to reproduce the 4 Nov run.
+ */
+const HOURS_LINE = 'Right now it is {{current_time}}. Open now: {{business_open}} (true or false). Next opening: {{next_open_time}}.';
+
+/** Every §9.7 variable, in `callVariables()`'s format, as the inbound path sends them. */
+const CALL_VARS = { business_name: 'Bright Smile Dental', agent_name: 'Sophie', caller_number: '+14165550123', primary_language: 'en-US', transfer_fail_message: '' };
+const OPEN_VARS = { ...CALL_VARS, business_open: 'true', current_time: 'Tuesday 3 November 2026, 10:15', next_open_time: '' };
+const CLOSED_VARS = { ...CALL_VARS, business_open: 'false', current_time: 'Saturday 7 November 2026, 20:10', next_open_time: 'Monday at 09:00' };
 
 // ------------------------------------------------------------------ scenarios and checks
 
@@ -328,12 +336,14 @@ function args() {
     out: get('--out'),
     keep: argv.includes('--keep'),
     real: argv.includes('--real'),
+    hoursLine: argv.includes('--hours-line'),
   };
 }
 
-async function createAgent(gw: RetellGateway, model: LlmModel, bilingual = false): Promise<{ llmId: string; agentId: string }> {
+async function createAgent(gw: RetellGateway, model: LlmModel, bilingual = false, hoursLine = false): Promise<{ llmId: string; agentId: string }> {
+  const script = bilingual ? SCRIPT_BILINGUAL : SCRIPT;
   const llm = await gw.createLlm({
-    prompt: runtimePrompt(bilingual ? SCRIPT_BILINGUAL : SCRIPT, BRIEF, null),
+    prompt: runtimePrompt(hoursLine ? script.replace('FAQ: none provided beyond the above.\n', `FAQ: none provided beyond the above.\n${HOURS_LINE}\n`) : script, BRIEF, null),
     beginMessage: GREETING,
     model,
     defaultDynamicVariables: { agent_name: 'Sophie', business_name: 'Bright Smile Dental', ...OPEN_VARS },
@@ -503,7 +513,7 @@ async function main() {
   try {
     for (const model of opts.models) {
       for (const bilingual of variants) {
-        const ids = await createAgent(gw, model, bilingual);
+        const ids = await createAgent(gw, model, bilingual, opts.hoursLine);
         created.push({ model, bilingual, ...ids });
         console.log(`created ${model}${bilingual ? ' (en-US + fr-CA)' : ''}: ${ids.agentId} / ${ids.llmId}`);
       }

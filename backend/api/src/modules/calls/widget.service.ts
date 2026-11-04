@@ -11,7 +11,7 @@ import {
 } from '@portal/schemas';
 import { randomBytes } from 'node:crypto';
 import { portalUrl } from '../../common/env';
-import { businessVariables, parseBusinessHours } from '../runtime-cache';
+import { callVariables, parseBusinessHours, spokenAgentName } from '../runtime-cache';
 import { AppError } from '../../common/errors/app-error';
 import { clientBucket } from '../../common/http/client-bucket';
 import { normaliseOrigin } from '../../common/http/request-limits';
@@ -163,7 +163,7 @@ export class WidgetService {
       this.config.killSwitch('reject_inbound'),
       adminDb.agentVersion.findUnique({
         where: { agentId_versionNo: { agentId: agent.id, versionNo: agent.publishedVersion! } },
-        select: { retellAgentVersion: true },
+        select: { retellAgentVersion: true, briefJson: true },
       }),
       // The live tier's rate and the live ceiling: what callers on the phone get (§9.9).
       this.config.rateFor(agent.tier),
@@ -191,8 +191,19 @@ export class WidgetService {
         agentVersion: published!.retellAgentVersion!,
         metadata: { tenant_id: agent.tenantId, agent_id: agent.id, version_no: agent.publishedVersion, tier: agent.tier, test: false, widget: true },
         maxCallDurationMs: room.maxMs,
-        // A real caller on the web channel: the same §9.7 hours variables as the phone (ADR 0035).
-        dynamicVariables: businessVariables(parseBusinessHours(agent.tenant.businessHoursJson), new Date(), agent.tenant.timezone),
+        // A real caller on the web channel: the same §9.7 variables as the phone (ADR 0035,
+        // 0038), from the live agent; a website visitor has no number to give.
+        dynamicVariables: callVariables(
+          {
+            businessName: agent.tenant.name,
+            agentName: spokenAgentName(published?.briefJson, agent.name),
+            callerNumber: null,
+            primaryLanguage: agent.primaryLanguage,
+            businessHours: parseBusinessHours(agent.tenant.businessHoursJson),
+            timeZone: agent.tenant.timezone,
+          },
+          new Date(),
+        ),
       })
       .catch(async (error: unknown) => {
         await slot.release();

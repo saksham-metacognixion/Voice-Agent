@@ -132,6 +132,8 @@ export function buildUserPrompt(context: GenerationContext): string {
     ...withGap(dialectSection(context.primaryLanguage)),
     '',
     ...closingSection(),
+    '',
+    ...callVariablesSection(),
     ...withGap(transferSection(brief)),
   ];
 
@@ -228,6 +230,36 @@ export function closingSection(): string[] {
     'the "## Ending" section as that condition, the line, and the hang-up — "Only once the caller says',
     'they need nothing else or says goodbye, say: … and end the call." — never the bare line. The',
     '`closing` you return is that goodbye line alone.',
+  ];
+}
+
+/**
+ * The §9.7 variables, named for the model (ADR 0038, audit G-18). The platform fills them
+ * in per call on every channel (`callVariables`), but only where `{{…}}` is written, and no
+ * script had ever been told they exist: an after-hours step said "we are closed" whatever
+ * the clock said, or nothing at all. The model is told what each holds and to write them
+ * as they are; `HOURS_RULE` covers the hours at runtime whatever the script says.
+ *
+ * `{{caller_number}}` comes with a limit: a number is read back only when the caller offers
+ * the one they are calling from, so the after-call check (`captured-phones.ts`) still sees
+ * the number the caller confirmed.
+ */
+export function callVariablesSection(): string[] {
+  return [
+    '# Call variables',
+    'The phone system fills these in at the start of every call. Where the script needs one of these',
+    'facts, write the variable exactly as shown, double braces included: they are not skeleton',
+    'placeholders, so never replace them with a value or invent one. Use them only where they help.',
+    '- {{business_name}}: the business\'s name.',
+    '- {{agent_name}}: the name the agent introduces itself by.',
+    '- {{current_time}}: the day, date and time where the business is, e.g. "Wednesday 4 November 2026, 14:05".',
+    '- {{business_open}}: "true" or "false", whether the business is open right now.',
+    '- {{next_open_time}}: when it next opens, e.g. "tomorrow at 09:00"; empty while it is open.',
+    '- {{caller_number}}: the number the caller is calling from; empty when it is withheld or on a web call.',
+    '- {{primary_language}}: the agent\'s main language code, e.g. en-US.',
+    'An after-hours or "we are closed" step depends on {{business_open}} and says {{next_open_time}}, never',
+    'fixed hours. Never read {{caller_number}} out unless the caller asks to use the number they are calling',
+    'from; then read it back and ask them to confirm it.',
   ];
 }
 
@@ -368,6 +400,8 @@ export function buildFeedbackPrompt(input: {
     '```',
     '',
     ...withGap(transferSection(input.brief)),
+    '',
+    ...callVariablesSection(),
     '',
     '# What the customer said',
     input.feedback,

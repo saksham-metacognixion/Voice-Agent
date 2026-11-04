@@ -13,7 +13,7 @@ export { AdminUsersService } from './admin-users.service';
 export { AdminJobsService } from './admin-jobs.service';
 export { AdminWebhooksService } from './admin-webhooks.service';
 export { AdminFlagsService, KILL_SWITCH_DESCRIPTIONS } from './admin-flags.service';
-export { AdminPricingService, diffConfig, marginsFor } from './admin-pricing.service';
+export { AdminPricingService, diffConfig, marginBlockers, marginsFor, tierCostPerMin } from './admin-pricing.service';
 export { AdminSearchService } from './admin-search.service';
 export { AdminSystemService } from './admin-system.service';
 export { AdminSupportService, ticketParam, derivedUuid } from './admin-support.service';

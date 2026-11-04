@@ -150,7 +150,12 @@ retired or deviated pending the spec owner (3 Nov), 0037 the P0 close — §20 #
 on `bench:incall` (the production prompt through `playground.completion`, scripted callers, mechanical
 checks), a real Standard call priced line by line against Retell's page (0.0 % on every published rate;
 the flat 2.08 ¢ analysis line and Canadian telephony at $0.030/min are not on it), and no prompt that
-reads `{{business_open}}` (4 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+reads `{{business_open}}` (4 Nov), 0038 the prompt-system gaps — every §9.7 variable on every channel
+from one `callVariables()`, the fixed `HOURS_RULE` and the generation turn's `callVariablesSection()`,
+`transfer_tool_missing` fed the real tools and each number's own transfer targets (a warning now),
+Arabic in the language check, `agent_stack_configs` v2 (Standard GPT-4.1 mini + `cartesia-Adrian`,
+Premium unchanged on GPT-4.1 mini against §4.3 after it failed the early-hang-up bar) seeded by version, itemised `retell_cost_inputs` seeded from the 4 Nov price list and a
+margin per pack and tier; the generation target amended to p95 ≤ 16 s with thinking off by default (4 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -365,11 +370,18 @@ job settles.
   enqueues `forwarding-test-landed`. Not part of `decide()`. **The call it turns away
   consumes the marker** (compare-and-delete inside the budget), so a test declines one
   call at most — never every real caller on a carrier that shows the forwarded line.
-- **`{{business_open}}`, `{{next_open_time}}` and `{{current_time}}` are computed per call**
-  from the *workspace's* hours (`num:{e164}.business_hours`, separate from the answering
-  schedule `hours`) by `businessVariables()` in `runtime-cache/hours.ts` (ADR 0035) — the
-  inbound path, the W5 browser test, "Call my phone" and the widget all send them. No hours =
-  open. The agent's defaults at sync (`'true'`) are placeholders these override.
+- **Every §9.7 variable is sent on every call we answer or mint** (ADR 0035, ADR 0038) by one
+  builder, `callVariables()` in `runtime-cache/hours.ts`: `business_name`, `agent_name` (the
+  brief's spoken name, else `agents.name` — `spokenAgentName()`, carried in `num:{e164}`),
+  `caller_number` (the platform's `from_number` inbound, the person rung on "Call my phone" and
+  the callback, `''` on the web), `current_time` ("Wednesday 4 November 2026, 14:05", the
+  workspace's clock — never a custom number's zone), `business_open`, `next_open_time`
+  (the *workspace's* hours, `num:{e164}.business_hours`, separate from the answering
+  schedule `hours`; no hours = open) and `primary_language` (`num:{e164}.primary_language`, the
+  live agent's). The inbound path, the W5 browser test, "Call my phone", the widget and the D18
+  callback all send them. The agent's defaults at sync are placeholders for a fail-open call
+  only. **No prompt read them until ADR 0038**: the fixed `HOURS_RULE` names the hours ones
+  for every live agent, and `callVariablesSection()` tells the generator they exist.
 - `max_call_duration_ms = min(planMax, remainingCredits/rate × 60000)`, clamped to Retell's
   [60 s, 2 h]. "remainingCredits" is the balance **minus what the other live calls may still
   spend** — that is what `active:{ws}` holds per call (ADR 0011 §1).
@@ -473,7 +485,8 @@ job settles.
   which a customer can edit, replace or delete them. Feedback that conflicts with a guardrail
   returns `changes: []` plus an explanation, and the _stored_ prompt is the one they already had.
 - **`FIXED_PLATFORM_GUARDRAILS` are appended after whatever the stack row says** (SA6 can
-  reword §9.4, not these): the closing rule and the phone-number rule — read back only the
+  reword §9.4, not these): the hours rule (§9.4 rule 7 with `{{business_open}}`,
+  `{{next_open_time}}` and `{{current_time}}` in it, ADR 0038), the closing rule and the phone-number rule — read back only the
   digits said, never pad or guess one, digits said in groups count, ask again only when it sounds incomplete or unclear, give up after two tries and carry on
   (26 Oct: nine digits said, ten read back and captured). **The rule never branches on a
   digit count**: gpt-5-mini miscounts spoken digits, and a length-gated variant re-asked a
@@ -1358,6 +1371,18 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   compiled-in model, voice or plan ceiling. `AgentRetellService.syncDraft` requires a
   `TierStack`; publish answers `503 NOT_CONFIGURED` and the worker records
   `retell_sync: skipped` when the row is missing or its `tiers_json` fails `agentStackTiers`.
+  The newest version is in force. `pnpm db:seed` creates each shipped version (`agent-stack-v1.ts`,
+  `agent-stack-v2.ts`) once, by number, and never rewrites one; v2 (ADR 0038) is Standard
+  `gpt-4.1-mini` + `cartesia-Adrian`, Premium still `gpt-4.1-mini` (GPT-4.1 failed ADR 0037's early-hang-up bar), `transfer_tool_missing` a warning.
+  A change to the in-call model or a fixed rule is judged with `bench:incall` first (ADR 0037).
+- **`retell_cost_inputs` is the platform's itemised price list** (ADR 0038, `retellCostInputs`):
+  voice engine, TTS by provider or `provider:voice_model`, LLM by model id, telephony by country,
+  knowledge base, analysis per call, monthly fixed, margin floor (35 %). Seeded from
+  `seed-data/retell-costs-v1.ts` (the 4 Nov page, the bill where it differs) when no itemised row
+  exists. `marginsFor()` prices a tier's minute from its current stack (`tierCostPerMin`: voice
+  engine + default voice + model + dearest telephony + KB) for **every active priced pack**;
+  a missing input or no inputs at all is a margin blocker (super admin override with a note),
+  never a guessed line.
 - Publishing invalidates `pricing:current`, `stack:current`, `flags:*` and `caps:{ws}`; the portal
   re-reads within 60 s.
   Kill switch keys: `reject_inbound`, `pause_web_tests`, `pause_purchases`, `pause_generation`.
@@ -1770,7 +1795,8 @@ deploy and verification: `docs/runbooks/staging.md`.
    `api` / `app` / `admin.oraly.ai`, staging with a `-staging` suffix (ADR 0015).
 2. USD vs CAD; merchant of record (Metacognixion Canada vs Gritbyte India).
 3. ~~Standard-tier LLM~~ — decided 4 Nov 2026: **GPT-4.1 mini** (ADR 0037, `pnpm --filter @portal/api bench:incall`). The
-   SA6 stack row still says `gpt-5-mini` until Full Scope 05 switches it, after a rerun of the bench.
+   SA6 stack row is `agent_stack_configs` v2 since ADR 0038 (rerun of the bench); an environment seeded
+   before it keeps v1's `gpt-5-mini` until `pnpm db:seed` runs there.
 4. Launch countries for numbers: US + CA only, or include India.
 5. Trial size (20 credits proposed) and whether a card is required at sign-up.
 6. Credit expiry of 12 months against prepaid-credit consumer rules in target provinces and states.

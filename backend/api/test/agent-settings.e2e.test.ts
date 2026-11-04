@@ -292,11 +292,16 @@ describe('publish is what activates a version’s settings', () => {
 
   it('a rename is the one live write a draft patch makes, and it refreshes the runtime record', async () => {
     const { agentId, e164 } = await liveAgentWithNumber();
+    const before = (await numberRecord(e164)).refreshed_at;
     const res = await req('PATCH', `/agents/${agentId}/draft`, {
       name: `Front desk ${randomUUID().slice(0, 4)}`,
     });
     expect(res.statusCode).toBe(200);
-    expect((await numberRecord(e164)).agent_name).toBe(res.json().name);
+    const record = await numberRecord(e164);
+    expect(record.refreshed_at > before).toBe(true);
+    // §9.7 `{{agent_name}}` is the name the agent says (ADR 0038): the published brief's,
+    // so the portal label does not reach the caller while the brief names one.
+    expect(record.agent_name).toBe('Sophie');
     // A label is not content: no new version was forked for it.
     expect(res.json().draft_version).toBe(1);
   });

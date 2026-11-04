@@ -59,7 +59,7 @@ export class AnthropicPromptProvider implements PromptProvider {
   private readonly maxTokens: number;
   /** `none` sends no `effort` at all — see the call site. */
   private readonly effort: Effort;
-  /** `adaptive` or `off`. See the note on GENERATION_THINKING below. */
+  /** `off` (default) or `adaptive`. See the note on GENERATION_THINKING below. */
   private readonly thinking: 'adaptive' | 'off';
   private client?: Anthropic;
 
@@ -75,7 +75,11 @@ export class AnthropicPromptProvider implements PromptProvider {
     // few thousand tokens and the deadline is what actually bounds the call.
     this.maxTokens = positiveInt(env.GENERATION_MAX_TOKENS, 16_000);
     this.effort = effortOf(env.GENERATION_EFFORT) ?? 'low';
-    this.thinking = env.GENERATION_THINKING?.trim().toLowerCase() === 'off' ? 'off' : 'adaptive';
+    // Off unless asked for (ADR 0038, 4 Nov): on 21 Sep adaptive thinking emitted nothing at
+    // effort `low`; by 4 Nov it spent 0–1.9 s a generation, and turning it off took p95 from
+    // 16.4 s to 15.2 s with every check unchanged (15/15 zod, guardrails, lint). The owner
+    // accepted a 16 s target on that basis; `adaptive` is still one env var away.
+    this.thinking = env.GENERATION_THINKING?.trim().toLowerCase() === 'adaptive' ? 'adaptive' : 'off';
     this.configured = this.apiKey.length > 0;
 
     if (!this.configured) {

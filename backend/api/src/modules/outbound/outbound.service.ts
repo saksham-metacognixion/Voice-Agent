@@ -22,7 +22,7 @@ import { PlatformConfigService } from '../config';
 import { numberTransferVariables } from '../prompting/staff-transfer';
 import { REDIS, type RedisLike } from '../redis';
 import { RetellGateway, type VoicemailAction, retellErrorStatus } from '../retell';
-import { normalisePhone } from '../runtime-cache';
+import { callVariables, normalisePhone, parseBusinessHours, spokenAgentName } from '../runtime-cache';
 import { WalletService } from '../wallet';
 import { type CallerId, callerIdCandidates, pickCallerId } from './caller-ids';
 import { callingWindowVerdict } from './calling-window';
@@ -39,6 +39,8 @@ interface CallerLine {
 /** The agent that places the callback: the one on the call, live and published. */
 interface LiveAgent {
   id: string;
+  name: string;
+  primaryLanguage: string;
   tier: AgentTier;
   maxCallDurationS: number;
   retellAgentId: string;
@@ -58,6 +60,8 @@ interface Assessment {
   destination: { e164: string; country: string } | null;
   nextAllowedAt: Date | null;
   localDay: string | null;
+  /** What §9.7 needs about the workspace: its name, zone and hours. */
+  business: { name: string; timezone: string; hours: unknown } | null;
 }
 
 /**
@@ -165,8 +169,22 @@ export class OutboundCallService {
         },
         maxCallDurationMs: room.maxMs,
         voicemail: voicemailAction(a.settings),
-        // The caller ID's transfer targets and fail message, as an inbound call to it carries.
-        dynamicVariables: numberTransferVariables(a.callerLine!, agent.briefJson),
+        // Every §9.7 variable (ADR 0038), the person rung as the other party, plus the
+        // caller ID's transfer targets and fail message, as an inbound call to it carries.
+        dynamicVariables: {
+          ...callVariables(
+            {
+              businessName: a.business!.name,
+              agentName: spokenAgentName(agent.briefJson, agent.name),
+              callerNumber: to.e164,
+              primaryLanguage: agent.primaryLanguage,
+              businessHours: parseBusinessHours(a.business!.hours),
+              timeZone: a.business!.timezone,
+            },
+            new Date(),
+          ),
+          ...numberTransferVariables(a.callerLine!, agent.briefJson),
+        },
       })
       .catch(async (error: unknown) => {
         // `call_started` reserves the call if it did ring; the placeholder is ours to free.
@@ -257,7 +275,7 @@ export class OutboundCallService {
       const [tenant, numbers, paid] = await Promise.all([
         db.tenant.findUniqueOrThrow({
           where: { id: ctx.workspaceId },
-          select: { pausedAt: true, kycStatus: true, timezone: true, planTier: true, outboundSettingsJson: true },
+          select: { pausedAt: true, kycStatus: true, name: true, timezone: true, businessHoursJson: true, planTier: true, outboundSettingsJson: true },
         }),
         callerIdCandidates(db, ctx.workspaceId, { transferTargetsJson: true, transferFailMessage: true }),
         db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }),
@@ -322,6 +340,7 @@ export class OutboundCallService {
       destination: destination.ok ? { e164: destination.e164, country: destination.country } : null,
       nextAllowedAt: window?.nextAt ?? null,
       localDay,
+      business: { name: tenant.name, timezone: tenant.timezone, hours: tenant.businessHoursJson },
     };
   }
 
@@ -541,7 +560,7 @@ async function liveAgent(db: WorkspaceDb, workspaceId: string, agentId: string |
   if (!agentId) return null;
   const agent = await db.agent.findFirst({
     where: { id: agentId, tenantId: workspaceId, deletedAt: null },
-    select: { id: true, status: true, tier: true, maxCallDurationS: true, retellAgentId: true, publishedVersion: true },
+    select: { id: true, name: true, primaryLanguage: true, status: true, tier: true, maxCallDurationS: true, retellAgentId: true, publishedVersion: true },
   });
   if (!agent || agent.status !== 'live' || agent.publishedVersion === null || !agent.retellAgentId) return null;
   const version = await db.agentVersion.findUnique({
@@ -551,6 +570,8 @@ async function liveAgent(db: WorkspaceDb, workspaceId: string, agentId: string |
   if (version?.retellAgentVersion == null) return null;
   return {
     id: agent.id,
+    name: agent.name,
+    primaryLanguage: agent.primaryLanguage,
     tier: agent.tier,
     maxCallDurationS: agent.maxCallDurationS,
     retellAgentId: agent.retellAgentId,
@@ -634,6 +655,7 @@ function disabledAssessment(policy: OutboundPolicy): Assessment {
     destination: null,
     nextAllowedAt: null,
     localDay: null,
+    business: null,
   };
 }
 

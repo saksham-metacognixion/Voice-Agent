@@ -424,9 +424,17 @@ describe('placing the call', () => {
     const placed = lastArgs<{ fromNumber: string; toNumber: string; agentId: string; agentVersion: number; metadata: Record<string, unknown>; voicemail: unknown }>('createPhoneCall');
     expect(placed).toMatchObject({ fromNumber: number.e164, toNumber: source.fromNumber, agentId: agent.retellAgentId, agentVersion: version.retellAgentVersion, voicemail: { action: 'hang_up' } });
     expect(placed.metadata).toMatchObject({ tenant_id: ws.workspaceId, agent_id: agentId, version_no: agent.publishedVersion, tier: agent.tier, test: false, number_id: number.id });
+    // The caller ID's transfer settings, and every §9.7 variable with the person rung as the caller (ADR 0038).
     expect((placed as { dynamicVariables?: Record<string, string> }).dynamicVariables).toEqual({
       transfer_number_1: '+14165550142',
       transfer_fail_message: 'Sorry, try our staff later.',
+      business_name: expect.any(String),
+      agent_name: expect.any(String),
+      caller_number: source.fromNumber,
+      primary_language: expect.stringMatching(/^[a-z]{2}-/),
+      business_open: expect.stringMatching(/^(true|false)$/),
+      next_open_time: expect.any(String),
+      current_time: expect.stringMatching(/^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ \d{4}, \d{2}:\d{2}$/),
     });
 
     const callId = res.body.call_id as string;

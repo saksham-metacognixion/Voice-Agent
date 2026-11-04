@@ -415,9 +415,44 @@ describe('dynamic variables handed to the agent (§9.7)', () => {
       business_name: 'Maple Dental',
       agent_name: 'Maya',
       business_open: 'true',
-      current_time: '10:00',
+      current_time: 'Wednesday 16 September 2026, 10:00',
       transfer_number_1: '+14165551234',
       transfer_number_2: '+14165555678',
+    });
+  });
+
+  // ADR 0038 (audit G-16, G-17): the other §9.7 variables, from the record and the call.
+  describe('every §9.7 variable, from the record and the call', () => {
+    const vars = (d: Decision) => (d.kind === 'allow' ? d.dynamicVariables : null);
+
+    it('sets all seven on every allow', () => {
+      const d = vars(run({ number: number({ primary_language: 'fr-CA' }) }));
+      expect(d).toMatchObject({
+        business_name: 'Maple Dental',
+        agent_name: 'Maya',
+        caller_number: '+19375550100',
+        current_time: 'Wednesday 16 September 2026, 10:00',
+        business_open: 'true',
+        next_open_time: '',
+        primary_language: 'fr-CA',
+      });
+    });
+
+    it('{{caller_number}} is the platform\'s from_number in E.164, and empty when withheld', () => {
+      expect(vars(run({ from: '+1 (937) 555-0100' }))).toMatchObject({ caller_number: '+19375550100' });
+      expect(vars(run({ from: null }))).toMatchObject({ caller_number: '' });
+      expect(vars(run({ from: 'anonymous' }))).toMatchObject({ caller_number: '' });
+    });
+
+    it('{{primary_language}} reads empty from a record written before it existed, never undefined', () => {
+      const d = vars(run({ number: number() }));
+      expect(d?.primary_language).toBe('');
+    });
+
+    it("{{current_time}} is the workspace's clock, not a custom number's own zone (G-16)", () => {
+      // The number answers on Tokyo hours; the business is in Toronto.
+      const custom = number({ hours_mode: 'custom', hours: { days: { wed: [{ open: '00:00', close: '23:59' }, ] , thu: [{ open: '00:00', close: '23:59' }] }, closed_dates: [], timezone: 'Asia/Tokyo' } });
+      expect(vars(run({ number: custom }))).toMatchObject({ current_time: 'Wednesday 16 September 2026, 10:00' });
     });
   });
 
@@ -428,10 +463,10 @@ describe('dynamic variables handed to the agent (§9.7)', () => {
     const vars = (d: Decision) => (d.kind === 'allow' ? d.dynamicVariables : null);
 
     it('says open inside the hours and closed outside them, with the next opening', () => {
-      expect(vars(run({ number: number({ business_hours: wedNine }) }))).toMatchObject({ business_open: 'true', next_open_time: '', current_time: '10:00' });
+      expect(vars(run({ number: number({ business_hours: wedNine }) }))).toMatchObject({ business_open: 'true', next_open_time: '', current_time: 'Wednesday 16 September 2026, 10:00' });
       // 18:00 Toronto, the same Wednesday: closed until Thursday — which has no hours, so "no opening in 8 days" is '' and Wednesday next week is past the look-ahead.
       const evening = run({ number: number({ business_hours: wedNine }), now: new Date('2026-09-16T22:00:00Z') });
-      expect(vars(evening)).toMatchObject({ business_open: 'false', current_time: '18:00' });
+      expect(vars(evening)).toMatchObject({ business_open: 'false', current_time: 'Wednesday 16 September 2026, 18:00' });
       const weekdays = { days: { mon: [{ open: '09:00', close: '17:00' }], wed: [{ open: '09:00', close: '17:00' }], thu: [{ open: '10:00', close: '16:00' }] }, closed_dates: [] };
       expect(vars(run({ number: number({ business_hours: weekdays }), now: new Date('2026-09-16T22:00:00Z') }))).toMatchObject({ business_open: 'false', next_open_time: 'tomorrow at 10:00' });
     });
@@ -454,12 +489,12 @@ describe('dynamic variables handed to the agent (§9.7)', () => {
     it('handles overnight hours, closed dates, the business timezone and a workspace with no hours', () => {
       // A bar open Tue 20:00 → 02:00 (Toronto): 01:00 Wednesday is still open; 03:00 is closed.
       const bar = { days: { tue: [{ open: '20:00', close: '02:00' }] }, closed_dates: [] };
-      expect(vars(run({ number: number({ business_hours: bar }), now: new Date('2026-09-16T05:00:00Z') }))).toMatchObject({ business_open: 'true', current_time: '01:00' });
+      expect(vars(run({ number: number({ business_hours: bar }), now: new Date('2026-09-16T05:00:00Z') }))).toMatchObject({ business_open: 'true', current_time: 'Wednesday 16 September 2026, 01:00' });
       expect(vars(run({ number: number({ business_hours: bar }), now: new Date('2026-09-16T07:00:00Z') }))).toMatchObject({ business_open: 'false' });
       // A closed date shuts a day that would otherwise be open.
       expect(vars(run({ number: number({ business_hours: { ...wedNine, closed_dates: ['2026-09-16'] } }) }))).toMatchObject({ business_open: 'false' });
       // The schedule's own zone wins over the workspace fallback: 14:00 UTC is 23:00 in Tokyo.
-      expect(vars(run({ number: number({ business_hours: { ...wedNine, timezone: 'Asia/Tokyo' } }) }))).toMatchObject({ business_open: 'false', current_time: '23:00' });
+      expect(vars(run({ number: number({ business_hours: { ...wedNine, timezone: 'Asia/Tokyo' } }) }))).toMatchObject({ business_open: 'false', current_time: 'Wednesday 16 September 2026, 23:00' });
       // No hours set: open, never a closed shop by accident; a record from before the field: the same.
       expect(vars(run({ number: number({ business_hours: null }) }))).toMatchObject({ business_open: 'true', next_open_time: '' });
       expect(vars(run({ number: number() }))).toMatchObject({ business_open: 'true' });

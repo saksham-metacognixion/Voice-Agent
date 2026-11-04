@@ -1,0 +1,329 @@
+{
+  "model": "claude-sonnet-5",
+  "effort": "low",
+  "thinking": "adaptive",
+  "ran_at": "2026-11-04T07:35:40.671Z",
+  "variables_section": false,
+  "samples": 15,
+  "valid": 15,
+  "guardrailed": 15,
+  "lint_publishable": 15,
+  "uses_variables": 0,
+  "latencies_ms": [
+    12305,
+    12843,
+    13183,
+    13271,
+    13304,
+    13500,
+    13621,
+    13625,
+    13658,
+    14501,
+    14895,
+    14994,
+    15761,
+    15828,
+    16674
+  ],
+  "p50_ms": 13625,
+  "p95_ms": 16674,
+  "input_tokens": 48420,
+  "output_tokens": 21228,
+  "sections": {
+    "prompt": 32820,
+    "greeting": 1283,
+    "closing": 952,
+    "brief_card": 8803,
+    "analysis_fields": 2855,
+    "scenarios": 6790,
+    "warnings": 3134
+  },
+  "records": [
+    {
+      "template": "receptionist",
+      "latency_ms": 14501,
+      "ttft_ms": 3647,
+      "thinking_ms": 807,
+      "input_tokens": 3224,
+      "output_tokens": 1323,
+      "analysis_fields": 1,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 1883,
+        "greeting": 78,
+        "closing": 51,
+        "brief_card": 616,
+        "analysis_fields": 137,
+        "scenarios": 517,
+        "warnings": 175
+      }
+    },
+    {
+      "template": "appointment",
+      "latency_ms": 13621,
+      "ttft_ms": 1463,
+      "thinking_ms": 227,
+      "input_tokens": 3118,
+      "output_tokens": 1321,
+      "analysis_fields": 0,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2195,
+        "greeting": 90,
+        "closing": 107,
+        "brief_card": 539,
+        "analysis_fields": 2,
+        "scenarios": 488,
+        "warnings": 177
+      }
+    },
+    {
+      "template": "afterhours",
+      "latency_ms": 15761,
+      "ttft_ms": 1787,
+      "thinking_ms": 487,
+      "input_tokens": 3387,
+      "output_tokens": 1543,
+      "analysis_fields": 2,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2412,
+        "greeting": 115,
+        "closing": 51,
+        "brief_card": 679,
+        "analysis_fields": 275,
+        "scenarios": 456,
+        "warnings": 176
+      }
+    },
+    {
+      "template": "lead_qual",
+      "latency_ms": 13304,
+      "ttft_ms": 1370,
+      "thinking_ms": 0,
+      "input_tokens": 3156,
+      "output_tokens": 1379,
+      "analysis_fields": 3,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2068,
+        "greeting": 66,
+        "closing": 76,
+        "brief_card": 571,
+        "analysis_fields": 403,
+        "scenarios": 444,
+        "warnings": 189
+      }
+    },
+    {
+      "template": "restaurant",
+      "latency_ms": 16674,
+      "ttft_ms": 3780,
+      "thinking_ms": 1886,
+      "input_tokens": 3255,
+      "output_tokens": 1679,
+      "analysis_fields": 0,
+      "scenarios": 6,
+      "chars": {
+        "prompt": 2710,
+        "greeting": 84,
+        "closing": 58,
+        "brief_card": 623,
+        "analysis_fields": 2,
+        "scenarios": 474,
+        "warnings": 224
+      }
+    },
+    {
+      "template": "receptionist",
+      "latency_ms": 13271,
+      "ttft_ms": 1613,
+      "thinking_ms": 520,
+      "input_tokens": 3224,
+      "output_tokens": 1409,
+      "analysis_fields": 2,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2023,
+        "greeting": 78,
+        "closing": 43,
+        "brief_card": 620,
+        "analysis_fields": 303,
+        "scenarios": 419,
+        "warnings": 206
+      }
+    },
+    {
+      "template": "appointment",
+      "latency_ms": 12305,
+      "ttft_ms": 1370,
+      "thinking_ms": 298,
+      "input_tokens": 3118,
+      "output_tokens": 1260,
+      "analysis_fields": 0,
+      "scenarios": 4,
+      "chars": {
+        "prompt": 2102,
+        "greeting": 90,
+        "closing": 107,
+        "brief_card": 507,
+        "analysis_fields": 2,
+        "scenarios": 414,
+        "warnings": 195
+      }
+    },
+    {
+      "template": "afterhours",
+      "latency_ms": 14895,
+      "ttft_ms": 1725,
+      "thinking_ms": 562,
+      "input_tokens": 3387,
+      "output_tokens": 1484,
+      "analysis_fields": 2,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2244,
+        "greeting": 118,
+        "closing": 51,
+        "brief_card": 683,
+        "analysis_fields": 273,
+        "scenarios": 447,
+        "warnings": 164
+      }
+    },
+    {
+      "template": "lead_qual",
+      "latency_ms": 13183,
+      "ttft_ms": 1406,
+      "thinking_ms": 0,
+      "input_tokens": 3156,
+      "output_tokens": 1309,
+      "analysis_fields": 3,
+      "scenarios": 4,
+      "chars": {
+        "prompt": 2034,
+        "greeting": 94,
+        "closing": 61,
+        "brief_card": 466,
+        "analysis_fields": 358,
+        "scenarios": 383,
+        "warnings": 205
+      }
+    },
+    {
+      "template": "restaurant",
+      "latency_ms": 13625,
+      "ttft_ms": 2115,
+      "thinking_ms": 915,
+      "input_tokens": 3255,
+      "output_tokens": 1416,
+      "analysis_fields": 2,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2249,
+        "greeting": 84,
+        "closing": 58,
+        "brief_card": 451,
+        "analysis_fields": 220,
+        "scenarios": 440,
+        "warnings": 246
+      }
+    },
+    {
+      "template": "receptionist",
+      "latency_ms": 12843,
+      "ttft_ms": 1884,
+      "thinking_ms": 819,
+      "input_tokens": 3224,
+      "output_tokens": 1301,
+      "analysis_fields": 0,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 1909,
+        "greeting": 63,
+        "closing": 43,
+        "brief_card": 623,
+        "analysis_fields": 2,
+        "scenarios": 468,
+        "warnings": 298
+      }
+    },
+    {
+      "template": "appointment",
+      "latency_ms": 13500,
+      "ttft_ms": 2173,
+      "thinking_ms": 995,
+      "input_tokens": 3118,
+      "output_tokens": 1337,
+      "analysis_fields": 0,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 1953,
+        "greeting": 98,
+        "closing": 55,
+        "brief_card": 603,
+        "analysis_fields": 2,
+        "scenarios": 495,
+        "warnings": 281
+      }
+    },
+    {
+      "template": "afterhours",
+      "latency_ms": 15828,
+      "ttft_ms": 2305,
+      "thinking_ms": 1194,
+      "input_tokens": 3387,
+      "output_tokens": 1591,
+      "analysis_fields": 3,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2410,
+        "greeting": 98,
+        "closing": 51,
+        "brief_card": 628,
+        "analysis_fields": 373,
+        "scenarios": 456,
+        "warnings": 168
+      }
+    },
+    {
+      "template": "lead_qual",
+      "latency_ms": 13658,
+      "ttft_ms": 1331,
+      "thinking_ms": 0,
+      "input_tokens": 3156,
+      "output_tokens": 1336,
+      "analysis_fields": 2,
+      "scenarios": 4,
+      "chars": {
+        "prompt": 2099,
+        "greeting": 66,
+        "closing": 74,
+        "brief_card": 607,
+        "analysis_fields": 235,
+        "scenarios": 449,
+        "warnings": 221
+      }
+    },
+    {
+      "template": "restaurant",
+      "latency_ms": 14994,
+      "ttft_ms": 2079,
+      "thinking_ms": 750,
+      "input_tokens": 3255,
+      "output_tokens": 1540,
+      "analysis_fields": 2,
+      "scenarios": 5,
+      "chars": {
+        "prompt": 2529,
+        "greeting": 61,
+        "closing": 66,
+        "brief_card": 587,
+        "analysis_fields": 268,
+        "scenarios": 440,
+        "warnings": 209
+      }
+    }
+  ]
+}

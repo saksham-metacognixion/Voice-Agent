@@ -278,13 +278,17 @@ export class AgentRetellService {
   }
 
   /**
-   * §9.7 defaults. The inbound webhook overrides every one of these per call (§13.9), so
-   * these are what a browser test call and a first ring see before that happens.
+   * §9.7 defaults. Every channel we mint or answer sends all seven per call (ADR 0038,
+   * `callVariables`), so these are only what a call let through by a fail-open (§13.9
+   * Redis down, ADR 0011 §2) sees. They exist so no `{{variable}}` is ever read out as
+   * literal braces; the hours placeholders are the neutral "open, time unknown".
    */
   private dynamicVariables(input: RetellSyncInput): Record<string, string> {
     const variables: Record<string, string> = {
       business_name: input.businessName,
-      agent_name: input.brief.agent_name ?? input.agentName,
+      agent_name: input.brief.agent_name?.trim() || input.agentName,
+      caller_number: '',
+      primary_language: input.primaryLanguage,
       business_open: 'true',
       next_open_time: '',
       current_time: '',

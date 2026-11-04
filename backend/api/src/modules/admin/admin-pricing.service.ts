@@ -21,8 +21,10 @@ import {
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { StaffContext } from '../auth';
+import { AgentStackService } from '../agents';
 import { StripePriceSyncService, planPriceSync } from '../billing';
 import { PlatformConfigService } from '../config';
+import { type AgentStackTiers, type TierStack, providerOfVoiceId, voiceModelFor } from '../retell';
 import { DAY_MS, iso, uuidParam } from './admin.helpers';
 import { StaffAuditService } from './staff-audit.service';
 import { StaffLimitsService } from './staff-limits.service';
@@ -51,6 +53,7 @@ export class AdminPricingService {
     private readonly prices: StripePriceSyncService,
     private readonly audit: StaffAuditService,
     private readonly limits: StaffLimitsService,
+    private readonly stack: AgentStackService,
   ) {}
 
   // ------------------------------------------------------------------ draft
@@ -174,10 +177,8 @@ export class AdminPricingService {
 
     const { margins, blockers } = await this.blockersFor(draft, current.config, costs?.costs ?? null);
     const warnings: string[] = [];
-    if (!costs)
-      warnings.push(
-        'No Retell cost inputs are set (PUT /admin/retell-costs); the margin check cannot run.',
-      );
+    const analysis = costs ? analysisNote(costs.costs, (await this.stack.current()).tiers) : null;
+    if (analysis) warnings.push(analysis);
     if (!draftRow)
       warnings.push('There is no draft: the preview compares the current version with itself.');
     return {
@@ -205,13 +206,9 @@ export class AdminPricingService {
     current: PricingConfig,
     costs: RetellCostInputs | null,
   ): Promise<{ margins: ReturnType<typeof marginsFor>; blockers: string[] }> {
-    const margins = marginsFor(next, costs);
-    const blockers: string[] = [];
-    for (const m of margins)
-      if (m.below_floor)
-        blockers.push(
-          `${m.tier} margin ${m.margin_pct}% is under the ${m.floor_pct}% floor; a super admin can override with a note.`,
-        );
+    const tiers = (await this.stack.current()).tiers;
+    const margins = marginsFor(next, costs, tiers);
+    const blockers = marginBlockers(margins, costs, tiers);
     const nextIds = new Set(next.packs.filter((p) => p.active).map((p) => p.id));
     const removed = current.packs.filter((p) => p.active && !nextIds.has(p.id)).map((p) => p.id);
     if (removed.length) {
@@ -236,10 +233,10 @@ export class AdminPricingService {
   private assertPublishable(blockers: string[], body: { override_margin: boolean; note?: string }): void {
     const hardBlockers = blockers.filter((b) => !b.includes('margin'));
     if (hardBlockers.length) throw new AppError('CONFLICT', hardBlockers.join(' '));
-    const marginBlockers = blockers.filter((b) => b.includes('margin'));
-    if (marginBlockers.length && !body.override_margin)
-      throw new AppError('MARGIN_FLOOR', marginBlockers.join(' '));
-    if (marginBlockers.length && body.override_margin && !body.note)
+    const marginIssues = blockers.filter((b) => b.includes('margin'));
+    if (marginIssues.length && !body.override_margin)
+      throw new AppError('MARGIN_FLOOR', marginIssues.join(' '));
+    if (marginIssues.length && body.override_margin && !body.note)
       throw new AppError('VALIDATION_FAILED', 'Overriding the margin floor needs a note.', [
         { field: 'note', message: 'Required with override_margin' },
       ]);
@@ -621,34 +618,98 @@ export function diffConfig(
   return changes;
 }
 
-/** Per-tier margin at the cheapest public pack's $/credit (admin §5.4, Appendix A). */
+/**
+ * What one minute of a tier costs on the platform, from the itemised inputs and the tier's
+ * current stack (ADR 0038): voice engine + the default voice's TTS + the in-call model +
+ * telephony in the dearest country listed + knowledge-base retrieval. That is the §4.3
+ * "COGS / min (phone, Retell number)" line, priced at the worst case a floor should guard.
+ * Anything the stack needs and the table lacks is named in `missing` and the cost is null —
+ * never a guessed or zero line that would show a margin better than the real one.
+ */
+export function tierCostPerMin(costs: RetellCostInputs, stack: TierStack): { cents: number | null; missing: string[] } {
+  const missing: string[] = [];
+  const provider = providerOfVoiceId(stack.default_voice_id);
+  const model = voiceModelFor(provider, stack.voice_model);
+  // A named voice model is priced as itself or not at all: falling back to the provider's
+  // plain row would price ElevenLabs Multilingual v2 ($0.06) as Flash ($0.04).
+  const tts = provider === null ? undefined : costs.tts_cents_per_min[model ? `${provider}:${model}` : provider];
+  if (tts === undefined) missing.push(`tts:${provider ?? stack.default_voice_id}${model ? `:${model}` : ''}`);
+  const llm = costs.llm_cents_per_min[stack.model];
+  if (llm === undefined) missing.push(`llm:${stack.model}`);
+  const telephony = Object.values(costs.telephony_cents_per_min);
+  if (telephony.length === 0) missing.push('telephony');
+  if (missing.length) return { cents: null, missing };
+  const cents = costs.voice_engine_cents_per_min + tts! + llm! + Math.max(...telephony) + costs.knowledge_base_cents_per_min;
+  return { cents: Math.round(cents * 10_000) / 10_000, missing };
+}
+
+/**
+ * Admin §5.4 / SA5: for every active pack, Standard and Premium margin at that pack's price
+ * per credit. The old check priced one row per tier at the *dearest* credit (Starter's), so
+ * a Pro pack under the floor published unchallenged (super-admin audit AS-223, AS-224).
+ * A pack with no price (Volume, sold by quote) has no margin to check.
+ */
 export function marginsFor(
   config: PricingConfig,
   costs: RetellCostInputs | null,
+  tiers: AgentStackTiers | null,
 ): AdminPricingPreviewResponse['margins'] {
-  const publicPacks = config.packs.filter((p) => p.active && p.visibility === 'public');
-  const centsPerCredit = publicPacks.length
-    ? Math.max(...publicPacks.map((p) => p.price_cents / (p.credits + p.bonus_credits)))
-    : 0;
-  return (['standard', 'premium'] as const).map((tier) => {
-    const revenue = Math.round(centsPerCredit * rateForTier(config.rates, tier) * 100) / 100;
-    const cost = costs
-      ? tier === 'premium'
-        ? costs.premium_cents_per_min
-        : costs.standard_cents_per_min
-      : null;
-    const margin =
-      cost !== null && revenue > 0 ? Math.round(((revenue - cost) / revenue) * 1000) / 10 : null;
-    const floor = costs?.margin_floor_pct ?? null;
-    return {
-      tier,
-      revenue_cents_per_min: revenue,
-      cost_cents_per_min: cost,
-      margin_pct: margin,
-      floor_pct: floor,
-      below_floor: margin !== null && floor !== null && margin < floor,
-    };
-  });
+  const packs = config.packs.filter((p) => p.active && p.price_cents > 0 && p.credits + p.bonus_credits > 0);
+  const tierCosts = (['standard', 'premium'] as const).map((tier) => ({
+    tier,
+    cost: costs && tiers ? tierCostPerMin(costs, tiers[tier]) : { cents: null, missing: costs ? ['tier_stack'] : ['cost_inputs'] },
+  }));
+  return packs.flatMap((pack) =>
+    tierCosts.map(({ tier, cost }) => {
+      const revenue = Math.round((pack.price_cents / (pack.credits + pack.bonus_credits)) * rateForTier(config.rates, tier) * 100) / 100;
+      const margin = cost.cents !== null && revenue > 0 ? Math.round(((revenue - cost.cents) / revenue) * 1000) / 10 : null;
+      const floor = costs?.margin_floor_pct ?? null;
+      return {
+        pack_id: pack.id,
+        tier,
+        revenue_cents_per_min: revenue,
+        cost_cents_per_min: cost.cents,
+        margin_pct: margin,
+        floor_pct: floor,
+        below_floor: margin !== null && floor !== null && margin < floor,
+        missing: cost.missing,
+      };
+    }),
+  );
+}
+
+/**
+ * The margin blockers, overridable by a super admin with a note like the floor itself: a
+ * margin under the floor, and a margin nobody could compute. The second used to be a
+ * warning, so an environment without cost inputs published any price at all; an unknown
+ * margin is not a passing one.
+ */
+export function marginBlockers(
+  margins: AdminPricingPreviewResponse['margins'],
+  costs: RetellCostInputs | null,
+  tiers: AgentStackTiers | null,
+): string[] {
+  if (!costs) return ['No voice platform cost inputs are set (PUT /admin/retell-costs), so the margin check cannot run; a super admin can override with a note.'];
+  if (!tiers) return ['The agent stack has no readable tiers, so the margin check cannot run; a super admin can override with a note.'];
+  const blockers: string[] = [];
+  const unknown = [...new Set(margins.flatMap((m) => m.missing))];
+  if (unknown.length) blockers.push(`The margin check cannot price ${unknown.join(', ')}; add it to the cost inputs, or a super admin can override with a note.`);
+  for (const m of margins)
+    if (m.below_floor)
+      blockers.push(`${m.tier} margin on ${m.pack_id} is ${m.margin_pct}%, under the ${m.floor_pct}% floor; a super admin can override with a note.`);
+  return blockers;
+}
+
+/** The flat post-call analysis charge, which the per-minute margin leaves out (ADR 0037 §2). */
+function analysisNote(costs: RetellCostInputs, tiers: AgentStackTiers | null): string | null {
+  const models = [...new Set(tiers ? [tiers.standard.post_call_analysis_model, tiers.premium.post_call_analysis_model] : [])].filter((m): m is string => Boolean(m));
+  const priced = models.filter((m) => costs.analysis_cents_per_call[m] !== undefined).map((m) => `${m} ${costs.analysis_cents_per_call[m]}¢`);
+  const unpriced = models.filter((m) => costs.analysis_cents_per_call[m] === undefined);
+  const parts = [
+    priced.length ? `Post-call analysis is charged per call on top of these margins (${priced.join(', ')}), so short calls earn less than shown.` : '',
+    unpriced.length ? `No per-call cost is set for the analysis model ${unpriced.join(', ')}.` : '',
+  ].filter(Boolean);
+  return parts.length ? parts.join(' ') : null;
 }
 
 /** Admin §5.2 step 6 "Apply new tier caps to all tenants now": the largest pack of each tier sets the tier's caps. */

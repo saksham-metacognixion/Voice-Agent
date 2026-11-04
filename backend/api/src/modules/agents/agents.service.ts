@@ -38,6 +38,7 @@ import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
 import { applyGuardrails, stripGuardrails } from '../prompting/guardrails';
 import { lintPrompt } from '../prompting/lint';
+import { agentNumberTransferTargets } from '../prompting/staff-transfer';
 import { RuntimeCacheService } from '../runtime-cache';
 import { AgentStackService } from './agent-stack.service';
 import { AgentEvents } from './agent-events';
@@ -439,6 +440,7 @@ export class AgentsService {
               greeting: draft.greeting,
               brief: merged,
               primaryLanguage: settings.primary_language,
+              numberTransferTargets: await agentNumberTransferTargets(db, agentId),
             },
             stack.lint,
           )
@@ -516,13 +518,13 @@ export class AgentsService {
     body: LintRequest,
   ): Promise<LintResult> {
     const stack = await this.stack.current();
-    const { base, agent } = await withWorkspace(ctx, async (db) => {
+    const { base, agent, numberTransferTargets } = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
       const base = await db.agentVersion.findUnique({
         where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } },
       });
       if (!base) throw AppError.notFound(`Version ${baseVersionNo}`);
-      return { base, agent };
+      return { base, agent, numberTransferTargets: await agentNumberTransferTargets(db, agentId) };
     });
     const settings = settingsOf(base, agent);
     const prompt = body.prompt.trim() ? applyGuardrails(body.prompt, stack.guardrails) : '';
@@ -533,6 +535,7 @@ export class AgentsService {
         greeting,
         brief: parseBrief(base.briefJson),
         primaryLanguage: settings.primary_language,
+        numberTransferTargets,
       },
       stack.lint,
     );
@@ -564,6 +567,7 @@ export class AgentsService {
           greeting,
           brief: briefValue,
           primaryLanguage: settings.primary_language,
+          numberTransferTargets: await agentNumberTransferTargets(db, agentId),
         },
         stack.lint,
       );

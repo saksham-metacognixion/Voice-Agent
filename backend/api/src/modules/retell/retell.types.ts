@@ -57,6 +57,8 @@ const VOICE_MODEL_PROVIDER: Record<z.infer<typeof voiceModel>, string> = {
 /** The id prefixes `list-voices` uses per provider — the fallback when a voice is not in our cache. */
 const VOICE_ID_PREFIX: Array<[string, string]> = [
   ['11labs-', 'elevenlabs'], ['cartesia-', 'cartesia'], ['openai-', 'openai'], ['minimax-', 'minimax'], ['fish_audio-', 'fish_audio'], ['inworld-', 'inworld'],
+  // The platform's own voices; `list-voices` files them under provider `platform`.
+  ['retell-', 'platform'],
 ];
 
 export function providerOfVoiceId(voiceId: string): string | null {

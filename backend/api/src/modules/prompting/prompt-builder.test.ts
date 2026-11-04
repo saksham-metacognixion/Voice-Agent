@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { templatesDir } from '@portal/db';
 import {
   APPENDIX_B_SKELETON,
+  callVariablesSection,
   DEFAULT_SYSTEM_PROMPT,
   briefForModel,
   buildFeedbackPrompt,
@@ -478,3 +479,33 @@ describe('menu listing rules', () => {
     expect(knowledgeSection([{ name: 'FAQ page', role: null }]).join(' ')).not.toMatch(/three or four/);
   });
 });
+
+/*
+ * §9.7 (ADR 0038, audit G-18): the generation and feedback turns name every variable the
+ * phone system fills in, so a script can use them instead of hard-coding the hours.
+ */
+describe('the call variables in the generation and feedback turns', () => {
+  const ALL = ['{{business_name}}', '{{agent_name}}', '{{caller_number}}', '{{current_time}}', '{{business_open}}', '{{next_open_time}}', '{{primary_language}}'];
+
+  it('lists all seven, double braces included, in both turns', () => {
+    const generation = buildUserPrompt(CONTEXT);
+    const feedback = buildFeedbackPrompt({ brief: BRIEF, prompt: 'You are Sophie.', greeting: null, feedback: 'Mention our closing time', primaryLanguage: 'en-US' });
+    for (const variable of ALL) {
+      expect(generation, variable).toContain(variable);
+      expect(feedback, variable).toContain(variable);
+    }
+  });
+
+  it('tells the model they are not skeleton placeholders to fill with a value', () => {
+    const section = callVariablesSection().join('\n');
+    expect(section).toMatch(/not skeleton\s+placeholders/);
+    expect(section).toMatch(/never replace them with a value or invent one/);
+    expect(section).toMatch(/after-hours .* depends on \{\{business_open\}\}/);
+  });
+
+  it('keeps the brief last (ADR 0009 caching order) with the section in place', () => {
+    const user = buildUserPrompt(CONTEXT);
+    expect(user.indexOf('# Call variables')).toBeLessThan(user.indexOf('# The brief'));
+  });
+});
+

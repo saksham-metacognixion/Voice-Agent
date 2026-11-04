@@ -10,8 +10,10 @@
  * and later ones come from SA5, never from a seed. kill_switches and feature_flags get
  * their P1 rows, all off. `templates` is the §9.2 catalogue read out of `templates/*.json`
  * — the files are the source, the table is what the API and SA6 read — and
- * agent_stack_configs v1 is the tier → model/voice stack plus the §9.4 guardrails and the
- * §9.5 lint severities (admin SA6).
+ * agent_stack_configs v1 and v2 are the tier → model/voice stack plus the §9.4 guardrails
+ * and the §9.5 lint severities (admin SA6): each shipped version is added once, by its
+ * number, and never rewritten. retell_cost_inputs v1 is the platform's price list for the
+ * SA5 margin check (ADR 0038), added only where no row in its shape exists.
  */
 import { PrismaClient, PlanTier, StaffRole, type Prisma } from '@prisma/client';
 import { readTemplateFiles, templateRowFrom, templatesDir } from '../src/templates.js';
@@ -23,6 +25,8 @@ import {
   LINT_CONFIG_V1,
   PLATFORM_GUARDRAILS_V1,
 } from './seed-data/agent-stack-v1.js';
+import { AGENT_STACK_V2_TIERS, GENERATION_PROMPTS_V2, LINT_CONFIG_V2, PLATFORM_GUARDRAILS_V2 } from './seed-data/agent-stack-v2.js';
+import { RETELL_COSTS_V1 } from './seed-data/retell-costs-v1.js';
 
 const db = new PrismaClient({
   datasources: { db: { url: process.env.DIRECT_DATABASE_URL ?? process.env.DATABASE_URL } },
@@ -274,23 +278,49 @@ async function main() {
   const templates = await seedTemplates();
   if (templates) console.log(`seeded ${templates} templates from templates/*.json (§9.2)`);
 
-  // agent_stack_configs v1 (admin SA6). Versions are immutable, exactly like pricing, so
-  // this only ever creates version 1 and later ones come from SA6.
-  const stacks = await db.agentStackConfig.count();
-  if (stacks === 0) {
+  // agent_stack_configs (admin SA6). Versions are immutable, exactly like pricing: each
+  // version shipped here is created once, by number, and a version that exists — seeded or
+  // written by staff — is never touched. The newest version is the one in force, so adding
+  // v2 moves every agent to its stack at the agent's next sync (ADR 0038).
+  const SHIPPED_STACKS = [
+    { version: 1, tiers: AGENT_STACK_V1_TIERS, guardrails: PLATFORM_GUARDRAILS_V1, lint: LINT_CONFIG_V1, prompts: GENERATION_PROMPTS_V1 },
+    { version: 2, tiers: AGENT_STACK_V2_TIERS, guardrails: PLATFORM_GUARDRAILS_V2, lint: LINT_CONFIG_V2, prompts: GENERATION_PROMPTS_V2 },
+  ];
+  const newestStack = (await db.agentStackConfig.aggregate({ _max: { version: true } }))._max.version ?? 0;
+  for (const stack of SHIPPED_STACKS) {
+    // A version past the newest one here came from staff, and is newer than anything we ship.
+    if (newestStack > SHIPPED_STACKS.length) break;
+    const exists = await db.agentStackConfig.findUnique({ where: { version: stack.version }, select: { version: true } });
+    if (exists) {
+      console.log(`agent_stack_configs v${stack.version} already exists; not touching it`);
+      continue;
+    }
     await db.agentStackConfig.create({
       data: {
-        version: 1,
-        tiersJson: AGENT_STACK_V1_TIERS as unknown as Prisma.InputJsonValue,
-        guardrailsText: PLATFORM_GUARDRAILS_V1,
-        lintJson: LINT_CONFIG_V1 as unknown as Prisma.InputJsonValue,
-        generationPromptsJson: GENERATION_PROMPTS_V1 as unknown as Prisma.InputJsonValue,
+        version: stack.version,
+        tiersJson: stack.tiers as unknown as Prisma.InputJsonValue,
+        guardrailsText: stack.guardrails,
+        lintJson: stack.lint as unknown as Prisma.InputJsonValue,
+        generationPromptsJson: stack.prompts as unknown as Prisma.InputJsonValue,
         publishedAt: new Date(),
       },
     });
-    console.log('published agent_stack_configs v1 (§9.3, §9.4, §9.5)');
+    console.log(`published agent_stack_configs v${stack.version} (§4.3, §9.3, §9.4, §9.5)`);
+  }
+
+  // retell_cost_inputs (admin SA5, ADR 0038). Staff own the table: a row in the itemised
+  // shape is never touched. An empty table, or one whose newest row is still the two
+  // blended rates the margin check can no longer read, gets the price list as a new version
+  // — the old rows stay, as history.
+  const latestCosts = await db.retellCostInput.findFirst({ orderBy: { version: 'desc' } });
+  const itemised = (value: unknown) => typeof (value as { voice_engine_cents_per_min?: unknown } | null)?.voice_engine_cents_per_min === 'number';
+  if (!latestCosts || !itemised(latestCosts.costsJson)) {
+    await db.retellCostInput.create({
+      data: { version: (latestCosts?.version ?? 0) + 1, costsJson: RETELL_COSTS_V1 as unknown as Prisma.InputJsonValue },
+    });
+    console.log(`seeded retell_cost_inputs v${(latestCosts?.version ?? 0) + 1} (§4, ADR 0037, ADR 0038)`);
   } else {
-    console.log(`agent_stack_configs already has ${stacks} version(s); not touching it`);
+    console.log(`retell_cost_inputs v${latestCosts.version} is itemised; not touching it`);
   }
 
   for (const flag of FEATURE_FLAGS) {

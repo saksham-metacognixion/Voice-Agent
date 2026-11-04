@@ -89,8 +89,18 @@ describe('POST /agents/:id/test/phone — "Call my phone" (W5, Phase 2)', () => 
     expect(placed).toMatchObject({ fromNumber: number.e164, toNumber: '+14165550123', agentId: agent.retellAgentId, agentVersion: version.retellAgentVersion });
     expect(placed.metadata).toEqual({ tenant_id: ws.workspaceId, agent_id: agentId, version_no: 1, tier: agent.tier, test: true, number_id: number.id });
     // QA-083: the calling number's transfer-failed message rides along, as on an inbound call (none set = ''),
-    // and so do the §9.7 hours variables (ADR 0035; no hours set = open).
-    expect((placed as { dynamicVariables?: Record<string, string> }).dynamicVariables).toEqual({ transfer_fail_message: '', business_open: 'true', next_open_time: '', current_time: expect.stringMatching(/^\d{2}:\d{2}$/) });
+    // and so does every §9.7 variable (ADR 0035, 0038; no hours set = open), the person rung as the caller.
+    const tenant = await adminDb.tenant.findUniqueOrThrow({ where: { id: ws.workspaceId }, select: { name: true } });
+    expect((placed as { dynamicVariables?: Record<string, string> }).dynamicVariables).toEqual({
+      transfer_fail_message: '',
+      business_name: tenant.name,
+      agent_name: expect.any(String),
+      caller_number: '+14165550123',
+      primary_language: agent.primaryLanguage,
+      business_open: 'true',
+      next_open_time: '',
+      current_time: expect.stringMatching(/^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ \d{4}, \d{2}:\d{2}$/),
+    });
     // The country, never the number, in the audit log every admin reads.
     const audit = await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'agent.test_phone_call' } });
     expect(audit.metaJson).toMatchObject({ to_country: 'CA' });

@@ -3,7 +3,7 @@ import { rateForTier } from '@portal/schemas';
 import type { CurrentPricing } from '../config';
 import { clampDuration } from '../retell';
 import { transferFailVariables } from '../prompting/transfer-fail-message';
-import { businessVariables, isOpen, type NumberRecord, normalisePhone } from '../runtime-cache';
+import { callVariables, isOpen, type NumberRecord, normalisePhone } from '../runtime-cache';
 import { roundCredits } from '../wallet/fifo';
 import { callerCountry } from './caller-country';
 
@@ -181,12 +181,10 @@ export function decide(input: DecisionInput): Decision {
   else if (others.length >= input.caps.concurrency_cap) return decline('cap');
 
   // 6. Hours. `always` skips the arithmetic entirely.
-  let currentTime = now.toISOString();
   if (number.hours_mode !== 'always') {
     const verdict = isOpen(number.hours, now, number.timezone);
     if (!verdict.open) return decline('hours');
     if (verdict.note) warnings.push(`hours_${verdict.note}`);
-    if (verdict.clock) currentTime = verdict.clock.time;
   }
 
   // max_call_duration_ms = min(planMax, remainingCredits/rate × 60000), clamped to Retell's window.
@@ -204,18 +202,24 @@ export function decide(input: DecisionInput): Decision {
   const reservedCredits = rate !== null && maxCallDurationMs !== null ? roundCredits((maxCallDurationMs / 60_000) * rate) : 0;
   if (!input.callId) warnings.push('no_call_id');
 
-  // §9.7 `{{business_open}}` / `{{next_open_time}}` come from the *workspace's* hours,
-  // whatever the answering rule above was (ADR 0035, audit §6.1 #5): an "always" number
-  // still has to tell the caller the shop is shut, and "custom" hours decide when the
-  // agent picks up, not when the business is open. No hours set = open (`no_schedule`),
-  // the same reading `isOpen` gives the answering check.
-  const business = businessVariables(number.business_hours ?? null, now, number.timezone);
+  // Every §9.7 variable (ADR 0038). `{{business_open}}`, `{{next_open_time}}` and
+  // `{{current_time}}` come from the *workspace's* hours and zone, whatever the answering
+  // rule above was (ADR 0035, audit §6.1 #5): an "always" number still has to tell the
+  // caller the shop is shut, and "custom" hours decide when the agent picks up, not when
+  // the business is open — nor what time it is there. No hours set = open (`no_schedule`).
+  // The caller's number is the platform's `from_number`, never a caller-supplied field.
   const dynamicVariables: Record<string, string> = {
-    business_name: number.business_name,
-    agent_name: number.agent_name ?? '',
-    ...business,
-    // The answering schedule's own clock when it has one (a `custom` schedule may carry its own zone).
-    current_time: currentTime === now.toISOString() ? business.current_time : currentTime,
+    ...callVariables(
+      {
+        businessName: number.business_name,
+        agentName: number.agent_name ?? '',
+        callerNumber: input.from ? normalisePhone(input.from) || null : null,
+        primaryLanguage: number.primary_language ?? '',
+        businessHours: number.business_hours ?? null,
+        timeZone: number.timezone,
+      },
+      now,
+    ),
     // QA-083: the number's D4 "message if the transfer fails", read word for word by the
     // fixed transfer rule; '' (none set, or a record written before it existed) keeps the
     // rule's own words. Already in `num:{e164}` — no extra round trip.

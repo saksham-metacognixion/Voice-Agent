@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CLOSING_RULE,
+  HOURS_RULE,
   LIST_RULE,
   TRANSFER_RULE,
   DEFAULT_PLATFORM_GUARDRAILS,
@@ -266,3 +267,29 @@ describe('the transfer and list rules', () => {
     expect(LIST_RULE).toMatch(/price only when the caller asks/);
   });
 });
+
+/*
+ * §9.4 rule 7 "Respect {{business_open}}" (ADR 0038, audit G-09): fixed, so it reaches every
+ * live agent at its next sync on a stack row (v1) whose bullet says "business hours" only.
+ */
+describe('the business-hours rule', () => {
+  const V1_ROW = DEFAULT_PLATFORM_GUARDRAILS.map((rule) => `- ${rule}`).join('\n');
+
+  it('names the variables the platform fills in per call', () => {
+    for (const variable of ['{{business_open}}', '{{next_open_time}}', '{{current_time}}']) expect(HOURS_RULE).toContain(variable);
+  });
+
+  it('is in every prompt, once, on a v1 row and after a customer deletes it', () => {
+    expect(V1_ROW).not.toContain('{{business_open}}');
+    const prompt = applyGuardrails(BODY, V1_ROW);
+    expect(occurrences(prompt, HOURS_RULE)).toBe(1);
+    expect(occurrences(applyGuardrails(prompt, V1_ROW), HOURS_RULE)).toBe(1);
+    expect(applyGuardrails(applyGuardrails(BODY).replace(`- ${HOURS_RULE}\n`, ''))).toContain(HOURS_RULE);
+  });
+
+  it('says what to do when closed, and never to invite the caller in', () => {
+    expect(HOURS_RULE).toMatch(/When that says false, the business is closed: tell the caller so/);
+    expect(HOURS_RULE).toMatch(/never invite the caller to come in/);
+  });
+});
+

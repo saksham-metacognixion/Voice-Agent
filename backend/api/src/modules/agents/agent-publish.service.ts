@@ -7,6 +7,7 @@ import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
 import { applyGuardrails } from '../prompting/guardrails';
 import { lintErrors, lintPrompt } from '../prompting/lint';
+import { agentNumberTransferTargets } from '../prompting/staff-transfer';
 import { retellErrorStatus } from '../retell';
 import { RuntimeCacheService } from '../runtime-cache';
 import { AgentEvents } from './agent-events';
@@ -88,7 +89,7 @@ export class AgentPublishService {
         where: { id: ctx.workspaceId },
         select: { name: true, timezone: true, pausedAt: true, recordingNotice: true, recordingNoticeText: true, retentionDays: true },
       });
-      return { agent, version, tenant };
+      return { agent, version, tenant, numberTransferTargets: await agentNumberTransferTargets(db, agentId) };
     });
 
     const { agent, version, tenant } = snapshot;
@@ -107,7 +108,7 @@ export class AgentPublishService {
     const briefValue = parseBrief(version.briefJson);
     const promptText = applyGuardrails(version.promptText, stack.guardrails);
     const lint = lintPrompt(
-      { prompt: promptText, greeting: version.greeting, brief: briefValue, primaryLanguage: settings.primary_language },
+      { prompt: promptText, greeting: version.greeting, brief: briefValue, primaryLanguage: settings.primary_language, numberTransferTargets: snapshot.numberTransferTargets },
       stack.lint,
     );
     const errors = lintErrors(lint);

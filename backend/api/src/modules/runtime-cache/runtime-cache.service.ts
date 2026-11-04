@@ -6,7 +6,7 @@ import { RedisCache, redisKeys } from '../redis';
 import { briefTransferNumbers, numberTransferTargets, spokenTransferFailMessage } from '../prompting/staff-transfer';
 import { agentStackTiers, type AgentStackTiers } from '../retell';
 import { WalletService } from '../wallet';
-import { parseBusinessHours } from './hours';
+import { parseBusinessHours, spokenAgentName } from './hours';
 import { NUMBER_RECORD_VERSION, type NumberRecord, normalisePhone } from './number-record';
 
 /**
@@ -57,7 +57,7 @@ export class RuntimeCacheService {
     const [numbers, globalBlocklist, stack, pricing] = await Promise.all([
       adminDb.phoneNumber.findMany({
         where: { tenantId: workspaceId },
-        include: { agent: { select: { id: true, name: true, tier: true, status: true, retellAgentId: true, maxCallDurationS: true, publishedVersion: true } } },
+        include: { agent: { select: { id: true, name: true, tier: true, status: true, retellAgentId: true, maxCallDurationS: true, publishedVersion: true, primaryLanguage: true } } },
       }),
       this.globalPhoneBlocklist(),
       this.stackTiers(),
@@ -95,7 +95,8 @@ export class RuntimeCacheService {
         agent_id: number.agent?.id ?? null,
         retell_agent_id: number.agent?.retellAgentId ?? null,
         agent_live: number.agent?.status === 'live',
-        agent_name: number.agent?.name ?? null,
+        agent_name: number.agent ? spokenAgentName(briefs.get(number.agent.id), number.agent.name) : null,
+        primary_language: number.agent?.primaryLanguage ?? null,
         tier,
         business_name: tenant.name,
         timezone: tenant.timezone,

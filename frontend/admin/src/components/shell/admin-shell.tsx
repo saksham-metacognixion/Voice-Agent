@@ -78,7 +78,7 @@ function ShellFrame({ children }: { children: React.ReactNode }) {
           <button
             type="button"
             onClick={() => setSearchOpen(true)}
-            className="ml-1 flex h-9 w-full max-w-md items-center gap-2 rounded-md border border-input bg-card px-3 text-sm text-muted-foreground shadow-card transition-colors hover:bg-muted"
+            className="ml-1 flex h-9 w-full min-w-0 max-w-md items-center gap-2 rounded-md border border-input bg-card px-3 text-sm text-muted-foreground shadow-card transition-colors hover:bg-muted"
             aria-label="Search customers, users, agents, numbers, calls (⌘K)"
           >
             <Search className="size-4" aria-hidden />

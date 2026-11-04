@@ -26,6 +26,7 @@ import { EventsService } from '../events';
 import { JobRecordsService, type PromptingJob } from '../jobs';
 import { applyGuardrails } from './guardrails';
 import { lintPrompt } from './lint';
+import { agentNumberTransferTargets } from './staff-transfer';
 import {
   buildFeedbackPrompt,
   buildUserPrompt,
@@ -229,6 +230,7 @@ export class GenerationWorker {
         greeting: generated.greeting,
         brief: context.brief,
         primaryLanguage: context.settings.primary_language,
+        numberTransferTargets: context.numberTransferTargets,
       },
       stack.lint,
     );
@@ -380,6 +382,7 @@ export class GenerationWorker {
         greeting,
         brief: mergedBrief,
         primaryLanguage: context.settings.primary_language,
+        numberTransferTargets: context.numberTransferTargets,
       },
       stack.lint,
     );
@@ -527,6 +530,7 @@ export class GenerationWorker {
         tenant,
         draft,
         knowledge,
+        numberTransferTargets: await agentNumberTransferTargets(db, data.agentId),
         previousFeedback: feedback.map((row) => row.feedbackText!).reverse(),
       };
     });
@@ -538,6 +542,7 @@ export class GenerationWorker {
       settings: settingsOf(loaded.draft, loaded.agent),
       baseVersion: loaded.draft,
       knowledge: loaded.knowledge.map((source) => ({ name: source.name, role: source.role })),
+      numberTransferTargets: loaded.numberTransferTargets,
       previousFeedback: data.mode === 'regenerate' ? loaded.previousFeedback : undefined,
       stack,
     };

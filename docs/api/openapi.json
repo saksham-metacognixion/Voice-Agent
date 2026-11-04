@@ -5337,6 +5337,16 @@
                   "nullable": true,
                   "type": "number"
                 },
+                "missing": {
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "pack_id": {
+                  "type": "string"
+                },
                 "revenue_cents_per_min": {
                   "type": "number"
                 },
@@ -5349,6 +5359,7 @@
                 }
               },
               "required": [
+                "pack_id",
                 "tier",
                 "revenue_cents_per_min",
                 "cost_cents_per_min",
@@ -7292,6 +7303,33 @@
           "costs": {
             "nullable": true,
             "properties": {
+              "analysis_cents_per_call": {
+                "additionalProperties": {
+                  "exclusiveMaximum": false,
+                  "exclusiveMinimum": false,
+                  "maximum": 100000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              "knowledge_base_cents_per_min": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100000,
+                "minimum": 0,
+                "type": "number"
+              },
+              "llm_cents_per_min": {
+                "additionalProperties": {
+                  "exclusiveMaximum": false,
+                  "exclusiveMinimum": false,
+                  "maximum": 100000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "type": "object"
+              },
               "margin_floor_pct": {
                 "exclusiveMaximum": false,
                 "exclusiveMinimum": false,
@@ -7299,20 +7337,73 @@
                 "minimum": 0,
                 "type": "number"
               },
-              "premium_cents_per_min": {
-                "exclusiveMinimum": false,
-                "minimum": 0,
-                "type": "number"
+              "monthly_cents": {
+                "properties": {
+                  "concurrency_slot": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "knowledge_base": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "phone_number": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 100000,
+                    "minimum": 0,
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "phone_number",
+                  "concurrency_slot",
+                  "knowledge_base"
+                ],
+                "type": "object"
               },
-              "standard_cents_per_min": {
+              "telephony_cents_per_min": {
+                "additionalProperties": {
+                  "exclusiveMaximum": false,
+                  "exclusiveMinimum": false,
+                  "maximum": 100000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              "tts_cents_per_min": {
+                "additionalProperties": {
+                  "exclusiveMaximum": false,
+                  "exclusiveMinimum": false,
+                  "maximum": 100000,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "type": "object"
+              },
+              "voice_engine_cents_per_min": {
+                "exclusiveMaximum": false,
                 "exclusiveMinimum": false,
+                "maximum": 100000,
                 "minimum": 0,
                 "type": "number"
               }
             },
             "required": [
-              "standard_cents_per_min",
-              "premium_cents_per_min",
+              "voice_engine_cents_per_min",
+              "tts_cents_per_min",
+              "llm_cents_per_min",
+              "telephony_cents_per_min",
+              "knowledge_base_cents_per_min",
+              "analysis_cents_per_call",
+              "monthly_cents",
               "margin_floor_pct"
             ],
             "type": "object"
@@ -19033,6 +19124,33 @@
       },
       "retellCostInputs": {
         "properties": {
+          "analysis_cents_per_call": {
+            "additionalProperties": {
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "knowledge_base_cents_per_min": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "number"
+          },
+          "llm_cents_per_min": {
+            "additionalProperties": {
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
           "margin_floor_pct": {
             "exclusiveMaximum": false,
             "exclusiveMinimum": false,
@@ -19040,20 +19158,73 @@
             "minimum": 0,
             "type": "number"
           },
-          "premium_cents_per_min": {
-            "exclusiveMinimum": false,
-            "minimum": 0,
-            "type": "number"
+          "monthly_cents": {
+            "properties": {
+              "concurrency_slot": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100000,
+                "minimum": 0,
+                "type": "number"
+              },
+              "knowledge_base": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100000,
+                "minimum": 0,
+                "type": "number"
+              },
+              "phone_number": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 100000,
+                "minimum": 0,
+                "type": "number"
+              }
+            },
+            "required": [
+              "phone_number",
+              "concurrency_slot",
+              "knowledge_base"
+            ],
+            "type": "object"
           },
-          "standard_cents_per_min": {
+          "telephony_cents_per_min": {
+            "additionalProperties": {
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "tts_cents_per_min": {
+            "additionalProperties": {
+              "exclusiveMaximum": false,
+              "exclusiveMinimum": false,
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "voice_engine_cents_per_min": {
+            "exclusiveMaximum": false,
             "exclusiveMinimum": false,
+            "maximum": 100000,
             "minimum": 0,
             "type": "number"
           }
         },
         "required": [
-          "standard_cents_per_min",
-          "premium_cents_per_min",
+          "voice_engine_cents_per_min",
+          "tts_cents_per_min",
+          "llm_cents_per_min",
+          "telephony_cents_per_min",
+          "knowledge_base_cents_per_min",
+          "analysis_cents_per_call",
+          "monthly_cents",
           "margin_floor_pct"
         ],
         "type": "object"

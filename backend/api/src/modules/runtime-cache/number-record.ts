@@ -23,7 +23,18 @@ export interface NumberRecord {
   retell_agent_id: string | null;
   /** `agents.status = live`. A paused or draft agent declines as `paused`. */
   agent_live: boolean;
+  /**
+   * The name the agent introduces itself by (§9.7 `{{agent_name}}`): the published brief's
+   * `agent_name`, else `agents.name` — `spokenAgentName()`, the same reading a test call
+   * gets. Null with no agent.
+   */
   agent_name: string | null;
+  /**
+   * ADR 0038: the live agent's main language (`agents.primary_language`), for §9.7
+   * `{{primary_language}}`. Optional like `transfer_fail_message`: a record written before
+   * it existed reads as '' until the next refresh.
+   */
+  primary_language?: string | null;
   tier: AgentTier;
   business_name: string;
   timezone: string;

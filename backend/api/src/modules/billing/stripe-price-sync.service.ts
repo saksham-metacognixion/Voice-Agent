@@ -80,7 +80,7 @@ export function planPriceSync(
         action: 'reuse',
         packId: pack.id,
         currency: pack.currency,
-        detail: `${pack.price_cents} ${pack.currency} unchanged — keeps ${row.stripePriceId}`,
+        detail: `${pack.price_cents} ${pack.currency} unchanged, keeps ${row.stripePriceId}`,
         row,
       });
       continue;
@@ -91,8 +91,8 @@ export function planPriceSync(
       currency: pack.currency,
       detail:
         before && row
-          ? `${before.price_cents} → ${pack.price_cents} ${pack.currency} — new Price; ${row.stripePriceId} archived once in effect`
-          : `${pack.price_cents} ${pack.currency} — new Price${productFor.has(pack.id) ? '' : ' and Product'}`,
+          ? `${before.price_cents} → ${pack.price_cents} ${pack.currency}: new Price; ${row.stripePriceId} archived once in effect`
+          : `${pack.price_cents} ${pack.currency}: new Price${productFor.has(pack.id) ? '' : ' and Product'}`,
       pack,
       productId: productFor.get(pack.id) ?? null,
       archive: row ?? null,
@@ -104,7 +104,7 @@ export function planPriceSync(
       action: 'archive',
       packId: row.packId,
       currency: row.currency,
-      detail: `pack no longer sold — ${row.stripePriceId} archived once in effect`,
+      detail: `pack no longer sold: ${row.stripePriceId} archived once in effect`,
       row,
     });
   }

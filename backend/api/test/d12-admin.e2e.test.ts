@@ -1,3 +1,4 @@
+import { RETELL_COSTS_V1 } from '../../db/prisma/seed-data/retell-costs-v1';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -1079,13 +1080,16 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
   });
 
   it('refuses publish below the margin floor unless overridden by a super admin', async () => {
-    await call('PUT', '/admin/retell-costs', staff.finance.token, {
-      standard_cents_per_min: 500,
-      premium_cents_per_min: 900,
-      margin_floor_pct: 60,
-    });
+    // The old two-rate shape is refused: the margin check prices each tier from the itemised list (ADR 0038).
+    expect((await call('PUT', '/admin/retell-costs', staff.finance.token, { standard_cents_per_min: 5, premium_cents_per_min: 9, margin_floor_pct: 40 })).status).toBe(422);
+    await call('PUT', '/admin/retell-costs', staff.finance.token, { ...RETELL_COSTS_V1, margin_floor_pct: 60 });
     const preview = await call('GET', '/admin/pricing/preview', staff.finance.token);
     expect((preview.body.blockers as string[]).length).toBeGreaterThan(0);
+    // One row per active priced pack and tier, each priced from the tier's stack.
+    const margins = preview.body.margins as Array<{ pack_id: string; tier: string; cost_cents_per_min: number | null; below_floor: boolean }>;
+    expect(margins.length).toBeGreaterThanOrEqual(4);
+    expect(margins.every((m) => m.cost_cents_per_min !== null)).toBe(true);
+    expect(margins.some((m) => m.below_floor)).toBe(true);
     // QA-039: a publish carries a reason.
     expect((await call('POST', '/admin/pricing/publish', staff.superAdmin.token, {})).body.code).toBe('VALIDATION_FAILED');
     const blocked = await call('POST', '/admin/pricing/publish', staff.superAdmin.token, { reason_code: 'promo' });
@@ -1100,11 +1104,14 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
         })
       ).status,
     ).toBe(403);
-    await call('PUT', '/admin/retell-costs', staff.finance.token, {
-      standard_cents_per_min: 5,
-      premium_cents_per_min: 9,
-      margin_floor_pct: 40,
-    });
+
+    // A model the stack runs and the list does not price is not a passing margin.
+    const { 'gpt-4.1-mini': _model, ...llm } = RETELL_COSTS_V1.llm_cents_per_min;
+    await call('PUT', '/admin/retell-costs', staff.finance.token, { ...RETELL_COSTS_V1, llm_cents_per_min: llm, margin_floor_pct: 1 });
+    const unknown = await call('GET', '/admin/pricing/preview', staff.finance.token);
+    expect((unknown.body.blockers as string[]).join(' ')).toContain('cannot price llm:gpt-4.1-mini');
+
+    await call('PUT', '/admin/retell-costs', staff.finance.token, { ...RETELL_COSTS_V1, margin_floor_pct: 1 });
   });
 
   it('keeps the version unpublished when Stripe refuses, then resumes it on the next publish', async () => {

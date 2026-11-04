@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { PricingConfig } from '@portal/schemas';
-import { diffConfig, marginsFor } from './admin-pricing.service';
+import { AGENT_STACK_V1_TIERS } from '../../../../db/prisma/seed-data/agent-stack-v1';
+import { AGENT_STACK_V2_TIERS } from '../../../../db/prisma/seed-data/agent-stack-v2';
+import { PRICING_V1 } from '../../../../db/prisma/seed-data/pricing-v1';
+import { RETELL_COSTS_V1 } from '../../../../db/prisma/seed-data/retell-costs-v1';
+import { agentStackTiers } from '../retell';
+import { diffConfig, marginBlockers, marginsFor, tierCostPerMin } from './admin-pricing.service';
 import { AT_RISK_AFTER_MS, CHURNED_AFTER_MS, customerStatusOf, idMatch, median, phoneQuery } from './admin.helpers';
 
-import { pricingConfig } from '@portal/schemas';
+import { pricingConfig, retellCostInputs } from '@portal/schemas';
 
 const pack = (id: string, price_cents: number, credits: number, plan_tier: 'starter' | 'growth') => ({
   id, name: id, price_cents, currency: 'USD' as const, credits, plan_tier, concurrency_cap: 2, kb_allowance: 0, max_agents: 1, max_numbers: 1,
@@ -131,21 +136,83 @@ describe('diffConfig (SA5 preview)', () => {
   });
 });
 
-describe('marginsFor (admin §5.4)', () => {
-  it('reports unknown margins without cost inputs and flags a tier under the floor with them', () => {
-    const none = marginsFor(base, null);
+/*
+ * Admin §5.4 / SA5 margin check on the itemised cost inputs (ADR 0038). Priced from what
+ * `pnpm db:seed` writes — the 4 Nov price list and the v2 tier stack — so a fresh
+ * environment's numbers are the ones under test.
+ */
+describe('marginsFor (admin §5.4, ADR 0038)', () => {
+  const costs = retellCostInputs.parse(RETELL_COSTS_V1);
+  const tiers = agentStackTiers.parse(AGENT_STACK_V2_TIERS);
+  const catalogue = pricingConfig.parse(PRICING_V1);
+  const row = (m: ReturnType<typeof marginsFor>, pack: string, tier: string) => m.find((r) => r.pack_id === pack && r.tier === tier)!;
+
+  it('prices a minute of each tier from its stack: voice engine, voice, model, dearest telephony, knowledge base', () => {
+    // 5.5 + Cartesia 1.5 + GPT-4.1 mini 1.28 + Canada 3.0 + KB 0.5
+    expect(tierCostPerMin(costs, tiers.standard)).toEqual({ cents: 11.78, missing: [] });
+    // 5.5 + ElevenLabs Multilingual v2 6.0 + GPT-4.1 mini 1.28 + 3.0 + 0.5 (Premium stays on GPT-4.1 mini, ADR 0038)
+    expect(tierCostPerMin(costs, tiers.premium)).toEqual({ cents: 16.28, missing: [] });
+  });
+
+  it('checks every priced active pack, both tiers — a positive margin on the seeded catalogue', () => {
+    const margins = marginsFor(catalogue, costs, tiers);
+    expect(new Set(margins.map((m) => m.pack_id))).toEqual(new Set(['starter', 'growth', 'scale', 'pro']));
+    expect(row(margins, 'pro', 'standard')).toMatchObject({ revenue_cents_per_min: 22.2, cost_cents_per_min: 11.78, margin_pct: 46.9, floor_pct: 35, below_floor: false });
+    expect(row(margins, 'pro', 'premium')).toMatchObject({ revenue_cents_per_min: 33.3, cost_cents_per_min: 16.28, margin_pct: 51.1, below_floor: false });
+    expect(row(margins, 'starter', 'standard').margin_pct).toBe(63.9);
+    expect(marginBlockers(margins, costs, tiers)).toEqual([]);
+  });
+
+  it('a low margin binds on the cheapest credit, not the dearest (AS-224)', () => {
+    const tight = { ...costs, margin_floor_pct: 50 };
+    const margins = marginsFor(catalogue, tight, tiers);
+    const under = margins.filter((m) => m.below_floor).map((m) => `${m.pack_id}/${m.tier}`);
+    // Starter's Standard minute clears 50 %; Pro's does not, and the old one-row check never looked at Pro.
+    expect(under).toContain('pro/standard');
+    expect(under).not.toContain('starter/standard');
+    const blockers = marginBlockers(margins, tight, tiers);
+    expect(blockers.some((b) => b.includes('standard margin on pro is 46.9%'))).toBe(true);
+  });
+
+  it('zero and negative margins are below any floor', () => {
+    const dear = { ...costs, voice_engine_cents_per_min: 22.2 - (11.78 - 5.5) };
+    const zero = row(marginsFor(catalogue, dear, tiers), 'pro', 'standard');
+    expect(zero.margin_pct).toBe(0);
+    expect(zero.below_floor).toBe(true);
+    const loss = row(marginsFor(catalogue, { ...costs, voice_engine_cents_per_min: 40 }, tiers), 'pro', 'standard');
+    expect(loss.margin_pct).toBeLessThan(0);
+    expect(loss.below_floor).toBe(true);
+  });
+
+  it('a missing input makes the margin unknown and blocks — never a cheaper guess', () => {
+    // Premium's voice model has no price: it is not priced as plain ElevenLabs (Flash) instead.
+    const { 'elevenlabs:eleven_multilingual_v2': _dropped, ...tts } = costs.tts_cents_per_min;
+    const partial = { ...costs, tts_cents_per_min: tts };
+    const margins = marginsFor(catalogue, partial, tiers);
+    expect(row(margins, 'pro', 'premium')).toMatchObject({ cost_cents_per_min: null, margin_pct: null, below_floor: false, missing: ['tts:elevenlabs:eleven_multilingual_v2'] });
+    expect(row(margins, 'pro', 'standard').margin_pct).toBe(46.9);
+    expect(marginBlockers(margins, partial, tiers)).toEqual([expect.stringContaining('cannot price tts:elevenlabs:eleven_multilingual_v2')]);
+    const { 'gpt-4.1-mini': _model, ...llm } = costs.llm_cents_per_min;
+    expect(tierCostPerMin({ ...costs, llm_cents_per_min: llm }, tiers.standard)).toEqual({ cents: null, missing: ['llm:gpt-4.1-mini'] });
+    expect(tierCostPerMin({ ...costs, telephony_cents_per_min: {} }, tiers.standard).missing).toEqual(['telephony']);
+  });
+
+  it('no cost inputs, or no readable stack, blocks publish instead of passing silently', () => {
+    const none = marginsFor(catalogue, null, tiers);
     expect(none.every((m) => m.margin_pct === null && !m.below_floor)).toBe(true);
-    const tight = marginsFor(base, {
-      standard_cents_per_min: 1_000,
-      premium_cents_per_min: 1_000,
-      margin_floor_pct: 50,
-    });
-    expect(tight.every((m) => m.below_floor)).toBe(true);
-    const fine = marginsFor(base, {
-      standard_cents_per_min: 1,
-      premium_cents_per_min: 1,
-      margin_floor_pct: 50,
-    });
-    expect(fine.every((m) => !m.below_floor && (m.margin_pct ?? 0) > 50)).toBe(true);
+    expect(marginBlockers(none, null, tiers)[0]).toMatch(/no voice platform cost inputs/i);
+    expect(marginBlockers(marginsFor(catalogue, costs, null), costs, null)[0]).toMatch(/agent stack has no readable tiers/);
+  });
+
+  it('follows the stack: v1 (GPT-5 mini, ElevenLabs Flash on Standard) prices differently from v2', () => {
+    const v1 = agentStackTiers.parse(AGENT_STACK_V1_TIERS);
+    // 5.5 + Flash 4.0 + GPT-5 mini 0.8 + 3.0 + 0.5
+    expect(tierCostPerMin(costs, v1.standard).cents).toBe(13.8);
+    expect(tierCostPerMin(costs, v1.standard).cents).toBeGreaterThan(tierCostPerMin(costs, tiers.standard).cents!);
+  });
+
+  it('accepts the seeded inputs as written', () => {
+    expect(retellCostInputs.safeParse(RETELL_COSTS_V1).success).toBe(true);
+    expect(retellCostInputs.safeParse({ standard_cents_per_min: 5, premium_cents_per_min: 9, margin_floor_pct: 40 }).success).toBe(false);
   });
 });

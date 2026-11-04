@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { type Agent, type AgentVersion, adminDb, withWorkspace } from '@portal/db';
 import type { AgentTier, TestPhoneCallRequest, TestPhoneCallResponse, TestWebCallResponse } from '@portal/schemas';
-import { businessVariables, parseBusinessHours } from '../runtime-cache';
+import { callVariables, parseBusinessHours, spokenAgentName } from '../runtime-cache';
 import { AppError } from '../../common/errors/app-error';
 import { AgentDraftSyncService, settingsOf } from '../agents';
 import { numberTransferVariables } from '../prompting/staff-transfer';
@@ -17,7 +17,7 @@ import { RecordingSigner } from './recording';
 /** How long a live-transcript token outlives the call's ceiling (ADR 0011's reservation slack). */
 const LIVE_TOKEN_SLACK_S = 300;
 
-type TestTarget = { agent: Agent; version: AgentVersion; tenant: { timezone: string; businessHoursJson: unknown } };
+type TestTarget = { agent: Agent; version: AgentVersion; tenant: { name: string; timezone: string; businessHoursJson: unknown } };
 
 /** A version that may be rung now: its platform copy, the rate it bills at and its ceiling. */
 type ReadyTest = {
@@ -81,9 +81,10 @@ export class TestCallService {
         agentVersion: ready.retellAgentVersion,
         metadata: { tenant_id: ctx.workspaceId, agent_id: agent.id, version_no: version.versionNo, tier: ready.tier, test: true },
         maxCallDurationMs: ready.maxMs,
-        // §9.7: "for web tests, computed at token creation" — the same hours the inbound
-        // path reads, so the W5 call hears the shop is shut when it is (ADR 0035).
-        dynamicVariables: businessVariables(parseBusinessHours(target.tenant.businessHoursJson), new Date(), target.tenant.timezone),
+        // §9.7: "for web tests, computed at token creation" — every variable the inbound
+        // path sends, so the W5 call hears the shop is shut when it is (ADR 0035, 0038).
+        // A browser has no number: `{{caller_number}}` is empty, as on the widget.
+        dynamicVariables: testCallVariables(target, null),
       })
       .catch(async (error: unknown) => {
         await slot.release();
@@ -186,7 +187,8 @@ export class TestCallService {
         maxCallDurationMs: ready.maxMs,
         // QA-083: the calling number's transfer targets and D4 "message if the transfer
         // fails", as an inbound call to it would carry — so the test hears what a caller would.
-        dynamicVariables: { ...businessVariables(parseBusinessHours(target.tenant.businessHoursJson), new Date(), target.tenant.timezone), ...numberTransferVariables(from, version.briefJson) },
+        // The person rung is the other party, as the caller is on an inbound call.
+        dynamicVariables: { ...testCallVariables(target, destination.e164), ...numberTransferVariables(from, version.briefJson) },
       })
       .catch(async (error: unknown) => {
         await slot.release();
@@ -230,7 +232,7 @@ export class TestCallService {
   /** The agent and the version under test (default: the draft), with a script to ring. */
   private target(ctx: WorkspaceContext, agentId: string, versionNo?: number): Promise<TestTarget> {
     return withWorkspace(ctx, async (db) => {
-      const tenant = await db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { pausedAt: true, timezone: true, businessHoursJson: true } });
+      const tenant = await db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { pausedAt: true, name: true, timezone: true, businessHoursJson: true } });
       if (tenant.pausedAt) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to resume it.');
       const agent = await db.agent.findFirst({ where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null } });
       if (!agent) throw AppError.notFound('Agent');
@@ -249,7 +251,7 @@ export class TestCallService {
       if (version.publishedAt === null && version.versionNo !== agent.draftVersion) {
         throw new AppError('VERSION_NOT_TESTABLE', 'That version can no longer be tested. Restore it as the draft first, or pick another.');
       }
-      return { agent, version, tenant: { timezone: tenant.timezone, businessHoursJson: tenant.businessHoursJson } };
+      return { agent, version, tenant: { name: tenant.name, timezone: tenant.timezone, businessHoursJson: tenant.businessHoursJson } };
     });
   }
 
@@ -316,4 +318,19 @@ function concurrencyLimit(cap: number | null): AppError {
 
 function creditsHeld(): AppError {
   return new AppError('NO_CREDITS', 'Your live calls are holding the rest of your credits. Try again when one finishes, or buy a pack.');
+}
+
+/** §9.7 for a test of one version: its own spoken name and main language, the workspace's hours, now. */
+function testCallVariables(target: TestTarget, callerNumber: string | null): Record<string, string> {
+  return callVariables(
+    {
+      businessName: target.tenant.name,
+      agentName: spokenAgentName(target.version.briefJson, target.agent.name),
+      callerNumber,
+      primaryLanguage: settingsOf(target.version, target.agent).primary_language,
+      businessHours: parseBusinessHours(target.tenant.businessHoursJson),
+      timeZone: target.tenant.timezone,
+    },
+    new Date(),
+  );
 }

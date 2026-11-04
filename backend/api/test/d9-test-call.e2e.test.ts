@@ -68,8 +68,21 @@ describe('POST /agents/:id/test/web', () => {
       agentVersion: number;
       metadata: Record<string, unknown>;
       maxCallDurationMs: number;
+      dynamicVariables: Record<string, string>;
     };
     expect(minted.agentId).toBe(agent.retellAgentId);
+    // §9.7, "for web tests, computed at token creation" (ADR 0038, audit G-18): all seven,
+    // from this workspace and the tested version; a browser has no caller number.
+    const tenant = await adminDb.tenant.findUniqueOrThrow({ where: { id: ws.workspaceId }, select: { name: true } });
+    expect(minted.dynamicVariables).toEqual({
+      business_name: tenant.name,
+      agent_name: expect.any(String),
+      caller_number: '',
+      primary_language: expect.stringMatching(/^[a-z]{2}-[A-Z0-9]+$/),
+      business_open: expect.stringMatching(/^(true|false)$/),
+      next_open_time: expect.any(String),
+      current_time: expect.stringMatching(/^[A-Z][a-z]+day \d{1,2} [A-Z][a-z]+ \d{4}, \d{2}:\d{2}$/),
+    });
     expect(minted.agentVersion).toBe(version.retellAgentVersion);
     expect(minted.metadata).toEqual({ tenant_id: ws.workspaceId, agent_id: agentId, version_no: 1, tier: agent.tier, test: true });
     // min(the version's ceiling, what 20 credits cover at this rate)

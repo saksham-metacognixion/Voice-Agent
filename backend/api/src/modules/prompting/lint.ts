@@ -8,6 +8,7 @@ import {
 } from '@portal/schemas';
 import { isValidPhoneNumber } from 'libphonenumber-js/max';
 import { hasGuardrails, stripGuardrails } from './guardrails';
+import { transferRoutes } from './staff-transfer';
 
 /**
  * §9.5 — prompt lint. Server-side, deterministic, and the same function on every path:
@@ -32,7 +33,6 @@ export const MAX_GREETING_WORDS = 25;
  * Why each default is what it is:
  *   prompt_empty          nothing to run — there is no call without a prompt
  *   no_greeting           `begin_message` is what the caller hears first; silence is broken
- *   transfer_tool_missing the brief promises a transfer the agent has no way to perform
  *   transfer_number_invalid a transfer number that is E.164 in shape but no real number
  *                         (`+144444444`, 28 Oct): the platform refuses the whole agent
  *                         with a 400, so the publish could never succeed anyway
@@ -40,7 +40,10 @@ export const MAX_GREETING_WORDS = 25;
  *   platform_named        the voice platform is never named to a customer (CLAUDE.md, Retell
  *                         isolation) — an agent that says it is from the vendor is that
  *                         rule broken out loud, on the first ring
- * Everything else is advice. `handoff_message_missing` included: the model may reword a
+ * Everything else is advice. `transfer_tool_missing` included (ADR 0038): a number the
+ * agent's tools never dial, or a script naming a tool it does not have, costs the caller a
+ * transfer, but the call still runs — and the commonest cause is a phone number's own
+ * hand-off setting, which a publish of the agent cannot fix. `handoff_message_missing` too: the model may reword a
  * message the customer wrote, and a publish is not worth blocking over a changed comma —
  * but the customer should see that the words they chose are not the words on the call.
  * Everything else is advice. Notably `prompt_too_long` is a warning: it costs latency and
@@ -53,7 +56,7 @@ export const DEFAULT_SEVERITIES: Record<LintRule, LintSeverity> = {
   no_greeting: 'error',
   greeting_too_long: 'warning',
   handoff_rule_missing: 'warning',
-  transfer_tool_missing: 'error',
+  transfer_tool_missing: 'warning',
   transfer_number_invalid: 'error',
   handoff_message_missing: 'warning',
   absolute_language: 'warning',
@@ -76,8 +79,12 @@ export interface LintInput {
   brief: Brief;
   /** `agents.primary_language`, e.g. `en-US`. Drives the language-mismatch check. */
   primaryLanguage: string;
-  /** True when the version's prompt declares a transfer tool (a transfer target exists). */
-  transferNumbers?: string[];
+  /**
+   * The transfer targets set on the phone numbers that answer for this agent (D4 Hand-off,
+   * `phone_numbers.transfer_targets_json`): what a call to them carries as
+   * `transfer_number_N`. `agentNumberTransferTargets()` reads them; absent = none.
+   */
+  numberTransferTargets?: readonly string[];
 }
 
 export const DEFAULT_LINT_CONFIG: LintConfig = {
@@ -116,7 +123,9 @@ export function lintPrompt(input: LintInput, config: LintConfig = DEFAULT_LINT_C
   const prompt = input.prompt?.trim() ?? '';
   const greeting = input.greeting?.trim() ?? '';
   const declared = transferTargets(input.brief);
-  const available = input.transferNumbers ?? declared;
+  // The `transfer_call` tools the platform sync builds, from the same function
+  // (`transferRoutes`, `AgentRetellService.llmSpec`): each dials its number and nothing else.
+  const tools = transferRoutes(input.brief).map((route) => route.number);
 
   // --- the prompt itself
   if (!prompt) {
@@ -146,20 +155,15 @@ export function lintPrompt(input: LintInput, config: LintConfig = DEFAULT_LINT_C
   }
 
   // --- hand-off
-  if (available.length > 0 && !mentionsHandoff(prompt)) {
+  if (declared.length > 0 && !mentionsHandoff(prompt)) {
     add(
       'handoff_rule_missing',
       'A transfer number is set but the prompt never says when to transfer, so the agent will not use it.',
       'brief.handoff_rules',
     );
   }
-  if (declared.length > 0 && available.length === 0) {
-    add(
-      'transfer_tool_missing',
-      'The brief asks for a transfer but no transfer target reached the agent, so the transfer would fail on the call.',
-      'brief.handoff_rules',
-    );
-  }
+  const missingTool = transferToolGap(stripGuardrails(prompt), declared, input.numberTransferTargets ?? [], tools);
+  if (missingTool) add('transfer_tool_missing', missingTool.message, missingTool.field);
 
   // `e164` in the brief schema checks the shape only; the platform checks the number.
   const invalid = declared.filter((number) => !isValidPhoneNumber(number));
@@ -242,6 +246,53 @@ function wordCount(text: string): number {
 const HANDOFF_WORDS = /\b(transfer|transfert|put you through|hand (?:you )?off|patch you through|forward(?:ing)? (?:you|the call)|connect you)\b/i;
 
 /**
+ * §9.5 "transfer number set but no transfer tool" (ADR 0038, audit G-11). The rule used to
+ * compare the brief's numbers with themselves — the tools are built from the brief, so it
+ * could not fire. A number a call can be given that no tool dials, or a script that names a
+ * tool the sync never creates, is what it now looks for, in that order:
+ *
+ *   - a brief hand-off number with no tool: the sync dropped it (a guard on `transferRoutes`);
+ *   - a phone number's own transfer target (D4): the call carries it as
+ *     `transfer_number_N`, but every tool dials the brief's number, so a target that is not
+ *     one of them is never rung;
+ *   - `transfer_N` or `transfer_call` written into the script when the agent has fewer
+ *     tools: the agent would reach for a transfer that does not exist.
+ */
+const TOOL_REFERENCE = /\btransfer_(?:call|(\d+))\b/gi;
+
+function transferToolGap(
+  script: string,
+  declared: readonly string[],
+  numberTargets: readonly string[],
+  tools: readonly string[],
+): { message: string; field: string } | null {
+  if (declared.some((number) => !tools.includes(number))) {
+    return {
+      message: 'The brief asks for a transfer but no transfer reached the agent, so the transfer would fail on the call.',
+      field: 'brief.handoff_rules',
+    };
+  }
+  if (numberTargets.some((number) => !tools.includes(number))) {
+    return {
+      message: tools.length
+        ? 'A phone number answering for this agent transfers to a number none of its hand-off rules uses, so calls are never transferred there. Add a hand-off rule with that number, or change it under Numbers.'
+        : 'A phone number answering for this agent has a transfer number, but the agent has no hand-off rule that transfers, so calls are never transferred. Add one under "When to hand off to a person".',
+      field: 'numbers.transfer_targets',
+    };
+  }
+  for (const match of script.matchAll(TOOL_REFERENCE)) {
+    const index = match[1] === undefined ? 1 : Number(match[1]);
+    if (index < 1 || index > tools.length) {
+      return {
+        message: `The script refers to "${match[0]}", but the agent ${tools.length ? `has only ${tools.length} transfer${tools.length === 1 ? '' : 's'}` : 'cannot transfer'}. Add a hand-off rule that transfers, or remove it under Advanced.`,
+        field: 'prompt',
+      };
+    }
+  }
+  return null;
+}
+
+/**
  * The vendor's name as a model, a customer or a sample clip might write it — including
  * the homophone a transcript produces when the name is *said* ("Retail AI"). Plain
  * "retail" on its own is a customer's own word (a retail store) and is not matched.
@@ -320,15 +371,37 @@ function findAbsoluteLanguage(prompt: string, briefValue: Brief): string | null 
  * stopwords for the languages we actually launch in and answer only when one of them
  * wins clearly. Anything ambiguous returns null and the rule does not fire — a false
  * "your prompt is in French" on an English prompt is worse than no check at all.
+ *
+ * Arabic since 4 Nov (ADR 0038, audit G-12): the Gulf agents of ADR 0027 skipped the rule,
+ * so a script written in English on W2 for an Arabic agent was never flagged. Its
+ * stopwords are written in the form `arabicFolded` leaves them, and the text is folded
+ * the same way before counting — vowel marks, tatweel and the alef / yeh spellings
+ * vary between writers and are not what makes a word Arabic.
  */
 const STOPWORDS: Record<string, readonly string[]> = {
   en: ['the', 'and', 'you', 'your', 'for', 'with', 'that', 'this', 'are', 'call', 'caller', 'never'],
   fr: ['le', 'la', 'les', 'vous', 'votre', 'pour', 'avec', 'que', 'des', 'une', 'appel', 'jamais'],
   es: ['el', 'la', 'los', 'usted', 'para', 'con', 'que', 'una', 'del', 'llamada', 'nunca', 'siempre'],
+  // في من على إلى أن/إن عن مع هذا هذه التي الذي لا ما أو إذا عند كل انت المتصل ابدا
+  ar: ['في', 'من', 'علي', 'الي', 'ان', 'عن', 'مع', 'هذا', 'هذه', 'التي', 'الذي', 'لا', 'ما', 'او', 'اذا', 'عند', 'كل', 'انت', 'المتصل', 'ابدا'],
 };
 
+/**
+ * Arabic as one spelling: vowel marks (harakat, U+064B–U+065F, U+0670) and tatweel
+ * (U+0640) dropped, hamza-carrying alefs (أ إ آ ٱ) read as ا and alef maqsura (ى) as ي.
+ * Bidirectional controls (LRM, RLM, ALM, embeddings, isolates) are dropped too: they are
+ * invisible, and inside a word they would split it in two. Latin text is untouched.
+ */
+function arabicFolded(text: string): string {
+  return text
+    .replace(/[\u200e\u200f\u061c\u202a-\u202e\u2066-\u2069]/g, '')
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
+    .replace(/[\u0623\u0625\u0622\u0671]/g, '\u0627')
+    .replace(/\u0649/g, '\u064a');
+}
+
 export function detectLanguage(text: string): string | null {
-  const words = text.toLowerCase().match(/[\p{L}']+/gu);
+  const words = arabicFolded(text).toLowerCase().match(/[\p{L}']+/gu);
   if (!words || words.length < 40) return null;
 
   const counts = new Map<string, number>();
@@ -350,7 +423,7 @@ function baseLanguage(tag: string): string | null {
 }
 
 function languageName(code: string): string {
-  return { en: 'English', fr: 'French', es: 'Spanish' }[code] ?? code;
+  return { en: 'English', fr: 'French', es: 'Spanish', ar: 'Arabic' }[code] ?? code;
 }
 
 function positive(value: unknown, fallback: number): number {

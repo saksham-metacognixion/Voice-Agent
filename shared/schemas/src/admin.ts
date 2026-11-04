@@ -880,15 +880,27 @@ export const pricingChange = z.object({
 });
 
 /** Margin per tier from the Retell cost inputs (admin §5.4, Appendix A). */
+/**
+ * One pack's margin for one tier (admin §5.4): what a minute earns at that pack's price per
+ * credit against what it costs on the platform, priced from the itemised cost inputs and
+ * the tier's current stack (ADR 0038). Every active pack is checked — the floor binds the
+ * cheapest credit, not the dearest.
+ */
 export const pricingMargin = z.object({
+  pack_id: z.string(),
   tier: agentTier,
-  /** Cents a customer pays per credit at the cheapest public pack. */
+  /** Cents the customer pays for one minute of this tier at this pack's price per credit. */
   revenue_cents_per_min: z.number(),
-  /** Retell cost per minute, from `retell_cost_inputs`; null when no inputs are set. */
+  /**
+   * Platform cost of one minute of this tier on a bought number in the dearest country
+   * listed, with a knowledge base in use; null when an input it needs is missing.
+   */
   cost_cents_per_min: z.number().nullable(),
   margin_pct: z.number().nullable(),
   floor_pct: z.number().nullable(),
   below_floor: z.boolean(),
+  /** The cost inputs this tier's stack needs and the table does not have, e.g. `llm:gpt-4.1`. */
+  missing: z.array(z.string()).default([]),
 });
 
 export const stripePlannedAction = z.object({
@@ -953,11 +965,41 @@ export const adminPricingRollbackRequest = z
   });
 export type AdminPricingRollbackRequest = z.infer<typeof adminPricingRollbackRequest>;
 
-/** `PUT /admin/retell-costs` — what a minute costs us, for the margin check. */
+const costCents = z.number().min(0).max(100_000);
+const costKey = z.string().trim().min(1).max(60);
+
+/**
+ * `PUT /admin/retell-costs` — what the voice platform charges us, itemised as admin SA5 asks
+ * ("voice infra, TTS per provider, LLM per model, telephony per country, add-ons, monthly
+ * fixed") and mirroring portal spec §4 (ADR 0038). US cents. Used for the margin preview and
+ * COGS estimates only; what a call actually cost is the platform's own `call_cost`.
+ *
+ * The in-call model is billed per minute, not per token (ADR 0037), so there are no token
+ * rates here; the brief → prompt model is a per-generation cost outside the per-minute margin.
+ */
 export const retellCostInputs = z.object({
-  standard_cents_per_min: z.number().min(0),
-  premium_cents_per_min: z.number().min(0),
-  /** Publish is blocked below this gross margin unless overridden. */
+  /** The platform's voice engine, on every call (§4.1). */
+  voice_engine_cents_per_min: costCents,
+  /**
+   * Text-to-speech by voice provider (`cartesia`, `platform`, `elevenlabs`…), or
+   * `provider:voice_model` where the model sets the price (`elevenlabs:eleven_multilingual_v2`).
+   */
+  tts_cents_per_min: z.record(costKey, costCents),
+  /** The in-call LLM by the platform's model id (`gpt-4.1-mini`). */
+  llm_cents_per_min: z.record(costKey, costCents),
+  /** Telephony on a number bought through the platform, by ISO country. BYO SIP and web calls cost none. */
+  telephony_cents_per_min: z.record(z.string().regex(/^[A-Z]{2}$/), costCents),
+  /** Knowledge-base retrieval, per minute of a call that uses one. */
+  knowledge_base_cents_per_min: costCents,
+  /** Post-call analysis: flat per call, by analysis model (ADR 0037 §2). Shown beside the margin, not in it. */
+  analysis_cents_per_call: z.record(costKey, costCents),
+  /** Monthly fixed costs, for COGS: per bought number, per concurrency slot and per knowledge base past the free allowance. */
+  monthly_cents: z.object({
+    phone_number: costCents,
+    concurrency_slot: costCents,
+    knowledge_base: costCents,
+  }),
+  /** Publish is blocked below this gross margin unless a super admin overrides (admin §5.4: default 35 %). */
   margin_floor_pct: z.number().min(0).max(100),
 });
 export type RetellCostInputs = z.infer<typeof retellCostInputs>;

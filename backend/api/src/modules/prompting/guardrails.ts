@@ -70,6 +70,18 @@ export const LIST_RULE =
   'When the caller asks what is available in a category, name at most three or four items that fit what they asked for, then ask whether they would like to hear more. Read a full list only when the caller asks for all of it. Do not mix in other categories, such as drinks with food, unless the caller asks. Say a price only when the caller asks or it helps them choose, exactly as written.';
 
 /**
+ * §9.4 rule 7, "Respect `{{business_open}}`", with the variable in it (ADR 0038, audit G-09).
+ * ADR 0035 computes `{{business_open}}`, `{{next_open_time}}` and `{{current_time}}` per call
+ * on every channel, but the platform substitutes a variable only where `{{…}}` is written,
+ * and no stack row, template or generated script named them: a live agent was never told
+ * whether the business was open, and invited callers in on a Saturday night (ADR 0037,
+ * "Also found"). Fixed rather than a stack-row bullet so it reaches every live agent at
+ * its next sync, whatever its script says; the §9.4 bullet stays SA6's to word.
+ */
+export const HOURS_RULE =
+  'Right now it is {{current_time}} where the business is; use it for words like today, tomorrow and tonight, and never guess the time when it is empty. The business is open now: {{business_open}}. When that says false, the business is closed: tell the caller so, give the next opening time when one is given here ({{next_open_time}}), and follow the after-hours steps, such as taking a message. While it is closed, never invite the caller to come in or say that someone is available right now.';
+
+/**
  * The §9.4 bullets, verbatim from the spec.
  *
  * This copy is the guarantee. `agent_stack_configs.guardrails_text` (SA6) may replace the
@@ -104,9 +116,11 @@ export const DEFAULT_PLATFORM_GUARDRAILS: readonly string[] = [
  * separate bullet had no effect. Counting is the code's job, after the call.
  *
  * The closing line, since 26 Oct (ADR 0012, "The closing line"): see `CLOSING_RULE`.
+ * Business hours and the time, since 4 Nov (ADR 0038): see `HOURS_RULE`.
  * Transfers and lists, since 26 Oct (BUG-005, BUG-007): see `TRANSFER_RULE`, `LIST_RULE`.
  */
 export const FIXED_PLATFORM_GUARDRAILS: readonly string[] = [
+  HOURS_RULE,
   CLOSING_RULE,
   TRANSFER_RULE,
   LIST_RULE,

@@ -331,6 +331,12 @@ describe('AgentRetellService staff transfers', () => {
     // never reaches a browser test call as literal braces.
     expect(llm.defaultDynamicVariables.transfer_fail_message).toBe('');
     expect(llm.prompt).toContain('{{transfer_fail_message}}');
+    // ADR 0038: every §9.7 name has a default, so none is ever read out as braces.
+    expect(Object.keys(llm.defaultDynamicVariables)).toEqual(
+      expect.arrayContaining(['business_name', 'agent_name', 'caller_number', 'current_time', 'business_open', 'next_open_time', 'primary_language']),
+    );
+    expect(llm.defaultDynamicVariables.caller_number).toBe('');
+    expect(llm.prompt).toContain('{{business_open}}');
   });
 });
 

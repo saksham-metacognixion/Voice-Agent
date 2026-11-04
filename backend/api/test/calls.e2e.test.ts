@@ -990,14 +990,39 @@ describe('allowed caller countries and {{business_open}} (ADR 0035, audit §6.1 
     const service = app.get(InboundAuthorizationService);
     // Wednesday 16 Sep 2026, 10:00 and 20:00 Toronto.
     const open = await service.authorize(ws.token, inboundEvent({ callId: callId(), to: ws.e164 }) as never, new Date('2026-09-16T14:00:00Z'));
-    expect(open.body).toMatchObject({ call_inbound: { dynamic_variables: { business_open: 'true', next_open_time: '', current_time: '10:00' } } });
+    expect(open.body).toMatchObject({ call_inbound: { dynamic_variables: { business_open: 'true', next_open_time: '', current_time: 'Wednesday 16 September 2026, 10:00' } } });
     const closed = await service.authorize(ws.token, inboundEvent({ callId: callId(), to: ws.e164 }) as never, new Date('2026-09-17T00:00:00Z'));
-    expect(closed.body).toMatchObject({ call_inbound: { override_agent_id: ws.retellAgentId, dynamic_variables: { business_open: 'false', next_open_time: 'tomorrow at 09:00', current_time: '20:00' } } });
+    expect(closed.body).toMatchObject({ call_inbound: { override_agent_id: ws.retellAgentId, dynamic_variables: { business_open: 'false', next_open_time: 'tomorrow at 09:00', current_time: 'Wednesday 16 September 2026, 20:00' } } });
     // No hours at all: open, never a shut shop by accident.
     await adminDb.tenant.update({ where: { id: ws.tenantId }, data: { businessHoursJson: Prisma.DbNull } });
     await runtimeCache.refresh(ws.tenantId);
     const none = await service.authorize(ws.token, inboundEvent({ callId: callId(), to: ws.e164 }) as never, new Date('2026-09-17T00:00:00Z'));
     expect(none.body).toMatchObject({ call_inbound: { dynamic_variables: { business_open: 'true' } } });
+  });
+
+  // ADR 0038 (audit G-16, G-17): every §9.7 variable, each from this number's own workspace.
+  it('sends all seven §9.7 variables, from the workspace the number belongs to and no other', async () => {
+    const a = await readyWorkspace('vars-a');
+    const b = await readyWorkspace('vars-b');
+    await adminDb.tenant.update({ where: { id: b.tenantId }, data: { name: 'Pacific Plumbing', timezone: 'America/Vancouver' } });
+    await adminDb.agent.updateMany({ where: { tenantId: b.tenantId }, data: { primaryLanguage: 'fr-CA' } });
+    await runtimeCache.refresh(b.tenantId);
+    const service = app.get(InboundAuthorizationService);
+    const at = new Date('2026-09-16T14:00:00Z');
+    const varsOf = async (ws: typeof a, from: string) =>
+      ((await service.authorize(ws.token, inboundEvent({ callId: callId(), to: ws.e164, from }) as never, at)).body as { call_inbound: { dynamic_variables: Record<string, string> } }).call_inbound.dynamic_variables;
+
+    const va = await varsOf(a, '+14165550123');
+    const vb = await varsOf(b, '+16045550199');
+    const tenantA = await adminDb.tenant.findUniqueOrThrow({ where: { id: a.tenantId }, select: { name: true } });
+    for (const key of ['business_name', 'agent_name', 'caller_number', 'current_time', 'business_open', 'next_open_time', 'primary_language']) {
+      expect(typeof va[key], key).toBe('string');
+      expect(typeof vb[key], key).toBe('string');
+    }
+    expect(va).toMatchObject({ business_name: tenantA.name, caller_number: '+14165550123', current_time: 'Wednesday 16 September 2026, 10:00' });
+    expect(va.agent_name?.length).toBeGreaterThan(0);
+    expect(vb).toMatchObject({ business_name: 'Pacific Plumbing', caller_number: '+16045550199', current_time: 'Wednesday 16 September 2026, 07:00', primary_language: 'fr-CA' });
+    expect(va.business_name).not.toBe(vb.business_name);
   });
 });
 

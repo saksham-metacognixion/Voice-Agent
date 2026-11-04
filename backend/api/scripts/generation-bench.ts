@@ -6,6 +6,8 @@
  *   pnpm --filter @portal/api bench:generation -- --model claude-opus-5 --runs 3
  *   pnpm --filter @portal/api bench:generation -- --thinking off --effort low --out /tmp/run.json
  *   pnpm --filter @portal/api bench:generation -- --split     # two concurrent half-envelope calls
+ *   pnpm --filter @portal/api bench:generation -- --repeat 3  # each brief three times (15 samples)
+ *   pnpm --filter @portal/api bench:generation -- --without-variables  # the user turn before ADR 0038's §9.7 section
  *
  * It costs real money — roughly 3¢ a generation on Sonnet — so it is a script you run on
  * purpose, never part of `pnpm test`. Nothing it does touches the database: it exercises
@@ -130,6 +132,11 @@ async function main(): Promise<void> {
   const effort = valueOf(args, '--effort');
   const outFile = valueOf(args, '--out');
   const split = args.includes('--split');
+  const repeat = Math.max(1, Number(valueOf(args, '--repeat') ?? 1));
+  // ADR 0038 A/B: the same turn with the "# Call variables" section taken out, so a before
+  // and an after run on the same code, model and briefs.
+  const withoutVariables = args.includes('--without-variables');
+  const turn = (text: string) => (withoutVariables ? text.replace(/\n# Call variables\n[\s\S]*?\n\n/, '\n') : text);
 
   if (model) process.env.GENERATION_MODEL = model;
   if (thinking) process.env.GENERATION_THINKING = thinking;
@@ -155,10 +162,12 @@ async function main(): Promise<void> {
   let guardrailed = 0;
   let lintClean = 0;
 
-  for (const testCase of CASES.slice(0, runs)) {
+  let usesVariables = 0;
+  const cases = Array.from({ length: repeat }, () => CASES.slice(0, runs)).flat();
+  for (const testCase of cases) {
     const template = loadTemplate(testCase.template);
     const brief = briefSchema.parse(testCase.brief);
-    const user = buildUserPrompt({
+    const user = turn(buildUserPrompt({
       template,
       brief,
       primaryLanguage: testCase.language,
@@ -168,7 +177,7 @@ async function main(): Promise<void> {
       timezone: 'America/Toronto',
       skeleton: APPENDIX_B_SKELETON,
       alwaysAnalysisFields: ALWAYS_ANALYSIS_FIELDS,
-    });
+    }));
 
     try {
       const answer = split
@@ -197,6 +206,7 @@ async function main(): Promise<void> {
       // Exactly what the worker does next, in the same order.
       const prompt = applyGuardrails(answer.value.prompt);
       if (hasGuardrails(prompt)) guardrailed += 1;
+      if (/\{\{(business_open|next_open_time|current_time|caller_number|business_name|agent_name|primary_language)\}\}/.test(answer.value.prompt)) usesVariables += 1;
 
       const lint = lintPrompt(
         { prompt, greeting: answer.value.greeting, brief, primaryLanguage: testCase.language },
@@ -267,7 +277,7 @@ async function main(): Promise<void> {
 
   const sorted = [...latencies].sort((a, b) => a - b);
   const p95 = sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)] ?? 0;
-  const total = Math.min(runs, CASES.length);
+  const total = cases.length;
 
   const price = PRICES[provider.model];
   const cost = price ? (inputTokens / 1e6) * price.in + (outputTokens / 1e6) * price.out : null;
@@ -277,6 +287,7 @@ async function main(): Promise<void> {
   console.log(`  zod valid first try    ${valid}/${total}`);
   console.log(`  §9.4 guardrails        ${guardrailed}/${total}`);
   console.log(`  §9.5 lint publishable  ${lintClean}/${total}`);
+  console.log(`  script uses a §9.7 var ${usesVariables}/${total}${withoutVariables ? ' (variables section removed)' : ''}`);
   console.log(`  latency p50 / p95      ${median(sorted)} ms / ${p95} ms`);
   console.log(`  first token p50        ${firstTokens.length ? `${median([...firstTokens].sort((a, b) => a - b))} ms` : 'n/a'}`);
   console.log(`  thinking p50           ${thinkingTimes.length ? `${median([...thinkingTimes].sort((a, b) => a - b))} ms` : 'n/a'}`);
@@ -307,6 +318,13 @@ async function main(): Promise<void> {
           effort: process.env.GENERATION_EFFORT ?? 'low',
           thinking: process.env.GENERATION_THINKING ?? 'adaptive',
           ran_at: new Date().toISOString(),
+          variables_section: !withoutVariables,
+          samples: total,
+          valid,
+          guardrailed,
+          lint_publishable: lintClean,
+          uses_variables: usesVariables,
+          latencies_ms: sorted,
           p50_ms: median(sorted),
           p95_ms: p95,
           input_tokens: inputTokens,
