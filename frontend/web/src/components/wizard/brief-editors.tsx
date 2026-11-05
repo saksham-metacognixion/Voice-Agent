@@ -1,7 +1,7 @@
 'use client';
 
-import { HANDOFF_MESSAGE_MAX_CHARS, type HandoffRule, type Personality } from '@portal/schemas';
-import { Button, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Textarea, cn } from '@portal/ui';
+import { HANDOFF_MESSAGE_MAX_CHARS, NEVER_DO_PRESETS, type HandoffRule, type NeverDoPreset, type Personality } from '@portal/schemas';
+import { Button, Checkbox, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Slider, Textarea, cn } from '@portal/ui';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
@@ -81,6 +81,36 @@ export function HandoffRulesEditor({ value, onChange, disabled, errors }: { valu
           <Plus /> {t('add')}
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+/** W2 #8 — the preset checkboxes above the free text; ids on the wire, sentences for the model. */
+export function NeverDoPresets({ value, onChange, disabled }: { value: NeverDoPreset[]; onChange: (v: NeverDoPreset[]) => void; disabled?: boolean }) {
+  const t = useTranslations('wizard.w2.fields.never_do.presets');
+  return (
+    <div className="grid gap-2 sm:grid-cols-3" role="group" aria-label={t('label')}>
+      {NEVER_DO_PRESETS.map((preset) => {
+        const checked = value.includes(preset);
+        return (
+          <label
+            key={preset}
+            className={cn(
+              'flex cursor-pointer items-center gap-2.5 rounded-md border bg-card px-3 py-2.5 text-sm shadow-card transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50',
+              checked ? 'border-primary bg-accent/60' : 'border-border hover:border-primary/40',
+              disabled && 'cursor-not-allowed opacity-60',
+            )}
+          >
+            <Checkbox
+              checked={checked}
+              disabled={disabled}
+              data-testid={`never-do-${preset}`}
+              onCheckedChange={(on) => onChange(on === true ? [...value, preset] : value.filter((p) => p !== preset))}
+            />
+            <span>{t(preset)}</span>
+          </label>
+        );
+      })}
     </div>
   );
 }

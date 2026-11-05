@@ -11,6 +11,11 @@ import {
   modelAnalysisField,
   agentLanguage,
   retellLanguage,
+  brief,
+  briefPatch,
+  createAgentRequest,
+  defaultAgentLanguage,
+  NEVER_DO_PRESETS,
 } from './agents';
 
 /*
@@ -206,3 +211,69 @@ describe('copyAgentName / duplicateAgentRequest (D3 Duplicate, QA-078)', () => {
     expect(duplicateAgentRequest.parse({})).toEqual({});
   });
 });
+
+// ADR 0039 §7: W3 "Main language … default: from workspace country".
+describe('defaultAgentLanguage', () => {
+  it('names the locale of the launch countries', () => {
+    expect(defaultAgentLanguage('US')).toBe('en-US');
+    expect(defaultAgentLanguage('SA')).toBe('ar-SA');
+    expect(defaultAgentLanguage('AE')).toBe('ar-AE');
+    expect(defaultAgentLanguage('GB')).toBe('en-GB');
+  });
+
+  it('starts Canada on en-US: there is no en-CA on the platform (ADR 0003 §6)', () => {
+    expect(defaultAgentLanguage('CA')).toBe('en-US');
+  });
+
+  it('reads the code in any case and with spaces', () => {
+    expect(defaultAgentLanguage(' sa ')).toBe('ar-SA');
+  });
+
+  it('falls back to en-US for an unknown, empty or missing country', () => {
+    expect(defaultAgentLanguage('XX')).toBe('en-US');
+    expect(defaultAgentLanguage('')).toBe('en-US');
+    expect(defaultAgentLanguage(null)).toBe('en-US');
+    expect(defaultAgentLanguage(undefined)).toBe('en-US');
+  });
+
+  it('only ever answers a language an agent may have', () => {
+    for (const c of ['US', 'CA', 'GB', 'AU', 'NZ', 'IN', 'SA', 'AE', 'FR', 'DE', 'ES', 'MX', 'BR', 'PT', 'IT', 'NL', 'XX']) {
+      expect(agentLanguage.safeParse(defaultAgentLanguage(c)).success).toBe(true);
+    }
+  });
+});
+
+describe('createAgentRequest.primary_language (W1, ADR 0039)', () => {
+  it('is optional and validated against the agent languages', () => {
+    expect(createAgentRequest.safeParse({ template_id: 'receptionist' }).success).toBe(true);
+    expect(createAgentRequest.safeParse({ template_id: 'receptionist', primary_language: 'fr-CA' }).success).toBe(true);
+    expect(createAgentRequest.safeParse({ template_id: 'receptionist', primary_language: 'en-CA' }).success).toBe(false);
+  });
+});
+
+// ADR 0039 §4: W2 #5 free text and W2 #8 presets.
+describe('brief.never_do_presets and brief.services_notes', () => {
+  it('default to no presets and no note, so an older brief still parses', () => {
+    const parsed = brief.parse({ goal: 'Take messages.' });
+    expect(parsed.never_do_presets).toEqual([]);
+    expect(parsed.services_notes).toBeUndefined();
+  });
+
+  it('take the three spec presets and nothing else', () => {
+    expect(NEVER_DO_PRESETS).toEqual(['no_prices', 'no_medical_advice', 'no_time_promises']);
+    expect(brief.safeParse({ never_do_presets: [...NEVER_DO_PRESETS] }).success).toBe(true);
+    expect(brief.safeParse({ never_do_presets: ['no_swearing'] }).success).toBe(false);
+  });
+
+  it('caps the services note at 500 characters', () => {
+    expect(brief.safeParse({ services_notes: 'x'.repeat(500) }).success).toBe(true);
+    expect(brief.safeParse({ services_notes: 'x'.repeat(501) }).success).toBe(false);
+  });
+
+  it('lets the autosave clear the note with null and the presets with []', () => {
+    expect(briefPatch.parse({ services_notes: null })).toEqual({ services_notes: null });
+    expect(briefPatch.parse({ never_do_presets: [] })).toEqual({ never_do_presets: [] });
+    expect(briefPatch.safeParse({ never_do_presets: null }).success).toBe(false);
+  });
+});
+

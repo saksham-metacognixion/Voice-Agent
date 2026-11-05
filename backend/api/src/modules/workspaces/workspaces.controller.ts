@@ -12,6 +12,7 @@ import {
   type WorkspaceMembershipSummary,
   type WorkspaceResponse,
   advanceOnboardingRequest,
+  dismissOnboardingRequest,
   auditLogQuery,
   createWorkspaceRequest,
   inviteRequest,
@@ -88,6 +89,14 @@ export class WorkspacesController {
   @Roles('owner', 'admin', 'editor')
   advanceOnboarding(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<WorkspaceResponse> {
     return this.workspaces.advanceOnboarding(ctx, advanceOnboardingRequest.parse(body).step);
+  }
+
+  /** §7.3 "Save & exit": the §6.4 dismissal. Editor and up, like the step pointer. */
+  @Post('workspace/onboarding-dismiss')
+  @Roles('owner', 'admin', 'editor')
+  dismissOnboarding(@Ctx() ctx: WorkspaceContext, @Body() body: unknown): Promise<WorkspaceResponse> {
+    dismissOnboardingRequest.parse(body ?? {});
+    return this.workspaces.dismissOnboarding(ctx);
   }
 
   @Get('workspace/checklist')

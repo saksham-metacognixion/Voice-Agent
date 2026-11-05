@@ -12,7 +12,7 @@ import { AfterCallCard } from '@/src/components/wizard/after-call-card';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { ImprovePanel } from '@/src/components/wizard/improve-panel';
 import { TestCallPanel } from '@/src/components/wizard/test-call-panel';
-import { WizardHeading } from '@/src/components/wizard/wizard-shell';
+import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
 import { routes } from '@/src/routes';
 import { useAdvanceOnboarding } from '@/src/wizard/use-onboarding-agent';
@@ -60,31 +60,7 @@ function TestInner({ agent }: { agent: AgentDetail }) {
 
   return (
     <>
-      <WizardHeading
-        title={tw('title')}
-        subtitle={tw('subtitle')}
-        aside={
-          <div className="flex flex-col gap-2 sm:items-end">
-            <label htmlFor="w5-happy" className="flex items-center gap-2 text-sm font-medium">
-              <Checkbox id="w5-happy" checked={happy} disabled={leaving} onCheckedChange={(v) => setHappy(v === true)} />
-              {tw('happy')}
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button variant="link" size="sm" className="px-0" disabled={leaving} onClick={() => setSkipOpen(true)}>
-                {tw('skip')}
-              </Button>
-              <Button size="lg" onClick={() => void next('happy')} loading={leaving} disabled={leaving || !happy} aria-describedby={happy ? undefined : 'w5-happy-hint'}>
-                {tw('continue')} {leaving ? null : <ArrowRight />}
-              </Button>
-            </div>
-            {happy ? null : (
-              <p id="w5-happy-hint" className="text-xs text-muted-foreground">
-                {tw('happyHint')}
-              </p>
-            )}
-          </div>
-        }
-      />
+      <WizardHeading title={tw('title')} subtitle={tw('subtitle')} />
       <ConfirmDialog
         open={skipOpen}
         onOpenChange={setSkipOpen}
@@ -103,6 +79,20 @@ function TestInner({ agent }: { agent: AgentDetail }) {
           <ImprovePanel agent={agent} />
         </div>
       </div>
+      {/* §7.3 + §8 W5: the happiness checkbox is the soft gate on Continue; "Skip testing" sits beside it. */}
+      <WizardFooter backHref={routes.onboarding.voice} note={happy ? undefined : <span id="w5-happy-hint">{tw('happyHint')}</span>}>
+        <label htmlFor="w5-happy" className="flex items-center gap-2 text-sm font-medium">
+          <Checkbox id="w5-happy" checked={happy} disabled={leaving} onCheckedChange={(v) => setHappy(v === true)} />
+          <span className="hidden sm:inline">{tw('happy')}</span>
+          <span className="sm:hidden">{tw('happyShort')}</span>
+        </label>
+        <Button variant="link" size="sm" className="px-0" disabled={leaving} onClick={() => setSkipOpen(true)}>
+          {tw('skip')}
+        </Button>
+        <Button size="lg" onClick={() => void next('happy')} loading={leaving} disabled={leaving || !happy} aria-describedby={happy ? undefined : 'w5-happy-hint'} data-testid="wizard-continue">
+          {tw('continue')} {leaving ? null : <ArrowRight aria-hidden />}
+        </Button>
+      </WizardFooter>
     </>
   );
 }

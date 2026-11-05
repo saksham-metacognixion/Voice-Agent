@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { DashboardLiveProvider } from '@/src/dashboard/dashboard-live';
-import { LAST_IMPLEMENTED_STEP, routes, stepPath } from '@/src/routes';
+import { routes, stepPath } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { BalancePill } from './balance-pill';
 import { MfaBanner } from './mfa-banner';
@@ -79,7 +79,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
                   title={t('shell.finishSetup')}
                   actions={
                     <Button size="sm" asChild>
-                      <Link href={stepPath(Math.max(workspace.onboarding_step, LAST_IMPLEMENTED_STEP + 1))}>{t('shell.finishSetupCta')}</Link>
+                      <Link href={stepPath(workspace.onboarding_step)}>{t('shell.finishSetupCta')}</Link>
                     </Button>
                   }
                 />

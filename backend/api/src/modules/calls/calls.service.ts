@@ -880,7 +880,7 @@ function metadataOf(call: RetellCallFacts): Record<string, unknown> {
  * website widget (D17 §11.5) is the one that does, with `test: false`, and is a real
  * caller on the `web` channel.
  */
-function isTestCall(call: RetellCallFacts): boolean {
+export function isTestCall(call: RetellCallFacts): boolean {
   const test = metadataOf(call).test;
   if (typeof test === 'boolean') return test;
   return channelOf(call.call_type) === 'web';

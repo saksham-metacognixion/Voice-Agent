@@ -1,4 +1,4 @@
-import { agentLanguage, type AgentLanguage } from '@portal/schemas';
+import { agentLanguage, defaultAgentLanguage, type AgentLanguage } from '@portal/schemas';
 import { activeIntlLocale, activeLocale, type Locale } from '../i18n';
 
 export const LANGUAGES: AgentLanguage[] = agentLanguage.options;
@@ -61,4 +61,15 @@ export interface LanguageChoice {
  */
 export function choosePrimary(code: AgentLanguage, languages: AgentLanguage[]): LanguageChoice {
   return { primary_language: code, languages: languages.filter((l) => l !== code) };
+}
+
+/**
+ * W3 "Main language … default: from workspace country" (§8), decided when W1 creates the
+ * agent: the country's locale (`defaultAgentLanguage`), except that a Canadian business
+ * using the portal in French starts on `fr-CA` — there is no `en-CA` on the platform
+ * (ADR 0003 §6), so the portal's language is the only hint Quebec gives (ADR 0039).
+ */
+export function startingLanguage(country: string | null | undefined, portalLocale: Locale): AgentLanguage {
+  if ((country ?? '').trim().toUpperCase() === 'CA' && portalLocale === 'fr-CA') return 'fr-CA';
+  return defaultAgentLanguage(country);
 }

@@ -57,7 +57,10 @@
     "ai_disclosure": "if_asked",
     "goal": "Collect appointment requests with preferred times so the team can confirm them.",
     "agent_name": "Sophie",
-    "never_do": "Never confirm a slot as booked. Always ask for two alternative times."
+    "never_do": "Always ask for two alternative times.",
+    "never_do_presets": [
+      "no_time_promises"
+    ]
   },
   "steps": [
     "Greet the caller and name the business",

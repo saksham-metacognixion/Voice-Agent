@@ -458,7 +458,48 @@
           "salon": "Salon de coiffure",
           "real_estate": "Immobilier",
           "restaurant": "Restaurant",
-          "generic": "Général"
+          "generic": "Général",
+          "medical": "Clinique médicale",
+          "physio": "Physiothérapie",
+          "chiropractic": "Chiropratique",
+          "optometry": "Optométrie",
+          "veterinary": "Vétérinaire",
+          "pharmacy": "Pharmacie",
+          "mental_health": "Counseling et santé mentale",
+          "electrical": "Électricité",
+          "hvac": "Chauffage et climatisation",
+          "roofing": "Toiture",
+          "landscaping": "Aménagement paysager",
+          "cleaning": "Entretien ménager",
+          "pest_control": "Extermination",
+          "moving": "Déménagement",
+          "locksmith": "Serrurerie",
+          "renovation": "Rénovation et entrepreneur",
+          "appliance_repair": "Réparation d’électroménagers",
+          "barber": "Barbier",
+          "spa": "Spa et massothérapie",
+          "fitness": "Gym et conditionnement physique",
+          "tattoo": "Studio de tatouage",
+          "pet_grooming": "Toilettage",
+          "photography": "Photographie",
+          "accounting": "Comptabilité",
+          "insurance": "Assurance",
+          "financial_advice": "Conseil financier",
+          "marketing_agency": "Agence de marketing",
+          "it_services": "Services informatiques",
+          "consulting": "Conseil",
+          "recruiting": "Recrutement",
+          "property_management": "Gestion immobilière",
+          "home_inspection": "Inspection de bâtiments",
+          "auto_detailing": "Esthétique automobile",
+          "towing": "Remorquage",
+          "car_dealership": "Concessionnaire automobile",
+          "catering": "Traiteur",
+          "hotel": "Hôtel et hébergement",
+          "event_venue": "Salle de réception",
+          "tutoring": "Tutorat",
+          "childcare": "Garderie",
+          "driving_school": "École de conduite"
         },
         "examples": {
           "plumbing": "Nous sommes une entreprise de plomberie résidentielle qui dessert l’Ouest-de-l’Île. Débouchage de drains, tuyaux éclatés, chauffe-eau et rénovations de salle de bain. Nous avons une ligne d’urgence 24 heures sur 24.",
@@ -470,6 +511,19 @@
           "restaurant": "Nous sommes un bistro de quarante places. Dîner et souper, fermé le lundi. Réservations pour les groupes de huit personnes ou moins; les groupes plus nombreux s’organisent avec le gérant.",
           "generic": "Décrivez ce que fait votre entreprise, à qui vous offrez vos services et ce qui fait qu’un appel vaut la peine d’être pris."
         }
+      },
+      "industrySearch": "Rechercher un secteur",
+      "industryEmpty": "Aucun secteur ne correspond. Choisissez le plus proche ou laissez vide.",
+      "pickFirst": "Choisissez un modèle pour continuer.",
+      "industryGroups": {
+        "health": "Santé",
+        "home": "Services à domicile",
+        "personal": "Soins personnels",
+        "professional": "Services professionnels",
+        "property": "Immobilier",
+        "automotive": "Automobile",
+        "hospitality": "Restauration et hébergement",
+        "education": "Éducation et garde"
       }
     },
     "w2": {
@@ -482,8 +536,8 @@
       "stage": {
         "queued": "Démarrage",
         "started": "Lecture de votre fiche",
-        "writing": "Rédaction du script",
-        "done": "Terminé"
+        "writing": "Rédaction de la conversation",
+        "done": "Préparation de l’analyse"
       },
       "generatedTitle": "Votre agent est prêt",
       "generatedBody": "La version {version} a été rédigée à partir de votre fiche. Vérifiez le résumé, puis choisissez une voix.",
@@ -532,6 +586,11 @@
             "transfer": "transférer l’appel",
             "take_message": "prendre un message",
             "read_message": "lire un message"
+          },
+          "presets": {
+            "no_prices": "Donner des prix",
+            "no_medical_advice": "Donner des conseils médicaux",
+            "no_time_promises": "Promettre une heure"
           }
         }
       },
@@ -572,7 +631,15 @@
           "answer": "Réponse",
           "add": "Ajouter une question",
           "questionPlaceholder": "Acceptez-vous les clients sans rendez-vous?",
-          "answerPlaceholder": "Oui, mais les rendez-vous passent en premier."
+          "answerPlaceholder": "Oui, mais les rendez-vous passent en premier.",
+          "routing": {
+            "sourceName": "Questions fréquentes",
+            "moved": "{n, plural, one {# question déplacée vers ce que votre agent sait.} other {# questions déplacées vers ce que votre agent sait.}}",
+            "locked": "Ces réponses vont directement dans le script. Le forfait {pack} ajoute une bibliothèque que votre agent consulte, pour les documents plus longs.",
+            "lockedGeneric": "Ces réponses vont directement dans le script.",
+            "unlocked": "Ces réponses vont dans le script. Déplacez-les vers ce que votre agent sait : elles seront consultées au besoin plutôt que lues à chaque appel.",
+            "move": "Déplacer vers ce que votre agent sait"
+          }
         },
         "documents": {
           "label": "Téléverser un fichier ou une photo",
@@ -581,7 +648,13 @@
         "never_do": {
           "label": "Ce que l’agent ne doit jamais faire",
           "hint": "Règles strictes. Elles ont priorité sur tout le reste.",
-          "placeholder": "Ne jamais donner de conseils médicaux. Ne jamais confirmer un rendez-vous sans numéro de téléphone."
+          "placeholder": "Ne jamais donner de conseils médicaux. Ne jamais confirmer un rendez-vous sans numéro de téléphone.",
+          "presets": {
+            "label": "Règles courantes",
+            "no_prices": "Ne jamais donner de prix",
+            "no_medical_advice": "Ne jamais donner de conseils médicaux",
+            "no_time_promises": "Ne jamais promettre une heure"
+          }
         },
         "handoff_rules": {
           "label": "Quand passer le relais à une personne",
@@ -646,6 +719,11 @@
             "title": "Ne jamais le dire de lui-même",
             "body": "Comme ci-dessus, mais n’en parle jamais de sa propre initiative."
           }
+        },
+        "services_notes": {
+          "label": "Précisions sur vos services",
+          "hint": "Ce que les étiquettes ne disent pas : à qui s’adresse chaque service, ce qu’il comprend, ce qui exige une visite.",
+          "placeholder": "Un nettoyage prend 45 minutes. Le blanchiment exige d’abord un examen. Les urgences sont vues le jour même."
         }
       },
       "hours": {
@@ -695,6 +773,15 @@
           "empty": "Ce fichier est vide.",
           "budget": "Il ne reste plus d’espace pour ce fichier. Retirez d’abord un document."
         }
+      },
+      "free": "Gratuit. Aucun crédit utilisé.",
+      "failedToast": "Génération impossible. Réessayez.",
+      "continueHint": "Générez votre agent pour continuer.",
+      "regenerateConfirm": {
+        "title": "Réécrire la conversation?",
+        "body": "La conversation est réécrite à partir de votre fiche; vos commentaires de test sont conservés.",
+        "keepsFeedback": "Les commentaires donnés lors des appels de test sont conservés.",
+        "replacesEdits": "Les modifications faites à la main dans le script sont remplacées."
       }
     },
     "w3": {
@@ -715,7 +802,8 @@
         "neutral": "Neutre",
         "tier": "Gamme",
         "clear": "Effacer les filtres",
-        "native": "Accents natifs seulement"
+        "native": "Accents natifs seulement",
+        "accent": "Accent"
       },
       "hearSample": "Écouter cette voix",
       "previewFailed": "Nous ne pouvons pas faire jouer cette voix pour le moment.",
@@ -780,7 +868,10 @@
         "polish": "polonais",
         "turkish": "turc",
         "neutral": "neutre"
-      }
+      },
+      "autoPicked": "{voice} a été choisie pour {language}. Choisissez-en une autre si vous préférez.",
+      "autoPickedReplaced": "Votre voix n’a pas un accent natif en {language}; {voice} a donc été choisie à la place. Choisissez-en une autre si vous préférez.",
+      "speedHint": "De 0,8 à 1,2. 1,0 est le rythme propre de la voix."
     },
     "placeholder": {
       "title": "Prochaine étape : {step}",
@@ -987,7 +1078,8 @@
         "call": "Appeler mon téléphone",
         "placed": "Appel vers {to} depuis {from}. Répondez pour parler à votre agent.",
         "invalid": "Entrez votre propre cellulaire ou ligne fixe, par exemple +1 514 555 0123."
-      }
+      },
+      "happyShort": "Ça me convient"
     },
     "w6": {
       "title": "Comment les appelants joindront-ils votre agent?",
@@ -1286,7 +1378,8 @@
       "packCopy": {
         "mostPopular": "Le plus populaire",
         "starterNote": "Un agent sur un numéro. Le texte de votre FAQ va dans votre fiche."
-      }
+      },
+      "footerHint": "Choisissez un forfait ci-dessus pour passer en ligne."
     },
     "live": {
       "title": "{name} est en service",

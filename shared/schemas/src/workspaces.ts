@@ -70,6 +70,9 @@ export const advanceOnboardingRequest = z.object({
 });
 export type AdvanceOnboardingRequest = z.infer<typeof advanceOnboardingRequest>;
 
+/** POST /workspace/onboarding-dismiss — "Save and exit" (§7.3). No body; idempotent. */
+export const dismissOnboardingRequest = z.object({}).strict();
+
 export const workspaceResponse = z.object({
   id: uuid,
   name: z.string(),
@@ -87,6 +90,13 @@ export const workspaceResponse = z.object({
   recording_notice_text: z.string().nullable(),
   onboarding_step: z.number().int(),
   onboarding_completed_at: isoDateTime.nullable(),
+  /**
+   * §6.4 "onboarding not dismissed": "Save and exit" in the wizard (§7.3) sets it, and
+   * from then on the dashboard opens with a "Finish setup" card instead of sending the
+   * person back to the step (ADR 0039). Cleared by nothing; the wizard's guards still
+   * let every reached step in.
+   */
+  onboarding_dismissed_at: isoDateTime.nullable(),
   /** Set by staff (SA12). The D1 banner reads it; the inbound path declines on it. */
   paused: z.boolean(),
   paused_reason: z.string().nullable(),

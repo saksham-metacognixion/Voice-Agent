@@ -11,7 +11,7 @@ import { track } from '@/src/analytics/posthog';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { PackageSelector } from '@/src/components/wizard/package-selector';
 import { ProvisioningProgress } from '@/src/components/wizard/provisioning-progress';
-import { WizardHeading } from '@/src/components/wizard/wizard-shell';
+import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
 import { readQuery } from '@/src/lib/query-string';
@@ -244,6 +244,12 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
           <PackageSelector agentId={agent.id} />
         )}
       </div>
+      {/* §7.3 Back; the primary action is the pack card's "Pay & go live". Nothing to go back to once a payment is in flight. */}
+      {showProgress ? null : (
+        <WizardFooter backHref={routes.onboarding.phone}>
+          <span className="text-xs text-muted-foreground">{tw('footerHint')}</span>
+        </WizardFooter>
+      )}
     </>
   );
 }

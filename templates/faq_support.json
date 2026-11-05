@@ -53,7 +53,8 @@
     "ai_disclosure": "if_asked",
     "goal": "Answer questions from what the agent knows, and escalate anything it cannot answer.",
     "agent_name": "Sam",
-    "never_do": "Never invent answers. If you do not know, say \"I do not have that information\"."
+    "never_do": "Never invent answers. If you do not know, say \"I do not have that information\".",
+    "never_do_presets": []
   },
   "steps": [
     "Greet the caller and name the business",

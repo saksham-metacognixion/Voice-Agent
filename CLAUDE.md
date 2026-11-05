@@ -155,7 +155,11 @@ from one `callVariables()`, the fixed `HOURS_RULE` and the generation turn's `ca
 `transfer_tool_missing` fed the real tools and each number's own transfer targets (a warning now),
 Arabic in the language check, `agent_stack_configs` v2 (Standard GPT-4.1 mini + `cartesia-Adrian`,
 Premium unchanged on GPT-4.1 mini against §4.3 after it failed the early-hang-up bar) seeded by version, itemised `retell_cost_inputs` seeded from the 4 Nov price list and a
-margin per pack and tier; the generation target amended to p95 ≤ 16 s with thinking off by default (4 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+margin per pack and tier; the generation target amended to p95 ≤ 16 s with thinking off by default (4 Nov), 0039 the W1–W3
+wizard close — "Save and exit" as the §6.4 dismissal (`tenants.onboarding_dismissed_at`, `POST /workspace/onboarding-dismiss`,
+the dashboard opens with "Continue setup"), Back and Continue in `WizardFooter`, the industry catalogue (`INDUSTRY_GROUPS`) behind
+a searchable `Combobox`, `brief.never_do_presets` + `brief.services_notes`, FAQ routing on the `knowledge_base` gate, the
+main language from the workspace country at `POST /agents`, the automatic native voice and the accent filter (5 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -589,6 +593,14 @@ job settles.
   Fastify's `bodyLimit` is 32 MiB (`main.ts`): the 1 MiB default had been answering 413 to
   any W4 file over ~750 KB. The W4 `role = menu` source (ADR 0020) is unchanged and
   complementary — searched, not read; for a menu longer than the budget.
+- **The W2 "must never" presets and the services free text are brief fields** (ADR 0039):
+  `brief.never_do_presets` (`no_prices` / `no_medical_advice` / `no_time_promises`, ids on
+  the wire, ticked by the templates' `brief_prefill`) are spelt out as sentences ahead of
+  `never_do` in `briefForModel`'s `must_never_do`; `brief.services_notes` (≤ 500) rides
+  beside the chips. The FAQ pairs always go into the script; with the `knowledge_base`
+  gate `FaqRouting` offers to move them to one `text` knowledge source and empties the
+  list. The W1 industry is one of `INDUSTRY_GROUPS` (`@portal/schemas`, 48 slugs, the
+  template tags among them); `agents.industry` stays a string.
 - **A hand-off rule carries its own payload** (`handoffRule` in `@portal/schemas`, W2 #9):
   `transfer` needs `transfer_number`, `read_message` needs `message` (non-blank, ≤ 500
   chars) — refused by the schema, so the draft PATCH answers 422 and the autosave holds
@@ -955,7 +967,13 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   (the server's conditional update refuses to as well, and `PATCH /workspace` no longer
   takes `onboarding_step` at all, QA-058), single-flight; a guard never redirects while the workspace row is refetching.
   `LAST_IMPLEMENTED_STEP` is 7 since D9, so `/app` opens only once `onboarding_completed_at`
-  is set (the activation job's `mark_live`). **W4 is after payment** (ADR 0024):
+  is set (the activation job's `mark_live`) **or the wizard was dismissed** (ADR 0039):
+  "Save and exit" is on every step, runs the page's own flush first (`useWizardExit` —
+  W1 creates the agent from the selected card, W2 flushes the autosave, W3 the dial
+  save), posts `POST /workspace/onboarding-dismiss` (`tenants.onboarding_dismissed_at`,
+  once) and opens `/app`, whose "Continue setup" band links to `stepPath(onboarding_step)`.
+  Every reached step stays open. Back and the one primary action of a step live in
+  `WizardFooter` (sticky at the bottom below `sm`), never in the heading (§7.3). **W4 is after payment** (ADR 0024):
   `ONBOARDING_STEPS` is 1, 2, 3, 5, 6, 7 (4 unused, `stepPath(4)` → W5), W3 advances to 5,
   and `WIZARD_STEPPER` draws knowledge as the last dot. `/onboarding/knowledge` and
   `/onboarding/live` sit outside the steps behind `LiveGuard` (onboarding complete, else
@@ -975,7 +993,15 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   the logo is `Logo` in `@portal/ui`, rendering the supplied artwork from
   `public/brand/` — never redrawn, recoloured or rebuilt inline.
 - **W3 offers `agentLanguage`** (ADR 0027): the Gulf Arabics first when the portal is in
-  Arabic, after the launch set otherwise (`sortedLanguages(locale)`). The script is written
+  Arabic, after the launch set otherwise (`sortedLanguages(locale)`). **The main language
+  starts from the workspace country** (ADR 0039): `POST /agents` applies
+  `defaultAgentLanguage(tenants.country)` unless the request carries `primary_language`,
+  which W1 sends from `startingLanguage(country, portalLocale)` (a Canadian business on a
+  French portal starts on `fr-CA`; there is no `en-CA`). A draft with no voice is given
+  the first native voice of its tier, with a toast; after a language change on the screen
+  a non-native voice is replaced the same way; a saved voice is never swapped on reopen.
+  The filters are gender, tier, **accent** (client-side over the listed voices), search and
+  "Native accents only" — the spec's "Only multilingual" would be a no-op (ADR 0027). The script is written
   on W2, before the language exists, so `VoiceSettings` (W3 + the D3 Voice tab) offers
   "Rewrite in <language>" — W2's regenerate — when the draft's greeting is not in the main
   language (`scriptNeedsRewrite`, `src/wizard/script-language.ts`); never automatically. The

@@ -10817,6 +10817,19 @@
                     "maxLength": 500,
                     "type": "string"
                   },
+                  "never_do_presets": {
+                    "default": [],
+                    "items": {
+                      "enum": [
+                        "no_prices",
+                        "no_medical_advice",
+                        "no_time_promises"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 3,
+                    "type": "array"
+                  },
                   "personality": {
                     "properties": {
                       "brevity": {
@@ -10863,6 +10876,10 @@
                     },
                     "maxItems": 30,
                     "type": "array"
+                  },
+                  "services_notes": {
+                    "maxLength": 500,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -11613,6 +11630,19 @@
                     "maxLength": 500,
                     "type": "string"
                   },
+                  "never_do_presets": {
+                    "default": [],
+                    "items": {
+                      "enum": [
+                        "no_prices",
+                        "no_medical_advice",
+                        "no_time_promises"
+                      ],
+                      "type": "string"
+                    },
+                    "maxItems": 3,
+                    "type": "array"
+                  },
                   "personality": {
                     "properties": {
                       "brevity": {
@@ -11659,6 +11689,10 @@
                     },
                     "maxItems": 30,
                     "type": "array"
+                  },
+                  "services_notes": {
+                    "maxLength": 500,
+                    "type": "string"
                   }
                 },
                 "type": "object"
@@ -12443,6 +12477,19 @@
                 "nullable": true,
                 "type": "string"
               },
+              "never_do_presets": {
+                "default": [],
+                "items": {
+                  "enum": [
+                    "no_prices",
+                    "no_medical_advice",
+                    "no_time_promises"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
               "personality": {
                 "nullable": true,
                 "properties": {
@@ -12491,6 +12538,11 @@
                 },
                 "maxItems": 30,
                 "type": "array"
+              },
+              "services_notes": {
+                "maxLength": 500,
+                "nullable": true,
+                "type": "string"
               }
             },
             "type": "object"
@@ -13085,6 +13137,19 @@
                 "maxLength": 500,
                 "type": "string"
               },
+              "never_do_presets": {
+                "default": [],
+                "items": {
+                  "enum": [
+                    "no_prices",
+                    "no_medical_advice",
+                    "no_time_promises"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
               "personality": {
                 "properties": {
                   "brevity": {
@@ -13131,6 +13196,10 @@
                 },
                 "maxItems": 30,
                 "type": "array"
+              },
+              "services_notes": {
+                "maxLength": 500,
+                "type": "string"
               }
             },
             "type": "object"
@@ -14893,6 +14962,75 @@
             "minLength": 2,
             "type": "string"
           },
+          "primary_language": {
+            "enum": [
+              "en-US",
+              "en-IN",
+              "en-GB",
+              "en-AU",
+              "en-NZ",
+              "de-DE",
+              "es-ES",
+              "es-419",
+              "hi-IN",
+              "fr-FR",
+              "fr-CA",
+              "ja-JP",
+              "pt-PT",
+              "pt-BR",
+              "zh-CN",
+              "ru-RU",
+              "it-IT",
+              "ko-KR",
+              "nl-NL",
+              "nl-BE",
+              "pl-PL",
+              "tr-TR",
+              "vi-VN",
+              "ro-RO",
+              "bg-BG",
+              "ca-ES",
+              "th-TH",
+              "da-DK",
+              "fi-FI",
+              "el-GR",
+              "hu-HU",
+              "id-ID",
+              "no-NO",
+              "sk-SK",
+              "sv-SE",
+              "lt-LT",
+              "lv-LV",
+              "cs-CZ",
+              "ms-MY",
+              "af-ZA",
+              "ar-SA",
+              "az-AZ",
+              "bs-BA",
+              "cy-GB",
+              "fa-IR",
+              "fil-PH",
+              "gl-ES",
+              "he-IL",
+              "hr-HR",
+              "hy-AM",
+              "is-IS",
+              "kk-KZ",
+              "kn-IN",
+              "mk-MK",
+              "mr-IN",
+              "ne-NP",
+              "sl-SI",
+              "sr-RS",
+              "sw-KE",
+              "ta-IN",
+              "ur-IN",
+              "yue-CN",
+              "uk-UA",
+              "ar-AE"
+            ],
+            "type": "string"
+          },
           "template_id": {
             "enum": [
               "receptionist",
@@ -15277,6 +15415,10 @@
         "required": [
           "dismissed"
         ],
+        "type": "object"
+      },
+      "dismissOnboardingRequest": {
+        "properties": {},
         "type": "object"
       },
       "dncAddRequest": {
@@ -21034,6 +21176,11 @@
             "nullable": true,
             "type": "string"
           },
+          "onboarding_dismissed_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "onboarding_step": {
             "type": "integer"
           },
@@ -21105,6 +21252,7 @@
           "recording_notice_text",
           "onboarding_step",
           "onboarding_completed_at",
+          "onboarding_dismissed_at",
           "paused",
           "paused_reason",
           "role",
@@ -45639,6 +45787,109 @@
           "notifications"
         ],
         "x-auth": "workspace"
+      }
+    },
+    "/workspace/onboarding-dismiss": {
+      "post": {
+        "description": "Spec §7.3.",
+        "operationId": "dismissOnboarding",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/dismissOnboardingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workspaceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Save and exit the wizard: open the dashboard with a \"Finish setup\" card (§6.4 dismissal)",
+        "tags": [
+          "workspaces"
+        ],
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
       }
     },
     "/workspace/onboarding-step": {

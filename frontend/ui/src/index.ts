@@ -33,4 +33,5 @@ export { Stepper, type StepperProps, type StepperStep } from './components/stepp
 export { Logo, type LogoProps } from './components/logo';
 export { UiLocaleProvider, useUiLabels, useUiDirection, defaultUiLabels, type UiLabels, type UiDirection } from './components/locale';
 export { Checkbox } from './components/checkbox';
+export { Combobox, type ComboboxProps, type ComboboxOption, type ComboboxGroup } from './components/combobox';
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './components/tabs';

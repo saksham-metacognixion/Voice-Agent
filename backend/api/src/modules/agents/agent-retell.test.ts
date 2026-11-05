@@ -51,7 +51,7 @@ function input(over: Partial<RetellSyncInput> = {}): RetellSyncInput {
     promptText:
       'You are Sophie, the receptionist. Greet the caller and take a message for the team.',
     greeting: 'Hello',
-    brief: { services: [], faqs: [], handoff_rules: [], ai_disclosure: 'if_asked', documents: [] },
+    brief: { services: [], faqs: [], never_do_presets: [], handoff_rules: [], ai_disclosure: 'if_asked', documents: [] },
     analysisFields: [],
     voiceId: null,
     voiceSpeed: null,
@@ -301,6 +301,7 @@ describe('AgentRetellService staff transfers', () => {
   const brief = {
     services: [],
     faqs: [],
+    never_do_presets: [],
     handoff_rules: [{ condition: 'Asks for the manager', action: 'transfer' as const, transfer_number: '+14165550142' }],
     ai_disclosure: 'if_asked' as const,
     documents: [],

@@ -208,3 +208,36 @@ describe('parseBrief — repairs per field, never wipes the brief (ADR 0023, 29 
     expect(parseBrief(null).documents).toEqual([]);
   });
 });
+
+// ADR 0039 §4: the two W2 fields added on 5 Nov.
+describe('mergeBrief / parseBrief — services free text and never-do presets (ADR 0039)', () => {
+  it('writes and clears the services note without touching the rest', () => {
+    const withNote = mergeBrief(FULL, { services_notes: 'Same-day emergencies.' });
+    expect(withNote.services_notes).toBe('Same-day emergencies.');
+    expect(withNote.services).toEqual(FULL.services);
+    expect(mergeBrief(withNote, { services_notes: null })).not.toHaveProperty('services_notes');
+  });
+
+  it('replaces the preset list whole, and [] unticks them all', () => {
+    const ticked = mergeBrief(FULL, { never_do_presets: ['no_prices'] });
+    expect(ticked.never_do_presets).toEqual(['no_prices']);
+    expect(ticked.never_do).toBe(FULL.never_do);
+    expect(mergeBrief(ticked, { never_do_presets: [] }).never_do_presets).toEqual([]);
+  });
+
+  it('reads a brief stored before the fields existed with their defaults', () => {
+    const { never_do_presets: _p, services_notes: _n, ...legacy } = FULL as Record<string, unknown>;
+    const parsed = parseBrief(legacy);
+    expect(parsed.never_do_presets).toEqual([]);
+    expect(parsed.services_notes).toBeUndefined();
+    expect(parsed.goal).toBe(FULL.goal);
+  });
+
+  it('drops only an unreadable preset list, never the brief around it', () => {
+    const parsed = parseBrief({ ...FULL, never_do_presets: ['no_swearing'] });
+    expect(parsed.never_do_presets).toEqual([]);
+    expect(parsed.goal).toBe(FULL.goal);
+    expect(parsed.never_do).toBe(FULL.never_do);
+  });
+});
+

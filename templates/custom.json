@@ -51,7 +51,8 @@
       "energy": 0.5
     },
     "ai_disclosure": "if_asked",
-    "agent_name": "Sophie"
+    "agent_name": "Sophie",
+    "never_do_presets": []
   },
   "steps": [
     "Greet the caller and name the business",

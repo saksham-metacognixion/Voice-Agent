@@ -63,7 +63,11 @@
     "ai_disclosure": "if_asked",
     "goal": "Answer calls, share hours, location and services, take detailed messages, and transfer urgent calls to a person.",
     "agent_name": "Sophie",
-    "never_do": "Never quote prices unless they are in the brief. Never promise a callback time. Say \"I am an AI assistant\" if asked."
+    "never_do": "Say \"I am an AI assistant\" if asked.",
+    "never_do_presets": [
+      "no_prices",
+      "no_time_promises"
+    ]
   },
   "steps": [
     "Greet the caller and name the business",

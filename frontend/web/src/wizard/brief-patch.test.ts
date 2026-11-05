@@ -52,3 +52,29 @@ describe('briefDiff + storableBrief — clearing an optional field (QA-006)', ()
     expect(briefDiff(withFaq, next)).toEqual({});
   });
 });
+
+// ADR 0039: the two W2 fields added on 5 Nov ride the same autosave.
+describe('briefDiff + storableBrief — services free text and never-do presets (ADR 0039)', () => {
+  const WITH = briefSchema.parse({ ...SAVED, services_notes: 'Cleanings take 45 minutes.', never_do_presets: ['no_prices', 'no_time_promises'] });
+
+  it('sends the services free text as typed, and null once it is emptied', () => {
+    expect(briefDiff(SAVED, storableBrief({ ...SAVED, services_notes: 'Same-day emergencies.' })!)).toEqual({ services_notes: 'Same-day emergencies.' });
+    const patch = briefDiff(WITH, storableBrief({ ...WITH, services_notes: undefined })!);
+    expect(patch).toEqual({ services_notes: null });
+    expect(briefPatch.safeParse(patch).success).toBe(true);
+  });
+
+  it('sends a ticked or unticked preset as the whole list, [] when none is left', () => {
+    expect(briefDiff(WITH, storableBrief({ ...WITH, never_do_presets: ['no_prices', 'no_time_promises', 'no_medical_advice'] })!)).toEqual({
+      never_do_presets: ['no_prices', 'no_time_promises', 'no_medical_advice'],
+    });
+    expect(briefDiff(WITH, storableBrief({ ...WITH, never_do_presets: [] })!)).toEqual({ never_do_presets: [] });
+  });
+
+  it('holds back an unknown preset rather than saving it', () => {
+    const next = storableBrief({ ...WITH, never_do_presets: ['no_prices', 'no_swearing'] })!;
+    expect(next).not.toHaveProperty('never_do_presets');
+    expect(briefDiff(WITH, next)).toEqual({});
+  });
+});
+

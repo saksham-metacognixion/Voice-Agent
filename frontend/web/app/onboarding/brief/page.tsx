@@ -3,8 +3,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useApi, useGetAgent } from '@portal/api-client';
 import { brief as briefSchema, briefReadyForGeneration, type AgentSummary, type Brief } from '@portal/schemas';
-import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, PageLoader } from '@portal/ui';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, PageLoader, toast } from '@portal/ui';
+import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
@@ -15,7 +15,8 @@ import { BriefCard } from '@/src/components/wizard/brief-card';
 import { BriefFields, SaveIndicator, storableBrief } from '@/src/components/wizard/brief-form';
 import { GeneratePanel } from '@/src/components/wizard/generate-panel';
 import { AgentContextBanner, useBriefPlaceholders } from '@/src/components/wizard/template-context';
-import { WizardHeading } from '@/src/components/wizard/wizard-shell';
+import { useWizardExit } from '@/src/components/wizard/wizard-exit';
+import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
@@ -34,6 +35,10 @@ import { useGeneration } from '@/src/wizard/use-generation';
  * be read and edited like a document on the first screen, without leaving the wizard.
  * A save there is the same `PUT …/versions/:v/prompt` (a new immutable version); Continue
  * waits while the editor holds unsaved edits.
+ *
+ * Back, Continue and "Save and exit" are the shell's (§7.3): Continue sits in the footer
+ * and is enabled only after a successful Generate; "Save and exit" flushes the autosave
+ * before the dashboard opens, so nothing typed in the last 1.5 s is lost.
  */
 export default function BriefPage() {
   return (
@@ -112,13 +117,21 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
       await autosave.flush();
       await generation.start(mode);
     } catch (e) {
+      // The request itself failed (network, a 4xx): the script that exists is untouched.
       setGenError(errorMessage(e, t));
+      toast.error(tw('failedToast'));
     }
   }
 
   React.useEffect(() => {
     if (generation.state.stage === 'done') void advance(3, 'brief');
-  }, [generation.state.stage, advance]);
+    // §8 W2 "On failure: toast 'Couldn't generate — try again' (no version created)". The
+    // worker's failure frame lands here; the request's own failure is caught above.
+    if (generation.state.stage === 'failed') toast.error(tw('failedToast'), { id: 'generation-failed' });
+  }, [generation.state.stage, advance, tw]);
+
+  // "Save and exit": the brief on the screen is what is kept (QA-057 applies here too).
+  useWizardExit(() => autosave.flush(), autosave.state === 'saving' || autosave.state === 'dirty');
 
   async function next() {
     setGenError(null);
@@ -164,10 +177,8 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
             slow={generation.slow}
             ready={ready}
             saving={autosave.state === 'saving'}
-            onGenerate={(mode) => void generate(mode)}
-            onContinue={() => void next()}
+            onGenerate={generate}
             onEditScript={hasScript ? openScript : undefined}
-            scriptDirty={scriptDirty}
             error={genError}
           />
           <BriefCard brief={values} generated={generation.active ? null : agent.data?.draft?.brief_card} agentName={values.agent_name} />
@@ -194,6 +205,13 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
           </Card>
         </section>
       ) : null}
+
+      {/* §7.3: Back and Continue at the bottom; Continue only once a script exists (§8 W2). */}
+      <WizardFooter backHref={routes.onboarding.template} note={!hasScript ? tw('continueHint') : scriptDirty ? tw('scriptUnsaved') : undefined}>
+        <Button size="lg" onClick={() => void next()} disabled={!hasScript || busy || scriptDirty} data-testid="wizard-continue">
+          {tw('continue')} <ArrowRight aria-hidden />
+        </Button>
+      </WizardFooter>
     </>
   );
 }

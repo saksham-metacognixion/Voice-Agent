@@ -53,6 +53,7 @@ export const faqPair = z.object({
   question: z.string().min(1).max(300),
   answer: z.string().min(1).max(1_000),
 });
+export type FaqPair = z.infer<typeof faqPair>;
 
 /** W2 #11 — three sliders, 0–1, plus free text. */
 export const personality = z.object({
@@ -65,6 +66,15 @@ export const personality = z.object({
   notes: z.string().max(300).optional(),
 });
 export type Personality = z.infer<typeof personality>;
+
+/**
+ * W2 #8 — the preset checkboxes beside the free text ("Never quote prices", "Never give
+ * medical advice", "Never promise a time"). Stored as ids, never as sentences: the portal
+ * shows each in the reader's language and `briefForModel` spells it out for the model.
+ */
+export const neverDoPreset = z.enum(['no_prices', 'no_medical_advice', 'no_time_promises']);
+export type NeverDoPreset = z.infer<typeof neverDoPreset>;
+export const NEVER_DO_PRESETS = neverDoPreset.options;
 
 /**
  * W2 #13. "Never claim to be human" is enforced by a §9.4 guardrail whatever this says —
@@ -162,9 +172,12 @@ export const brief = z.object({
   business_hours: businessHours.optional(),
   address: z.string().max(200).optional(),
   services: z.array(z.string().min(1).max(60)).max(30).default([]),
+  /** W2 #5, the free text beside the chips: what the services are, in the business's words. */
+  services_notes: z.string().max(500).optional(),
   pricing: z.string().max(500).optional(),
   faqs: z.array(faqPair).max(20).default([]),
   never_do: z.string().max(500).optional(),
+  never_do_presets: z.array(neverDoPreset).max(NEVER_DO_PRESETS.length).default([]),
   handoff_rules: z.array(handoffRule).max(5).default([]),
   agent_name: z.string().min(2).max(30).optional(),
   personality: personality.optional(),
@@ -186,6 +199,7 @@ export const briefPatch = brief.partial().extend({
   goal: brief.shape.goal.unwrap().nullable().optional(),
   business_hours: brief.shape.business_hours.unwrap().nullable().optional(),
   address: brief.shape.address.unwrap().nullable().optional(),
+  services_notes: brief.shape.services_notes.unwrap().nullable().optional(),
   pricing: brief.shape.pricing.unwrap().nullable().optional(),
   never_do: brief.shape.never_do.unwrap().nullable().optional(),
   agent_name: brief.shape.agent_name.unwrap().nullable().optional(),
@@ -450,53 +464,6 @@ export type LintResult = z.infer<typeof lintResult>;
 // Requests (§16)
 // ---------------------------------------------------------------------------
 
-/** POST /agents {template_id, industry} — W1 Continue. */
-export const createAgentRequest = z.object({
-  template_id: templateId,
-  industry: z.string().min(1).max(60).optional(),
-  /** Defaults to the template name; D3 "+ New agent" lets the customer name it. */
-  name: z.string().min(2).max(60).optional(),
-});
-export type CreateAgentRequest = z.infer<typeof createAgentRequest>;
-
-/** The longest agent name `createAgentRequest` and `duplicateAgentRequest` accept. */
-export const AGENT_NAME_MAX = 60;
-
-/**
- * POST /agents/:id/duplicate {name?} — D3's list menu "Duplicate" (QA-078). Without a
- * name the copy is called `copyAgentName(source)`; the portal sends the localised one.
- */
-export const duplicateAgentRequest = z.object({
-  name: z.string().trim().min(2).max(AGENT_NAME_MAX).optional(),
-});
-export type DuplicateAgentRequest = z.infer<typeof duplicateAgentRequest>;
-
-/**
- * "Front desk" → "Front desk (copy)", inside the 60-character name limit: the *source*
- * name is shortened, never the suffix, so a long name still reads as a copy. `format`
- * is the suffix pattern (the portal passes its translated one); a pattern longer than
- * the limit on its own is cut, since a name that fails validation helps no one.
- */
-export function copyAgentName(name: string, format: (name: string) => string = (n) => `${n} (copy)`): string {
-  const base = name.trim();
-  const whole = format(base);
-  if (whole.length <= AGENT_NAME_MAX) return whole;
-  const overhead = whole.length - base.length;
-  const room = Math.max(0, AGENT_NAME_MAX - overhead);
-  return format(base.slice(0, room).trimEnd()).slice(0, AGENT_NAME_MAX);
-}
-
-/**
- * The agent-level settings a version carries (`agent_versions.settings_json`): tier,
- * voice, languages, duration ceiling, recording. They travel *with the version* for the
- * same reason the brief does — a version is "what the agent is", and what is on the
- * phone must be exactly what was published, not what was last typed into the Voice tab.
- *
- * The copy on `agents` (`agents.tier`, `agents.voice_id`, …) is the **live** copy: the
- * billing rate (`calls.rate` derives from `agents.tier`), the runtime cache and every
- * inbound decision read it, and only a publish writes it. Editing the draft changes
- * nothing a caller or the wallet can see until the version goes live.
- */
 /**
  * The locales Retell accepts on an agent (`AgentCreateParams.language`).
  *
@@ -593,6 +560,90 @@ export type RetellLanguage = z.infer<typeof retellLanguage>;
  */
 export const agentLanguage = z.enum([...retellLanguage.options, 'ar-AE']);
 export type AgentLanguage = z.infer<typeof agentLanguage>;
+
+/**
+ * W3 "Main language … default: from workspace country" (§8). The countries a workspace
+ * can be in (A3: US and CA at launch, the Gulf since ADR 0027) each name the locale most
+ * of their callers speak; anything else starts on `en-US`. There is no `en-CA` on the
+ * platform (ADR 0003 §6), so Canada starts on `en-US` and a French-speaking portal
+ * asks for `fr-CA` instead (`createAgentRequest.primary_language`).
+ */
+const COUNTRY_LANGUAGE: Record<string, AgentLanguage> = {
+  US: 'en-US',
+  CA: 'en-US',
+  GB: 'en-GB',
+  AU: 'en-AU',
+  NZ: 'en-NZ',
+  IN: 'en-IN',
+  SA: 'ar-SA',
+  AE: 'ar-AE',
+  FR: 'fr-FR',
+  DE: 'de-DE',
+  ES: 'es-ES',
+  MX: 'es-419',
+  BR: 'pt-BR',
+  PT: 'pt-PT',
+  IT: 'it-IT',
+  NL: 'nl-NL',
+};
+
+export function defaultAgentLanguage(country: string | null | undefined): AgentLanguage {
+  return COUNTRY_LANGUAGE[(country ?? '').trim().toUpperCase()] ?? 'en-US';
+}
+
+/** POST /agents {template_id, industry} — W1 Continue. */
+export const createAgentRequest = z.object({
+  template_id: templateId,
+  industry: z.string().min(1).max(60).optional(),
+  /**
+   * W3's main language, decided at creation from the workspace country
+   * (`defaultAgentLanguage`). The portal sends it when it knows better than the country
+   * alone — a Canadian business using the portal in French starts on `fr-CA`.
+   */
+  primary_language: agentLanguage.optional(),
+  /** Defaults to the template name; D3 "+ New agent" lets the customer name it. */
+  name: z.string().min(2).max(60).optional(),
+});
+export type CreateAgentRequest = z.infer<typeof createAgentRequest>;
+
+/** The longest agent name `createAgentRequest` and `duplicateAgentRequest` accept. */
+export const AGENT_NAME_MAX = 60;
+
+/**
+ * POST /agents/:id/duplicate {name?} — D3's list menu "Duplicate" (QA-078). Without a
+ * name the copy is called `copyAgentName(source)`; the portal sends the localised one.
+ */
+export const duplicateAgentRequest = z.object({
+  name: z.string().trim().min(2).max(AGENT_NAME_MAX).optional(),
+});
+export type DuplicateAgentRequest = z.infer<typeof duplicateAgentRequest>;
+
+/**
+ * "Front desk" → "Front desk (copy)", inside the 60-character name limit: the *source*
+ * name is shortened, never the suffix, so a long name still reads as a copy. `format`
+ * is the suffix pattern (the portal passes its translated one); a pattern longer than
+ * the limit on its own is cut, since a name that fails validation helps no one.
+ */
+export function copyAgentName(name: string, format: (name: string) => string = (n) => `${n} (copy)`): string {
+  const base = name.trim();
+  const whole = format(base);
+  if (whole.length <= AGENT_NAME_MAX) return whole;
+  const overhead = whole.length - base.length;
+  const room = Math.max(0, AGENT_NAME_MAX - overhead);
+  return format(base.slice(0, room).trimEnd()).slice(0, AGENT_NAME_MAX);
+}
+
+/**
+ * The agent-level settings a version carries (`agent_versions.settings_json`): tier,
+ * voice, languages, duration ceiling, recording. They travel *with the version* for the
+ * same reason the brief does — a version is "what the agent is", and what is on the
+ * phone must be exactly what was published, not what was last typed into the Voice tab.
+ *
+ * The copy on `agents` (`agents.tier`, `agents.voice_id`, …) is the **live** copy: the
+ * billing rate (`calls.rate` derives from `agents.tier`), the runtime cache and every
+ * inbound decision read it, and only a publish writes it. Editing the draft changes
+ * nothing a caller or the wallet can see until the version goes live.
+ */
 
 export const agentSettings = z.object({
   tier: agentTier,

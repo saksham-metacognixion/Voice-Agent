@@ -458,7 +458,48 @@
           "salon": "Salon",
           "real_estate": "Real estate",
           "restaurant": "Restaurant",
-          "generic": "General"
+          "generic": "General",
+          "medical": "Medical clinic",
+          "physio": "Physiotherapy",
+          "chiropractic": "Chiropractic",
+          "optometry": "Optometry",
+          "veterinary": "Veterinary",
+          "pharmacy": "Pharmacy",
+          "mental_health": "Counselling and mental health",
+          "electrical": "Electrical",
+          "hvac": "Heating and cooling",
+          "roofing": "Roofing",
+          "landscaping": "Landscaping",
+          "cleaning": "Cleaning",
+          "pest_control": "Pest control",
+          "moving": "Moving",
+          "locksmith": "Locksmith",
+          "renovation": "Renovation and contracting",
+          "appliance_repair": "Appliance repair",
+          "barber": "Barber",
+          "spa": "Spa and massage",
+          "fitness": "Gym and fitness",
+          "tattoo": "Tattoo studio",
+          "pet_grooming": "Pet grooming",
+          "photography": "Photography",
+          "accounting": "Accounting",
+          "insurance": "Insurance",
+          "financial_advice": "Financial advice",
+          "marketing_agency": "Marketing agency",
+          "it_services": "IT services",
+          "consulting": "Consulting",
+          "recruiting": "Recruiting",
+          "property_management": "Property management",
+          "home_inspection": "Home inspection",
+          "auto_detailing": "Auto detailing",
+          "towing": "Towing",
+          "car_dealership": "Car dealership",
+          "catering": "Catering",
+          "hotel": "Hotel and lodging",
+          "event_venue": "Event venue",
+          "tutoring": "Tutoring",
+          "childcare": "Childcare",
+          "driving_school": "Driving school"
         },
         "examples": {
           "plumbing": "We are a residential plumbing company covering the West Island. Drain cleaning, burst pipes, water heaters and bathroom renovations. We run a 24-hour emergency line.",
@@ -470,6 +511,19 @@
           "restaurant": "We are a forty-seat bistro. Lunch and dinner, closed Mondays. Reservations for parties up to eight; larger groups are arranged with the manager.",
           "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
         }
+      },
+      "industrySearch": "Search industries",
+      "industryEmpty": "No industry matches that. Choose the closest one, or leave it blank.",
+      "pickFirst": "Pick a template to continue.",
+      "industryGroups": {
+        "health": "Health",
+        "home": "Home services",
+        "personal": "Personal care",
+        "professional": "Professional services",
+        "property": "Property",
+        "automotive": "Automotive",
+        "hospitality": "Hospitality",
+        "education": "Education and care"
       }
     },
     "w2": {
@@ -482,8 +536,8 @@
       "stage": {
         "queued": "Getting started",
         "started": "Reading your brief",
-        "writing": "Writing the script",
-        "done": "Done"
+        "writing": "Writing the conversation",
+        "done": "Setting up analysis"
       },
       "generatedTitle": "Your agent is ready",
       "generatedBody": "Version {version} was written from your brief. Review the summary, then choose a voice.",
@@ -532,6 +586,11 @@
             "transfer": "transfer the call",
             "take_message": "take a message",
             "read_message": "read a message"
+          },
+          "presets": {
+            "no_prices": "Quote prices",
+            "no_medical_advice": "Give medical advice",
+            "no_time_promises": "Promise a time"
           }
         }
       },
@@ -572,7 +631,15 @@
           "answer": "Answer",
           "add": "Add a question",
           "questionPlaceholder": "Do you take walk-ins?",
-          "answerPlaceholder": "Yes, but appointments are seen first."
+          "answerPlaceholder": "Yes, but appointments are seen first.",
+          "routing": {
+            "sourceName": "Frequently asked questions",
+            "moved": "{n, plural, one {# question moved to what your agent knows.} other {# questions moved to what your agent knows.}}",
+            "locked": "These answers go straight into the script. The {pack} pack adds a library your agent searches, for longer documents.",
+            "lockedGeneric": "These answers go straight into the script.",
+            "unlocked": "These answers go into the script. Move them to what your agent knows and they are searched when needed instead of read on every call.",
+            "move": "Move to what your agent knows"
+          }
         },
         "documents": {
           "label": "Upload a file or a photo",
@@ -581,7 +648,13 @@
         "never_do": {
           "label": "Things the agent must never do",
           "hint": "Hard rules. These override everything else.",
-          "placeholder": "Never give medical advice. Never confirm an appointment without a phone number."
+          "placeholder": "Never give medical advice. Never confirm an appointment without a phone number.",
+          "presets": {
+            "label": "Common rules",
+            "no_prices": "Never quote prices",
+            "no_medical_advice": "Never give medical advice",
+            "no_time_promises": "Never promise a time"
+          }
         },
         "handoff_rules": {
           "label": "When to hand off to a person",
@@ -646,6 +719,11 @@
             "title": "Never volunteer it",
             "body": "Same as above, but never brings it up on its own."
           }
+        },
+        "services_notes": {
+          "label": "More about your services",
+          "hint": "What the chips cannot say: who each service is for, what it includes, what needs a visit.",
+          "placeholder": "Cleanings take 45 minutes. Whitening needs a check-up first. Emergencies are seen the same day."
         }
       },
       "hours": {
@@ -695,6 +773,15 @@
           "empty": "That file is empty.",
           "budget": "There is no document space left for this file. Remove a document first."
         }
+      },
+      "free": "Free. No credits used.",
+      "failedToast": "Couldn’t generate. Try again.",
+      "continueHint": "Generate your agent to continue.",
+      "regenerateConfirm": {
+        "title": "Rewrite the conversation?",
+        "body": "This rewrites the conversation from your brief; your test feedback is kept.",
+        "keepsFeedback": "Feedback you gave on test calls is kept.",
+        "replacesEdits": "Edits made to the script by hand are replaced."
       }
     },
     "w3": {
@@ -715,7 +802,8 @@
         "neutral": "Neutral",
         "tier": "Tier",
         "clear": "Clear filters",
-        "native": "Native accents only"
+        "native": "Native accents only",
+        "accent": "Accent"
       },
       "hearSample": "Hear this voice",
       "previewFailed": "We could not play that voice right now.",
@@ -780,7 +868,10 @@
         "polish": "Polish",
         "turkish": "Turkish",
         "neutral": "Neutral"
-      }
+      },
+      "autoPicked": "{voice} was chosen for {language}. Pick another if you prefer.",
+      "autoPickedReplaced": "Your voice does not sound native in {language}, so {voice} was chosen instead. Pick another if you prefer.",
+      "speedHint": "0.8 to 1.2. 1.0 is the voice’s own pace."
     },
     "placeholder": {
       "title": "{step} is next",
@@ -987,7 +1078,8 @@
         "call": "Call my phone",
         "placed": "Calling {to} from {from}. Answer it to talk to your agent.",
         "invalid": "Enter your own mobile or landline, for example +1 416 555 0123."
-      }
+      },
+      "happyShort": "Happy with it"
     },
     "w6": {
       "title": "How will callers reach your agent?",
@@ -1286,7 +1378,8 @@
       "packCopy": {
         "mostPopular": "Most popular",
         "starterNote": "One agent on one number. FAQ text goes in the brief."
-      }
+      },
+      "footerHint": "Choose a pack above to go live."
     },
     "live": {
       "title": "{name} is live",

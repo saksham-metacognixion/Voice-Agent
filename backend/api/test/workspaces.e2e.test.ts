@@ -270,6 +270,27 @@ describe('POST /workspace/onboarding-step (QA-005)', () => {
     expect(row.onboardingStep).toBe(5);
   });
 
+  // ADR 0039: "Save and exit" is the §6.4 dismissal — written once, by an editor too,
+  // never cleared by a later press, and the step pointer is untouched.
+  it('records the dismissal once through POST /workspace/onboarding-dismiss', async () => {
+    const owner = await createWorkspace('dismiss');
+    const editor = await addMember(owner.workspaceId, 'dismiss-editor', 'editor');
+    const headers = await auth(editor.sub, owner.workspaceId);
+    await post('/workspace/onboarding-step', headers, { step: 2 });
+
+    const first = await post('/workspace/onboarding-dismiss', headers, {});
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toMatchObject({ onboarding_step: 2, onboarding_completed_at: null });
+    const at = first.json().onboarding_dismissed_at as string;
+    expect(typeof at).toBe('string');
+
+    const again = await post('/workspace/onboarding-dismiss', headers, {});
+    expect(again.json().onboarding_dismissed_at).toBe(at);
+    const row = await adminDb.tenant.findUniqueOrThrow({ where: { id: owner.workspaceId } });
+    expect(row.onboardingDismissedAt?.toISOString()).toBe(at);
+    expect(row.onboardingStep).toBe(2);
+  });
+
   it('is not rewound through PATCH /workspace, even by the owner (QA-058)', async () => {
     const owner = await createWorkspace('rewind');
     const headers = await auth(owner.sub, owner.workspaceId);

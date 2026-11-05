@@ -73,3 +73,45 @@ describe('templateRowFrom / templateFromRow', () => {
     expect(back.error).toMatch(/brief_prefill|steps/);
   });
 });
+
+// ADR 0039: what W2 shows before anyone types — §8 W2 #3 "Mon–Fri 9–5" and #8 "template defaults checked".
+describe('the shipped brief prefills', () => {
+  const templates = () =>
+    readTemplateFiles(templatesDir({}, process.cwd())!).map((r) => {
+      if (!r.ok) throw new Error(r.error);
+      return r.template;
+    });
+
+  it('open Monday to Friday 09:00–17:00 and close the weekend', () => {
+    for (const t of templates()) {
+      const days = t.brief_prefill.business_hours?.days ?? {};
+      expect(Object.keys(days).sort(), t.id).toEqual(['fri', 'mon', 'thu', 'tue', 'wed']);
+      for (const intervals of Object.values(days)) expect(intervals, t.id).toEqual([{ open: '09:00', close: '17:00' }]);
+    }
+  });
+
+  it('tick the presets their rules call for', () => {
+    const presets = Object.fromEntries(templates().map((t) => [t.id, t.brief_prefill.never_do_presets]));
+    expect(presets).toMatchObject({
+      receptionist: ['no_prices', 'no_time_promises'],
+      afterhours: ['no_medical_advice'],
+      appointment: ['no_time_promises'],
+      lead_qual: ['no_prices'],
+      restaurant: ['no_time_promises'],
+      faq_support: [],
+      custom: [],
+    });
+  });
+
+  it('do not repeat a ticked preset in the free text', () => {
+    const sentences: Record<string, RegExp> = {
+      no_prices: /never quote (final )?pric/i,
+      no_medical_advice: /never give (safety or )?medical advice/i,
+      no_time_promises: /never promise a (callback )?time|never confirm a slot/i,
+    };
+    for (const t of templates()) {
+      for (const preset of t.brief_prefill.never_do_presets) expect(t.brief_prefill.never_do ?? '', `${t.id} ${preset}`).not.toMatch(sentences[preset]!);
+    }
+  });
+});
+

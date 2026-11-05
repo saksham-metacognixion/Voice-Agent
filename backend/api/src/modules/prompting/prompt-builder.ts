@@ -7,7 +7,7 @@ import type {
   GeneratedPrompt,
   ModelAnalysisField,
 } from '@portal/schemas';
-import type { BusinessHours } from '@portal/schemas';
+import type { BusinessHours, NeverDoPreset } from '@portal/schemas';
 import { dialectSection } from './dialects';
 import { STAFF_LABEL } from './staff-transfer';
 
@@ -427,9 +427,11 @@ export function briefForModel(brief: Brief): Record<string, unknown> {
   put('business_hours', brief.business_hours ? describeHours(brief.business_hours) : undefined);
   put('address', brief.address);
   put('services', brief.services);
+  put('services_notes', brief.services_notes);
   put('pricing', brief.pricing);
   put('faqs', brief.faqs);
-  put('must_never_do', brief.never_do);
+  // The W2 #8 presets first, as sentences, then whatever the customer wrote.
+  put('must_never_do', [...(brief.never_do_presets ?? []).map((preset) => NEVER_DO_SENTENCES[preset]), brief.never_do?.trim() ?? ''].filter(Boolean).join(' '));
   put(
     'handoff_rules',
     brief.handoff_rules.map((rule) =>
@@ -453,6 +455,13 @@ export function briefForModel(brief: Brief): Record<string, unknown> {
   );
   return out;
 }
+
+/** W2 #8 preset checkboxes, as the model reads them. Ids on the wire, sentences here. */
+const NEVER_DO_SENTENCES: Record<NeverDoPreset, string> = {
+  no_prices: 'Never quote prices unless they are in the brief.',
+  no_medical_advice: 'Never give medical advice.',
+  no_time_promises: 'Never promise a time or confirm a slot as booked.',
+};
 
 /** Sliders read as numbers to us and as adjectives to a model. */
 function describePersonality(personality: NonNullable<Brief['personality']>): string {

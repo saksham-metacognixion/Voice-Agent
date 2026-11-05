@@ -15,6 +15,7 @@ export * from './workspaces.js';
 export * from './security.js';
 export * from './data-requests.js';
 export * from './agents.js';
+export * from './industries.js';
 export * from './voices.js';
 export * from './knowledge.js';
 export * from './numbers.js';

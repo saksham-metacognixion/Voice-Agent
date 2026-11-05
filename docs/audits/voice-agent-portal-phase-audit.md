@@ -158,38 +158,38 @@ Paths are relative to the repo root unless they start with a module name (`backe
 | S-04 | P1    | §7.2             | Notifications bell                                                     | NOT IMPLEMENTED | D1 banner only (`alert-banner.tsx`)                                                                   | Build or retire by ADR                              |
 | S-05 | P1    | §7.2             | Mobile bottom tab bar                                                  | PASS            | `portal-shell.tsx:100-158`; `e2e-dashboard-d11.mjs` at 390 px                                         | Amended by ADR 0019 (Numbers replaces Wallet)       |
 | S-06 | P1    | §7.3             | Every field has label, helper/example, inline validation               | PASS            | `frontend/ui/src/components/field.tsx`; `brief-form.tsx`                                              | Validates on change, not blur                       |
-| S-07 | P1    | §7.3             | One primary button, bottom-right / sticky bottom on mobile             | PARTIAL         | W3/W5/W6 Continue sits in the heading                                                                 | Align placement                                     |
+| S-07 | P1    | §7.3             | One primary button, bottom-right / sticky bottom on mobile             | **PASS** (5 Nov)         | `WizardFooter`: Back + the one primary at the bottom, sticky below `sm`, on W1–W3, W5–W7 (ADR 0039 §2)                                                                 | —                                     |
 | S-08 | P1    | §7.3             | Wizard stepper with done / current / future, jump back                 | PASS            | `wizard-shell.tsx:41-63`; `routes.test.ts`                                                            | Amended by ADR 0024                                 |
-| S-09 | P1    | §7.3             | "Save & exit" during the wizard                                        | FAIL            | `wizard-shell.tsx:31,67` renders it only after completion; `AppGuard` would bounce to the step anyway | ADR the §6.4 conflict or add a finish-later path    |
-| S-10 | P1    | §7.3             | Back and Continue at the bottom of each step                           | NOT IMPLEMENTED | No Back button on any wizard page                                                                     | Add Back                                            |
+| S-09 | P1    | §7.3             | "Save & exit" during the wizard                                        | **PASS** (5 Nov)            | On every step; the §6.4 dismissal (`onboarding_dismissed_at`, `POST /workspace/onboarding-dismiss`); `e2e-wizard` W1 + W3 | —    |
+| S-10 | P1    | §7.3             | Back and Continue at the bottom of each step                           | **PASS** (5 Nov) | `WizardFooter` Back link on W2, W3, W5, W6, W7; `e2e-wizard` asserts the hrefs                                                                     | —                                            |
 | S-11 | P1    | §7.3             | Plain-language copy, vendor never named                                | PASS            | `messages.test.ts:68`                                                                                 | —                                                   |
 | S-12 | P1    | §7.3, §12.1      | fr-CA from launch                                                      | PASS            | `messages/{en,ar,fr-CA}.json`, key parity in `messages.test.ts`                                       | Arabic added (ADR 0026/0030)                        |
 | S-13 | P1    | §7.3, §18        | WCAG 2.1 AA                                                            | PASS            | ADR 0025: axe 148/148 views clean                                                                     | One-off run; no repeatable script                   |
 | Z-01 | P1    | §8 W1            | Template cards, selection highlighted                                  | PASS            | `template-picker.tsx:189-258`; `e2e-wizard.mjs`                                                       | —                                                   |
-| Z-02 | P1    | §8 W1            | "Hear sample" static clip, no credits                                  | UNVERIFIED      | `AudioButton` + 7 files in `public/samples/`; playback not asserted                                   | Assert in e2e                                       |
-| Z-03 | P1    | §8 W1            | Searchable industry select (~40 options)                               | FAIL            | 7 options from template tags (`template/page.tsx:60-64,140-152`)                                      | Ship the full list                                  |
+| Z-02 | P1 | §8 W1 | "Hear sample" static clip, no credits | **PASS** (5 Nov) | `e2e-wizard`: plays, pauses, a second clip stops the first, no card without a clip | — |
+| Z-03 | P1 | §8 W1 | Searchable industry select (~40 options) | **PASS** (5 Nov) | `INDUSTRY_GROUPS` (48) in `@portal/schemas`, `Combobox` with search; e2e asserts ≥ 40 and the search (ADR 0039 §3) | — |
 | Z-04 | P1    | §8 W1            | Continue → `POST /agents` → draft v1, step 2                           | PASS            | `template/page.tsx:97-102`; `agents.e2e.test.ts:80-113`                                               | —                                                   |
 | Z-05 | P1    | §8 W2            | Brief fields 1, 2, 4, 6, 10, 12, 13 with spec limits and defaults      | PASS            | `brief-form.tsx`; `shared/schemas/src/agents.ts:160-204`; `e2e-wizard.mjs`                            | —                                                   |
-| Z-06 | P1    | §8 W2 #3         | Business hours editor with "same every day", default Mon–Fri 9–5       | PARTIAL         | `hours-editor.tsx` copies Monday to weekdays; default untested                                        | Test the default                                    |
-| Z-07 | P1    | §8 W2 #5         | Services chips plus free text                                          | PARTIAL         | `TagInput max=30` only                                                                                | Add free text or amend                              |
-| Z-08 | P1    | §8 W2 #7         | FAQ ≤ 20 pairs; Starter injected, Growth+ optionally to KB             | PARTIAL         | `brief-editors.tsx:176-202`; plan routing not surfaced                                                | Decide routing                                      |
-| Z-09 | P1    | §8 W2 #8         | "Must never" preset checkboxes                                         | PARTIAL         | Textarea only                                                                                         | Add presets                                         |
+| Z-06 | P1 | §8 W2 #3 | Business hours editor with "same every day", default Mon–Fri 9–5 | **PASS** (5 Nov) | templates prefill Mon–Fri 09:00–17:00; `e2e-wizard` asserts the seven switches and ten times | — |
+| Z-07 | P1 | §8 W2 #5 | Services chips plus free text | **PASS** (5 Nov) | `brief.services_notes` beside the chips, sent to the model (`prompt-builder.test.ts`); e2e saves and restores it | — |
+| Z-08 | P1 | §8 W2 #7 | FAQ ≤ 20 pairs; Starter injected, Growth+ optionally to KB | **PASS** (5 Nov) | `FaqRouting` on the `knowledge_base` gate: into the script, or moved to one text source (ADR 0039 §5); e2e sees the trial note | — |
+| Z-09 | P1 | §8 W2 #8 | "Must never" preset checkboxes | **PASS** (5 Nov) | `brief.never_do_presets` checkboxes, template defaults ticked, sentences for the model; e2e ticks and restores | — |
 | Z-10 | P1    | §8 W2 #9         | Hand-off rules ≤ 5 with validated transfer number                      | PASS            | `brief-editors.tsx:205-251`; `handoffRule`; lint `transfer_number_invalid`                            | —                                                   |
-| Z-11 | P1    | §8 W2 #11        | Personality sliders + free text                                        | UNVERIFIED      | `brief-editors.tsx:254-283`; no assertion                                                             | Add a test                                          |
+| Z-11 | P1 | §8 W2 #11 | Personality sliders + free text | **PASS** (5 Nov) | `e2e-wizard` asserts three 0–100 sliders at 50 | — |
 | Z-12 | P1    | §8 W2            | Autosave 1.5 s debounced, Saved/Saving                                 | PASS            | `use-brief-autosave.ts:60-116`; `brief-patch.test.ts`; `e2e-wizard.mjs`                               | —                                                   |
-| Z-13 | P1    | §8 W2            | Generate gated on fields 1–2, three-stage progress                     | PARTIAL         | `generate-panel.tsx:225-257` stages differ ("Done" not "Setting up analysis")                         | Rename or accept                                    |
+| Z-13 | P1 | §8 W2 | Generate gated on fields 1–2, three-stage progress | **PASS** (5 Nov) | the spec’s three names on the worker’s frames (ADR 0039 §6); e2e asserts the list | — |
 | Z-14 | P1    | §8 W2, §9.3, §18 | Generation p95 < 10 s                                                  | ADR-AMENDED (4 Nov) | 45 samples on `claude-sonnet-5`: p95 16.7 s before, 16.4 s after, 15.2 s with thinking off; none under 10 s (`docs/evidence/2026-11-04-prompt-gaps/generation-*.json`) | ADR 0038 §5: target p95 ≤ 16 s, thinking off by default; spec owner sign-off pending |
-| Z-15 | P1    | §8 W2            | Regenerate with confirm dialog                                         | PARTIAL         | Button exists (`generate-panel.tsx:288`); no confirm                                                  | Add ConfirmDialog                                   |
-| Z-16 | P1    | §8 W2            | Advanced ▸ view prompt                                                 | PASS            | Editable `PromptTab` on W2 (`brief/page.tsx:177-196`)                                                 | Exceeds spec (editable); record in ADR              |
-| Z-17 | P1    | §8 W2            | "Free — no credits used" note on Generate                              | NOT IMPLEMENTED | Hint text differs                                                                                     | Add copy                                            |
+| Z-15 | P1 | §8 W2 | Regenerate with confirm dialog | **PASS** (5 Nov) | `ConfirmDialog` with the spec’s sentence; e2e opens it and cancels | — |
+| Z-16 | P1 | §8 W2 | Advanced ▸ view prompt | PASS | Editable `PromptTab` on W2 (`brief/page.tsx`) | Recorded in ADR 0039 |
+| Z-17 | P1 | §8 W2 | "Free — no credits used" note on Generate | **PASS** (5 Nov) | "Free. No credits used." under Generate; e2e asserts it | — |
 | Z-18 | P1    | §8 W2            | Continue enabled only after a successful generate                      | PASS            | `generate-panel.tsx:277-279`; `e2e-wizard.mjs`                                                        | —                                                   |
 | Z-19 | P1    | §8 W3            | Main language + up to 4 more                                           | PASS            | `language-picker.tsx`; `languages.test.ts`                                                            | Amended by ADR 0003 §6 (explicit locales), ADR 0027 |
-| Z-20 | P1    | §8 W3            | Main language defaults from workspace country                          | PARTIAL         | Default `en-US` (`voice-settings.tsx:139`)                                                            | Derive from country                                 |
-| Z-21 | P1    | §8 W3            | Voice filters: gender, accent, tier, only multilingual                 | PARTIAL         | Gender, tier, search, "native accents only" (`voice-picker.tsx:409-443`)                              | Record the change in an ADR                         |
+| Z-20 | P1 | §8 W3 | Main language defaults from workspace country | **PASS** (5 Nov) | `defaultAgentLanguage` at `POST /agents` + `startingLanguage` from W1 (ADR 0039 §7); `languages.test.ts` | — |
+| Z-21 | P1 | §8 W3 | Voice filters: gender, accent, tier, only multilingual | **PASS** (5 Nov) | gender, tier, accent, search, native; "only multilingual" replaced, recorded in ADR 0039 §7 | — |
 | Z-22 | P1    | §8 W3            | Voice cards with tier and credit rate, premium confirm strip           | PASS            | `voice-picker.tsx:472-519`; `e2e-wizard.mjs`                                                          | —                                                   |
-| Z-23 | P1    | §8 W3            | Speed and warmth sliders                                               | UNVERIFIED      | `voice-settings.tsx:308-337`; untested                                                                | Add a test                                          |
-| Z-24 | P1    | §8 W3, §16       | "Hear my greeting" (`POST /voices/:id/preview {text}`)                 | PARTIAL         | Route returns a stock clip, text ignored (`voices.service.ts:125-150`)                                | Amended by ADR 0003 §9 (no TTS exists)              |
-| Z-25 | P1    | §8 W3            | Language change regenerates greeting                                   | PARTIAL         | Manual "Rewrite in <language>" (ADR 0027)                                                             | Accept or automate                                  |
+| Z-23 | P1 | §8 W3 | Speed and warmth sliders | **PASS** (5 Nov) | `e2e-wizard`: 80–120 at 100, 0–100 at 50, Home/End, steps, saved and restored | — |
+| Z-24 | P1 | §8 W3, §16 | "Hear my greeting" (`POST /voices/:id/preview {text}`) | **ADR-AMENDED** | Route returns a stock clip, text ignored (`voices.service.ts`) | ADR 0003 §9 (no TTS exists); restated in ADR 0039 |
+| Z-25 | P1 | §8 W3 | Language change regenerates greeting | **ADR-AMENDED** | Manual "Rewrite in <language>" (ADR 0027) | ADR 0027; restated in ADR 0039 |
 | Z-26 | P1    | §8 W3, §13.11    | Voice list cached daily, stale banner                                  | PASS            | `voices.service.ts:184-226`; `voices.e2e.test.ts`                                                     | —                                                   |
 | Z-27 | P1    | §8 W4            | Knowledge step position                                                | PASS            | `/onboarding/knowledge` after go-live behind `LiveGuard`                                              | Amended by ADR 0024 (after payment)                 |
 | Z-28 | P1    | §8 W4            | URL / file / text sources, status polling                              | PASS            | `knowledge-sources.tsx`; `d6-knowledge.e2e.test.ts`; KB fixtures                                      | —                                                   |
@@ -749,4 +749,36 @@ Stripe stubbed at their gateways except where marked live):
 Open from this work: D4 phone-number transfer targets are never dialled (the tools dial the
 brief's number), now surfaced by `transfer_tool_missing` and left for its own change; the spec
 owner's sign-off on the 16 s target and the Premium model.
+
+---
+
+## Addendum — 5 Nov 2026: the W1–W3 wizard (ADR 0039)
+
+Rows S-07, S-09, S-10 and Z-02 to Z-25 above were re-assessed after ADR 0039 and carry their
+new status in place (marked "(5 Nov)"). The phase counts in §3 were **not** recounted.
+Summary: S-07, S-09, S-10, Z-02, Z-03, Z-06, Z-07, Z-08, Z-09, Z-11, Z-13, Z-15, Z-17, Z-20, Z-21,
+Z-23 → **PASS**; Z-16 → PASS, the editable script recorded in ADR 0039; Z-24, Z-25 → **ADR-AMENDED**
+(ADR 0003 §9, ADR 0027, restated); Z-14 unchanged (ADR 0038). Three calls were made in session on
+the engineering recommendation and await the spec owner (ADR 0039 "Decisions taken"): Save and
+exit as the §6.4 dismissal, the industry list, and "Native accents only" + accent in place of
+"Only multilingual".
+
+Commands run on 5 Nov against the local stack (Postgres + Redis, the local issuer, the real
+voice platform and generation model; **no webhook tunnel** — ngrok is not installed on this box):
+
+| Check | Result |
+| --- | --- |
+| `pnpm --filter @portal/web e2e:wizard` (98 assertions, was 60) | **95 / 98** on the rebuilt export. The three: `W5 after-call shows the charge from call_ended` and `… summary from call_analyzed` (the platform's webhooks never reach a box without a tunnel, unchanged from before), and the switcher assertion, which expected W7 for a workspace the run had dismissed on W1; corrected to expect the dashboard with "Continue setup" (ADR 0039 §1) and re-run, see below |
+| Final `e2e:wizard` after that correction, clean browser | **96 / 98**; only the two webhook-dependent W5 rows remain, and they need the tunnel |
+| Three-language pass, headless Chrome (`shots-i18n.mjs`): W1 (combobox open), W2, W3 in en / ar / fr-CA at 1440 and 390 px, W2 + W3 dark | `dir` right per language, no horizontal overflow on any of the 18 pages, no console errors |
+| `pnpm --filter @portal/api test` / `@portal/web test` / `@portal/schemas test` / `@portal/ui test` / `@portal/db test` | 1271 / 335 / 124 / 10 / 8, all pass. New unit files: `ui/lib/search.test.ts`, `schemas/industries.test.ts`, `web/wizard/{voice-pick,generation-stages,faq-text}.test.ts`, `web/guards/onboarding-gate.test.ts`; extended: `schemas/agents.test.ts`, `db/templates.test.ts`, `api/agents/brief.test.ts`, `api/prompting/prompt-builder.test.ts`, `web/wizard/{brief-patch,languages}.test.ts`, `web/i18n/messages.test.ts`. QA cards in ClickUp "Unit Testing", tag `adr-0039` |
+| `backend/api/test/workspaces.e2e.test.ts` (+ the dismiss case) | 60 / 60 |
+| `pnpm --filter @portal/api openapi:check` | current, 239 operations |
+| `tsc --noEmit` api, web, admin, api-client, ui; `eslint .` web, ui | clean |
+| `pnpm db:deploy` + `pnpm db:seed` | one additive column; 7 templates re-seeded with their presets |
+
+Also found and fixed on the way: `e2e-wizard` never accepted the Terms screen ADR 0036 put first
+(it had been stuck there since 4 Nov), and the stand-in issuer signed a fresh browser in silently
+(`prompt=none` answered with a code), so the suite's anonymous-visitor assertions could not hold;
+it now answers `login_required` like the real tenant.
 

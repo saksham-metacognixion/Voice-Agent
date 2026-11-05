@@ -155,6 +155,22 @@ describe('briefForModel', () => {
     expect(JSON.stringify(briefForModel(BRIEF))).not.toContain('5145550123');
   });
 
+  // W2 #8 presets travel as ids (the portal translates them); the model gets sentences,
+  // ahead of whatever the customer typed, in one field it already knows.
+  it('spells the never-do presets out as sentences before the free text', () => {
+    const rules = briefForModel({ ...BRIEF, never_do_presets: ['no_prices', 'no_time_promises'], never_do: 'Never mention the old owner.' }).must_never_do;
+    expect(rules).toBe('Never quote prices unless they are in the brief. Never promise a time or confirm a slot as booked. Never mention the old owner.');
+    expect(briefForModel({ ...BRIEF, never_do_presets: ['no_medical_advice'], never_do: undefined }).must_never_do).toBe('Never give medical advice.');
+    expect(JSON.stringify(briefForModel(BRIEF))).not.toContain('no_prices');
+  });
+
+  // W2 #5 "tag list (chips) + free text": the chips and the sentence beside them both reach the model.
+  it('passes the services free text beside the chips', () => {
+    const out = briefForModel({ ...BRIEF, services_notes: 'Everything is by appointment except emergencies.' });
+    expect(out.services).toEqual(BRIEF.services);
+    expect(out.services_notes).toBe('Everything is by appointment except emergencies.');
+  });
+
   it('hands the model a read-a-message rule with the exact words to read', () => {
     const rules = briefForModel({
       ...BRIEF,

@@ -630,7 +630,7 @@ export class BillingService {
  *
  * Returns the reason they disagree, or null when they match.
  */
-function amountMismatch(session: CheckoutSessionFacts, purchase: { amountCents: number; currency: string }): string | null {
+export function amountMismatch(session: CheckoutSessionFacts, purchase: { amountCents: number; currency: string }): string | null {
   const currency = purchase.currency.trim().toUpperCase();
   if (session.amount_total === null) {
     // Only a zero-amount session omits it, and we never create one. Nothing to compare.

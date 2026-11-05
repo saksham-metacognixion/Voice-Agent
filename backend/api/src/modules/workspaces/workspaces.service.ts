@@ -157,6 +157,19 @@ export class WorkspacesService {
     return this.respond(tenant, ctx);
   }
 
+  /**
+   * POST /workspace/onboarding-dismiss — "Save and exit" (§7.3, §6.4 "onboarding not
+   * dismissed"). Writes the timestamp once; a second press keeps the first. Like the
+   * step pointer it is a bookmark, not a setting, so it is not audited.
+   */
+  async dismissOnboarding(ctx: WorkspaceContext): Promise<WorkspaceResponse> {
+    const tenant = await withWorkspace(ctx, async (db) => {
+      await db.tenant.updateMany({ where: { id: ctx.workspaceId, onboardingDismissedAt: null }, data: { onboardingDismissedAt: new Date() } });
+      return db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId } });
+    });
+    return this.respond(tenant, ctx);
+  }
+
   /** PATCH /workspace — D6 Settings. Owner or admin (§6.1 "change workspace settings"). */
   async update(ctx: WorkspaceContext, input: UpdateWorkspaceRequest, ip?: string): Promise<WorkspaceResponse> {
     if (input.timezone) assertTimezone(input.timezone);
@@ -338,6 +351,7 @@ function toResponse(
     recordingNoticeText: string | null;
     onboardingStep: number;
     onboardingCompletedAt: Date | null;
+    onboardingDismissedAt: Date | null;
     pausedAt: Date | null;
     pausedReason: string | null;
     createdAt: Date;
@@ -362,6 +376,7 @@ function toResponse(
     recording_notice_text: tenant.recordingNoticeText,
     onboarding_step: tenant.onboardingStep,
     onboarding_completed_at: tenant.onboardingCompletedAt?.toISOString() ?? null,
+    onboarding_dismissed_at: tenant.onboardingDismissedAt?.toISOString() ?? null,
     paused: tenant.pausedAt !== null,
     paused_reason: tenant.pausedReason,
     role,

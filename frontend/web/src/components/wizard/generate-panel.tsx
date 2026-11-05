@@ -2,9 +2,12 @@
 
 import type { AgentDetail } from '@portal/schemas';
 import { Alert, Button, Card, CardContent, CardHeader, CardTitle, Progress, cn } from '@portal/ui';
-import { ArrowRight, FileText, RefreshCw, Sparkles } from 'lucide-react';
+import { FileText, RefreshCw, Sparkles } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import * as React from 'react';
+import { ConfirmDialog } from '@/src/components/dashboard/confirm-dialog';
 import { useServerCopy } from '@/src/i18n/server-copy';
+import { STAGE_PCT, stageStates } from '@/src/wizard/generation-stages';
 import type { GenerationState } from '@/src/wizard/use-generation';
 
 export interface GeneratePanelProps {
@@ -14,25 +17,25 @@ export interface GeneratePanelProps {
   slow?: boolean;
   ready: boolean;
   saving: boolean;
-  onGenerate: (mode: 'generate' | 'regenerate') => void;
-  onContinue: () => void;
+  onGenerate: (mode: 'generate' | 'regenerate') => Promise<void> | void;
   /** Opens the script editor under the brief (W2 only; absent = no button). */
   onEditScript?: () => void;
-  /** The script editor holds unsaved edits: Continue waits for a save. */
-  scriptDirty?: boolean;
   error: string | null;
 }
 
-const STAGE_PCT: Record<GenerationState['stage'], number> = { idle: 0, queued: 8, started: 25, writing: 65, done: 100, failed: 100 };
-
-/** The right-hand column of W2: the Generate button, the progress, the result. */
-export function GeneratePanel({ agent, generation, slow, ready, saving, onGenerate, onContinue, onEditScript, scriptDirty = false, error }: GeneratePanelProps) {
+/**
+ * The right-hand column of W2: Generate, the progress, the result, Regenerate and "Edit
+ * the script". Continue lives in the page's footer (§7.3: one primary button, bottom
+ * right), so once a script exists nothing here is primary.
+ */
+export function GeneratePanel({ agent, generation, slow, ready, saving, onGenerate, onEditScript, error }: GeneratePanelProps) {
   const t = useTranslations('wizard.w2');
   const copy = useServerCopy();
   const active = generation.stage === 'queued' || generation.stage === 'started' || generation.stage === 'writing';
   const hasPrompt = Boolean(agent?.draft?.has_prompt);
   const generatedNow = generation.stage === 'done';
   const draft = agent?.draft;
+  const [confirmOpen, setConfirmOpen] = React.useState(false);
 
   return (
     <Card>
@@ -40,21 +43,18 @@ export function GeneratePanel({ agent, generation, slow, ready, saving, onGenera
         {active ? (
           <div className="flex flex-col gap-3" aria-live="polite">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Sparkles className="size-4 animate-pulse text-primary" aria-hidden />
+              <Sparkles className="size-4 animate-pulse text-primary motion-reduce:animate-none" aria-hidden />
               {t('generating')}
             </div>
             <Progress value={STAGE_PCT[generation.stage]} indeterminate={generation.stage === 'queued'} />
-            <ol className="grid grid-cols-3 gap-1 text-[11px]">
-              {(['started', 'writing', 'done'] as const).map((s, i) => {
-                const reached = STAGE_PCT[generation.stage] >= STAGE_PCT[s] || (s === 'started' && generation.stage !== 'queued');
-                return (
-                  <li key={s} className={cn('flex items-center gap-1.5', reached ? 'text-foreground' : 'text-muted-foreground')}>
-                    <span className={cn('size-1.5 rounded-full', reached ? 'bg-primary' : 'bg-border')} aria-hidden />
-                    {t(`stage.${s}`)}
-                    <span className="sr-only">{i + 1}</span>
-                  </li>
-                );
-              })}
+            <ol className="grid grid-cols-3 gap-1 text-[11px]" data-testid="generation-stages">
+              {stageStates(generation.stage).map(({ key, state }, i) => (
+                <li key={key} className={cn('flex items-center gap-1.5', state === 'pending' ? 'text-muted-foreground' : 'text-foreground')} data-state={state}>
+                  <span className={cn('size-1.5 rounded-full', state === 'pending' ? 'bg-border' : 'bg-primary', state === 'running' && 'animate-pulse motion-reduce:animate-none')} aria-hidden />
+                  {t(`stage.${key}`)}
+                  <span className="sr-only">{i + 1}</span>
+                </li>
+              ))}
             </ol>
             {slow ? <p className="text-xs text-muted-foreground">{t('slow')}</p> : null}
           </div>
@@ -77,25 +77,38 @@ export function GeneratePanel({ agent, generation, slow, ready, saving, onGenera
           <div className="flex flex-col gap-2">
             {hasPrompt ? (
               <>
-                <Button size="lg" onClick={onContinue} disabled={scriptDirty}>
-                  {t('continue')} <ArrowRight />
-                </Button>
-                {scriptDirty ? <p className="text-xs text-warning-emphasis">{t('scriptUnsaved')}</p> : null}
                 {onEditScript ? (
                   <Button variant="outline" onClick={onEditScript} data-testid="edit-script">
-                    <FileText /> {t('editScript')}
+                    <FileText aria-hidden /> {t('editScript')}
                   </Button>
                 ) : null}
-                <Button variant="outline" onClick={() => onGenerate('regenerate')} disabled={!ready || saving}>
-                  <RefreshCw /> {t('regenerate')}
+                <Button variant="outline" onClick={() => setConfirmOpen(true)} disabled={!ready || saving} data-testid="regenerate">
+                  <RefreshCw aria-hidden /> {t('regenerate')}
                 </Button>
                 <p className="text-xs text-muted-foreground">{t('editAfter')}</p>
+                {/* §8 W2 "Regenerate … confirm dialog": nothing is rewritten until it is confirmed, and Cancel changes nothing. */}
+                <ConfirmDialog
+                  open={confirmOpen}
+                  onOpenChange={setConfirmOpen}
+                  title={t('regenerateConfirm.title')}
+                  description={t('regenerateConfirm.body')}
+                  consequences={[t('regenerateConfirm.keepsFeedback'), t('regenerateConfirm.replacesEdits')]}
+                  confirmLabel={t('regenerate')}
+                  destructive={false}
+                  onConfirm={async () => {
+                    await onGenerate('regenerate');
+                  }}
+                />
               </>
             ) : (
               <>
-                <Button size="lg" onClick={() => onGenerate('generate')} disabled={!ready || saving} loading={saving}>
-                  <Sparkles /> {t('generate')}
+                <Button size="lg" onClick={() => void onGenerate('generate')} disabled={!ready || saving} loading={saving} data-testid="generate">
+                  <Sparkles aria-hidden /> {t('generate')}
                 </Button>
+                {/* §8 W2 "generate button shows credits note": a generation is never metered. */}
+                <p className="text-xs text-muted-foreground" data-testid="generate-free">
+                  {t('free')}
+                </p>
                 {!ready ? <p className="text-xs text-muted-foreground">{t('generateHint')}</p> : null}
               </>
             )}

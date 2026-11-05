@@ -11,6 +11,8 @@ import { languageName } from '@/src/wizard/languages';
 export interface VoiceFilters {
   gender: 'male' | 'female' | 'neutral' | '';
   tier: 'standard' | 'premium' | '';
+  /** The §8 accent filter: one of the accents in the list, applied here (the catalogue carries it, `GET /voices` does not filter on it). */
+  accent: string;
   /** "Native accents only" — drop the voices that would read the language with an accent. */
   native: boolean;
   q: string;
@@ -38,18 +40,25 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
   const tc = useTranslations('common');
   const copy = useServerCopy();
   const audioLabels = { play: tc('play'), pause: tc('pause'), unavailable: tc('sampleUnavailable'), loading: tc('loading') };
-  const hasFilters = filters.gender || filters.tier || filters.native || filters.q;
+  const hasFilters = filters.gender || filters.tier || filters.accent || filters.native || filters.q;
+  // The accents on offer, from the voices themselves, in the reader's language.
+  const accents = React.useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const v of voices) if (v.accent && !seen.has(v.accent)) seen.set(v.accent, copy.accent(v.accent));
+    return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [voices, copy]);
   // The catalogue is a few hundred rows: show a page at a time, the chosen voice always first.
   const PAGE = 24;
   const [visible, setVisible] = React.useState(PAGE);
-  const filterKey = `${filters.gender}|${filters.tier}|${filters.native}|${filters.q}|${language}|${voices.length}`;
+  const filterKey = `${filters.gender}|${filters.tier}|${filters.accent}|${filters.native}|${filters.q}|${language}|${voices.length}`;
   React.useEffect(() => setVisible(PAGE), [filterKey]);
   // The server returns the voices that sound native in the chosen language first; keep
   // that order, with the chosen voice pinned to the top so it never scrolls away.
   const filtered = React.useMemo(() => {
-    const chosen = voices.find((v) => v.id === selectedId);
-    return chosen ? [chosen, ...voices.filter((v) => v.id !== selectedId)] : voices;
-  }, [voices, selectedId]);
+    const byAccent = filters.accent ? voices.filter((v) => v.accent === filters.accent) : voices;
+    const chosen = byAccent.find((v) => v.id === selectedId);
+    return chosen ? [chosen, ...byAccent.filter((v) => v.id !== selectedId)] : byAccent;
+  }, [voices, selectedId, filters.accent]);
   const shown = filtered.slice(0, visible);
   const remaining = filtered.length - shown.length;
   // Where the "also speaks" heading goes: the first card that is not native to the
@@ -85,12 +94,25 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
             <SelectItem value="premium">{tc('premium')}</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={filters.accent || 'all'} onValueChange={(v) => onFiltersChange({ ...filters, accent: v === 'all' ? '' : v })}>
+          <SelectTrigger className="sm:w-44" aria-label={t('filters.accent')} data-testid="accent-filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t('filters.accent')}: {t('filters.all')}</SelectItem>
+            {accents.map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-md border border-input bg-card px-3 text-sm shadow-card">
           <input type="checkbox" className="size-4 accent-primary" checked={filters.native} onChange={(e) => onFiltersChange({ ...filters, native: e.target.checked })} />
           {t('filters.native', { language: languageName(language) })}
         </label>
         {hasFilters ? (
-          <Button variant="link" size="sm" onClick={() => onFiltersChange({ gender: '', tier: '', native: false, q: '' })}>
+          <Button variant="link" size="sm" onClick={() => onFiltersChange({ gender: '', tier: '', accent: '', native: false, q: '' })}>
             {t('filters.clear')}
           </Button>
         ) : null}
@@ -133,6 +155,7 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
                     type="button"
                     disabled={disabled}
                     aria-pressed={active}
+                    data-testid="voice-select"
                     onClick={() => onSelect(voice)}
                     className="flex min-w-0 flex-1 items-center gap-3 text-start outline-none focus-visible:ring-2 focus-visible:ring-ring/50 rounded-md"
                   >

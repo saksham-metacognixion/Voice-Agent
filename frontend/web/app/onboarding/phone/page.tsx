@@ -13,7 +13,7 @@ import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
 import { PhoneOptionCards, type WizardPhoneOption } from '@/src/components/wizard/phone-option-cards';
 import { TransferTargetsEditor, normaliseE164, toDrafts, toTargets, validateTargets, type TransferTargetDraft } from '@/src/components/wizard/transfer-targets-editor';
-import { WizardHeading } from '@/src/components/wizard/wizard-shell';
+import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
@@ -169,15 +169,7 @@ function PhoneInner({ agent, saved }: { agent: AgentDetail; saved: PhonePlanResp
 
   return (
     <>
-      <WizardHeading
-        title={tp('title')}
-        subtitle={tp('subtitle')}
-        aside={
-          <Button size="lg" onClick={() => void next()} loading={saving} disabled={saving}>
-            {saving ? t('common.saving') : tp('continue')} {saving ? null : <ArrowRight />}
-          </Button>
-        }
-      />
+      <WizardHeading title={tp('title')} subtitle={tp('subtitle')} />
       <div className="flex flex-col gap-6">
         {error ? <Alert variant="danger">{error}</Alert> : null}
         <PhoneOptionCards value={form.option} onChange={(v) => set('option', v)} sipLockedReason={sipLocked} rentalCredits={pricing.data?.recurring.number_rental_credits ?? null} disabled={saving} />
@@ -272,6 +264,11 @@ function PhoneInner({ agent, saved }: { agent: AgentDetail; saved: PhonePlanResp
           </CardContent>
         </Card>
       </div>
+      <WizardFooter backHref={routes.onboarding.test}>
+        <Button size="lg" onClick={() => void next()} loading={saving} disabled={saving} data-testid="wizard-continue">
+          {saving ? t('common.saving') : tp('continue')} {saving ? null : <ArrowRight aria-hidden />}
+        </Button>
+      </WizardFooter>
     </>
   );
 }

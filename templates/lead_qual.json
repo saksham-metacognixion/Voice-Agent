@@ -55,7 +55,10 @@
     "ai_disclosure": "if_asked",
     "goal": "Qualify inbound leads and capture their contact details so the team can follow up on the good ones.",
     "agent_name": "Alex",
-    "never_do": "Never quote final pricing. Do not push if the caller is not interested."
+    "never_do": "Do not push if the caller is not interested.",
+    "never_do_presets": [
+      "no_prices"
+    ]
   },
   "steps": [
     "Greet the caller and name the business",

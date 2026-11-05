@@ -63,8 +63,13 @@ export function useServerCopy() {
       templateName: (tpl: Pick<TemplateSummary, 'id' | 'name'>) => pick(tc, `names.${tpl.id}`, tpl.name),
       templateTagline: (tpl: Pick<TemplateSummary, 'id' | 'tagline'>) => pick(tc, `taglines.${tpl.id}`, tpl.tagline),
       templateBestFor: (tpl: Pick<TemplateSummary, 'id' | 'best_for'>) => pick(tc, `bestFor.${tpl.id}`, tpl.best_for),
-      /** `real_estate` → "العقارات"; English, and a slug the catalogue does not know (free text), show it as it is. */
-      industry: (slug: string) => pick(tc, `industries.${slug}`, slug),
+      /**
+       * `real_estate` → "Real estate" / "العقارات". The industries are our own catalogue
+       * (`INDUSTRY_GROUPS`, ADR 0039), so the line is read in every language, English
+       * included — the API only ever sends the slug. A slug the catalogue does not know
+       * (an older agent's free text) is shown as it is.
+       */
+      industry: (slug: string) => (tc.has(`industries.${slug}`) ? tc(`industries.${slug}`) : slug),
       /** A template's example text for an industry; null keeps the API's. */
       example: (industry: string | null | undefined) => (!english && industry && tc.has(`examples.${industry}`) ? tc(`examples.${industry}`) : null),
       /** The server's sentence carries specifics (lengths, the missing message); other languages get the rule's own line. */

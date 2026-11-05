@@ -53,7 +53,10 @@
     "ai_disclosure": "if_asked",
     "goal": "Take reservation requests, answer questions about the menu, prices, hours and parking from what the restaurant has shared, and hand off large parties.",
     "agent_name": "Marie",
-    "never_do": "Never confirm availability as guaranteed — the restaurant confirms every booking."
+    "never_do": "Never confirm availability as guaranteed — the restaurant confirms every booking.",
+    "never_do_presets": [
+      "no_time_promises"
+    ]
   },
   "steps": [
     "Greet the caller and name the restaurant",

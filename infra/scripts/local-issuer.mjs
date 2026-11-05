@@ -74,6 +74,12 @@ createServer(async (req, res) => {
   if (url.pathname === '/.well-known/openid-configuration') return json(200, { issuer, jwks_uri: `${issuer}.well-known/jwks.json`, authorization_endpoint: `${issuer}authorize`, token_endpoint: `${issuer}oauth/token`, end_session_endpoint: `${issuer}v2/logout` });
   if (url.pathname === '/.well-known/jwks.json') return json(200, { keys: [jwk] });
   if (url.pathname === '/authorize') {
+    // A silent check (`prompt=none`, the SDK's iframe) finds no session here, as on the real
+    // tenant for a visitor who never signed in: the portal stays anonymous until a click.
+    // A signed-in browser keeps its session through the refresh grant below.
+    if (q.get('prompt') === 'none') {
+      res.writeHead(302, { location: `${q.get('redirect_uri')}?error=login_required&error_description=login_required&state=${encodeURIComponent(q.get('state') ?? '')}` }); return res.end();
+    }
     const code = randomBytes(16).toString('base64url');
     codes.set(code, { nonce: q.get('nonce'), challenge: q.get('code_challenge'), audience: q.get('audience'), clientId: q.get('client_id'), mfa: (q.get('acr_values') ?? '').includes('multi-factor'), screen: q.get('screen_hint') });
     console.log(`authorize screen=${q.get('screen_hint') ?? 'login'} mfa=${codes.get(code).mfa} redirect=${q.get('redirect_uri')}`);

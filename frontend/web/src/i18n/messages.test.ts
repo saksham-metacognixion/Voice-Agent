@@ -1,3 +1,4 @@
+import { INDUSTRIES, INDUSTRY_GROUPS, NEVER_DO_PRESETS } from '@portal/schemas';
 import { createTranslator } from 'next-intl';
 import { afterEach, describe, expect, it } from 'vitest';
 import { formatCreditsValue, formatPhone } from '../lib/format';
@@ -121,3 +122,23 @@ describe('formatting follows the portal language', () => {
     expect(formatCreditsValue(1234.5)).toMatch(/^1[,٬]?234[.٫]5$/);
   });
 });
+
+// ADR 0039: the industry catalogue and the never-do presets are ids on the wire; the
+// portal is the only place they are put into words, so every id needs a line everywhere.
+describe.each(LOCALES)('the %s catalogue names every W1 industry and W2 preset', (locale) => {
+  const lines = leaves(messages[locale] as unknown as Tree);
+  it('has a name for every industry and every industry group', () => {
+    expect(INDUSTRIES.filter((slug) => !lines.get(`wizard.w1.catalog.industries.${slug}`)?.trim())).toEqual([]);
+    expect(INDUSTRY_GROUPS.filter((g) => !lines.get(`wizard.w1.industryGroups.${g.key}`)?.trim()).map((g) => g.key)).toEqual([]);
+  });
+
+  it('has a checkbox label and a summary line for every preset', () => {
+    expect(NEVER_DO_PRESETS.filter((p) => !lines.get(`wizard.w2.fields.never_do.presets.${p}`)?.trim())).toEqual([]);
+    expect(NEVER_DO_PRESETS.filter((p) => !lines.get(`wizard.w2.card.derived.presets.${p}`)?.trim())).toEqual([]);
+  });
+
+  it('names the three generation stages', () => {
+    expect(['started', 'writing', 'done'].filter((k) => !lines.get(`wizard.w2.stage.${k}`)?.trim())).toEqual([]);
+  });
+});
+

@@ -12,7 +12,7 @@ import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { KnowledgeSources } from '@/src/components/wizard/knowledge-sources';
 import { MenuUpload } from '@/src/components/wizard/menu-upload';
 import { AgentContextBanner } from '@/src/components/wizard/template-context';
-import { WizardHeading } from '@/src/components/wizard/wizard-shell';
+import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { LiveGuard } from '@/src/guards/guards';
 import { routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
@@ -68,11 +68,6 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
             <AgentContextBanner agent={agent} className="mt-2" />
           </>
         }
-        aside={
-          <Button size="lg" onClick={() => void next()} loading={leaving} disabled={leaving} variant={locked ? 'outline' : 'primary'}>
-            {locked ? tk('skip') : tk('continue')} {leaving ? null : <ArrowRight />}
-          </Button>
-        }
       />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex flex-col gap-4">
@@ -91,6 +86,11 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
           <p>{t('dashboard.agents.knowledge.publishedHint')}</p>
         </aside>
       </div>
+      <WizardFooter>
+        <Button size="lg" onClick={() => void next()} loading={leaving} disabled={leaving} variant={locked ? 'outline' : 'primary'} data-testid="wizard-continue">
+          {locked ? tk('skip') : tk('continue')} {leaving ? null : <ArrowRight aria-hidden />}
+        </Button>
+      </WizardFooter>
     </>
   );
 }

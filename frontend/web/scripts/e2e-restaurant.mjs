@@ -51,11 +51,11 @@ const clickText = (text, tag = 'button') => b.evaluate(`(() => { const els = [..
 const bodyText = () => b.evaluate('document.body.innerText');
 const has = (selector) => b.evaluate(`document.querySelector(${JSON.stringify(selector)}) !== null`);
 const pressTab = (label) => b.evaluate(`(() => { const el = [...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.trim() === ${JSON.stringify(label)}); if (!el) return 'missing'; el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 })); el.click(); return 'ok'; })()`);
-/** Radix Select: open on pointerdown, choose on pointerup. */
+/** The W1 combobox (ADR 0039): open, search, pick the option by its label. */
 async function selectIndustry(value) {
-  await b.evaluate(`document.querySelector('#industry').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerId: 1, pointerType: 'mouse' }))`);
+  await b.evaluate(`document.querySelector('#industry').click()`);
   await waitFor(`document.querySelectorAll('[role="option"]').length > 0`, 5000);
-  const r = await b.evaluate(`(() => { const o = [...document.querySelectorAll('[role="option"]')].find(o => o.textContent.trim().toLowerCase() === ${JSON.stringify(value.toLowerCase())}); if (!o) return 'missing'; o.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, pointerId: 1, pointerType: 'mouse' })); o.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0, pointerId: 1, pointerType: 'mouse' })); o.click(); return 'ok'; })()`);
+  const r = await b.evaluate(`(() => { const o = [...document.querySelectorAll('[role="option"]')].find(o => o.textContent.trim().toLowerCase() === ${JSON.stringify(value.toLowerCase())}); if (!o) return 'missing'; o.click(); return 'ok'; })()`);
   await sleep(400);
   return r;
 }
@@ -82,6 +82,10 @@ async function draftOf(agentId) { const r = await apiCall('GET', `/agents/${agen
 async function generate(label, agentId) {
   const before = agentId ? ((await draftOf(agentId))?.version_no ?? 0) : 0;
   await clickText(label);
+  // Regenerate asks first (§8 W2): confirm in the dialog.
+  if (label === 'Regenerate' && (await waitFor(`document.querySelector('[role="dialog"]') !== null`, 3000, 100))) {
+    await b.evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(b => b.textContent.trim() === 'Regenerate')?.click()`);
+  }
   const started = await waitFor(`document.body.innerText.includes('Writing your agent') || document.body.innerText.includes('Preparing') || document.body.innerText.includes('Queued')`, 15000, 100);
   const t0 = Date.now();
   while (Date.now() - t0 < 150000) {

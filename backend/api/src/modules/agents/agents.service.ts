@@ -27,6 +27,7 @@ import {
   handoffRule as handoffRuleSchema,
   briefCard as briefCardSchema,
   copyAgentName,
+  defaultAgentLanguage,
   defaultAgentSettings,
   lintResult as lintResultSchema,
   scenario as scenarioSchema,
@@ -106,7 +107,7 @@ export class AgentsService {
     const caps = await this.config.capsFor(ctx.workspaceId);
 
     const prefill = briefSchema.parse(template.brief_prefill);
-    const settings = await this.newAgentSettings(ctx, template.default_tier);
+    const settings = await this.newAgentSettings(ctx, template.default_tier, input.primary_language);
     const name = input.name?.trim() || template.name;
 
     const agentId = await withWorkspace(ctx, async (db) => {
@@ -841,18 +842,25 @@ export class AgentsService {
    * defaults — recording, and PII removal when the plan includes it (QA-081). Read
    * before the create transaction opens, like the template.
    */
-  private async newAgentSettings(ctx: WorkspaceContext, tier: AgentSettings['tier']): Promise<AgentSettings> {
-    const [flags, privacy] = await Promise.all([
+  /**
+   * A new agent's draft settings: the template's tier, the workspace's privacy defaults,
+   * and the main language from the workspace country (W3 "default: from workspace
+   * country", `defaultAgentLanguage`) unless W1 sent one it knows better.
+   */
+  private async newAgentSettings(ctx: WorkspaceContext, tier: AgentSettings['tier'], primaryLanguage?: AgentSettings['primary_language']): Promise<AgentSettings> {
+    const [flags, tenant] = await Promise.all([
       this.config.flagsFor(ctx.workspaceId),
       withWorkspace(ctx, (db) =>
         db.tenant.findUniqueOrThrow({
           where: { id: ctx.workspaceId },
-          select: { recordingDefault: true, piiRemovalDefault: true },
+          select: { recordingDefault: true, piiRemovalDefault: true, country: true },
         }),
       ),
     ]);
+    const privacy = tenant;
     return {
       ...defaultAgentSettings(tier),
+      primary_language: primaryLanguage ?? defaultAgentLanguage(tenant.country),
       recording_enabled: privacy.recordingDefault,
       pii_removal: privacy.piiRemovalDefault && flags.gates.pii_removal === true,
     };

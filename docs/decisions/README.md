@@ -46,6 +46,7 @@ reasoning per subsystem. Where it and an ADR disagree, the ADR wins.
 | [0036](0036-sign-in-session-and-money-protection.md) | Sign-in, sessions, MFA and money protection (§6.2, §6.3, §17) | accepted |
 | [0037](0037-p0-close-incall-model-and-call-cost.md) | P0 close: Standard-tier in-call model is GPT-4.1 mini (§20 #3), a real call priced against the pricing page | accepted |
 | [0038](0038-prompt-system-gaps-variables-lint-stack-costs.md) | Prompt-system gaps: every §9.7 variable on every channel, the transfer-tool and Arabic checks, stack v2, itemised cost inputs, the generation target | accepted (owner sign-off pending on two calls) |
+| [0039](0039-wizard-w1-w3-close.md) | The W1–W3 wizard close: Save and exit as the §6.4 dismissal, the footer, the industry catalogue, the brief's presets and services free text, FAQ routing, the country default and the automatic voice | accepted (owner sign-off pending on three calls) |
 
 Template:
 

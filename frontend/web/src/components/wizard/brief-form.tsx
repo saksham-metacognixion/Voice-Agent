@@ -7,7 +7,8 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { Controller, type UseFormReturn } from 'react-hook-form';
 import { BriefDocuments } from '@/src/components/wizard/brief-documents';
-import { FaqEditor, HandoffRulesEditor, PersonalityEditor } from '@/src/components/wizard/brief-editors';
+import { FaqEditor, HandoffRulesEditor, NeverDoPresets, PersonalityEditor } from '@/src/components/wizard/brief-editors';
+import { FaqRouting } from '@/src/components/wizard/faq-routing';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
 import { errorMessage } from '@/src/lib/errors';
 import type { BriefPlaceholders } from '@/src/components/wizard/template-context';
@@ -63,6 +64,10 @@ export function BriefFields({ form, busy, fieldErrors, placeholders = {}, agentI
         <Field id="services" label={tf('services.label')} description={tf('services.hint')} error={msg('services')}>
           <Controller control={form.control} name="services" render={({ field }) => <TagInput id="services" value={field.value} onChange={field.onChange} max={30} maxLength={60} disabled={busy} placeholder={ph('services')} removeLabel={t('common.remove')} />} />
         </Field>
+        {/* #5 "tag list (chips) + free text": the sentence the chips cannot carry. */}
+        <Field id="services_notes" label={tf('services_notes.label')} description={tf('services_notes.hint')} addon={<Counter value={values.services_notes} max={500} />} error={msg('services_notes')}>
+          <Textarea id="services_notes" rows={2} maxLength={500} disabled={busy} placeholder={tf('services_notes.placeholder')} {...form.register('services_notes', { setValueAs: (v: string) => (v?.trim() ? v : undefined) })} />
+        </Field>
         <Field id="pricing" label={tf('pricing.label')} description={tf('pricing.hint')} addon={<Counter value={values.pricing} max={500} />} error={msg('pricing')}>
           <Textarea id="pricing" rows={2} maxLength={500} disabled={busy} placeholder={ph('pricing')} {...form.register('pricing', { setValueAs: (v: string) => (v?.trim() ? v : undefined) })} />
         </Field>
@@ -70,7 +75,13 @@ export function BriefFields({ form, busy, fieldErrors, placeholders = {}, agentI
           <Controller
             control={form.control}
             name="faqs"
-            render={({ field }) => <FaqEditor value={field.value} onChange={field.onChange} disabled={busy} errors={(err.faqs as Array<{ question?: { message?: string }; answer?: { message?: string } }> | undefined)?.map((e) => (e ? { question: e.question?.message, answer: e.answer?.message } : undefined))} />}
+            render={({ field }) => (
+              <div className="flex flex-col gap-3">
+                <FaqEditor value={field.value} onChange={field.onChange} disabled={busy} errors={(err.faqs as Array<{ question?: { message?: string }; answer?: { message?: string } }> | undefined)?.map((e) => (e ? { question: e.question?.message, answer: e.answer?.message } : undefined))} />
+                {/* #7: into the script on every plan; from the pack with a knowledge library, optionally moved there. */}
+                <FaqRouting agentId={agentId} faqs={field.value} disabled={busy} onMoved={() => field.onChange([])} />
+              </div>
+            )}
           />
         </Field>
         <Field id="anything_else" label={tf('anything_else.label')} description={tf('anything_else.hint')} addon={<Counter value={values.anything_else} max={800} />} error={msg('anything_else')}>
@@ -79,8 +90,11 @@ export function BriefFields({ form, busy, fieldErrors, placeholders = {}, agentI
       </Section>
 
       <Section title={tw('sections.rules')}>
-        <Field id="never_do" label={tf('never_do.label')} description={tf('never_do.hint')} addon={<Counter value={values.never_do} max={500} />} error={msg('never_do')}>
-          <Textarea id="never_do" rows={3} maxLength={500} disabled={busy} placeholder={tf('never_do.placeholder')} {...form.register('never_do', { setValueAs: (v: string) => (v?.trim() ? v : undefined) })} />
+        <Field id="never_do" label={tf('never_do.label')} description={tf('never_do.hint')} addon={<Counter value={values.never_do} max={500} />} error={msg('never_do') ?? msg('never_do_presets')}>
+          <div className="flex flex-col gap-3">
+            <Controller control={form.control} name="never_do_presets" render={({ field }) => <NeverDoPresets value={field.value ?? []} onChange={field.onChange} disabled={busy} />} />
+            <Textarea id="never_do" rows={3} maxLength={500} disabled={busy} placeholder={tf('never_do.placeholder')} {...form.register('never_do', { setValueAs: (v: string) => (v?.trim() ? v : undefined) })} />
+          </div>
         </Field>
         <Field label={tf('handoff_rules.label')} description={tf('handoff_rules.hint')} error={msg('handoff_rules')}>
           <Controller

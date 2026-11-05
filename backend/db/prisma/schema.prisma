@@ -423,6 +423,8 @@ model Tenant {
   autoTopupJson         Json?     @map("auto_topup_json")
   onboardingStep        Int       @default(1) @map("onboarding_step")
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  /// §6.4 "Save and exit": the dashboard opens with a "Finish setup" card from here on (ADR 0039).
+  onboardingDismissedAt DateTime? @map("onboarding_dismissed_at")
   pausedAt              DateTime? @map("paused_at")
   /// admin §8 — set when staff pause the workspace, surfaced in the D1 banner.
   pausedReason          String?   @map("paused_reason")

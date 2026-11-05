@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { VoiceSettings, type VoiceSettingsState } from '@/src/components/wizard/voice-settings';
-import { WizardHeading } from '@/src/components/wizard/wizard-shell';
+import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
@@ -67,16 +67,14 @@ function VoiceInner({ agent }: { agent: AgentDetail }) {
 
   return (
     <>
-      <WizardHeading
-        title={tw('title')}
-        subtitle={tw('subtitle')}
-        aside={
-          <Button size="lg" onClick={() => void next()} disabled={!state.voiceId || state.saving} loading={state.saving}>
-            {state.saving ? tw('saving') : tw('continue')} {state.saving ? null : <ArrowRight />}
-          </Button>
-        }
-      />
+      <WizardHeading title={tw('title')} subtitle={tw('subtitle')} />
       <VoiceSettings agent={agent} onStateChange={setState} />
+      {/* §7.3: Back to the brief, Continue bottom right; it waits for a voice and for the pending save (QA-007). */}
+      <WizardFooter backHref={routes.onboarding.brief} note={state.voiceId ? undefined : tw('noneSelected')}>
+        <Button size="lg" onClick={() => void next()} disabled={!state.voiceId || state.saving} loading={state.saving} data-testid="wizard-continue">
+          {state.saving ? tw('saving') : tw('continue')} {state.saving ? null : <ArrowRight aria-hidden />}
+        </Button>
+      </WizardFooter>
     </>
   );
 }

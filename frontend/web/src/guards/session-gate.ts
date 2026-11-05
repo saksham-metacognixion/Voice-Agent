@@ -1,3 +1,4 @@
+import type { WorkspaceResponse } from '@portal/schemas';
 import { useAuth } from '../auth/auth-provider';
 import { useWorkspace } from '../workspace/workspace-provider';
 import { LAST_IMPLEMENTED_STEP, routes, stepPath, withNext } from '../routes';
@@ -10,7 +11,7 @@ import { LAST_IMPLEMENTED_STEP, routes, stepPath, withNext } from '../routes';
  *   email not confirmed  → /verify-email
  *   no workspace         → /setup/workspace
  *   several, none chosen → /select-workspace
- *   onboarding_step ≤ N  → /onboarding/<step>   (N = last implemented step)
+ *   onboarding_step ≤ N  → /onboarding/<step>   (N = last implemented step; unless dismissed)
  *   otherwise            → /app
  *
  * `null` means "still resolving" and the caller shows a loader — never protected content.
@@ -24,7 +25,7 @@ export interface GateResult {
   onboardingStep: number | null;
   /** `tenants.onboarding_completed_at` is set: the wizard is over. */
   onboardingComplete: boolean;
-  /** The dashboard may be shown: onboarding is complete, or past the last implemented step. */
+  /** The dashboard may be shown: onboarding is complete, dismissed ("Save and exit"), or past the last implemented step. */
   dashboardAllowed: boolean;
   /** The workspace row is being re-read; a redirect decided now could be on stale data. */
   settling: boolean;
@@ -54,15 +55,25 @@ export function useSessionGate(currentPath: string): GateResult {
   if (ws.workspaceStatus === 'loading' || ws.workspaceStatus === 'idle') return { ready: false, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false };
   if (ws.workspaceStatus === 'error' || !ws.workspace) return { ready: true, destination: null, onboardingStep: null, onboardingComplete: false, dashboardAllowed: false, settling: false, failed: 'workspace' };
 
-  const step = ws.workspace.onboarding_step;
-  const complete = Boolean(ws.workspace.onboarding_completed_at);
-  const dashboardAllowed = complete || step > LAST_IMPLEMENTED_STEP;
+  return { ...onboardingGate(ws.workspace), settling: ws.workspaceFetching };
+}
+
+/**
+ * The workspace half of the gate, pure. §6.4: the wizard is the destination only while
+ * the agent is not live **and onboarding is not dismissed**; after "Save and exit" the
+ * dashboard opens with its "Continue setup" band (ADR 0039). Every reached step stays
+ * open either way — that is `OnboardingStepGuard`'s, not this.
+ */
+export function onboardingGate(workspace: Pick<WorkspaceResponse, 'onboarding_step' | 'onboarding_completed_at' | 'onboarding_dismissed_at'>): Omit<GateResult, 'settling'> {
+  const step = workspace.onboarding_step;
+  const complete = Boolean(workspace.onboarding_completed_at);
+  const dismissed = Boolean(workspace.onboarding_dismissed_at);
+  const dashboardAllowed = complete || dismissed || step > LAST_IMPLEMENTED_STEP;
   return {
     ready: true,
     destination: dashboardAllowed ? routes.app.home : stepPath(step),
     onboardingStep: step,
     onboardingComplete: complete,
     dashboardAllowed,
-    settling: ws.workspaceFetching,
   };
 }

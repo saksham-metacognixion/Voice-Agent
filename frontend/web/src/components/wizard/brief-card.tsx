@@ -77,8 +77,8 @@ function derive(brief: Brief, t: Translate): BriefCardShape {
   }
   if (brief.faqs.length > 0) does.push(t('faqs', { n: brief.faqs.length }));
   if (brief.pricing?.trim()) does.push(t('quoteListed'));
-  const doesnt = sentences(brief.never_do, 4);
-  if (!brief.pricing?.trim()) doesnt.push(t('quotePrices'));
+  const doesnt = [...(brief.never_do_presets ?? []).map((preset) => t(`presets.${preset}`)), ...sentences(brief.never_do, 4)];
+  if (!brief.pricing?.trim() && !brief.never_do_presets?.includes('no_prices')) doesnt.push(t('quotePrices'));
   doesnt.push(t('notHuman'));
   const handoff = brief.handoff_rules
     .filter((r) => r.condition.trim())

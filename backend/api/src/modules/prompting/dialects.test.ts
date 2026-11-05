@@ -36,7 +36,7 @@ describe('dialectSection', () => {
 
   it('reaches the feedback turn too', () => {
     const turn = buildFeedbackPrompt({
-      brief: { services: [], faqs: [], handoff_rules: [], ai_disclosure: 'if_asked', documents: [] },
+      brief: { services: [], faqs: [], never_do_presets: [], handoff_rules: [], ai_disclosure: 'if_asked', documents: [] },
       prompt: 'You are Sara.',
       greeting: null,
       feedback: 'Be warmer.',

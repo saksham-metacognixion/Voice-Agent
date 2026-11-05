@@ -13,8 +13,10 @@ import { VoicePicker, type VoiceFilters } from '@/src/components/wizard/voice-pi
 import { errorMessage } from '@/src/lib/errors';
 import { useBeforeUnload } from '@/src/lib/use-before-unload';
 import { useDebouncedCallback } from '@/src/lib/use-debounced';
+import { useWizardExit } from '@/src/components/wizard/wizard-exit';
 import { languageName, type LanguageChoice } from '@/src/wizard/languages';
 import { scriptNeedsRewrite } from '@/src/wizard/script-language';
+import { pickNativeVoice } from '@/src/wizard/voice-pick';
 import { useGeneration } from '@/src/wizard/use-generation';
 
 export interface VoiceSettingsState {
@@ -59,7 +61,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
   const [voiceId, setVoiceId] = React.useState<string | null>(settings?.voice_id ?? null);
   const [speed, setSpeed] = React.useState<number>(settings?.voice_speed ?? 1);
   const [temperature, setTemperature] = React.useState<number>(settings?.voice_temperature ?? 0.5);
-  const [filters, setFilters] = React.useState<VoiceFilters>({ gender: '', tier: '', native: false, q: '' });
+  const [filters, setFilters] = React.useState<VoiceFilters>({ gender: '', tier: '', accent: '', native: false, q: '' });
   const [q, setQ] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -125,6 +127,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
 
   /** Main language and "also speaks" move together, in one save (QA-011). */
   function onLanguageChange(next: LanguageChoice) {
+    if (next.primary_language !== primary) pickFor.current = next.primary_language;
     setPrimary(next.primary_language);
     setLanguages(next.languages);
     track('language_selected', { agent_id: agent.id, primary: next.primary_language, extra: next.languages.length });
@@ -155,7 +158,38 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
     saveTuning.call(s, temp);
   };
   useBeforeUnload(busy, saveTuning.flush);
+  // "Save and exit" (W3 only; the D3 tab has no shell): send the pending dial save first.
+  useWizardExit(
+    onStateChange
+      ? async () => {
+          saveTuning.flush();
+          // The flushed save is in `patch`; wait for it to settle before the dashboard opens.
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+          while (inFlight.current > 0) await new Promise<void>((resolve) => setTimeout(resolve, 50));
+          if (error) throw new Error(error);
+        }
+      : null,
+    busy,
+  );
   const locked = Boolean(disabled) || saving || generation.active;
+
+  // §8 W3 "if selected voice unsupported → auto-pick default and toast", and a draft with
+  // no voice yet gets the first that sounds native in the main language. Only after a
+  // language change made here, or on a draft that has none: a voice someone chose and
+  // saved is never swapped behind their back when the page is merely reopened.
+  const pickFor = React.useRef<AgentLanguage | null>(settings?.voice_id ? null : primary);
+  React.useEffect(() => {
+    const items = voices.data?.items;
+    if (!items || voices.isPending || pickFor.current !== primary || filters.gender || filters.tier || filters.accent || filters.native || q) return;
+    pickFor.current = null;
+    const candidate = pickNativeVoice(items, voiceId, settings?.tier ?? 'standard');
+    if (!candidate) return;
+    setVoiceId(candidate.id);
+    setRemembered(candidate);
+    track('voice_auto_selected', { agent_id: agent.id, voice_id: candidate.id, primary, replaced: voiceId !== null });
+    toast.info(voiceId ? tw('autoPickedReplaced', { voice: candidate.name, language: languageName(primary) }) : tw('autoPicked', { voice: candidate.name, language: languageName(primary) }));
+    void save({ voice_id: candidate.id, tier: candidate.tier }).catch(() => setVoiceId(voiceId));
+  }, [voices.data, voices.isPending, primary]);
   // The draft's own language, not the picker's: the rewrite reads what was saved.
   const draftLanguage = agent.draft?.settings.primary_language ?? primary;
   const rewrite =
@@ -223,7 +257,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
           <CardContent className="flex flex-col gap-5">
             <p className="text-xs text-muted-foreground">{tw('advancedHint')}</p>
             <p className="text-xs text-muted-foreground">{tw('sampleHint')}</p>
-            <Field label={tw('speed')} addon={`${speed.toFixed(2)}×`}>
+            <Field label={tw('speed')} addon={<span data-testid="speed-value">{`${speed.toFixed(2)}×`}</span>} description={tw('speedHint')}>
               <Slider
                 value={[Math.round(speed * 100)]}
                 min={80}
@@ -231,6 +265,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
                 step={5}
                 disabled={!voiceId || Boolean(disabled)}
                 aria-label={tw('speed')}
+                data-testid="speed-slider"
                 onValueChange={([v]) => {
                   const s = (v ?? 100) / 100;
                   setSpeed(s);
@@ -238,7 +273,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
                 }}
               />
             </Field>
-            <Field label={tw('temperature')} addon={temperature.toFixed(2)} description={tw('temperatureHint')}>
+            <Field label={tw('temperature')} addon={<span data-testid="temperature-value">{temperature.toFixed(2)}</span>} description={tw('temperatureHint')}>
               <Slider
                 value={[Math.round(temperature * 100)]}
                 min={0}
@@ -246,6 +281,7 @@ export function VoiceSettings({ agent, disabled, onStateChange }: { agent: Agent
                 step={5}
                 disabled={!voiceId || Boolean(disabled)}
                 aria-label={tw('temperature')}
+                data-testid="temperature-slider"
                 onValueChange={([v]) => {
                   const temp = (v ?? 50) / 100;
                   setTemperature(temp);

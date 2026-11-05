@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { choosePrimary, sortedLanguages } from './languages';
+import { choosePrimary, sortedLanguages, startingLanguage } from './languages';
 
 describe('choosePrimary (QA-011)', () => {
   it('moves an "also speaks" language to main in one change', () => {
@@ -30,5 +30,22 @@ describe('sortedLanguages (ADR 0027)', () => {
     const fr = sortedLanguages('fr-CA');
     expect(fr.slice(0, 3)).toEqual(['fr-CA', 'fr-FR', 'en-US']);
     expect(new Set(fr).size).toBe(fr.length);
+  });
+});
+
+describe('startingLanguage', () => {
+  it('follows the workspace country', () => {
+    expect(startingLanguage('US', 'en')).toBe('en-US');
+    expect(startingLanguage('SA', 'en')).toBe('ar-SA');
+    expect(startingLanguage('ae', 'ar')).toBe('ar-AE');
+    expect(startingLanguage('XX', 'en')).toBe('en-US');
+    expect(startingLanguage(null, 'fr-CA')).toBe('en-US');
+  });
+
+  it('starts a Canadian business on fr-CA only when the portal is in French', () => {
+    expect(startingLanguage('CA', 'en')).toBe('en-US');
+    expect(startingLanguage('CA', 'ar')).toBe('en-US');
+    expect(startingLanguage('CA', 'fr-CA')).toBe('fr-CA');
+    expect(startingLanguage('US', 'fr-CA')).toBe('en-US');
   });
 });

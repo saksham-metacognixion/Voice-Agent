@@ -51,6 +51,7 @@ export type AnalyticsEvent =
   | 'invite_accepted'
   | 'onboarding_step_viewed'
   | 'onboarding_step_completed'
+  | 'onboarding_exited'
   | 'template_selected'
   | 'template_sample_played'
   | 'brief_field_saved'
@@ -61,6 +62,8 @@ export type AnalyticsEvent =
   | 'generation_failed'
   | 'script_editor_opened'
   | 'voice_selected'
+  | 'voice_auto_selected'
+  | 'faq_moved_to_knowledge'
   | 'language_selected'
   | 'script_rewrite_clicked'
   // The portal's own language (en / ar), not the agent's.

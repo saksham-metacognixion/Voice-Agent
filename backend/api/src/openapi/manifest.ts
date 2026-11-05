@@ -225,6 +225,18 @@ export const MANIFEST: readonly EndpointSpec[] = [
     errors: ['VALIDATION_FAILED'],
   },
   {
+    method: 'POST',
+    path: '/workspace/onboarding-dismiss',
+    operationId: 'dismissOnboarding',
+    summary: 'Save and exit the wizard: open the dashboard with a "Finish setup" card (§6.4 dismissal)',
+    tag: 'workspaces',
+    spec: '§7.3',
+    body: 'dismissOnboardingRequest',
+    response: { schema: 'workspaceResponse' },
+    roles: ['owner', 'admin', 'editor'],
+    errors: ['VALIDATION_FAILED'],
+  },
+  {
     method: 'GET',
     path: '/workspace/checklist',
     operationId: 'getWorkspaceChecklist',
