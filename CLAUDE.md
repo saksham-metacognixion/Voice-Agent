@@ -1078,8 +1078,10 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `modules/calls/call-headroom.ts`): the browser test, "Call my phone", the forwarding
   test and the widget write a `mint:<uuid>` placeholder through `reserveActive()` (the
   inbound path's `RESERVE_SCRIPT`, the one writer of a reservation ahead of
-  `call_started`), move it to the call id with `HSETNX` once minted, and free it on a
-  refusal. A lost race is the ordinary `CONCURRENCY_LIMIT` / `NO_CREDITS`
+  `call_started`), move it to the call id once minted (`bindActive()`, one Lua script:
+  `HSETNX` + `HDEL` — as two commands the hash held the placeholder and the call for a
+  round trip, and a reservation landing there counted one call as two lines, 6 Nov), and
+  free it on a refusal. A lost race is the ordinary `CONCURRENCY_LIMIT` / `NO_CREDITS`
   (`WIDGET_UNAVAILABLE` on the widget), with nothing minted. A self-minted call's ceiling
   is the balance alone; inbound passes balance + grace. The §13.4 10/h window
   (`assertUnderTestWindow` / `countTestCall`) is shared by all three test mints. CloudFront's `/embed/*` behaviour is

@@ -60,3 +60,37 @@ describe('MintSlot', () => {
     expect(await redis.hgetall(redisKeys.activeCalls('ws1'))).toEqual({ call_2: '0.50|1' });
   });
 });
+
+describe('MintSlot.bind with Lua (CI, 6 Nov: the two-line race)', () => {
+  const input = { workspaceId: 'ws1', maxMs: 120_000, rate: 1, cap: 2, balance: 10 };
+  const log = new Logger('test');
+
+  it('moves the placeholder to the call id in one script, so no reader ever counts both', async () => {
+    const inner = new InMemoryRedis();
+    const scripts: { script: string; args: (string | number)[] }[] = [];
+    // A Redis with Lua: the script is recorded, its two commands applied together.
+    const redis = Object.assign(inner, {
+      eval: async (script: string, _numKeys: number, ...args: (string | number)[]) => {
+        scripts.push({ script, args });
+        const [key, a, b, c] = args.map(String) as [string, string, string, string];
+        if (script.includes('HSETNX')) {
+          await inner.hsetnx(key, a, b);
+          await inner.hdel(key, c);
+          return 'ok';
+        }
+        await inner.hset(key, a, `${b}|${c}`);
+        return 'ok';
+      },
+    });
+    const slot = await MintSlot.take(redis, log, input);
+    const [placeholder] = Object.keys(await inner.hgetall(redisKeys.activeCalls('ws1')));
+    expect(placeholder).toMatch(/^mint:/);
+
+    await slot.bind('call_9');
+    const bind = scripts.at(-1)!;
+    expect(bind.script).toContain('HSETNX');
+    expect(bind.script).toContain('HDEL');
+    expect(bind.args).toEqual([redisKeys.activeCalls('ws1'), 'call_9', expect.stringMatching(/^2\.00\|\d+$/), placeholder]);
+    expect(Object.keys(await inner.hgetall(redisKeys.activeCalls('ws1')))).toEqual(['call_9']);
+  });
+});

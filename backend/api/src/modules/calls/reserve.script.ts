@@ -111,3 +111,28 @@ export async function reserveActive(redis: RedisLike, workspaceId: string, r: Ac
   );
   return isReserveResult(result) ? result : 'ok';
 }
+
+/**
+ * Moves a placeholder's line to the call the platform minted, as one script. Done as two
+ * commands — HSETNX then HDEL — the hash holds both fields for a round trip, and a
+ * reservation landing in that gap counts one call twice: on a two-line plan the second
+ * press of a callback race was refused `cap` instead of reaching the claim that answers
+ * `OUTBOUND_IN_PROGRESS` (CI, 6 Nov). HSETNX because `call_started` may have reserved the
+ * call already; a field already there is never overwritten.
+ */
+export const BIND_SCRIPT = `
+redis.call('HSETNX', KEYS[1], ARGV[1], ARGV[2])
+redis.call('HDEL', KEYS[1], ARGV[3])
+return 'ok'
+`;
+
+export async function bindActive(redis: RedisLike, workspaceId: string, input: { placeholder: string; callId: string; credits: number; expiresAt: number }): Promise<void> {
+  const key = redisKeys.activeCalls(workspaceId);
+  const value = encodeActive(input.credits, input.expiresAt);
+  if (typeof redis.eval !== 'function') {
+    await redis.hsetnx(key, input.callId, value);
+    await redis.hdel(key, input.placeholder);
+    return;
+  }
+  await redis.eval(BIND_SCRIPT, 1, key, input.callId, value, input.placeholder);
+}

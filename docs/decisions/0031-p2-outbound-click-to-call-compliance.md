@@ -215,6 +215,17 @@ repeated; it says nothing about two presses, nor about the same caller's other D
   never appeared counts only inside that window. `call-recovery` settles a row the platform
   stopped reporting, so a stuck "live" call frees the person within its windows.
 
+## Addendum — 6 Nov 2026: the slot move is one script
+
+CI failed the two-tab case above once with `CONCURRENCY_LIMIT` where `OUTBOUND_IN_PROGRESS`
+was expected. `MintSlot.bind` moved the placeholder to the call id as two commands, `HSETNX`
+then `HDEL`, so for one round trip `active:{ws}` held both fields for one call. On Starter's
+two lines, the second press's `reserveActive()` landing in that gap counted two live calls
+and was refused `cap` before it reached the claim that answers `ringing`. The move is now
+`bindActive()` in `reserve.script.ts`, one Lua script (the in-memory fake keeps the two
+commands, exact for one process), so no reader — the script, `headroom()`, the
+concurrency monitor — ever sees a call twice. Nothing about the gates changed.
+
 ## Addendum — 30 Oct 2026: QA-084 to QA-088
 
 Five findings from the first review of the D2 panel and the D6 tab against the gate:

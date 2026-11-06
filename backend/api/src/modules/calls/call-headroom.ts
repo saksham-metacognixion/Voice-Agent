@@ -4,8 +4,8 @@ import { AppError } from '../../common/errors/app-error';
 import { type RedisCache, type RedisLike, redisKeys } from '../redis';
 import { clampDuration } from '../retell';
 import { roundCredits } from '../wallet/fifo';
-import { ACTIVE_SLACK_MS, RETELL_MAX_CALL_MS, encodeActive, parseActiveHash } from './inbound.decide';
-import { type ReserveResult, reserveActive } from './reserve.script';
+import { ACTIVE_SLACK_MS, RETELL_MAX_CALL_MS, parseActiveHash } from './inbound.decide';
+import { type ReserveResult, bindActive, reserveActive } from './reserve.script';
 
 /**
  * The ADR 0011 §1 sizing and slot for a call we mint ourselves — the browser test, "Call
@@ -156,13 +156,14 @@ export class MintSlot {
     return new MintSlot(redis, log, input.workspaceId, placeholder, credits, input.maxMs, result);
   }
 
-  /** The platform minted `callId`: the slot is the call's for as long as it may run. */
+  /**
+   * The platform minted `callId`: the slot is the call's for as long as it may run. One
+   * script, so no reservation ever counts the placeholder and the call as two lines.
+   */
   async bind(callId: string): Promise<void> {
     if (this.result !== 'ok') return;
-    const key = redisKeys.activeCalls(this.workspaceId);
     try {
-      await this.redis.hsetnx(key, callId, encodeActive(this.credits, Date.now() + this.maxMs + ACTIVE_SLACK_MS));
-      await this.redis.hdel(key, this.placeholder);
+      await bindActive(this.redis, this.workspaceId, { placeholder: this.placeholder, callId, credits: this.credits, expiresAt: Date.now() + this.maxMs + ACTIVE_SLACK_MS });
     } catch (error) {
       // The placeholder holds the line until MINT_HOLD_MS, and `call_started` reserves the call.
       this.log.warn(`active:{${this.workspaceId}}: slot not moved to ${callId} (${error instanceof Error ? error.message : String(error)})`);
