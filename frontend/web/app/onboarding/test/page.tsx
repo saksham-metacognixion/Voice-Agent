@@ -1,7 +1,7 @@
 'use client';
 
 import type { AgentDetail } from '@portal/schemas';
-import { Button, Checkbox } from '@portal/ui';
+import { Alert, Button, Checkbox } from '@portal/ui';
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -14,7 +14,9 @@ import { ImprovePanel } from '@/src/components/wizard/improve-panel';
 import { TestCallPanel } from '@/src/components/wizard/test-call-panel';
 import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
+import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
+import { guardNavigation } from '@/src/wizard/leave-call';
 import { useAdvanceOnboarding } from '@/src/wizard/use-onboarding-agent';
 
 /**
@@ -37,12 +39,14 @@ export default function TestPage() {
 
 function TestInner({ agent }: { agent: AgentDetail }) {
   const tw = useTranslations('wizard.w5');
+  const t = useTranslations();
   const router = useRouter();
   const advance = useAdvanceOnboarding();
   const [lastCallId, setLastCallId] = React.useState<string | null>(null);
   const [leaving, setLeaving] = React.useState(false);
   const [happy, setHappy] = React.useState(false);
   const [skipOpen, setSkipOpen] = React.useState(false);
+  const [stepError, setStepError] = React.useState<string | null>(null);
   const calls = React.useRef(new Set<string>());
 
   const onEnded = React.useCallback((callId: string) => {
@@ -50,12 +54,21 @@ function TestInner({ agent }: { agent: AgentDetail }) {
     setLastCallId(callId);
   }, []);
 
+  // §12.3: a Continue pressed mid-call asks "End your test call?" first; §12.2: the step
+  // moves only once the write answered, else the error shows and Continue retries (Z-61).
   async function next(how: 'happy' | 'skipped') {
     if (leaving) return;
+    setStepError(null);
     setLeaving(true);
     track(how === 'happy' ? 'w5_happy' : 'w5_skipped', { agent_id: agent.id, test_calls: calls.current.size });
-    await advance(6, 'test');
-    router.push(routes.onboarding.phone);
+    try {
+      await advance(6, 'test');
+    } catch (e) {
+      setStepError(errorMessage(e, t));
+      setLeaving(false);
+      return;
+    }
+    if (!guardNavigation(() => router.push(routes.onboarding.phone))) setLeaving(false);
   }
 
   return (
@@ -72,13 +85,18 @@ function TestInner({ agent }: { agent: AgentDetail }) {
       />
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <div className="flex flex-col gap-6">
-          <TestCallPanel agent={agent} onEnded={onEnded} />
+          <TestCallPanel agent={agent} onEnded={onEnded} outOfCredits={{ href: routes.onboarding.phone, label: tw('call.activateCta') }} />
           {lastCallId ? <AfterCallCard key={lastCallId} callId={lastCallId} agent={agent} /> : null}
         </div>
         <div className="flex flex-col gap-6 lg:sticky lg:top-24 lg:self-start">
           <ImprovePanel agent={agent} />
         </div>
       </div>
+      {stepError ? (
+        <Alert variant="danger" title={t('wizard.stepSaveFailed')} className="mt-6" data-testid="step-save-error">
+          {stepError}
+        </Alert>
+      ) : null}
       {/* §7.3 + §8 W5: the happiness checkbox is the soft gate on Continue; "Skip testing" sits beside it. */}
       <WizardFooter backHref={routes.onboarding.voice} note={happy ? undefined : <span id="w5-happy-hint">{tw('happyHint')}</span>}>
         <label htmlFor="w5-happy" className="flex items-center gap-2 text-sm font-medium">
@@ -90,7 +108,7 @@ function TestInner({ agent }: { agent: AgentDetail }) {
           {tw('skip')}
         </Button>
         <Button size="lg" onClick={() => void next('happy')} loading={leaving} disabled={leaving || !happy} aria-describedby={happy ? undefined : 'w5-happy-hint'} data-testid="wizard-continue">
-          {tw('continue')} {leaving ? null : <ArrowRight aria-hidden />}
+          {stepError ? t('common.retry') : tw('continue')} {leaving ? null : <ArrowRight aria-hidden />}
         </Button>
       </WizardFooter>
     </>

@@ -24,6 +24,7 @@ export function ProvisioningProgress({
   retrying,
   retryError,
   onChangeNumber,
+  support,
 }: {
   view: ActivationView | null;
   stream: StreamState;
@@ -34,6 +35,8 @@ export function ProvisioningProgress({
   retryError?: string | null;
   /** Back to W6. Offered when the number step failed: its fix is usually a different choice there. */
   onChangeNumber?: () => void;
+  /** §8 W7 "support link" beside Retry on a failed row (Z-52). */
+  support?: React.ReactNode;
 }) {
   const tp = useTranslations('wizard.w7.progress');
   const copy = useServerCopy();
@@ -95,8 +98,8 @@ export function ProvisioningProgress({
             variant="danger"
             title={tp('failedTitle')}
             actions={
-              onRetry || (onChangeNumber && view.step === 'provision') ? (
-                <div className="flex flex-wrap gap-2">
+              onRetry || support || (onChangeNumber && view.step === 'provision') ? (
+                <div className="flex flex-wrap items-center gap-2">
                   {onChangeNumber && view.step === 'provision' ? (
                     <Button size="sm" variant="outline" onClick={onChangeNumber} disabled={retrying}>
                       {tp('changeNumber')}
@@ -107,6 +110,7 @@ export function ProvisioningProgress({
                       {t('common.retry')}
                     </Button>
                   ) : null}
+                  {support}
                 </div>
               ) : undefined
             }

@@ -2,7 +2,7 @@
 
 import { createCheckout, isApiError, useApi, useGetPricing } from '@portal/api-client';
 import type { PricingResponse } from '@portal/schemas';
-import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Field, RadioCard, RadioGroup, Skeleton, Switch } from '@portal/ui';
+import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Field, RadioCard, RadioGroup, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch } from '@portal/ui';
 import { CreditCard, Lock } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -11,6 +11,7 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { checkoutMarker } from '@/src/wizard/checkout-marker';
+import { TOPUP_PERCENTS, defaultTopupPercent, packMinutes, topupThreshold, type TopupPercent } from '@/src/wizard/pack-minutes';
 import { formatCredits, formatMoney } from '@/src/wizard/plan-gates';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { PRICING_STALE_MS } from '@/src/lib/pricing';
@@ -39,6 +40,8 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
   const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.price_cents - b.price_cents), [pricing.data]);
   const [packId, setPackId] = React.useState<string | null>(null);
   const [autoTopup, setAutoTopup] = React.useState<boolean | null>(null);
+  // §8 W7 "threshold select (10%/20% of pack)" (Z-49): null until the policy says which to start on.
+  const [topupPct, setTopupPct] = React.useState<TopupPercent | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [redirecting, setRedirecting] = React.useState(false);
   // ADR 0036: a first purchase over the §17 limit waits for staff; a purchase that puts
@@ -50,8 +53,9 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
   const selected = packs.find((p) => p.id === packId) ?? null;
   const policy = pricing.data?.wallet_policy;
   const topupOn = autoTopup ?? policy?.auto_topup_default_on ?? false;
-  // §5.4: suggested at `auto_topup_threshold_pct` of the pack; the API refuses below 10.
-  const threshold = selected && policy ? Math.max(10, Math.round((selected.credits * policy.auto_topup_threshold_pct) / 100)) : null;
+  // §5.4: the policy suggests a percentage of the pack (default 10); the API refuses a threshold below 10 credits.
+  const pct = topupPct ?? defaultTopupPercent(policy?.auto_topup_threshold_pct);
+  const threshold = selected && policy ? topupThreshold(selected.credits, pct) : null;
 
   // Preselect the pack the config badges (the "most popular" one), else the first.
   React.useEffect(() => {
@@ -77,7 +81,7 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
         return;
       }
       if (agentId) checkoutMarker.set({ purchaseId: res.purchase_id, agentId, packId: selected.id, startedAt: Date.now() });
-      track('pack_selected', { pack_id: selected.id, ...(agentId ? { agent_id: agentId } : {}), auto_topup: topupOn, from: agentId ? 'wizard' : 'wallet' });
+      track('pack_selected', { pack_id: selected.id, ...(agentId ? { agent_id: agentId } : {}), auto_topup: topupOn, auto_topup_pct: topupOn ? pct : null, from: agentId ? 'wizard' : 'wallet' });
       window.location.assign(res.checkout_url);
       // Stay in the redirecting state: the page is being replaced.
     } catch (e) {
@@ -96,7 +100,7 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
       {!canBuy ? <Alert variant="warning" title={tp('roleTitle')}>{tp('roleBody')}</Alert> : null}
 
       {pricing.isPending ? (
-        <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2 xl:grid-cols-4'}>
+        <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2'}>
           {[0, 1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-40 w-full" />
           ))}
@@ -104,9 +108,9 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
       ) : packs.length === 0 ? (
         <Alert variant="warning">{tp('none')}</Alert>
       ) : (
-        <RadioGroup value={packId ?? ''} onValueChange={setPackId} className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2 xl:grid-cols-4'} aria-label={tp('label')} disabled={redirecting}>
+        <RadioGroup value={packId ?? ''} onValueChange={setPackId} className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2'} aria-label={tp('label')} disabled={redirecting}>
           {packs.map((p) => (
-            <RadioCard key={p.id} value={p.id} title={<PackTitle pack={p} />} description={<PackBody pack={p} />} className="h-full" />
+            <RadioCard key={p.id} value={p.id} title={<PackTitle pack={p} />} description={<PackBody pack={p} rates={pricing.data?.rates ?? null} />} className="h-full" />
           ))}
         </RadioGroup>
       )}
@@ -121,9 +125,27 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
           </CardHeader>
           <CardContent className="flex flex-col gap-5">
             {threshold !== null ? (
-              <Field id="w7-topup" label={tp('topup')} description={tp('topupHint', { threshold: formatCredits(threshold), pack: selected.name })}>
-                <Switch id="w7-topup" checked={topupOn} onCheckedChange={setAutoTopup} disabled={redirecting} />
-              </Field>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+                <Field id="w7-topup" label={tp('topup')} description={tp('topupHint', { threshold: formatCredits(threshold), pack: selected.name })}>
+                  <Switch id="w7-topup" checked={topupOn} onCheckedChange={setAutoTopup} disabled={redirecting} />
+                </Field>
+                {topupOn ? (
+                  <Field id="w7-topup-pct" label={tp('topupWhen')} className="sm:w-72">
+                    <Select value={String(pct)} onValueChange={(v) => setTopupPct(Number(v) as TopupPercent)} disabled={redirecting}>
+                      <SelectTrigger id="w7-topup-pct">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TOPUP_PERCENTS.map((p) => (
+                          <SelectItem key={p} value={String(p)}>
+                            {tp('topupPct', { pct: p, credits: formatCredits(topupThreshold(selected.credits, p)) })}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                ) : null}
+              </div>
             ) : null}
             {error ? <Alert variant="danger">{error}</Alert> : null}
             {inReview ? <Alert variant="info" title={tp('reviewTitle')}>{tp('reviewBody')}</Alert> : null}
@@ -165,9 +187,12 @@ function PackTitle({ pack }: { pack: Pack }) {
   );
 }
 
-function PackBody({ pack }: { pack: Pack }) {
+function PackBody({ pack, rates }: { pack: Pack; rates: PricingResponse['rates'] | null }) {
   const tp = useTranslations('wizard.w7.packs');
   const copy = useServerCopy();
+  // §8 W7 "≈150 min": whole minutes at the Standard rate, from the published config (Z-50 "Minutes per pack").
+  const minutes = rates ? packMinutes(pack.credits + pack.bonus_credits, rates.standard_per_min) : null;
+  const premiumMinutes = rates ? packMinutes(pack.credits + pack.bonus_credits, rates.premium_per_min) : null;
   return (
     <span className="mt-1 flex flex-col gap-1.5">
       <span className="text-xl font-semibold text-foreground">{formatMoney(pack.price_cents, pack.currency)}</span>
@@ -175,6 +200,12 @@ function PackBody({ pack }: { pack: Pack }) {
         {tp('credits', { credits: formatCredits(pack.credits) })}
         {pack.bonus_credits ? ` · ${tp('bonus', { credits: formatCredits(pack.bonus_credits) })}` : ''}
       </span>
+      {minutes !== null ? (
+        <span className="text-foreground" data-testid="pack-minutes">
+          {tp('minutes', { n: minutes })}
+          {premiumMinutes !== null && premiumMinutes !== minutes ? ` · ${tp('minutesPremium', { n: premiumMinutes })}` : ''}
+        </span>
+      ) : null}
       <span>{tp('concurrency', { n: pack.concurrency_cap })}</span>
       <span>{pack.kb_allowance ? tp('knowledge', { n: pack.kb_allowance }) : tp('noKnowledge')}</span>
       {pack.description ? <span>{copy.packText(pack.description)}</span> : null}

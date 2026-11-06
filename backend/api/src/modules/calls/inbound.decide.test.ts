@@ -183,6 +183,21 @@ describe('the six ordered checks', () => {
     expect(run({ active: [], caps: caps({ concurrency_cap: 0 }) })).toMatchObject({ kind: 'decline', reason: 'cap' });
   });
 
+  it('6b. `outside_hours` answers only while the business is closed; `unanswered` never looks at the clock (ADR 0040)', () => {
+    const businessHours = { days: { wed: [{ open: '09:00', close: '17:00' }] }, closed_dates: [] };
+    const outside = number({ hours_mode: 'outside_hours', hours: businessHours });
+    // 14:00 Toronto on a Wednesday: open, so the customer's own phone rings and the call is declined here.
+    expect(run({ number: outside, now: new Date('2026-09-16T18:00:00Z') })).toMatchObject({ kind: 'decline', reason: 'hours' });
+    // 03:00 Toronto: closed, the agent picks up.
+    expect(run({ number: outside, now: new Date('2026-09-16T07:00:00Z') })).toMatchObject({ kind: 'allow' });
+    // No schedule cannot say "closed": answered, with the warning, never refused for ever.
+    const noSchedule = run({ number: number({ hours_mode: 'outside_hours', hours: null }), now: new Date('2026-09-16T18:00:00Z') });
+    expect(noSchedule.kind).toBe('allow');
+    expect(noSchedule.kind === 'allow' && noSchedule.warnings).toContain('hours_no_schedule');
+    // The carrier forwards only the calls the customer did not pick up: nothing to decline.
+    expect(run({ number: number({ hours_mode: 'unanswered', hours: businessHours }), now: new Date('2026-09-16T18:00:00Z') })).toMatchObject({ kind: 'allow' });
+  });
+
   it('6. outside business hours declines as hours; `always` never looks at the clock', () => {
     const businessHours = { days: { wed: [{ open: '09:00', close: '17:00' }] }, closed_dates: [] };
     const open = number({ hours_mode: 'business', hours: businessHours });

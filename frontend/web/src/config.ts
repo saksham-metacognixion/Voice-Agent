@@ -3,6 +3,7 @@
  * 0008) — nothing secret can live here, and a wrong value is a rebuild, not a restart.
  * `next.config.ts` derives the local values from the repo-root `.env`.
  */
+
 export const config = {
   apiUrl: (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/+$/, ''),
   auth0: {
@@ -29,24 +30,28 @@ export const config = {
      */
     statusPageUrl: safeHttpsUrl(process.env.NEXT_PUBLIC_STATUS_PAGE_URL),
   },
-  /** §6.3 A1 (ADR 0036): what the Terms screen links to. `https:` only; the oraly.ai pages by default. */
-  legal: {
-    termsUrl: safeHttpsUrl(process.env.NEXT_PUBLIC_TERMS_URL) || 'https://oraly.ai/terms',
-    privacyUrl: safeHttpsUrl(process.env.NEXT_PUBLIC_PRIVACY_URL) || 'https://oraly.ai/privacy',
-  },
 } as const;
 
-/** An `https:` URL, or '' — a build-time value that is not one is dropped rather than linked. */
+/**
+ * An `https:` URL, or '' — a build-time value that is not one is dropped rather than linked.
+ * A dev build (`NEXT_PUBLIC_APP_ENV=dev`) may also link `http://localhost`, so a page served
+ * by a local dev server can be tried without a certificate; staging and prod never can.
+ */
 function safeHttpsUrl(value: string | undefined): string {
   if (!value) return '';
   try {
-    return new URL(value).protocol === 'https:' ? value : '';
+    const url = new URL(value);
+    if (url.protocol === 'https:') return value;
+    const dev = (process.env.NEXT_PUBLIC_APP_ENV ?? 'dev') === 'dev';
+    return dev && url.protocol === 'http:' && url.hostname === 'localhost' ? value : '';
   } catch {
     return '';
   }
 }
 
-export const authConfigured = Boolean(config.auth0.domain && config.auth0.clientId && config.auth0.audience);
+export const authConfigured = Boolean(
+  config.auth0.domain && config.auth0.clientId && config.auth0.audience,
+);
 
 /** What is missing, for the one-line banner on a misconfigured box. */
 export function missingConfig(): string[] {

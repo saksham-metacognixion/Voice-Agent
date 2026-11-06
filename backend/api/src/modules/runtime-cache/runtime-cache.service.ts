@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { adminDb } from '@portal/db';
-import { type AgentTier, rateForTier } from '@portal/schemas';
+import { type AgentTier, hoursModeUsesSchedule, rateForTier } from '@portal/schemas';
 import { PlatformConfigService } from '../config';
 import { RedisCache, redisKeys } from '../redis';
 import { briefTransferNumbers, numberTransferTargets, spokenTransferFailMessage } from '../prompting/staff-transfer';
@@ -104,7 +104,7 @@ export class RuntimeCacheService {
         rate_per_min: pricing ? rateForTier(pricing.config.rates, tier) : null,
         config_version: pricing?.version ?? null,
         hours_mode: number.hoursMode,
-        hours: number.hoursMode === 'custom' ? parseBusinessHours(number.hoursOverrideJson) : number.hoursMode === 'business' ? tenantHours : null,
+        hours: number.hoursMode === 'custom' ? parseBusinessHours(number.hoursOverrideJson) : hoursModeUsesSchedule(number.hoursMode) ? tenantHours : null,
         blocklist: [...new Set([...number.blocklist, ...globalBlocklist].map(normalisePhone).filter(Boolean))],
         transfer_numbers: numberTransferTargets(number.transferTargetsJson),
         // The brief's numbers too: they are the `transfer_number_N` defaults wherever the

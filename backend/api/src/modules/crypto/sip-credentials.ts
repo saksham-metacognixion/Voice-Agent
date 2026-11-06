@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { KMSClient, DecryptCommand, GenerateDataKeyCommand } from '@aws-sdk/client-kms';
+import { sipProvider, sipTransport, type SipProvider, type SipTransport } from '@portal/schemas';
 import { z } from 'zod';
 import { isProdEnv, resolveAppEnv } from '../../common/env';
 import { EnvelopeCipher, KmsKeyWrapper, LocalKeyWrapper, type Envelope, type KeyWrapper, type KmsLike, envelope } from './envelope';
@@ -14,6 +15,9 @@ export const storedSipCredentials = z.object({
   host: z.string().min(1),
   username: z.string().nullable(),
   password: envelope.nullable(),
+  /** W6 Option C (ADR 0040). Optional so a row sealed before they existed still opens. */
+  provider: sipProvider.optional(),
+  transport: sipTransport.optional(),
 });
 export type StoredSipCredentials = z.infer<typeof storedSipCredentials>;
 
@@ -23,6 +27,8 @@ export interface SipCredentialsPlain {
   host: string;
   username: string | null;
   password: string | null;
+  provider: SipProvider;
+  transport: SipTransport;
 }
 
 /**
@@ -55,13 +61,18 @@ export class SipCredentialsCipher {
     return `phone_plans:${planId}:sip_password`;
   }
 
-  async seal(planId: string, input: { number: string; host: string; username?: string | null; password?: string | null }): Promise<StoredSipCredentials> {
+  async seal(
+    planId: string,
+    input: { number: string; host: string; username?: string | null; password?: string | null; provider?: SipProvider | null; transport?: SipTransport | null },
+  ): Promise<StoredSipCredentials> {
     if (!this.cipher) throw new Error('SIP credential encryption is not configured');
     return {
       number: input.number,
       host: input.host,
       username: input.username ?? null,
       password: input.password ? await this.cipher.encrypt(input.password, SipCredentialsCipher.aad(planId)) : null,
+      provider: input.provider ?? 'other',
+      transport: input.transport ?? 'TCP',
     };
   }
 
@@ -73,14 +84,23 @@ export class SipCredentialsCipher {
       host: parsed.host,
       username: parsed.username,
       password: parsed.password ? await this.cipher.decrypt(parsed.password, SipCredentialsCipher.aad(planId)) : null,
+      provider: parsed.provider ?? 'other',
+      transport: parsed.transport ?? 'TCP',
     };
   }
 
   /** The customer-facing view: never the envelope, never the plaintext. */
-  static redact(stored: unknown): { number: string; host: string; username: string | null; has_password: boolean } | null {
+  static redact(stored: unknown): { number: string; host: string; username: string | null; has_password: boolean; provider: SipProvider; transport: SipTransport } | null {
     const parsed = storedSipCredentials.safeParse(stored);
     if (!parsed.success) return null;
-    return { number: parsed.data.number, host: parsed.data.host, username: parsed.data.username, has_password: parsed.data.password !== null };
+    return {
+      number: parsed.data.number,
+      host: parsed.data.host,
+      username: parsed.data.username,
+      has_password: parsed.data.password !== null,
+      provider: parsed.data.provider ?? 'other',
+      transport: parsed.data.transport ?? 'TCP',
+    };
   }
 }
 

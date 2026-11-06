@@ -34,6 +34,7 @@ const clickText = (text, tag = 'button') => b.evaluate(`(() => { const els = [..
 const bodyText = () => b.evaluate('document.body.innerText');
 const theme = () => b.evaluate('getComputedStyle(document.body).backgroundColor + " " + document.documentElement.className');
 const testid = (id) => `document.querySelector('[data-testid="${id}"]')`;
+const has = (selector) => b.evaluate(`document.querySelector(${JSON.stringify(selector)}) !== null`);
 const click = (selector) => b.evaluate(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return 'missing'; el.click(); return 'ok'; })()`);
 /** A Radix slider thumb takes the keyboard: Home/End/arrows move it in steps. */
 /** One press per round trip: the slider is controlled, so React must paint between presses. */
@@ -227,9 +228,20 @@ try {
 
   // 11. W5 — a real browser test call; Chrome's fake microphone answers the permission prompt
   await waitFor(`document.body.innerText.includes('Talk to your agent')`, 10000);
+  // §8 W5 "Scenario chips … clicking shows 'Try saying: …'" (Z-34): chips from the generation, one hint at a time.
+  const chips = await waitFor(`document.querySelectorAll('[data-testid="scenario-chip"]').length`, 10000);
+  ok('W5 shows 3–5 scenario chips', Number(chips) >= 3 && Number(chips) <= 5, `chips=${chips}`);
+  ok('W5 no hint until a chip is pressed', !(await bodyText()).includes('Try saying:'));
+  await click('[data-testid="scenario-chip"]'); await sleep(200);
+  ok('W5 a pressed chip shows "Try saying"', (await bodyText()).includes('Try saying:') && (await b.evaluate(`document.querySelector('[data-testid="scenario-chip"]')?.getAttribute('aria-pressed')`)) === 'true');
   await clickText('Start test call');
   const onCall = await waitFor(`document.body.innerText.includes('Hang up')`, 30000, 500);
   ok('W5 test call connects (mic + minted token)', Boolean(onCall), onCall ? '' : (await bodyText()).slice(0, 300));
+  // §12.3 "End your test call?" on route change (Z-63): Back is held behind the prompt; Stay keeps the call.
+  await click('[data-testid="wizard-back"]');
+  ok('W5 leaving mid-call asks "End your test call?"', Boolean(await waitFor(`document.querySelector('[data-testid="leave-call-prompt"]') !== null`, 5000)));
+  await b.evaluate(`[...document.querySelectorAll('[data-testid="leave-call-prompt"] button')].find(b => b.textContent.trim() === 'Stay on the call')?.click()`); await sleep(400);
+  ok('W5 Stay keeps the call and the page', (await path()) === '/onboarding/test/' && !(await has('[data-testid="leave-call-prompt"]')) && (await bodyText()).includes('Hang up'), await path());
   const agentLine = await waitFor(`[...document.querySelectorAll('[aria-label="Live transcript"] li')].some(li => li.textContent.startsWith('Agent'))`, 30000, 500);
   ok('W5 live transcript shows the agent speaking', Boolean(agentLine));
   const timer = `document.querySelector('dl dd')?.textContent`;
@@ -255,6 +267,11 @@ try {
   const versionAfter = Number((await bodyText()).match(/draft version (\d+)/)?.[1] ?? 0);
   ok('W5 the new draft version is shown', versionAfter > versionBefore, `v${versionBefore} → v${versionAfter}`);
   await b.shot(`${S}/shot-w5-improved.png`, true);
+  // §8 W5 "diff card … Keep / Undo" (Z-35): Undo reselects the previous draft (§13.5 step 2, no model call).
+  ok('W5 the change card offers Keep and Undo', (await has('[data-testid="feedback-keep"]')) && (await has('[data-testid="feedback-undo"]')) && (await bodyText()).includes('What changed'));
+  await click('[data-testid="feedback-undo"]');
+  const undone = await waitFor(`(document.body.innerText.match(/draft version (\\d+)/) || [])[1] === ${JSON.stringify(String(versionBefore))}`, 15000, 500);
+  ok('W5 Undo goes back to the previous draft version', Boolean(undone), (await bodyText()).match(/draft version \d+/)?.[0] ?? '');
   // Spec W5 soft gate (QA-082): Continue waits for "I'm happy with how my agent sounds".
   const gated = await b.evaluate(`[...document.querySelectorAll('button')].find(b => b.textContent.trim().startsWith('Continue'))?.disabled === true`);
   ok('W5 Continue waits for the happiness checkbox', gated === true);
@@ -266,10 +283,24 @@ try {
   await waitFor(`document.querySelectorAll('[role="radio"]').length >= 3`, 10000);
   ok('W6 offers options A, B and C', await b.evaluate(`['new','forward','sip'].every(v => document.querySelector('[role="radio"][value="' + v + '"]'))`));
   ok('W6 option C is locked on a trial plan', await b.evaluate(`document.querySelector('[role="radio"][value="sip"]').disabled === true`));
+  // §8 W6 "Answer calls: Always / Only outside business hours / Only when I don't answer" (Z-43).
+  ok('W6 offers the three answer modes', await b.evaluate(`['always','outside_hours','unanswered'].every(m => document.querySelector('[data-testid="answer-mode-' + m + '"]')) && document.querySelector('[data-testid="answer-mode-always"]')?.getAttribute('aria-checked') === 'true'`));
+  // §8 W6 "Allowed caller countries: workspace country (+US/CA)" (Z-45).
+  const countries = await b.evaluate(`document.querySelector('[data-testid="allowed-countries"]')?.innerText ?? ''`);
+  ok('W6 allowed caller countries default to Canada and the United States', /Canada/.test(countries) && /United States/.test(countries), countries.replace(/\s+/g, ' ').slice(0, 80));
   await b.evaluate(`document.querySelector('[role="radio"][value="forward"]').click()`);
   ok('W6 option B shows the carrier forwarding guide', Boolean(await waitFor(`document.body.innerText.includes('To turn forwarding on') && document.body.innerText.includes('*72')`, 10000)));
+  // §8 W6 B "Forward — Always / When busy or no answer / Outside business hours" (Z-41).
+  ok('W6 option B offers the three forward modes', await b.evaluate(`['always','busy_no_answer','outside_hours'].every(m => document.querySelector('[data-testid="forward-mode-' + m + '"]'))`));
   await b.shot(`${S}/shot-w6-forward.png`, true);
   await b.evaluate(`document.querySelector('[role="radio"][value="new"]').click()`); await sleep(300);
+  // §8 W6 A "Area code | ✓ (local)" + "Suggest" (Z-40): blank is refused; Suggest fills three digits.
+  await clickText('Continue'); await sleep(500);
+  ok('W6 a local number needs an area code', (await bodyText()).includes('Enter an area code') && (await path()) === '/onboarding/phone/');
+  await click('[data-testid="area-code-suggest"]'); await sleep(200);
+  const suggestedCode = await b.evaluate(`document.querySelector('#w6-area')?.value`);
+  ok('W6 Suggest fills a three-digit area code', /^[2-9]\d{2}$/.test(suggestedCode ?? ''), String(suggestedCode));
+  await b.evaluate(`document.querySelector('[data-testid="answer-mode-outside_hours"]').click()`); await sleep(200);
   await clickText('Add a person'); await sleep(200);
   await setInput('[id^="tt-label-"]', 'Front desk'); await setInput('[id^="tt-number-"]', '12');
   await clickText('Continue'); await sleep(500);
@@ -279,11 +310,23 @@ try {
   ok('W6 saves the plan → W7', Boolean(w7), await path());
   await b.goto(`${BASE}/onboarding/phone/`, 3000); await waitFor(`document.querySelector('[id^="tt-label-"]')`, 10000);
   ok('W6 plan and transfer target persist', await b.evaluate(`document.querySelector('[id^="tt-label-"]')?.value === 'Front desk' && document.querySelector('[id^="tt-number-"]')?.value === '+14165550199' && document.querySelector('[role="radio"][value="new"]')?.getAttribute('aria-checked') === 'true'`));
+  ok('W6 answer mode and area code persist', await b.evaluate(`document.querySelector('[data-testid="answer-mode-outside_hours"]')?.getAttribute('aria-checked') === 'true' && document.querySelector('#w6-area')?.value === ${JSON.stringify(suggestedCode)}`));
 
   // 14. W7 — packs from /pricing, Checkout created by the API, redirect to Stripe, cancel return
   await b.goto(`${BASE}/onboarding/activate/`, 3000);
   const packs = await waitFor(`document.querySelectorAll('[role="radio"]').length`, 10000);
   ok('W7 lists the packs from /pricing', Number(packs) >= 1 && /\$\d/.test(await bodyText()), `packs=${packs}`);
+  // §8 W7 "Summary card … Change" (Z-47): read back from the draft and the plan, linking to W2/W3/W6.
+  await waitFor(`document.querySelector('[data-testid="summary-number"]') && !document.querySelector('[data-testid="activation-summary"] [aria-busy]')`, 10000);
+  const summaryNumber = await b.evaluate(`document.querySelector('[data-testid="summary-number"]')?.innerText ?? ''`);
+  ok('W7 summary names the number chosen on W6', summaryNumber.includes(suggestedCode) && /a month/.test(summaryNumber), summaryNumber);
+  ok('W7 summary shows the answer mode chosen on W6', /Only outside business hours/.test(await b.evaluate(`document.querySelector('[data-testid="summary-answering"]')?.innerText ?? ''`)));
+  ok('W7 summary counts the test call', /1 test call/.test(await b.evaluate(`document.querySelector('[data-testid="summary-tested"]')?.innerText ?? ''`)));
+  ok('W7 summary links Change to W2, W3 and W6', await b.evaluate(`['brief','voice','phone'].every(k => document.querySelector('[data-testid="summary-change-' + k + '"]')?.getAttribute('href')?.includes('/onboarding/' + k))`));
+  // §8 W7 "≈150 min" (minutes per pack) and the 10 % / 20 % auto top-up select (Z-49).
+  ok('W7 pack cards say the minutes they buy', Boolean(await waitFor(`document.querySelectorAll('[data-testid="pack-minutes"]').length >= 1 && /\\d+ minutes with a Standard voice/.test(document.body.innerText)`, 5000)));
+  if (!(await has('#w7-topup-pct'))) { await b.evaluate(`document.querySelector('#w7-topup')?.click()`); await sleep(300); }
+  ok('W7 auto top-up offers 10 % or 20 % of the pack', (await has('#w7-topup-pct')) && /\d+% of the pack/.test(await b.evaluate(`document.querySelector('#w7-topup-pct')?.innerText ?? ''`)));
   await b.shot(`${S}/shot-w7.png`, true);
   await clickText('Pay ');
   const stripe = await waitFor(`location.host === 'checkout.stripe.com'`, 20000, 500);
@@ -294,6 +337,13 @@ try {
   await b.goto(`${BASE}/onboarding/activate/?session_id=cs_test_unpaid`, 3500);
   ok('W7 return without a paid purchase waits for the backend (no fake success)', Boolean(await waitFor(`document.body.innerText.includes('Confirming your payment')`, 10000)) && !(await bodyText()).includes('is live'));
   await b.shot(`${S}/shot-w7-confirming.png`);
+
+  // 15. §12.1 global error boundary (Z-59): a render error shows the fallback; "Try again" recovers.
+  await b.goto(`${BASE}/dev/crash/`, 2500); await waitFor(`document.querySelector('[data-testid="dev-crash"]')`, 10000);
+  await click('[data-testid="dev-crash"]');
+  ok('error boundary catches a render error', Boolean(await waitFor(`document.body.innerText.includes('Something went wrong on this page')`, 10000)));
+  await click('[data-testid="error-retry"]');
+  ok('error boundary "Try again" re-renders the page', Boolean(await waitFor(`document.querySelector('[data-testid="dev-crash"]') !== null`, 10000)));
 
   // 11. Switcher + second workspace + sign out
   await b.goto(`${BASE}/setup/workspace/`, 2500); await setInput('#name', 'Second Shop'); await clickText('Create workspace'); await waitFor(`location.pathname === '/onboarding/template/'`, 10000);

@@ -4,6 +4,7 @@ import { useApi, useGetFlags, useGetPricing } from '@portal/api-client';
 import { knowledgeRolesFor, type AgentDetail } from '@portal/schemas';
 import { Alert, Button, Skeleton } from '@portal/ui';
 import { ArrowRight } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
@@ -14,7 +15,7 @@ import { MenuUpload } from '@/src/components/wizard/menu-upload';
 import { AgentContextBanner } from '@/src/components/wizard/template-context';
 import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { LiveGuard } from '@/src/guards/guards';
-import { routes } from '@/src/routes';
+import { agentPath, routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
 import { PRICING_STALE_MS } from '@/src/lib/pricing';
 
@@ -72,8 +73,20 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="flex flex-col gap-4">
           {flags.isPending ? <Skeleton className="h-14 w-full" /> : null}
+          {/* §8 W4 plan gate: "For now, add FAQs in the brief" + the "Add FAQs" link (Z-30). The wizard's W2 is
+              behind this page now (ADR 0024), so the link opens the same brief form on the agent's Brief tab. */}
           {locked ? (
-            <Alert variant="info" title={tk('lockedTitle')}>
+            <Alert
+              variant="info"
+              title={tk('lockedTitle')}
+              actions={
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={agentPath(agent.id, 'brief')} data-testid="add-faqs">
+                    {tk('addFaqs')}
+                  </Link>
+                </Button>
+              }
+            >
               {unlock ? tk('lockedBody', { pack: unlock.name }) : tk('lockedBodyGeneric')}
             </Alert>
           ) : null}

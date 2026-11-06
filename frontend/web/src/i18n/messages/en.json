@@ -271,6 +271,22 @@
       "version": "Version {version}"
     }
   },
+  "legal": {
+    "title": {
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy"
+    },
+    "version": "Version {version}",
+    "draft": "Sample draft. This text has not been reviewed by a lawyer and is not the final agreement.",
+    "englishOnly": "This document is available in English only.",
+    "contents": "Contents",
+    "read": {
+      "terms": "Read the Terms of Service",
+      "privacy": "Read the Privacy Policy"
+    },
+    "questions": "Questions about this document? Write to",
+    "openInNewTab": "Open in a new tab"
+  },
   "errors": {
     "NETWORK": "We could not reach the server. Check your connection and try again.",
     "UNAUTHENTICATED": "Your session ended. Sign in again to continue.",
@@ -375,7 +391,15 @@
     "OUTBOUND_DAILY_CAP": "You have placed every callback your plan allows today. Try again tomorrow.",
     "OUTBOUND_IN_PROGRESS": "A callback to this person is already in progress. Wait until it ends.",
     "TERMS_NOT_ACCEPTED": "Accept the Terms of Service and Privacy Policy to continue.",
-    "TOKEN_EXPIRED": "Your session needed refreshing. Try again."
+    "TOKEN_EXPIRED": "Your session needed refreshing. Try again.",
+    "boundary": {
+      "title": "Something went wrong on this page",
+      "body": "The page could not be shown. Nothing you saved is lost. Try again, or go back to the dashboard.",
+      "bodyWithRef": "The page could not be shown. Nothing you saved is lost. Try again, or go back to the dashboard. Reference: {ref}.",
+      "retry": "Try again",
+      "home": "Go to the dashboard",
+      "support": "Contact support"
+    }
   },
   "validation": {
     "required": "Required",
@@ -782,7 +806,8 @@
         "body": "This rewrites the conversation from your brief; your test feedback is kept.",
         "keepsFeedback": "Feedback you gave on test calls is kept.",
         "replacesEdits": "Edits made to the script by hand are replaced."
-      }
+      },
+      "stepSaveToast": "Your script is saved, but your progress could not be recorded. Press Continue to try again."
     },
     "w3": {
       "title": "Choose a voice and languages",
@@ -966,7 +991,13 @@
           "empty": "That file is empty."
         }
       },
-      "readingPhoto": "Reading the photo…"
+      "readingPhoto": "Reading the photo…",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "Your agent stops answering from this source on its next call.",
+      "removeConsequence": "Callers asking about what it covered are told the agent does not have that information.",
+      "removeConfirm": "Remove source",
+      "removed": "{name} removed.",
+      "addFaqs": "Add FAQs to the brief"
     },
     "w5": {
       "title": "Test your agent",
@@ -1028,8 +1059,47 @@
           "noCreditsTitle": "Out of credits",
           "apiTitle": "We could not start the call",
           "connectionTitle": "The call could not connect",
-          "connection": "Check your connection and try again. If you are on a work network, it may block browser calls."
-        }
+          "connection": "Check your connection and try again. If you are on a work network, it may block browser calls.",
+          "micHelpTitle": {
+            "chrome": "In Chrome",
+            "edge": "In Edge",
+            "safari": "In Safari",
+            "firefox": "In Firefox",
+            "other": "In your browser"
+          },
+          "micHelp": {
+            "chrome": [
+              "Click the icon at the left of the address bar.",
+              "Set Microphone to Allow.",
+              "Reload the page and start the call again."
+            ],
+            "edge": [
+              "Click the lock icon at the left of the address bar.",
+              "Under Permissions, set Microphone to Allow.",
+              "Reload the page and start the call again."
+            ],
+            "safari": [
+              "Open Safari ▸ Settings for this website (or Safari ▸ Settings ▸ Websites ▸ Microphone).",
+              "Set this site to Allow.",
+              "Reload the page and start the call again."
+            ],
+            "firefox": [
+              "Click the microphone icon with a line through it at the left of the address bar.",
+              "Remove the Blocked setting for this site.",
+              "Start the call again and choose Allow."
+            ],
+            "other": [
+              "Open your browser’s site settings for this page.",
+              "Allow the microphone.",
+              "Reload the page and start the call again."
+            ]
+          }
+        },
+        "trialUsedTitle": "You have used your free test minutes",
+        "trialUsedBody": "Choose a number and a pack to keep testing. Your agent and its script are kept.",
+        "activateCta": "Choose a number and pack",
+        "trySaying": "Try saying:",
+        "pickScenario": "Pick one to see what to say."
       },
       "after": {
         "title": "After the call",
@@ -1069,7 +1139,10 @@
         "refusedBody": "That request goes against a rule every agent follows, so your agent is unchanged.",
         "doneTitle": "Version {version} is ready",
         "doneBody": "Your agent was updated.",
-        "testAgain": "Call again to hear the difference."
+        "testAgain": "Call again to hear the difference.",
+        "keep": "Keep",
+        "undo": "Undo (back to version {version})",
+        "whatChanged": "What changed"
       },
       "callMyPhone": {
         "title": "Call my phone",
@@ -1079,7 +1152,13 @@
         "placed": "Calling {to} from {from}. Answer it to talk to your agent.",
         "invalid": "Enter your own mobile or landline, for example +1 416 555 0123."
       },
-      "happyShort": "Happy with it"
+      "happyShort": "Happy with it",
+      "leave": {
+        "title": "End your test call?",
+        "body": "Leaving this page hangs up the call. Credits are charged for the time on the line so far.",
+        "stay": "Stay on the call",
+        "leave": "End the call and leave"
+      }
     },
     "w6": {
       "title": "How will callers reach your agent?",
@@ -1137,7 +1216,24 @@
         "sipUsername": "Username",
         "sipPassword": "Password",
         "sipPasswordHint": "Only if your system needs one.",
-        "sipPasswordAgain": "A password is saved. Enter it again to keep it; saving without one removes it."
+        "sipPasswordAgain": "A password is saved. Enter it again to keep it; saving without one removes it.",
+        "areaCodeSuggested": {
+          "timezone": "Suggested from your workspace’s time zone. Change it if you like.",
+          "country": "A common code for this country. Change it to your own area."
+        },
+        "areaCodeTollFree": "Not needed for a toll-free number.",
+        "suggest": "Suggest",
+        "sipProvider": "Provider",
+        "sipProviderHint": "Who runs your phone system. It picks the right set-up instructions.",
+        "sipProviders": {
+          "twilio": "Twilio",
+          "telnyx": "Telnyx",
+          "vonage": "Vonage",
+          "other": "Other SIP provider"
+        },
+        "sipTransport": "Transport",
+        "sipTransportHint": "TCP unless your provider says otherwise.",
+        "sipConsent": "I understand that calls only reach my agent once I set up my phone system to send them here. We show you how after you go live."
       },
       "routing": {
         "title": "Answering and hand-off",
@@ -1145,12 +1241,22 @@
         "hours": "When to answer",
         "modes": {
           "always": "Around the clock",
-          "business": "During business hours"
+          "business": "During business hours",
+          "outside_hours": "Only outside business hours",
+          "unanswered": "Only when I don’t answer",
+          "custom": "On a schedule for this number"
         },
         "hoursHint": {
           "always": "Your agent answers every call, day and night.",
-          "business": "Your agent answers during the business hours you gave in step 2."
-        }
+          "business": "Your agent answers during the business hours you gave in step 2.",
+          "outside_hours": "During the hours you gave in step 2 your own phone rings; the agent answers once you are closed.",
+          "unanswered": "Set your phone company to forward only the calls you miss. The agent answers everything that reaches it.",
+          "custom": "Your agent answers during the schedule set for this number in the dashboard."
+        },
+        "setHours": "Set business hours",
+        "noHours": "You have not given business hours yet, so there is no closed time. Until you do, your agent answers every call.",
+        "unansweredNote": "This works with a forwarded line. With a new number, every call that reaches it is answered.",
+        "legacyNote": "This option was saved from the dashboard and is kept as it is."
       },
       "transfer": {
         "title": "Transfer to a person",
@@ -1172,7 +1278,9 @@
         "areaCode": "An area code is three digits and does not start with 0 or 1.",
         "e164": "Enter the number with its country code, e.g. +14505550123.",
         "sipHost": "Enter an address such as sip.example.com.",
-        "generic": "Check this field."
+        "generic": "Check this field.",
+        "areaCodeRequired": "Enter an area code, or press Suggest.",
+        "sipConsent": "Tick the box to continue with your own phone system."
       },
       "guide": {
         "carrier": "Your phone company",
@@ -1296,6 +1404,28 @@
           }
         },
         "yourNewNumber": "your new number"
+      },
+      "forward": {
+        "title": "When will you forward calls?",
+        "body": "Forwarding is set on your phone company’s side. This tells us which codes to show you.",
+        "modes": {
+          "always": "Always",
+          "busy_no_answer": "When busy or no answer",
+          "outside_hours": "Outside business hours"
+        },
+        "hints": {
+          "always": "Every call goes to your agent.",
+          "busy_no_answer": "You answer first; the agent takes what you miss.",
+          "outside_hours": "You forward when you close and cancel when you open."
+        }
+      },
+      "callers": {
+        "title": "Allowed caller countries",
+        "body": "Calls from anywhere else are refused before they ring. Add a country to allow it.",
+        "empty": "No restriction: callers from any country are answered.",
+        "add": "Add a country",
+        "remove": "Remove {country}",
+        "max": "That is the most you can add ({max})."
       }
     },
     "w7": {
@@ -1340,7 +1470,11 @@
         "reviewBody": "We review a first purchase over $1,000 before taking payment. Nothing has been charged. We will email you, usually within one business day.",
         "mfaTitle": "Verify with two-factor first",
         "mfaBody": "This purchase puts money at risk, so owners and admins verify with an authenticator app first.",
-        "mfaAction": "Verify now"
+        "mfaAction": "Verify now",
+        "topupWhen": "Top up when the balance falls to",
+        "topupPct": "{pct}% of the pack ({credits} credits)",
+        "minutes": "≈ {n, plural, one {# minute} other {# minutes}} with a Standard voice",
+        "minutesPremium": "{n, number} with Premium"
       },
       "progress": {
         "connecting": "Connecting…",
@@ -1379,7 +1513,67 @@
         "mostPopular": "Most popular",
         "starterNote": "One agent on one number. FAQ text goes in the brief."
       },
-      "footerHint": "Choose a pack above to go live."
+      "footerHint": "Choose a pack above to go live.",
+      "summary": {
+        "title": "What goes live",
+        "body": "Everything you set up so far. Change anything before you pay.",
+        "change": "Change",
+        "rows": {
+          "agent": "Agent",
+          "voice": "Voice",
+          "languages": "Speaks",
+          "number": "Number",
+          "answering": "Answers",
+          "forwarding": "Forwarding",
+          "documents": "Documents",
+          "knowledge": "Knowledge",
+          "tested": "Tested"
+        },
+        "values": {
+          "agent": {
+            "standard": "{name} · Standard voice",
+            "premium": "{name} · Premium voice"
+          },
+          "voice": "{name}",
+          "voiceUnknown": "Not chosen yet",
+          "languages": "{list}",
+          "languagesUnknown": "Not set",
+          "noPlan": "No number chosen yet",
+          "sip": "Your own line {number} via {host}",
+          "new": {
+            "areaCode": "New {code} number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "tollFree": "New toll-free number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "anyArea": "New local number, {country} · {rental, plural, one {# credit} other {# credits}} a month"
+          },
+          "forward": {
+            "areaCode": "{from} forwarded to a new {code} number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "tollFree": "{from} forwarded to a new toll-free number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "anyArea": "{from} forwarded to a new local number, {country} · {rental, plural, one {# credit} other {# credits}} a month"
+          },
+          "answering": {
+            "always": "Around the clock",
+            "outside_hours": "Only outside business hours",
+            "unanswered": "Only the calls you don’t answer",
+            "business": "During business hours",
+            "custom": "On this number’s own schedule"
+          },
+          "forwarding": {
+            "always": "You forward every call",
+            "busy_no_answer": "You forward when busy or unanswered",
+            "outside_hours": "You forward outside business hours"
+          },
+          "documents": "{n, plural, one {# document} other {# documents}} attached to the brief",
+          "noDocuments": "None attached",
+          "knowledgeLater": "Add web pages and files once you are live",
+          "tested": "{n, plural, one {# test call} other {# test calls}}",
+          "untested": "No test call yet",
+          "testedUnknown": "Checking…"
+        }
+      },
+      "support": {
+        "subject": "Help going live with {agent} (activation {activation})",
+        "link": "Contact support"
+      }
     },
     "live": {
       "title": "{name} is live",
@@ -1395,12 +1589,84 @@
         "body": "Your agent already answers {to}. Forward your existing line to it with the codes below.",
         "confirm": "I have turned forwarding on",
         "confirmed": "Thanks — forwarding is marked as on.",
-        "ready": "Calls to {from} are forwarded to your agent."
+        "ready": "Calls to {from} are forwarded to your agent.",
+        "mode": {
+          "always": "You chose to forward every call.",
+          "busy_no_answer": "You chose to forward only when busy or unanswered: use your carrier’s conditional codes from the notes below.",
+          "outside_hours": "You chose to forward outside business hours: turn forwarding on when you close and off when you open."
+        }
+      },
+      "copy": "Copy number",
+      "copied": "Copied",
+      "copyFailed": "Could not copy. Select the number and copy it by hand.",
+      "callNow": "Call it now",
+      "sip": {
+        "title": "Connect your {provider} line",
+        "body": "Your agent is ready. Calls reach it once your phone system sends them to the address below.",
+        "missing": "We could not read the connection details for this number.",
+        "origination": "Send calls to",
+        "originationUnknown": "the address support gives you",
+        "copyOrigination": "Copy address",
+        "copied": "Copied",
+        "copyFailed": "Could not copy. Select the address and copy it by hand.",
+        "number": "Your number",
+        "transport": "Transport",
+        "host": "Your SIP address",
+        "username": "Username",
+        "showUsername": "Show username",
+        "hideUsername": "Hide username",
+        "passwordStored": "Password stored encrypted",
+        "passwordNone": "No password",
+        "askSupport": "The inbound address for your region is not set up yet. Contact support and we will send it to you.",
+        "steps": {
+          "named": {
+            "open_trunk": "In your {provider} account, open the SIP trunk that carries {number}.",
+            "origination": "Set its origination (inbound) destination to {origination}.",
+            "transport": "Set the transport to {transport}, the same as you chose here.",
+            "number": "Make sure {number} is assigned to that trunk.",
+            "test": "Call {number} from another phone. Your agent should answer; the call then shows under Calls."
+          },
+          "other": {
+            "open_trunk": "In your phone system, open the trunk or route that carries {number}.",
+            "origination": "Send inbound calls for it to {origination}.",
+            "transport": "Use {transport} for the connection, the same as you chose here.",
+            "number": "Make sure {number} is routed through that trunk.",
+            "test": "Call {number} from another phone. Your agent should answer; the call then shows under Calls."
+          }
+        }
+      },
+      "next": {
+        "title": "Next steps",
+        "checking": "Checking what is done…",
+        "progress": "{done} of {total} done",
+        "items": {
+          "forwarding": {
+            "title": "Test forwarding",
+            "body": "Turn forwarding on at your phone company, then test it from Numbers.",
+            "done": "Forwarding is on."
+          },
+          "invite_team": {
+            "title": "Invite a teammate",
+            "body": "Let someone else see calls and messages.",
+            "done": "Your team has more than one member."
+          },
+          "daily_digest": {
+            "title": "Turn on the daily digest",
+            "body": "One email each morning with yesterday’s messages and requests.",
+            "done": "You get the daily digest."
+          },
+          "website_widget": {
+            "title": "Add your website widget",
+            "body": "A “Talk to us” button that calls your agent from your website.",
+            "done": "The widget is switched on."
+          }
+        }
       }
     },
     "context": {
       "building": "Building a {template} agent for {business}."
-    }
+    },
+    "stepSaveFailed": "Your progress could not be saved"
   },
   "dashboard": {
     "planGate": {
@@ -1987,7 +2253,8 @@
       "test": {
         "hint": "Test calls run in the browser and use credits.",
         "viewerHint": "Test calls can be made by editors and above.",
-        "noPrompt": "Generate the script from the Brief tab before testing."
+        "noPrompt": "Generate the script from the Brief tab before testing.",
+        "topUp": "Buy credits"
       },
       "versions": {
         "hint": "Every version is kept. Pick two to compare.",
@@ -2181,12 +2448,16 @@
         "modes": {
           "always": "Around the clock",
           "business": "During business hours",
-          "custom": "On a schedule for this number"
+          "custom": "On a schedule for this number",
+          "outside_hours": "Only outside business hours",
+          "unanswered": "Only when I don’t answer"
         },
         "modeHints": {
           "always": "Your agent answers every call, day and night.",
           "business": "Your agent answers during the workspace’s business hours. Outside them callers hear a busy tone and the call shows as missed.",
-          "custom": "Your agent answers during the hours below. Outside them callers hear a busy tone and the call shows as missed."
+          "custom": "Your agent answers during the hours below. Outside them callers hear a busy tone and the call shows as missed.",
+          "outside_hours": "During the workspace’s business hours your own phone rings (the call is declined here); once you are closed, your agent answers.",
+          "unanswered": "For a forwarded line set to busy / no answer: your agent answers every call that reaches this number."
         },
         "noBusinessHours": "The workspace has no business hours yet, so this number answers around the clock until you set them.",
         "setBusinessHours": "Set business hours",
@@ -2328,7 +2599,15 @@
             "submit": "Check and save",
             "failed": "The check failed, so nothing was changed."
           }
-        }
+        },
+        "provider": "Provider",
+        "transport": "Transport",
+        "origination": "Inbound address",
+        "originationUnknown": "Not set up yet. Ask support.",
+        "copyOrigination": "Copy inbound address",
+        "copied": "Copied",
+        "copyFailed": "Could not copy. Select the address and copy it by hand.",
+        "inboundSet": "For calls to reach your agent, your phone system must send calls for this number to the inbound address above."
       },
       "danger": {
         "title": "Release this number",

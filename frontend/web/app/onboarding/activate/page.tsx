@@ -9,10 +9,12 @@ import type { PurchaseStatus } from '@portal/schemas';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
+import { ActivationSummary } from '@/src/components/wizard/activation-summary';
 import { PackageSelector } from '@/src/components/wizard/package-selector';
 import { ProvisioningProgress } from '@/src/components/wizard/provisioning-progress';
 import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
+import { config } from '@/src/config';
 import { errorMessage } from '@/src/lib/errors';
 import { readQuery } from '@/src/lib/query-string';
 import { routes } from '@/src/routes';
@@ -162,6 +164,15 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
   // so is the wait right after Stripe hands the customer back. Otherwise: pick a pack.
   const showProgress = !choosing && !unpaid && (returned || (view !== null && view.status !== 'failed') || (view?.status === 'failed' && !ret.cancelled));
 
+  // §8 W7 "Failure … support link" (Z-52). The wizard has no Help page yet (the dashboard
+  // opens once live), so the link is the support address with the activation on the subject.
+  const supportHref = `mailto:${config.support.email}?subject=${encodeURIComponent(tw('support.subject', { agent: agent.name, activation: view?.activation_id ?? '' }))}`;
+  const supportLink = (
+    <a href={supportHref} className="text-sm font-medium text-primary underline-offset-4 hover:underline" data-testid="support-link">
+      {tw('support.link')}
+    </a>
+  );
+
   return (
     <>
       <WizardHeading title={showProgress ? tw('progressTitle') : tw('title')} subtitle={showProgress ? tw('progressSubtitle') : tw('subtitle')} />
@@ -196,11 +207,12 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
               onChangeNumber={() => router.push(routes.onboarding.phone)}
               retrying={retrying}
               retryError={retryError}
+              support={supportLink}
               waiting={{
                 title: confirmed === 'paid' && !patienceOver ? tw('confirm.paidTitle') : patienceOver ? tw('confirm.slowTitle') : tw('confirm.title'),
                 body: confirmed === 'paid' && !patienceOver ? tw('confirm.paidBody') : patienceOver ? tw('confirm.slowBody') : tw('confirm.body'),
                 action: patienceOver ? (
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button size="sm" onClick={() => void startActivation()} loading={retrying} disabled={retrying}>
                       {tw('confirm.start')}
                     </Button>
@@ -214,6 +226,7 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
                     >
                       {tw('confirm.check')}
                     </Button>
+                    {supportLink}
                   </div>
                 ) : undefined,
               }}
@@ -241,7 +254,11 @@ function ActivateInner({ agent }: { agent: AgentDetail }) {
             ) : null}
           </>
         ) : (
-          <PackageSelector agentId={agent.id} />
+          /* §8 W7: the summary on the left, the packs on the right; stacked on a phone. */
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+            <ActivationSummary agent={agent} />
+            <PackageSelector agentId={agent.id} />
+          </div>
         )}
       </div>
       {/* §7.3 Back; the primary action is the pack card's "Pay & go live". Nothing to go back to once a payment is in flight. */}

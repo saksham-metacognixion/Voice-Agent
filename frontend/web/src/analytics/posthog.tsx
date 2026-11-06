@@ -109,6 +109,10 @@ export type AnalyticsEvent =
   | 'agent_live'
   | 'onboarding_live_viewed'
   | 'forwarding_confirmed'
+  | 'live_number_copied'
+  | 'area_code_suggested'
+  | 'scenario_chip_opened'
+  | 'feedback_undone'
   | 'mfa_enrol_started'
   // ADR 0036: the step-up an owner/admin takes when money is at risk, the Terms checkbox, a first purchase over the review limit.
   | 'mfa_step_up_started'

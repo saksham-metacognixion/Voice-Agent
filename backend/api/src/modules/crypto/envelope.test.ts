@@ -108,7 +108,16 @@ describe('SipCredentialsCipher', () => {
     expect(stored.username).toBe('trunk');
     expect(JSON.stringify(stored)).not.toContain(PASSWORD);
     expect(envelope.safeParse(stored.password).success).toBe(true);
-    expect(SipCredentialsCipher.redact(stored)).toEqual({ number: '+14505550123', host: 'sip.example.com', username: 'trunk', has_password: true });
+    expect(SipCredentialsCipher.redact(stored)).toEqual({ number: '+14505550123', host: 'sip.example.com', username: 'trunk', has_password: true, provider: 'other', transport: 'TCP' });
+  });
+
+  it('keeps the provider and transport in clear, and a row sealed before they existed reads the platform defaults (ADR 0040)', async () => {
+    const stored = await cipher.seal('11111111-1111-4111-8111-111111111111', { number: '+14505550123', host: 'sip.example.com', password: PASSWORD, provider: 'twilio', transport: 'TLS' });
+    expect(stored).toMatchObject({ provider: 'twilio', transport: 'TLS' });
+    expect(await cipher.open('11111111-1111-4111-8111-111111111111', stored)).toMatchObject({ provider: 'twilio', transport: 'TLS' });
+    const { provider: _p, transport: _t, ...legacy } = stored;
+    expect(SipCredentialsCipher.redact(legacy)).toMatchObject({ provider: 'other', transport: 'TCP' });
+    expect(await cipher.open('11111111-1111-4111-8111-111111111111', legacy)).toMatchObject({ provider: 'other', transport: 'TCP' });
   });
 
   it('opens only under the plan id it was sealed for', async () => {

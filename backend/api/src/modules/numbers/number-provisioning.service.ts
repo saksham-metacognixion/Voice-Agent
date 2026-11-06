@@ -186,6 +186,7 @@ export class NumberProvisioningService {
         terminationUri: creds.host,
         sipUsername: creds.username ?? undefined,
         sipPassword: creds.password ?? undefined,
+        transport: creds.transport,
         nickname: numberNickname(row.id),
       });
       this.log.log(`number ${row.id}: imported SIP number ${e164} via ${creds.host}`);

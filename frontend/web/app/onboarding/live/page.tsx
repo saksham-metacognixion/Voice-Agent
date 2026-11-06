@@ -3,7 +3,7 @@
 import { updateNumber, useApi, useGetAgentActivation, useGetNumber } from '@portal/api-client';
 import type { AgentDetail, PhoneNumberResponse } from '@portal/schemas';
 import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, PageLoader, toast } from '@portal/ui';
-import { ArrowRight, PartyPopper, Phone } from 'lucide-react';
+import { ArrowRight, Copy, PartyPopper, Phone, PhoneCall } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -11,16 +11,22 @@ import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { OnboardingAgentLoader } from '@/src/components/wizard/agent-loader';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
+import { CopyButton } from '@/src/components/wizard/copy-button';
+import { NextStepsChecklist } from '@/src/components/wizard/next-steps-checklist';
+import { SipSetupGuide } from '@/src/components/wizard/sip-setup-guide';
 import { areaCodeSubstitute } from '@/src/dashboard/numbers-view';
 import { LiveGuard } from '@/src/guards/guards';
 import { errorMessage } from '@/src/lib/errors';
+import { formatPhone } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 
 /**
- * `/onboarding/live` — the end of the 15-minute promise. Guarded on
+ * `/onboarding/live` — W7b, the end of the 15-minute promise. Guarded on
  * `onboarding_completed_at` (written by the activation job's `mark_live`), and every fact
- * on it — the number, the forwarding state — is read back from the API, so a refresh
- * shows the same screen and never restarts anything.
+ * on it — the number, the forwarding state, the SIP details, the next steps — is read
+ * back from the API, so a refresh shows the same screen and never restarts anything.
+ * The number can be copied and (on a phone) called; Option B gets the carrier guide and
+ * "I've set up forwarding"; Option C the trunk instructions; everyone the next steps.
  */
 export default function LivePage() {
   return (
@@ -68,15 +74,30 @@ function LiveInner({ agent }: { agent: AgentDetail }) {
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {e164 ? (
-              <a href={`tel:${e164}`} className="text-2xl font-semibold tabular-nums tracking-tight text-primary underline-offset-4 hover:underline">
-                {e164}
-              </a>
+              <div className="flex flex-col gap-3">
+                {/* §8 W7b "Big number display with Copy and Call it now" (Z-53). */}
+                <p className="text-3xl font-semibold tabular-nums tracking-tight text-primary" dir="ltr" data-testid="live-number">
+                  {formatPhone(e164)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <CopyButton text={e164} label={tl('copy')} copied={tl('copied')} failed={tl('copyFailed')} icon={<Copy />} variant="outline" data-testid="copy-number" onCopied={() => track('live_number_copied', { agent_id: agent.id })} />
+                  <Button variant="outline" asChild>
+                    <a href={`tel:${e164}`} data-testid="call-number">
+                      <PhoneCall aria-hidden /> {tl('callNow')}
+                    </a>
+                  </Button>
+                </div>
+              </div>
             ) : null}
             {substitute ? <Alert variant="neutral">{tl('areaCodeNote', substitute)}</Alert> : null}
+            {number.isError ? <Alert variant="warning">{errorMessage(number.error, t)}</Alert> : null}
             {number.data?.forwarding ? <Forwarding number={number.data} /> : null}
+            {number.data?.kind === 'sip' ? <SipSetupGuide number={number.data} /> : null}
           </CardContent>
         </Card>
       )}
+
+      {!activation.isError ? <NextStepsChecklist agent={agent} number={number.data} /> : null}
 
       <div className="flex flex-wrap justify-center gap-3">
         <Button size="lg" asChild>
@@ -116,15 +137,17 @@ function Forwarding({ number }: { number: PhoneNumberResponse }) {
     }
   }
 
-  if (forwarding.status === 'ready') return <Alert variant="success">{tl('ready', { from: forwarding.from })}</Alert>;
+  if (forwarding.status === 'ready') return <Alert variant="success">{tl('ready', { from: formatPhone(forwarding.from) })}</Alert>;
   return (
     <div className="flex flex-col gap-3">
-      <Alert variant="info" title={tl('title', { from: forwarding.from })}>
-        {tl('body', { to: number.e164 ?? '' })}
+      <Alert variant="info" title={tl('title', { from: formatPhone(forwarding.from) })}>
+        {tl('body', { to: number.e164 ? formatPhone(number.e164) : '' })}
+        {/* The W6 forward mode: which of the carrier's codes applies (always vs. busy / no answer). */}
+        {forwarding.mode ? <p className="mt-1">{tl(`mode.${forwarding.mode}`)}</p> : null}
       </Alert>
       <CarrierForwardingGuide carrier={forwarding.carrier ?? 'other'} />
       <div>
-        <Button onClick={() => void confirm()} loading={saving} disabled={saving}>
+        <Button onClick={() => void confirm()} loading={saving} disabled={saving} data-testid="forwarding-confirm">
           {tl('confirm')}
         </Button>
       </div>

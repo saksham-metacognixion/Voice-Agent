@@ -6,7 +6,7 @@ import {
   Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch,
   TagInput, Textarea, toast,
 } from '@portal/ui';
-import { Ban, Check, Eye, EyeOff, PhoneIncoming, X } from 'lucide-react';
+import { Ban, Check, Copy, Eye, EyeOff, PhoneIncoming, X } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -18,6 +18,7 @@ import { Pager } from '@/src/components/dashboard/pager';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { CallStatusBadge } from '@/src/components/dashboard/status-badges';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
+import { CopyButton } from '@/src/components/wizard/copy-button';
 import { HoursOverridesEditor, HoursStatusLine } from '@/src/components/dashboard/hours-overrides';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
 import { TransferTargetsEditor, toDrafts, toTargets, validateTargets, type TransferTargetDraft } from '@/src/components/wizard/transfer-targets-editor';
@@ -123,7 +124,7 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
   const invalid = mode === 'custom' && hoursProblems(hours).length > 0;
   const customEmpty = mode === 'custom' && Object.values(hours.days ?? {}).every((d) => !d?.length) && !(hours.date_overrides ?? []).some((o) => o.intervals.length);
   const workspaceZone = ws.workspace?.timezone ?? 'UTC';
-  const noWorkspaceHours = mode === 'business' && !Object.values(ws.workspace?.business_hours?.days ?? {}).some((d) => d?.length);
+  const noWorkspaceHours = (mode === 'business' || mode === 'outside_hours') && !Object.values(ws.workspace?.business_hours?.days ?? {}).some((d) => d?.length);
 
   return (
     <Card>
@@ -162,7 +163,8 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(['always', 'business', 'custom'] as const).map((m) => (
+              {/* The spec's three W6 modes plus D4's two (ADR 0040); the saved one is always on the list. */}
+              {(['always', 'outside_hours', 'unanswered', 'business', 'custom'] as const).map((m) => (
                 <SelectItem key={m} value={m}>
                   {t(`modes.${m}`)}
                 </SelectItem>
@@ -189,7 +191,7 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
             <HoursOverridesEditor value={hours} onChange={setHours} disabled={disabled || busy} workspaceTimeZone={workspaceZone} allowTimeZone />
           </>
         ) : null}
-        {mode !== 'always' ? <HoursStatusLine hours={mode === 'custom' ? hours : (ws.workspace?.business_hours ?? null)} workspaceTimeZone={workspaceZone} /> : null}
+        {mode === 'business' || mode === 'custom' || mode === 'outside_hours' ? <HoursStatusLine hours={mode === 'custom' ? hours : (ws.workspace?.business_hours ?? null)} workspaceTimeZone={workspaceZone} /> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {!disabled ? <SaveRow label={t('save')} busy={busy} dirty={dirty && !invalid} onSave={() => void save(patch)} /> : null}
       </CardContent>
@@ -515,6 +517,7 @@ export function ForwardingSection({ number, disabled }: { number: PhoneNumberRes
  */
 export function SipSection({ number }: { number: PhoneNumberResponse }) {
   const t = useTranslations('dashboard.numbers.sip');
+  const tw = useTranslations('wizard.w6.fields');
   const { canAdmin } = useRole();
   const [reveal, setReveal] = React.useState(false);
   const sip = number.sip;
@@ -544,12 +547,25 @@ export function SipSection({ number }: { number: PhoneNumberResponse }) {
               </span>
             </Fact>
             <Fact label={t('password')}>{sip.has_password ? t('passwordStored') : t('passwordNone')}</Fact>
+            <Fact label={t('provider')}>{tw(`sipProviders.${sip.provider}`)}</Fact>
+            <Fact label={t('transport')}>{sip.transport}</Fact>
+            {/* Spec p. 37 "origination URI to configure on their trunk": the environment's address, when ops set it. */}
+            <Fact label={t('origination')} wrap>
+              {sip.origination_uri ? (
+                <span className="inline-flex flex-wrap items-center gap-2">
+                  <code dir="ltr" className="break-all font-mono text-xs">{sip.origination_uri}</code>
+                  <CopyButton text={sip.origination_uri} label={t('copyOrigination')} copied={t('copied')} failed={t('copyFailed')} size="icon-sm" variant="ghost" icon={<Copy />} />
+                </span>
+              ) : (
+                <span className="text-muted-foreground">{t('originationUnknown')}</span>
+              )}
+            </Fact>
           </dl>
         ) : (
           <Alert variant="warning">{t('missing')}</Alert>
         )}
         {sip && (number.status === 'active' || number.status === 'paused') ? <SipVerifyPanel number={number} canAdmin={canAdmin} /> : null}
-        <Alert variant="info">{t('inbound')}</Alert>
+        <Alert variant="info">{sip?.origination_uri ? t('inboundSet') : t('inbound')}</Alert>
         <p className="text-xs text-muted-foreground">{t('change')}</p>
       </CardContent>
     </Card>

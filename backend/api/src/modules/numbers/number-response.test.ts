@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { FORWARDING_TEST_RING_MS } from '../calls/forwarding-test';
-import { SIP_VERIFY_LEASE_MS, forwardingTestOf, parseTargets, toNumberResponse, verificationOf } from './number-response';
+import { SIP_VERIFY_LEASE_MS, forwardingTestOf, parseForwardMode, parseTargets, toNumberResponse, verificationOf } from './number-response';
 
 /* D4 / D11 / D16 / D17: what a phone number row looks like on the wire. */
 
@@ -58,8 +58,16 @@ describe('toNumberResponse', () => {
       from: '+14165550100',
       status: 'waiting_for_customer',
       carrier: null,
+      mode: null,
       test: null,
     });
+  });
+
+  it('carries the forward mode the plan recorded, and reads an unknown value as not said (ADR 0040)', () => {
+    expect(toNumberResponse(numberRow({ forwardingFrom: '+14165550100', forwardMode: 'busy_no_answer' })).forwarding?.mode).toBe('busy_no_answer');
+    expect(toNumberResponse(numberRow({ forwardingFrom: '+14165550100', forwardMode: 'sometimes' })).forwarding?.mode).toBeNull();
+    expect(parseForwardMode('outside_hours')).toBe('outside_hours');
+    expect(parseForwardMode(undefined)).toBeNull();
   });
 
   it('a SIP number shows host, username and has_password — never the sealed password', () => {
@@ -68,8 +76,22 @@ describe('toNumberResponse', () => {
       numberRow({ type: 'custom_sip', plan: { sipJson: { number: '+14165550123', host: 'sip.example.com', username: 'trunk', password: sealed } } }),
     );
     expect(wire.kind).toBe('sip');
-    expect(wire.sip).toEqual({ host: 'sip.example.com', username: 'trunk', has_password: true, verification: null });
+    expect(wire.sip).toEqual({ host: 'sip.example.com', username: 'trunk', has_password: true, provider: 'other', transport: 'TCP', origination_uri: null, verification: null });
     expect(JSON.stringify(wire)).not.toMatch(/EDK-SECRET|CIPHERTEXT-SECRET/);
+  });
+
+  it('a SIP number carries its provider, transport and the environment origination address (ADR 0040)', () => {
+    const sipJson = { number: '+14165550123', host: 'h', username: null, password: null, provider: 'twilio', transport: 'TLS' };
+    const wire = toNumberResponse(numberRow({ type: 'custom_sip', plan: { sipJson }, originationUri: 'sip:env.example.net' }));
+    expect(wire.sip).toMatchObject({ provider: 'twilio', transport: 'TLS', origination_uri: 'sip:env.example.net' });
+    const before = process.env.SIP_ORIGINATION_URI;
+    process.env.SIP_ORIGINATION_URI = 'sip:from-env.example.net';
+    try {
+      expect(toNumberResponse(numberRow({ type: 'custom_sip', plan: { sipJson } })).sip?.origination_uri).toBe('sip:from-env.example.net');
+    } finally {
+      if (before === undefined) delete process.env.SIP_ORIGINATION_URI;
+      else process.env.SIP_ORIGINATION_URI = before;
+    }
   });
 
   it('a SIP number without a password says so; unreadable credentials show no SIP block', () => {

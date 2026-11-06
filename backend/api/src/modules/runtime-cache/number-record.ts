@@ -1,4 +1,4 @@
-import type { AgentTier, BusinessHours } from '@portal/schemas';
+import type { AgentTier, BusinessHours, HoursMode } from '@portal/schemas';
 
 /** Bump when the shape changes; the hot path treats an older record as a miss. */
 export const NUMBER_RECORD_VERSION = 2 as const;
@@ -60,8 +60,8 @@ export interface NumberRecord {
   rate_per_min: number | null;
   /** `pricing_configs.version` the rate came from; stamped onto the row this call creates. */
   config_version: number | null;
-  hours_mode: 'always' | 'business' | 'custom';
-  /** The schedule for `business` (tenant) or `custom` (number); null = treat as open. */
+  hours_mode: HoursMode;
+  /** The schedule for `business` / `outside_hours` (the tenant's) or `custom` (the number's); null = no schedule. */
   hours: BusinessHours | null;
   /** E.164 callers to decline as `blocked`: the number's own list plus the global phone blocklist. */
   blocklist: string[];

@@ -124,7 +124,8 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
   }
 
   React.useEffect(() => {
-    if (generation.state.stage === 'done') void advance(3, 'brief');
+    // A failed step write after a generation is Continue's to retry (§12.2, Z-61); it only says so here.
+    if (generation.state.stage === 'done') advance(3, 'brief').catch(() => toast.error(tw('stepSaveToast'), { id: 'step-save-failed' }));
     // §8 W2 "On failure: toast 'Couldn't generate — try again' (no version created)". The
     // worker's failure frame lands here; the request's own failure is caught above.
     if (generation.state.stage === 'failed') toast.error(tw('failedToast'), { id: 'generation-failed' });
@@ -142,7 +143,12 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
       setGenError(errorMessage(e, t));
       return;
     }
-    await advance(3, 'brief');
+    try {
+      await advance(3, 'brief');
+    } catch (e) {
+      setGenError(errorMessage(e, t));
+      return;
+    }
     router.push(routes.onboarding.voice);
   }
 

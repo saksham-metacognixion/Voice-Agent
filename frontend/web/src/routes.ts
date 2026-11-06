@@ -18,6 +18,11 @@ export const routes = {
   impersonate: '/impersonate/',
   /** D17 §11.5: the website widget's frame, `?key=` — public, outside every guard and provider but theme and language. */
   embed: '/embed/',
+  /** The documents the A1 checkbox refers to, served by the portal (ADR 0036). Public, no guard. */
+  legal: {
+    terms: '/legal/terms/',
+    privacy: '/legal/privacy/',
+  },
   selectWorkspace: '/select-workspace/',
   setupWorkspace: '/setup/workspace/',
   onboarding: {

@@ -379,6 +379,8 @@ export class RetellGateway {
     terminationUri: string;
     sipUsername?: string;
     sipPassword?: string;
+    /** "TCP" (the platform's default), "UDP" or "TLS" — the trunk's outbound transport. */
+    transport?: 'TCP' | 'UDP' | 'TLS';
     nickname: string;
   }) {
     return this.client.phoneNumber.import({
@@ -386,6 +388,7 @@ export class RetellGateway {
       termination_uri: input.terminationUri,
       sip_trunk_auth_username: input.sipUsername,
       sip_trunk_auth_password: input.sipPassword,
+      transport: input.transport,
       nickname: this.config.objectName(input.nickname),
       inbound_agents: this.binding(input.agentId),
       inbound_webhook_url: this.config.inboundWebhookUrl(input.numberToken),

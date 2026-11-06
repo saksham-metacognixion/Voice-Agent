@@ -21,9 +21,25 @@ const MAX = feedbackRequest.shape.text.maxLength ?? 500;
 export function ImprovePanel({ agent }: { agent: AgentDetail }) {
   const ti = useTranslations('wizard.w5.improve');
   const t = useTranslations();
-  const { state, working, submit, reset } = useFeedback(agent.id);
+  const { state, working, submit, reset, undo } = useFeedback(agent.id);
   const [text, setText] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
+  const [undoing, setUndoing] = React.useState(false);
+
+  // §8 W5 "Undo": back to the draft the feedback was written against. The version it
+  // wrote is kept (D3 Versions lists it); only the draft pointer moves.
+  async function onUndo() {
+    if (undoing) return;
+    setUndoing(true);
+    setError(null);
+    try {
+      await undo();
+    } catch (err) {
+      setError(errorMessage(err, t));
+    } finally {
+      setUndoing(false);
+    }
+  }
   const draft = agent.draft;
   const trimmed = text.trim();
   const tooShort = trimmed.length > 0 && trimmed.length < MIN;
@@ -88,7 +104,23 @@ export function ImprovePanel({ agent }: { agent: AgentDetail }) {
           </Alert>
         ) : null}
         {applied ? (
-          <Alert variant="success" title={ti('doneTitle', { version: draft.version_no })} actions={<Button size="sm" variant="outline" onClick={reset}>{t('common.close')}</Button>}>
+          <Alert
+            variant="success"
+            title={ti('doneTitle', { version: draft.version_no })}
+            actions={
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={reset} disabled={undoing} data-testid="feedback-keep">
+                  {ti('keep')}
+                </Button>
+                {state.baseVersion ? (
+                  <Button size="sm" variant="outline" onClick={() => void onUndo()} loading={undoing} disabled={undoing} data-testid="feedback-undo">
+                    {ti('undo', { version: state.baseVersion })}
+                  </Button>
+                ) : null}
+              </div>
+            }
+          >
+            <p className="font-medium">{ti('whatChanged')}</p>
             {draft.changes?.length ? (
               <ul className="list-disc ps-4">
                 {draft.changes.map((c) => (

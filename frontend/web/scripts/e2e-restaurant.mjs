@@ -86,13 +86,19 @@ async function generate(label, agentId) {
   if (label === 'Regenerate' && (await waitFor(`document.querySelector('[role="dialog"]') !== null`, 3000, 100))) {
     await b.evaluate(`[...document.querySelectorAll('[role="dialog"] button')].find(b => b.textContent.trim() === 'Regenerate')?.click()`);
   }
-  const started = await waitFor(`document.body.innerText.includes('Writing your agent') || document.body.innerText.includes('Preparing') || document.body.innerText.includes('Queued')`, 15000, 100);
+  // W2 says "Writing your agent…"; D3's Brief tab shows the spec's stage names (ADR 0039 §6).
+  const started = await waitFor(`['Writing your agent', 'Getting started', 'Reading your brief', 'Writing the conversation', 'Setting up analysis'].some((s) => document.body.innerText.includes(s))`, 15000, 100);
   const t0 = Date.now();
+  let advanced = false;
   while (Date.now() - t0 < 150000) {
     const draft = agentId ? await draftOf(agentId) : null;
-    if (agentId ? (draft?.version_no ?? 0) > before && draft?.has_prompt : await b.evaluate(`document.body.innerText.includes('Your agent is ready')`)) break;
+    advanced = Boolean(agentId && (draft?.version_no ?? 0) > before && draft?.has_prompt);
+    if (agentId ? advanced : await b.evaluate(`document.body.innerText.includes('Your agent is ready')`)) break;
     await sleep(1500);
   }
+  // With an agent the stored version is the fact (W2 and D3 word their progress differently); the page's own
+  // "Your agent is ready" is the signal only when there is no agent id to read.
+  if (agentId) return advanced;
   const done = await waitFor(`document.body.innerText.includes('Your agent is ready')`, 30000, 1000);
   return Boolean(started) && Boolean(done);
 }
@@ -116,6 +122,11 @@ try {
   // 1. Sign up → A4 → workspace "Bright Dental" (the name is not a category)
   await b.goto(`${BASE}/signup/`, 2000);
   await clickText('Create account'); await sleep(4000);
+  // ADR 0036: the Terms screen is the first door after sign-in; accept it and move on (as e2e-wizard does).
+  if ((await path()).startsWith('/terms/')) {
+    await b.evaluate(`document.querySelector('#terms-agree')?.click(); 'ok'`); await sleep(300);
+    await clickText('Continue'); await waitFor(`!location.pathname.startsWith('/terms')`, 10000); await sleep(1500);
+  }
   ok('signup lands on workspace setup', (await path()) === '/setup/workspace/', await path());
   await waitFor(`document.querySelector('#name') !== null`, 10000);
   await setInput('#name', 'Bright Dental');
@@ -155,9 +166,11 @@ try {
   await sleep(2500); ok('W2 autosaves', Boolean(await waitFor(`document.body.innerText.includes('Saved')`, 8000)));
   ok('W2 generation completes', await generate('Generate my agent', agent.id));
   const draft1 = await draftOf(agent.id);
-  ok('generated prompt names Bright Dental', /Bright Dental/.test(draft1?.prompt_text ?? ''));
+  // ADR 0038: `{{business_name}}` is supplied on every channel, so the model may name the business through it.
+  const namesBusiness = (text) => /Bright Dental|\{\{\s*business_name\s*\}\}/.test(text ?? '');
+  ok('generated prompt names Bright Dental', namesBusiness(draft1?.prompt_text));
   ok('generated prompt and greeting never name the voice platform', !VENDOR.test(`${draft1?.prompt_text}\n${draft1?.greeting}`), draft1?.greeting);
-  ok('generated greeting names the business', /Bright Dental/.test(draft1?.greeting ?? ''), draft1?.greeting);
+  ok('generated greeting names the business', namesBusiness(draft1?.greeting), draft1?.greeting);
   ok('generated prompt is publishable (lint clean of errors)', draft1?.lint?.publishable === true, JSON.stringify(draft1?.lint?.findings?.map((f) => f.rule)));
 
   // 4. The category survives a reload and a round trip to another step
@@ -199,9 +212,12 @@ try {
 
   // 7. Paid, but not live: still no knowledge page. Then go-live: W7 lands on knowledge.
   const wsId = (await apiCall('GET', '/workspace')).json?.id;
-  execSync(`pnpm --filter @portal/api dev:seed-workspace ${wsId} growth`, { cwd: ROOT, stdio: 'ignore' });
+  execSync(`pnpm --filter @portal/api dev:seed-workspace ${wsId} starter`, { cwd: ROOT, stdio: 'ignore' });
   await b.goto(`${BASE}/onboarding/knowledge/`, 3500); await sleep(1500);
   ok('W4 (knowledge) still waits for go-live once paid but not activated', (await path()).startsWith('/onboarding/') && !(await path()).startsWith('/onboarding/knowledge/'), await path());
+  // Starter then Growth: the seed applies the last pack's caps, so the workspace ends on Growth (the knowledge
+  // gate) while the balance (trial + 150 + 500) stays under the §6.2 money-at-risk line (ADR 0036). Two Growth
+  // grants crossed it, and every write from the stand-in identity (no MFA claim) answered MFA_REQUIRED.
   execSync(`pnpm --filter @portal/api dev:seed-workspace ${wsId} growth --live`, { cwd: ROOT, stdio: 'ignore' });
   await b.goto(`${BASE}/onboarding/activate/`, 3500);
   ok('W7 on a live workspace lands on the knowledge page (completeRedirect)', Boolean(await waitFor(`location.pathname === '/onboarding/knowledge/'`, 15000)), await path());
@@ -227,13 +243,14 @@ try {
   ok('platform: the agent has a knowledge base with the menu, status complete', facts.kb?.status === 'complete' && facts.kb.sources.some((s) => /menu/i.test(s ?? '')), JSON.stringify(facts));
 
   // 9. Regenerate carries the menu rules into the prompt, and the draft's LLM points at the base
-  await b.goto(`${BASE}/onboarding/brief/`, 3000); await waitFor(`document.body.innerText.includes('Regenerate')`, 15000);
-  ok('W2 regenerate completes', await generate('Regenerate', agent.id));
+  // The wizard is finished (go-live above), so W2 is closed (ADR 0024): the same brief form and Regenerate are D3's Brief tab.
+  await b.goto(`${BASE}/app/agents/detail/?id=${agent.id}&tab=brief`, 3500); await waitFor(`[...document.querySelectorAll('button')].some(b => b.textContent.trim() === 'Regenerate')`, 15000);
+  ok('D3 Brief regenerate completes', await generate('Regenerate', agent.id));
   const draft2 = await draftOf(agent.id);
   ok('regenerated prompt is a new version', (draft2?.version_no ?? 0) > (draft1?.version_no ?? 0), `v${draft1?.version_no} → v${draft2?.version_no}`);
   ok('regenerated prompt tells the agent to answer from the menu', /menu/i.test(draft2?.prompt_text ?? ''), (draft2?.prompt_text ?? '').match(/[^\n]*menu[^\n]*/i)?.[0]);
   ok('regenerated prompt says what to do when a dish is not on the menu', /not on (the|our) menu|isn.t on the menu|don.t have that/i.test(draft2?.prompt_text ?? ''));
-  ok('regenerated prompt still names Bright Dental and never the platform', /Bright Dental/.test(draft2?.prompt_text ?? '') && !VENDOR.test(`${draft2?.prompt_text}\n${draft2?.greeting}`));
+  ok('regenerated prompt still names Bright Dental and never the platform', namesBusiness(draft2?.prompt_text) && !VENDOR.test(`${draft2?.prompt_text}\n${draft2?.greeting}`));
   facts = platformFacts(agent.id);
   ok('platform: the regenerated draft rang an LLM that points at the menu knowledge base', Array.isArray(facts.llm_kbs) && facts.llm_kbs.includes(facts.kb_id), JSON.stringify(facts));
 

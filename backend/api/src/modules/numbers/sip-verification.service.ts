@@ -126,7 +126,7 @@ export class SipVerificationService {
 
       const keep = changed && status !== 'failed';
       // Sealed before the transaction: in staging and prod the data key comes from KMS.
-      const sealed = keep ? await this.sip.seal(plan.id, { number: stored.number, ...candidate }) : null;
+      const sealed = keep ? await this.sip.seal(plan.id, { number: stored.number, provider: stored.provider, transport: stored.transport, ...candidate }) : null;
       const result: SipVerification = {
         status,
         checked_at: new Date().toISOString(),

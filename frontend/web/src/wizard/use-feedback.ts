@@ -1,6 +1,6 @@
 'use client';
 
-import { isApiError, sendAgentFeedback, useApi, useJobWatch } from '@portal/api-client';
+import { isApiError, selectAgentDraft, sendAgentFeedback, useApi, useJobWatch } from '@portal/api-client';
 // The shell's stream under /app (ADR 0019 §1), a stream of its own in the wizard.
 import { useLiveEvents } from '../dashboard/use-live-events';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,14 +15,17 @@ export interface FeedbackState {
   jobId: string | null;
   /** The version the patch wrote. */
   versionNo: number | null;
+  /** The draft the patch was written against: what "Undo" reselects (§13.5 step 2). */
+  baseVersion: number | null;
   /** §9.6: `changes: []` — the request conflicted with a guardrail; nothing changed. */
   refused: boolean;
   /** The customer-facing explanation when refused, or the failure reason. */
   message: string | null;
 }
 
-const IDLE: FeedbackState = { stage: 'idle', jobId: null, versionNo: null, refused: false, message: null };
+const IDLE: FeedbackState = { stage: 'idle', jobId: null, versionNo: null, baseVersion: null, refused: false, message: null };
 const key = (agentId: string) => `portal:feedback-job:${agentId}`;
+const baseKey = (agentId: string) => `portal:feedback-base:${agentId}`;
 
 /**
  * §13.5 as the W5 Improve panel sees it: `POST /agents/:id/feedback {text, base_version}`
@@ -43,7 +46,8 @@ export function useFeedback(agentId: string | null) {
   React.useEffect(() => {
     if (!agentId) return;
     const stored = storage.get(key(agentId));
-    if (stored) setState({ ...IDLE, stage: 'working', jobId: stored });
+    const base = Number(storage.get(baseKey(agentId)));
+    if (stored) setState({ ...IDLE, stage: 'working', jobId: stored, baseVersion: Number.isFinite(base) && base > 0 ? base : null });
   }, [agentId]);
 
   const finish = React.useCallback(
@@ -94,11 +98,13 @@ export function useFeedback(agentId: string | null) {
   const submit = React.useCallback(
     async (text: string, baseVersion: number | null) => {
       if (!agentId || working) return;
-      setState({ ...IDLE, stage: 'working' });
+      setState({ ...IDLE, stage: 'working', baseVersion });
       track('feedback_submitted', { agent_id: agentId, base_version: baseVersion, length: text.length });
       try {
         const res = await sendAgentFeedback(api, { id: agentId }, { text, ...(baseVersion ? { base_version: baseVersion } : {}) });
         storage.set(key(agentId), res.job_id);
+        if (baseVersion) storage.set(baseKey(agentId), String(baseVersion));
+        else storage.remove(baseKey(agentId));
         setState((s) => ({ ...s, jobId: res.job_id }));
       } catch (error) {
         if (isApiError(error, 'CONFLICT')) return; // already running: the frames or the poll will end it
@@ -110,5 +116,18 @@ export function useFeedback(agentId: string | null) {
   );
 
   const reset = React.useCallback(() => setState(IDLE), []);
-  return { state, working, submit, reset };
+
+  /**
+   * §9.6 "Undo simply reselects the previous version as draft", §13.5 step 2: no model
+   * call, the patched version stays in the history. Resolves once the agent is re-read.
+   */
+  const undo = React.useCallback(async () => {
+    if (!agentId || state.stage !== 'done' || !state.baseVersion) return;
+    await selectAgentDraft(api, { id: agentId }, { version_no: state.baseVersion });
+    track('feedback_undone', { agent_id: agentId, version_no: state.versionNo, restored: state.baseVersion });
+    await queryClient.invalidateQueries({ queryKey: ['getAgent'] });
+    setState(IDLE);
+  }, [agentId, api, queryClient, state.stage, state.baseVersion, state.versionNo]);
+
+  return { state, working, submit, reset, undo };
 }

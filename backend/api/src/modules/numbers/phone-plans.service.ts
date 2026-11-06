@@ -115,6 +115,7 @@ export class PhonePlansService {
       tollFree: false,
       existingNumber: null,
       carrier: null,
+      forwardMode: null,
       sipJson: Prisma.DbNull,
       nickname: input.nickname ?? null,
       hoursMode: input.hours_mode,
@@ -127,12 +128,12 @@ export class PhonePlansService {
       case 'new':
         return { ...base, country: input.country, areaCode: input.area_code ?? null, tollFree: input.toll_free };
       case 'forward':
-        return { ...base, country: input.country, areaCode: input.area_code ?? null, existingNumber: input.existing_number, carrier: input.carrier };
+        return { ...base, country: input.country, areaCode: input.area_code ?? null, existingNumber: input.existing_number, carrier: input.carrier, forwardMode: input.forward_mode };
       case 'sip': {
         // Sealed against the plan id it will live under. A new plan has no id yet, so it is
         // minted here and used for the row, which keeps the AAD and the primary key equal.
         const id = planId ?? crypto.randomUUID();
-        const sealed = await this.sip.seal(id, { number: input.sip.number, host: input.sip.host, username: input.sip.username, password: input.sip.password });
+        const sealed = await this.sip.seal(id, { number: input.sip.number, host: input.sip.host, username: input.sip.username, password: input.sip.password, provider: input.sip.provider, transport: input.sip.transport });
         return { ...base, id, sipJson: sealed as unknown as Prisma.InputJsonValue };
       }
     }

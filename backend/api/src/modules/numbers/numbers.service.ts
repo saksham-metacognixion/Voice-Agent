@@ -93,6 +93,7 @@ export class NumbersService {
           forwardingFrom: input.forward_from ?? null,
           forwardingStatus: input.forward_from ? 'waiting_for_customer' : null,
           carrier: input.forward_from ? (input.carrier ?? 'other') : null,
+          forwardMode: input.forward_from ? (input.forward_mode ?? 'always') : null,
           status: 'provisioning',
         },
       });
@@ -117,7 +118,7 @@ export class NumbersService {
 
       // The plan row is where SIP credentials live (one place, one AAD), even off-wizard.
       const planId = crypto.randomUUID();
-      const sealed = await this.sip.seal(planId, { number: input.sip.number, host: input.sip.host, username: input.sip.username, password: input.sip.password });
+      const sealed = await this.sip.seal(planId, { number: input.sip.number, host: input.sip.host, username: input.sip.username, password: input.sip.password, provider: input.sip.provider, transport: input.sip.transport });
       const plan = await db.phonePlan.create({
         data: {
           id: planId,

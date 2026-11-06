@@ -271,6 +271,22 @@
       "version": "Version {version}"
     }
   },
+  "legal": {
+    "title": {
+      "terms": "Conditions d’utilisation",
+      "privacy": "Politique de confidentialité"
+    },
+    "version": "Version {version}",
+    "draft": "Ébauche d’exemple. Ce texte n’a pas été révisé par un avocat et n’est pas l’entente définitive.",
+    "englishOnly": "Ce document est offert en anglais seulement.",
+    "contents": "Table des matières",
+    "read": {
+      "terms": "Lire les conditions d’utilisation",
+      "privacy": "Lire la politique de confidentialité"
+    },
+    "questions": "Des questions sur ce document? Écrivez à",
+    "openInNewTab": "Ouvrir dans un nouvel onglet"
+  },
   "errors": {
     "NETWORK": "Impossible de joindre le serveur. Vérifiez votre connexion et réessayez.",
     "UNAUTHENTICATED": "Votre session a pris fin. Reconnectez-vous pour continuer.",
@@ -375,7 +391,15 @@
     "OUTBOUND_DAILY_CAP": "Vous avez fait aujourd’hui tous les rappels que votre formule permet. Réessayez demain.",
     "OUTBOUND_IN_PROGRESS": "Un rappel à cette personne est déjà en cours. Attendez qu’il se termine.",
     "TERMS_NOT_ACCEPTED": "Acceptez les conditions d’utilisation et la politique de confidentialité pour continuer.",
-    "TOKEN_EXPIRED": "Votre session devait être actualisée. Réessayez."
+    "TOKEN_EXPIRED": "Votre session devait être actualisée. Réessayez.",
+    "boundary": {
+      "title": "Un problème est survenu sur cette page",
+      "body": "La page n’a pas pu s’afficher. Rien de ce que vous avez enregistré n’est perdu. Réessayez ou retournez au tableau de bord.",
+      "bodyWithRef": "La page n’a pas pu s’afficher. Rien de ce que vous avez enregistré n’est perdu. Réessayez ou retournez au tableau de bord. Référence : {ref}.",
+      "retry": "Réessayer",
+      "home": "Aller au tableau de bord",
+      "support": "Contacter le soutien"
+    }
   },
   "validation": {
     "required": "Obligatoire",
@@ -782,7 +806,8 @@
         "body": "La conversation est réécrite à partir de votre fiche; vos commentaires de test sont conservés.",
         "keepsFeedback": "Les commentaires donnés lors des appels de test sont conservés.",
         "replacesEdits": "Les modifications faites à la main dans le script sont remplacées."
-      }
+      },
+      "stepSaveToast": "Votre script est enregistré, mais votre progression n’a pas pu l’être. Appuyez sur Continuer pour réessayer."
     },
     "w3": {
       "title": "Choisir une voix et des langues",
@@ -966,7 +991,13 @@
           "empty": "Ce fichier est vide."
         }
       },
-      "readingPhoto": "Lecture de la photo…"
+      "readingPhoto": "Lecture de la photo…",
+      "removeTitle": "Retirer {name}?",
+      "removeBody": "Votre agent cessera de répondre à partir de cette source dès son prochain appel.",
+      "removeConsequence": "Les personnes qui posent une question sur ce qu’elle couvrait seront informées que l’agent n’a pas cette information.",
+      "removeConfirm": "Retirer la source",
+      "removed": "{name} retiré.",
+      "addFaqs": "Ajouter des FAQ à la fiche"
     },
     "w5": {
       "title": "Testez votre agent",
@@ -1028,8 +1059,47 @@
           "noCreditsTitle": "Plus de crédits",
           "apiTitle": "Nous n’avons pas pu lancer l’appel",
           "connectionTitle": "L’appel n’a pas pu être établi",
-          "connection": "Vérifiez votre connexion et réessayez. Si vous êtes sur un réseau d’entreprise, il bloque peut-être les appels dans le navigateur."
-        }
+          "connection": "Vérifiez votre connexion et réessayez. Si vous êtes sur un réseau d’entreprise, il bloque peut-être les appels dans le navigateur.",
+          "micHelpTitle": {
+            "chrome": "Dans Chrome",
+            "edge": "Dans Edge",
+            "safari": "Dans Safari",
+            "firefox": "Dans Firefox",
+            "other": "Dans votre navigateur"
+          },
+          "micHelp": {
+            "chrome": [
+              "Cliquez sur l’icône à gauche de la barre d’adresse.",
+              "Réglez Microphone sur Autoriser.",
+              "Rechargez la page et relancez l’appel."
+            ],
+            "edge": [
+              "Cliquez sur le cadenas à gauche de la barre d’adresse.",
+              "Sous Autorisations, réglez Microphone sur Autoriser.",
+              "Rechargez la page et relancez l’appel."
+            ],
+            "safari": [
+              "Ouvrez Safari ▸ Réglages pour ce site web (ou Safari ▸ Réglages ▸ Sites web ▸ Microphone).",
+              "Réglez ce site sur Autoriser.",
+              "Rechargez la page et relancez l’appel."
+            ],
+            "firefox": [
+              "Cliquez sur l’icône de microphone barrée à gauche de la barre d’adresse.",
+              "Retirez le réglage Bloqué pour ce site.",
+              "Relancez l’appel et choisissez Autoriser."
+            ],
+            "other": [
+              "Ouvrez les réglages de site de votre navigateur pour cette page.",
+              "Autorisez le microphone.",
+              "Rechargez la page et relancez l’appel."
+            ]
+          }
+        },
+        "trialUsedTitle": "Vous avez utilisé vos minutes d’essai gratuites",
+        "trialUsedBody": "Choisissez un numéro et un forfait pour continuer à tester. Votre agent et son script sont conservés.",
+        "activateCta": "Choisir un numéro et un forfait",
+        "trySaying": "Essayez de dire :",
+        "pickScenario": "Choisissez-en un pour voir quoi dire."
       },
       "after": {
         "title": "Après l’appel",
@@ -1069,7 +1139,10 @@
         "refusedBody": "Cette demande va à l’encontre d’une règle que tous les agents suivent; votre agent reste donc inchangé.",
         "doneTitle": "La version {version} est prête",
         "doneBody": "Votre agent a été mis à jour.",
-        "testAgain": "Rappelez pour entendre la différence."
+        "testAgain": "Rappelez pour entendre la différence.",
+        "keep": "Conserver",
+        "undo": "Annuler (retour à la version {version})",
+        "whatChanged": "Ce qui a changé"
       },
       "callMyPhone": {
         "title": "Appeler mon téléphone",
@@ -1079,7 +1152,13 @@
         "placed": "Appel vers {to} depuis {from}. Répondez pour parler à votre agent.",
         "invalid": "Entrez votre propre cellulaire ou ligne fixe, par exemple +1 514 555 0123."
       },
-      "happyShort": "Ça me convient"
+      "happyShort": "Ça me convient",
+      "leave": {
+        "title": "Mettre fin à votre appel test?",
+        "body": "Quitter cette page raccroche l’appel. Les crédits sont facturés pour le temps passé en ligne jusqu’ici.",
+        "stay": "Rester sur l’appel",
+        "leave": "Raccrocher et quitter"
+      }
     },
     "w6": {
       "title": "Comment les appelants joindront-ils votre agent?",
@@ -1137,7 +1216,24 @@
         "sipUsername": "Nom d’utilisateur",
         "sipPassword": "Mot de passe",
         "sipPasswordHint": "Seulement si votre système en exige un.",
-        "sipPasswordAgain": "Un mot de passe est enregistré. Entrez-le de nouveau pour le conserver; enregistrer sans mot de passe le supprime."
+        "sipPasswordAgain": "Un mot de passe est enregistré. Entrez-le de nouveau pour le conserver; enregistrer sans mot de passe le supprime.",
+        "areaCodeSuggested": {
+          "timezone": "Suggéré d’après le fuseau horaire de votre espace de travail. Modifiez-le si vous voulez.",
+          "country": "Un indicatif courant pour ce pays. Remplacez-le par celui de votre région."
+        },
+        "areaCodeTollFree": "Inutile pour un numéro sans frais.",
+        "suggest": "Suggérer",
+        "sipProvider": "Fournisseur",
+        "sipProviderHint": "Qui exploite votre système téléphonique. Cela choisit les bonnes instructions de configuration.",
+        "sipProviders": {
+          "twilio": "Twilio",
+          "telnyx": "Telnyx",
+          "vonage": "Vonage",
+          "other": "Autre fournisseur SIP"
+        },
+        "sipTransport": "Transport",
+        "sipTransportHint": "TCP, sauf indication contraire de votre fournisseur.",
+        "sipConsent": "Je comprends que les appels n’atteindront mon agent qu’une fois mon système téléphonique configuré pour les envoyer ici. Nous vous montrons comment après la mise en service."
       },
       "routing": {
         "title": "Réponse et relais",
@@ -1145,12 +1241,22 @@
         "hours": "Quand répondre",
         "modes": {
           "always": "En tout temps",
-          "business": "Pendant les heures d’ouverture"
+          "business": "Pendant les heures d’ouverture",
+          "outside_hours": "Seulement hors des heures d’ouverture",
+          "unanswered": "Seulement quand je ne réponds pas",
+          "custom": "Selon un horaire propre à ce numéro"
         },
         "hoursHint": {
           "always": "Votre agent répond à tous les appels, jour et nuit.",
-          "business": "Votre agent répond pendant les heures d’ouverture indiquées à l’étape 2."
-        }
+          "business": "Votre agent répond pendant les heures d’ouverture indiquées à l’étape 2.",
+          "outside_hours": "Pendant les heures données à l’étape 2, votre propre téléphone sonne; l’agent répond une fois que vous êtes fermé.",
+          "unanswered": "Réglez votre compagnie de téléphone pour ne renvoyer que les appels manqués. L’agent répond à tout ce qui lui parvient.",
+          "custom": "Votre agent répond selon l’horaire défini pour ce numéro dans le tableau de bord."
+        },
+        "setHours": "Définir les heures d’ouverture",
+        "noHours": "Vous n’avez pas encore donné d’heures d’ouverture, il n’y a donc pas de période de fermeture. D’ici là, votre agent répond à chaque appel.",
+        "unansweredNote": "Ceci fonctionne avec une ligne renvoyée. Avec un nouveau numéro, chaque appel qui lui parvient reçoit une réponse.",
+        "legacyNote": "Cette option a été enregistrée depuis le tableau de bord et est conservée telle quelle."
       },
       "transfer": {
         "title": "Transférer à une personne",
@@ -1172,7 +1278,9 @@
         "areaCode": "Un indicatif régional compte trois chiffres et ne commence pas par 0 ni par 1.",
         "e164": "Entrez le numéro avec l’indicatif de pays, p. ex. +14505550123.",
         "sipHost": "Entrez une adresse comme sip.example.com.",
-        "generic": "Vérifiez ce champ."
+        "generic": "Vérifiez ce champ.",
+        "areaCodeRequired": "Entrez un indicatif régional ou appuyez sur Suggérer.",
+        "sipConsent": "Cochez la case pour continuer avec votre propre système téléphonique."
       },
       "guide": {
         "carrier": "Votre fournisseur de téléphonie",
@@ -1296,6 +1404,28 @@
           }
         },
         "yourNewNumber": "votre nouveau numéro"
+      },
+      "forward": {
+        "title": "Quand renverrez-vous les appels?",
+        "body": "Le renvoi se règle chez votre compagnie de téléphone. Ceci nous indique quels codes vous montrer.",
+        "modes": {
+          "always": "Toujours",
+          "busy_no_answer": "Si occupé ou sans réponse",
+          "outside_hours": "Hors des heures d’ouverture"
+        },
+        "hints": {
+          "always": "Chaque appel va à votre agent.",
+          "busy_no_answer": "Vous répondez d’abord; l’agent prend ce que vous manquez.",
+          "outside_hours": "Vous activez le renvoi à la fermeture et l’annulez à l’ouverture."
+        }
+      },
+      "callers": {
+        "title": "Pays d’appel autorisés",
+        "body": "Les appels venant d’ailleurs sont refusés avant de sonner. Ajoutez un pays pour l’autoriser.",
+        "empty": "Aucune restriction : les appels de tous les pays reçoivent une réponse.",
+        "add": "Ajouter un pays",
+        "remove": "Retirer {country}",
+        "max": "C’est le maximum que vous pouvez ajouter ({max})."
       }
     },
     "w7": {
@@ -1340,7 +1470,11 @@
         "reviewBody": "Nous examinons un premier achat de plus de 1 000 $ avant de prélever le paiement. Rien n’a été facturé. Nous vous écrirons par courriel, habituellement en moins d’un jour ouvrable.",
         "mfaTitle": "Confirmez d’abord avec deux facteurs",
         "mfaBody": "Cet achat met de l’argent en jeu : les propriétaires et les administrateurs confirment d’abord avec une application d’authentification.",
-        "mfaAction": "Confirmer maintenant"
+        "mfaAction": "Confirmer maintenant",
+        "topupWhen": "Recharger quand le solde tombe à",
+        "topupPct": "{pct} % du forfait ({credits} crédits)",
+        "minutes": "≈ {n, plural, one {# minute} other {# minutes}} avec une voix Standard",
+        "minutesPremium": "{n, number} en Premium"
       },
       "progress": {
         "connecting": "Connexion…",
@@ -1379,7 +1513,67 @@
         "mostPopular": "Le plus populaire",
         "starterNote": "Un agent sur un numéro. Le texte de votre FAQ va dans votre fiche."
       },
-      "footerHint": "Choisissez un forfait ci-dessus pour passer en ligne."
+      "footerHint": "Choisissez un forfait ci-dessus pour passer en ligne.",
+      "summary": {
+        "title": "Ce qui sera mis en service",
+        "body": "Tout ce que vous avez configuré jusqu’ici. Modifiez ce que vous voulez avant de payer.",
+        "change": "Modifier",
+        "rows": {
+          "agent": "Agent",
+          "voice": "Voix",
+          "languages": "Parle",
+          "number": "Numéro",
+          "answering": "Répond",
+          "forwarding": "Renvoi",
+          "documents": "Documents",
+          "knowledge": "Connaissances",
+          "tested": "Testé"
+        },
+        "values": {
+          "agent": {
+            "standard": "{name} · voix Standard",
+            "premium": "{name} · voix Premium"
+          },
+          "voice": "{name}",
+          "voiceUnknown": "Pas encore choisie",
+          "languages": "{list}",
+          "languagesUnknown": "Non défini",
+          "noPlan": "Aucun numéro choisi pour l’instant",
+          "sip": "Votre propre ligne {number} via {host}",
+          "new": {
+            "areaCode": "Nouveau numéro {code}, {country} · {rental, plural, one {# crédit} other {# crédits}} par mois",
+            "tollFree": "Nouveau numéro sans frais, {country} · {rental, plural, one {# crédit} other {# crédits}} par mois",
+            "anyArea": "Nouveau numéro local, {country} · {rental, plural, one {# crédit} other {# crédits}} par mois"
+          },
+          "forward": {
+            "areaCode": "{from} renvoyé vers un nouveau numéro {code}, {country} · {rental, plural, one {# crédit} other {# crédits}} par mois",
+            "tollFree": "{from} renvoyé vers un nouveau numéro sans frais, {country} · {rental, plural, one {# crédit} other {# crédits}} par mois",
+            "anyArea": "{from} renvoyé vers un nouveau numéro local, {country} · {rental, plural, one {# crédit} other {# crédits}} par mois"
+          },
+          "answering": {
+            "always": "En tout temps",
+            "outside_hours": "Seulement hors des heures d’ouverture",
+            "unanswered": "Seulement les appels auxquels vous ne répondez pas",
+            "business": "Pendant les heures d’ouverture",
+            "custom": "Selon l’horaire propre à ce numéro"
+          },
+          "forwarding": {
+            "always": "Vous renvoyez chaque appel",
+            "busy_no_answer": "Vous renvoyez si occupé ou sans réponse",
+            "outside_hours": "Vous renvoyez hors des heures d’ouverture"
+          },
+          "documents": "{n, plural, one {# document joint} other {# documents joints}} à la fiche",
+          "noDocuments": "Aucun document joint",
+          "knowledgeLater": "Ajoutez des pages web et des fichiers une fois en service",
+          "tested": "{n, plural, one {# appel test} other {# appels tests}}",
+          "untested": "Aucun appel test pour l’instant",
+          "testedUnknown": "Vérification…"
+        }
+      },
+      "support": {
+        "subject": "Aide pour la mise en service de {agent} (activation {activation})",
+        "link": "Contacter le soutien"
+      }
     },
     "live": {
       "title": "{name} est en service",
@@ -1395,12 +1589,84 @@
         "body": "Votre agent répond déjà au {to}. Renvoyez votre ligne actuelle vers ce numéro avec les codes ci-dessous.",
         "confirm": "J’ai activé le renvoi d’appel",
         "confirmed": "Merci — le renvoi d’appel est indiqué comme activé.",
-        "ready": "Les appels au {from} sont renvoyés à votre agent."
+        "ready": "Les appels au {from} sont renvoyés à votre agent.",
+        "mode": {
+          "always": "Vous avez choisi de renvoyer chaque appel.",
+          "busy_no_answer": "Vous avez choisi de renvoyer seulement si occupé ou sans réponse : utilisez les codes conditionnels de votre compagnie, dans les notes ci-dessous.",
+          "outside_hours": "Vous avez choisi de renvoyer hors des heures d’ouverture : activez le renvoi à la fermeture et désactivez-le à l’ouverture."
+        }
+      },
+      "copy": "Copier le numéro",
+      "copied": "Copié",
+      "copyFailed": "Impossible de copier. Sélectionnez le numéro et copiez-le à la main.",
+      "callNow": "L’appeler maintenant",
+      "sip": {
+        "title": "Connecter votre ligne {provider}",
+        "body": "Votre agent est prêt. Les appels lui parviennent dès que votre système téléphonique les envoie à l’adresse ci-dessous.",
+        "missing": "Nous n’avons pas pu lire les détails de connexion de ce numéro.",
+        "origination": "Envoyer les appels à",
+        "originationUnknown": "l’adresse que le soutien vous donnera",
+        "copyOrigination": "Copier l’adresse",
+        "copied": "Copié",
+        "copyFailed": "Impossible de copier. Sélectionnez l’adresse et copiez-la à la main.",
+        "number": "Votre numéro",
+        "transport": "Transport",
+        "host": "Votre adresse SIP",
+        "username": "Nom d’utilisateur",
+        "showUsername": "Afficher le nom d’utilisateur",
+        "hideUsername": "Masquer le nom d’utilisateur",
+        "passwordStored": "Mot de passe conservé chiffré",
+        "passwordNone": "Aucun mot de passe",
+        "askSupport": "L’adresse entrante pour votre région n’est pas encore configurée. Contactez le soutien et nous vous l’enverrons.",
+        "steps": {
+          "named": {
+            "open_trunk": "Dans votre compte {provider}, ouvrez le tronc SIP qui porte {number}.",
+            "origination": "Réglez sa destination d’origine (appels entrants) sur {origination}.",
+            "transport": "Réglez le transport sur {transport}, comme vous l’avez choisi ici.",
+            "number": "Assurez-vous que {number} est attribué à ce tronc.",
+            "test": "Appelez {number} depuis un autre téléphone. Votre agent devrait répondre; l’appel apparaît ensuite sous Appels."
+          },
+          "other": {
+            "open_trunk": "Dans votre système téléphonique, ouvrez le tronc ou la route qui porte {number}.",
+            "origination": "Envoyez ses appels entrants à {origination}.",
+            "transport": "Utilisez {transport} pour la connexion, comme vous l’avez choisi ici.",
+            "number": "Assurez-vous que {number} passe par ce tronc.",
+            "test": "Appelez {number} depuis un autre téléphone. Votre agent devrait répondre; l’appel apparaît ensuite sous Appels."
+          }
+        }
+      },
+      "next": {
+        "title": "Prochaines étapes",
+        "checking": "Vérification de ce qui est fait…",
+        "progress": "{done} sur {total} terminées",
+        "items": {
+          "forwarding": {
+            "title": "Tester le renvoi",
+            "body": "Activez le renvoi chez votre compagnie de téléphone, puis testez-le depuis Numéros.",
+            "done": "Le renvoi est activé."
+          },
+          "invite_team": {
+            "title": "Inviter un collègue",
+            "body": "Permettez à quelqu’un d’autre de voir les appels et les messages.",
+            "done": "Votre équipe compte plus d’un membre."
+          },
+          "daily_digest": {
+            "title": "Activer le résumé quotidien",
+            "body": "Un courriel chaque matin avec les messages et demandes de la veille.",
+            "done": "Vous recevez le résumé quotidien."
+          },
+          "website_widget": {
+            "title": "Ajouter le widget à votre site web",
+            "body": "Un bouton « Parlez-nous » qui appelle votre agent depuis votre site web.",
+            "done": "Le widget est activé."
+          }
+        }
       }
     },
     "context": {
       "building": "Création d’un agent « {template} » pour {business}."
-    }
+    },
+    "stepSaveFailed": "Votre progression n’a pas pu être enregistrée"
   },
   "dashboard": {
     "planGate": {
@@ -1987,7 +2253,8 @@
       "test": {
         "hint": "Les appels test se font dans le navigateur et utilisent des crédits.",
         "viewerHint": "Les appels test peuvent être faits par les éditeurs et les rôles supérieurs.",
-        "noPrompt": "Générez le script à partir de l’onglet « Fiche » avant de tester."
+        "noPrompt": "Générez le script à partir de l’onglet « Fiche » avant de tester.",
+        "topUp": "Acheter des crédits"
       },
       "versions": {
         "hint": "Chaque version est conservée. Choisissez-en deux à comparer.",
@@ -2181,12 +2448,16 @@
         "modes": {
           "always": "24 heures sur 24",
           "business": "Pendant les heures d’ouverture",
-          "custom": "Selon un horaire propre à ce numéro"
+          "custom": "Selon un horaire propre à ce numéro",
+          "outside_hours": "Seulement hors des heures d’ouverture",
+          "unanswered": "Seulement quand je ne réponds pas"
         },
         "modeHints": {
           "always": "Votre agent répond à tous les appels, jour et nuit.",
           "business": "Votre agent répond pendant les heures d’ouverture de l’espace de travail. En dehors de celles-ci, les appelants entendent un signal occupé et l’appel apparaît comme manqué.",
-          "custom": "Votre agent répond pendant les heures ci-dessous. En dehors de celles-ci, les appelants entendent un signal occupé et l’appel apparaît comme manqué."
+          "custom": "Votre agent répond pendant les heures ci-dessous. En dehors de celles-ci, les appelants entendent un signal occupé et l’appel apparaît comme manqué.",
+          "outside_hours": "Pendant les heures d’ouverture de l’espace de travail, votre propre téléphone sonne (l’appel est refusé ici); une fois fermé, votre agent répond.",
+          "unanswered": "Pour une ligne renvoyée si occupé ou sans réponse : votre agent répond à chaque appel qui atteint ce numéro."
         },
         "noBusinessHours": "L’espace de travail n’a pas encore d’heures d’ouverture, alors ce numéro répond 24 heures sur 24 jusqu’à ce que vous les définissiez.",
         "setBusinessHours": "Définir les heures d’ouverture",
@@ -2328,7 +2599,15 @@
             "submit": "Vérifier et enregistrer",
             "failed": "La vérification a échoué, alors rien n’a été modifié."
           }
-        }
+        },
+        "provider": "Fournisseur",
+        "transport": "Transport",
+        "origination": "Adresse entrante",
+        "originationUnknown": "Pas encore configurée. Demandez au soutien.",
+        "copyOrigination": "Copier l’adresse entrante",
+        "copied": "Copié",
+        "copyFailed": "Impossible de copier. Sélectionnez l’adresse et copiez-la à la main.",
+        "inboundSet": "Pour que les appels atteignent votre agent, votre système téléphonique doit envoyer les appels de ce numéro à l’adresse entrante ci-dessus."
       },
       "danger": {
         "title": "Libérer ce numéro",

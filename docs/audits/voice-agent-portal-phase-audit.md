@@ -193,41 +193,41 @@ Paths are relative to the repo root unless they start with a module name (`backe
 | Z-26 | P1    | §8 W3, §13.11    | Voice list cached daily, stale banner                                  | PASS            | `voices.service.ts:184-226`; `voices.e2e.test.ts`                                                     | —                                                   |
 | Z-27 | P1    | §8 W4            | Knowledge step position                                                | PASS            | `/onboarding/knowledge` after go-live behind `LiveGuard`                                              | Amended by ADR 0024 (after payment)                 |
 | Z-28 | P1    | §8 W4            | URL / file / text sources, status polling                              | PASS            | `knowledge-sources.tsx`; `d6-knowledge.e2e.test.ts`; KB fixtures                                      | —                                                   |
-| Z-29 | P1    | §8 W4            | Remove a source with confirm                                           | PARTIAL         | Confirm only on the menu source                                                                       | Add ConfirmDialog                                   |
-| Z-30 | P1    | §8 W4            | Starter/trial gate card with "Add FAQs" link                           | PARTIAL         | Locked alert, no FAQ link (`knowledge-sources.tsx:80-84`)                                             | Add link                                            |
+| Z-29 | P1 | §8 W4 | Remove a source with confirm | **PASS** (6 Nov) | `ConfirmDialog` before every source removal (`knowledge-sources.tsx`); the menu kept its own | — |
+| Z-30 | P1 | §8 W4 | Starter/trial gate card with "Add FAQs" link | **PASS** (6 Nov) | "Add FAQs to the brief" on the plan gate → the agent’s Brief tab (W2 is closed once live, ADR 0024) | ADR 0040 §7 |
 | Z-31 | P1    | §8 W5            | Version selector                                                       | PASS            | `test-call-panel.tsx:206-232`; `test-versions.test.ts`                                                | —                                                   |
 | Z-32 | P1    | §8 W5, §12.3     | Start / timer / credits / end test call                                | PASS            | `use-test-call.ts`; `d9-test-call.e2e.test.ts` (passed); `e2e-wizard.mjs` real call                   | Browser script not run in this audit                |
 | Z-33 | P1    | §8 W5            | Live transcript                                                        | PASS            | Relay `live-transcript.relay.test.ts`; `transcript.test.ts`                                           | —                                                   |
-| Z-34 | P1    | §8 W5            | Scenario chips with "Try saying"                                       | PARTIAL         | List shown always (`test-call-panel.tsx:285-300`)                                                     | Minor                                               |
-| Z-35 | P1    | §8 W5, §9.6      | Apply change shows diff card with Keep / Undo                          | PARTIAL         | Bullets + Close (`improve-panel.tsx:438-451`); Undo only via D3 Versions                              | Add Undo on W5                                      |
+| Z-34 | P1 | §8 W5 | Scenario chips with "Try saying" | **PASS** (6 Nov) | Chips with "Try saying: …" on press (`test-call-panel.tsx`); `e2e-wizard` asserts | — |
+| Z-35 | P1 | §8 W5, §9.6 | Apply change shows diff card with Keep / Undo | **PASS** (6 Nov) | "What changed" + Keep / Undo, Undo = `POST /agents/:id/draft/select` (`use-feedback.ts`); e2e asserts the version goes back | — |
 | Z-36 | P1    | §8 W5            | After-call card via SSE or polling                                     | PASS            | `use-after-call.ts`; `use-after-call.test.ts`                                                         | —                                                   |
 | Z-37 | P1    | §8 W5            | Happiness checkbox soft gate with skip                                 | PASS            | `test/page.tsx:68-96`                                                                                 | —                                                   |
-| Z-38 | P1    | §8 W5            | Mic-denied per-browser help; trial-0 CTA to activate                   | PARTIAL         | One generic line; text-only CTA                                                                       | Minor                                               |
+| Z-38 | P1 | §8 W5 | Mic-denied per-browser help; trial-0 CTA to activate | **PASS** (6 Nov) | Per-browser steps (`detectBrowser`, `browser-help.test.ts`); trial-zero alert with a button to W6 (D3: the wallet) | ADR 0040 §5 |
 | Z-39 | P1    | §8 W6            | Options A / B / C                                                      | PASS            | `phone-option-cards.tsx:322-333`; `e2e-wizard.mjs`                                                    | C gated on `sip_import`                             |
-| Z-40 | P1    | §8 W6 A          | Country, required area code, "Suggest", toll-free                      | PARTIAL         | Area code optional, no Suggest; backend widens (`purchase-attempts.ts`)                               | Add Suggest or amend                                |
-| Z-41 | P1    | §8 W6 B          | Current number + forward mode radio                                    | PARTIAL         | Number field yes; no forward-mode radio                                                               | Add radio                                           |
-| Z-42 | P1    | §8 W6 C          | Provider select, transport, "I understand" checkbox                    | PARTIAL         | URI/user/password only (`phone/page.tsx:224-246`)                                                     | Add the three                                       |
-| Z-43 | P1    | §8 W6, §10 D4    | Answer calls: always / outside hours / when I don't answer             | FAIL            | `hoursMode` = always / business / custom (`shared/schemas/src/numbers.ts:49`)                         | Decide and record                                   |
-| Z-44 | P1    | §8 W6            | Transfer number pre-filled from the brief                              | PARTIAL         | Not pre-filled (`phone/page.tsx:95`)                                                                  | Pre-fill                                            |
-| Z-45 | P1    | §8 W6            | Allowed caller countries field                                         | NOT IMPLEMENTED | No UI; sends saved value or `[]` (`phone/page.tsx:109`)                                               | Add field (see SEC-07)                              |
+| Z-40 | P1 | §8 W6 A | Country, required area code, "Suggest", toll-free | **PASS** (6 Nov) | Area code required for a local number on W6; Suggest from the time zone (`area-code.test.ts`); e2e asserts both | ADR 0040 §4 (API keeps it optional for D4) |
+| Z-41 | P1 | §8 W6 B | Current number + forward mode radio | **PASS** (6 Nov) | Forward-mode radio, `phone_plans.forward_mode` → `forwarding.mode`; e2e asserts; `d6-numbers.e2e` | ADR 0040 §2 |
+| Z-42 | P1 | §8 W6 C | Provider select, transport, "I understand" checkbox | **PASS** (6 Nov) | Provider and transport selects, the "I understand" gate; `sip_json.provider/transport`, transport reaches the platform (`d6-numbers.e2e`) | ADR 0040 §2 |
+| Z-43 | P1 | §8 W6, §10 D4 | Answer calls: always / outside hours / when I don't answer | **PASS** (6 Nov) | `outside_hours` / `unanswered` beside `always` (`decide()`, `inbound.decide.test.ts` 6b); W6 offers the three, D4 five; e2e asserts and persists | ADR 0040 §1 |
+| Z-44 | P1 | §8 W6 | Transfer number pre-filled from the brief | **PASS** (6 Nov) | `prefillTransferTargets` from the brief’s transfer rules on a first visit (`transfer-prefill.test.ts`) | — |
+| Z-45 | P1 | §8 W6 | Allowed caller countries field | **PASS** (6 Nov) | `AllowedCountriesField`, default workspace country + US/CA (`allowed-countries.test.ts`); e2e asserts; enforced since ADR 0035 | — |
 | Z-46 | P1    | §8 W6            | Continue → `PUT /agents/:id/phone-plan`                                | PASS            | `phone/page.tsx:144-166`; `d6-numbers.e2e.test.ts`                                                    | —                                                   |
-| Z-47 | P1    | §8 W7            | Summary card with Change links                                         | NOT IMPLEMENTED | Absent from `activate/page.tsx`                                                                       | Build                                               |
+| Z-47 | P1 | §8 W7 | Summary card with Change links | **PASS** (6 Nov) | `ActivationSummary` from the draft, the plan, the voice list and the test-call count, Change → W2/W3/W6 (`activation-summary.test.ts`); e2e asserts | — |
 | Z-48 | P1    | §8 W7            | Pack cards from config, Growth pre-selected                            | PASS            | `package-selector.tsx:283-301`; `e2e-wizard.mjs`                                                      | —                                                   |
-| Z-49 | P1    | §8 W7, §5.4      | Auto top-up checkbox with 10 % / 20 % select, default on at 10 %       | PARTIAL         | Switch at the policy %, no select (`package-selector.tsx:293-295`)                                    | Add select                                          |
+| Z-49 | P1 | §8 W7, §5.4 | Auto top-up checkbox with 10 % / 20 % select, default on at 10 % | **PASS** (6 Nov) | 10 % / 20 % select beside the switch (`pack-minutes.test.ts`); e2e asserts | — |
 | Z-50 | P1    | §8 W7, §13.7     | Pay → Stripe Checkout                                                  | PASS            | `billing.service.ts:63-144`; staging go-live 24 Sep                                                   | —                                                   |
 | Z-51 | P1    | §8 W7            | Provisioning progress via SSE + poll                                   | PASS            | `provisioning-progress.tsx`; `activation-follow.test.ts`                                              | —                                                   |
-| Z-52 | P1    | §8 W7            | Failure row with Retry and support link                                | PARTIAL         | Retry + Change number, no support link                                                                | Add link                                            |
-| Z-53 | P1    | §8 W7b           | Number display with Copy and Call it now                               | PARTIAL         | `tel:` link only                                                                                      | Add Copy                                            |
+| Z-52 | P1 | §8 W7 | Failure row with Retry and support link | **PASS** (6 Nov) | "Contact support" (`mailto:` with the activation id) beside Retry and on the slow-confirm state | ADR 0040 §6 |
+| Z-53 | P1 | §8 W7b | Number display with Copy and Call it now | **PASS** (6 Nov) | `CopyButton` (clipboard, else selection, honest failure) + "Call it now" (`tel:`) | — |
 | Z-54 | P1    | §8 W7b           | Forwarding guide per carrier + "I've set up forwarding"                | PASS            | `live/page.tsx:95-132`; `forwarding-guide.test.ts`                                                    | —                                                   |
-| Z-55 | P1    | §8 W7b           | SIP origination instructions                                           | NOT IMPLEMENTED | Nothing for SIP on the live page                                                                      | Build                                               |
-| Z-56 | P1    | §8 W7b           | Next-steps checklist                                                   | NOT IMPLEMENTED | Two buttons only                                                                                      | Build                                               |
+| Z-55 | P1 | §8 W7b | SIP origination instructions | **PASS** (6 Nov) | `SipSetupGuide`: origination address from `SIP_ORIGINATION_URI`, transport, host, masked username, per-provider steps (`sip-guide.test.ts`); also on D4 | ADR 0040 §3 |
+| Z-56 | P1 | §8 W7b | Next-steps checklist | **PASS** (6 Nov) | `NextStepsChecklist` ticked from members, notification settings, widget and forwarding (`live-checklist.test.ts`) | — |
 | Z-57 | P1    | §8 W7b           | Go to dashboard; `onboarding_completed_at` set                         | PASS            | Set by activation `mark_live`; `d6-activation.e2e.test.ts`                                            | —                                                   |
 | Z-58 | P1    | §12.1            | Stack: Next.js, TanStack, RHF + zod, shared schemas, SSE client        | PASS            | `frontend/web/package.json`; `sse.test.ts`                                                            | Zustand installed, unused                           |
-| Z-59 | P1    | §12.1            | Global error boundary                                                  | NOT IMPLEMENTED | No `app/error.tsx`                                                                                    | Add                                                 |
+| Z-59 | P1 | §12.1 | Global error boundary | **PASS** (6 Nov) | `app/error.tsx` + `app/global-error.tsx` → `reportError`; `/dev/crash/` exercised by `e2e-wizard` | — |
 | Z-60 | P1    | §12.1            | PostHog funnel events                                                  | PASS            | All six events present; `posthog.test.ts`, `sanitize.test.ts`                                         | —                                                   |
-| Z-61 | P1    | §12.2            | Advance only on 2xx                                                    | PARTIAL         | A failed step write is swallowed (`use-onboarding-agent.ts:376-378`)                                  | Surface the failure                                 |
+| Z-61 | P1 | §12.2 | Advance only on 2xx | **PASS** (6 Nov) | `useAdvanceOnboarding` throws; W2/W3/W5/W6 keep the page with the error and Continue = Retry | ADR 0040 §8 |
 | Z-62 | P1    | §12.2            | Resume at `onboarding_step`, jump back to completed steps              | PASS            | `stepPath`, guards; `routes.test.ts`                                                                  | —                                                   |
-| Z-63 | P1    | §12.3            | "End your test call?" prompt on route change                           | PARTIAL         | Unmount hangs up silently (QA-017)                                                                    | Accept or add prompt                                |
+| Z-63 | P1 | §12.3 | "End your test call?" prompt on route change | **PASS** (6 Nov) | `LeaveCallPrompt`: links, back button and router pushes held behind Stay / Leave (`leave-call.test.ts`); e2e asserts Back + Stay | ADR 0040 §8 |
 | Z-64 | P1    | §12.5            | Responsive; tables become cards < 640 px                               | PASS            | `DataTable`; `e2e-dashboard-d11.mjs` at 390 px                                                        | —                                                   |
 
 ### 4.4 P1 — Prompt system and templates (§9, §13.3, §13.5, §13.6)
@@ -782,3 +782,46 @@ Also found and fixed on the way: `e2e-wizard` never accepted the Terms screen AD
 (`prompt=none` answered with a code), so the suite's anonymous-visitor assertions could not hold;
 it now answers `login_required` like the real tenant.
 
+
+---
+
+## Addendum — 6 Nov 2026: W5–W7, the knowledge and live pages, §12 (ADR 0040)
+
+Rows Z-29, Z-30, Z-34, Z-35, Z-38, Z-40 to Z-45, Z-47, Z-49, Z-52, Z-53, Z-55, Z-56, Z-59,
+Z-61 and Z-63 above were re-assessed after ADR 0040 and carry their new status in place
+(marked "(6 Nov)"). The rows already at PASS in that range (Z-31 to Z-33, Z-36, Z-37, Z-39,
+Z-46, Z-48, Z-50, Z-51, Z-54, Z-57, Z-58, Z-60, Z-62) were re-run by the same suites and
+stay PASS. The phase counts in §3 were **not** recounted. Calls made in session on the
+engineering recommendation and awaiting the spec owner are in ADR 0040 "Decisions taken":
+the three answer modes as new `hours_mode` values beside D4's two, the area code required
+on W6 only, Suggest from the time zone, the trial-zero button to W6, the SIP consent as a
+gate rather than a column, and "Add FAQs" opening the D3 Brief tab. Promo codes stay out of
+scope (Full Scope 12).
+
+Commands run on 6 Nov against the local stack (Postgres + Redis, the dev worker, a second
+API on 4001 bound to the stand-in issuer, a static export on 3005, the real voice platform
+and generation model; **no webhook tunnel**, as on 5 Nov):
+
+| Check | Result |
+| --- | --- |
+| `pnpm --filter @portal/web e2e:wizard` (119 assertions, was 100) | **116 / 119**. The three: `W5 after-call shows the charge from call_ended`, `… summary from call_analyzed` (the platform's webhooks never reach a box without the tunnel, unchanged from 5 Nov) and the new `W7 summary counts the test call`, the same cause (no `call_started`, no call row). Every new row passes: chips, the leave-call prompt, Keep / Undo, the three answer modes, the countries, the area code and Suggest, the forward modes, persistence, the W7 summary, minutes and the top-up select, the error boundary |
+| `pnpm --filter @portal/web e2e:restaurant` | **75 / 76** (the D3 block skipped: it needs a known live workspace owner, `DASHBOARD_SUB`). The one failure is `W5 after-call shows the charge`, the tunnel again. Before the script fixes below it stopped at 2 / 60 on the Terms screen |
+| `backend/api/test/d6-numbers.e2e.test.ts` | 19 / 19 (forward and answer modes saved and reset, SIP provider / transport returned, transport reaching the platform double) |
+| `backend/api/test/{calls,d16-transfer-knowledge,d6-activation}.e2e.test.ts` | 64 / 64 |
+| `pnpm --filter @portal/api test` / `@portal/web test` / `@portal/schemas test` / `@portal/ui test` / `@portal/db test` | 1276 / 368 / 131 / 10 / 8, all pass. New unit files: `api/common/env/sip-origination.test.ts`, `schemas/numbers.test.ts`, `web/wizard/{answer-modes,area-code,transfer-prefill,allowed-countries,pack-minutes,browser-help,live-checklist,sip-guide,leave-call,activation-summary}.test.ts`; extended: `api/calls/inbound.decide.test.ts`, `api/numbers/number-response.test.ts`, `api/crypto/envelope.test.ts`, `web/dashboard/numbers-view.test.ts`, `web/i18n/messages.test.ts` (183 keys in three locales). QA cards in ClickUp "Unit Testing", tag `adr-0040` |
+| `pnpm --filter @portal/api openapi:generate` + `openapi:check` | current, 239 operations |
+| `tsc --noEmit` api, web, admin, api-client, ui; `eslint .` web | clean |
+| `pnpm db:deploy` | `20261106090000_w6_answer_and_forward_modes`: two enum values, two nullable columns |
+| Screens read at 1440 px from the run's screenshots: W5 after a patch, W6 Option B, W7 | the chips, Keep / Undo, the three mode groups, the summary beside the packs, the 10 % select |
+
+Also found and fixed in `e2e-restaurant`, none of it caused by this work: it never accepted
+the Terms screen ADR 0036 put first (the wizard script was fixed on 5 Nov, this one was not);
+it seeded Growth twice, which put the live workspace past the §6.2 money-at-risk balance so
+every write from the stand-in identity answered `MFA_REQUIRED` (now Starter, then Growth: the
+seed applies the last pack's caps); it regenerated on W2, which a finished wizard refuses
+since ADR 0024 (now D3's Brief tab); its generation helper waited for progress words D3 does
+not use (now the stored version is the fact); and its business-name checks predate ADR 0038,
+under which the generator may name the business through `{{business_name}}`. One generation
+in five runs produced a greeting naming neither the business nor the variable ("Hi, this is
+Marie at the restaurant"); the identity rule is the model's to follow and was not changed here. The CDP helper's Chrome path is macOS-only; `CHROME_PATH=/usr/bin/google-chrome`
+on this box.

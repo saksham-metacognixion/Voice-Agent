@@ -13908,12 +13908,22 @@
             "pattern": "^\\+[1-9]\\d{6,14}$",
             "type": "string"
           },
+          "forward_mode": {
+            "enum": [
+              "always",
+              "busy_no_answer",
+              "outside_hours"
+            ],
+            "type": "string"
+          },
           "hours_mode": {
             "default": "always",
             "enum": [
               "always",
               "business",
-              "custom"
+              "custom",
+              "outside_hours",
+              "unanswered"
             ],
             "type": "string"
           },
@@ -15932,7 +15942,9 @@
             "enum": [
               "always",
               "business",
-              "custom"
+              "custom",
+              "outside_hours",
+              "unanswered"
             ],
             "type": "string"
           },
@@ -16034,6 +16046,25 @@
               "password": {
                 "maxLength": 256,
                 "minLength": 1,
+                "type": "string"
+              },
+              "provider": {
+                "default": "other",
+                "enum": [
+                  "twilio",
+                  "telnyx",
+                  "vonage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "transport": {
+                "default": "TCP",
+                "enum": [
+                  "TCP",
+                  "UDP",
+                  "TLS"
+                ],
                 "type": "string"
               },
               "username": {
@@ -16949,6 +16980,16 @@
                   "from": {
                     "type": "string"
                   },
+                  "mode": {
+                    "default": null,
+                    "enum": [
+                      "always",
+                      "busy_no_answer",
+                      "outside_hours"
+                    ],
+                    "nullable": true,
+                    "type": "string"
+                  },
                   "status": {
                     "enum": [
                       "waiting_for_customer",
@@ -17008,7 +17049,9 @@
                 "enum": [
                   "always",
                   "business",
-                  "custom"
+                  "custom",
+                  "outside_hours",
+                  "unanswered"
                 ],
                 "type": "string"
               },
@@ -17128,6 +17171,30 @@
                     "type": "boolean"
                   },
                   "host": {
+                    "type": "string"
+                  },
+                  "origination_uri": {
+                    "default": null,
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "provider": {
+                    "default": "other",
+                    "enum": [
+                      "twilio",
+                      "telnyx",
+                      "vonage",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "transport": {
+                    "default": "TCP",
+                    "enum": [
+                      "TCP",
+                      "UDP",
+                      "TLS"
+                    ],
                     "type": "string"
                   },
                   "username": {
@@ -17563,6 +17630,16 @@
               "from": {
                 "type": "string"
               },
+              "mode": {
+                "default": null,
+                "enum": [
+                  "always",
+                  "busy_no_answer",
+                  "outside_hours"
+                ],
+                "nullable": true,
+                "type": "string"
+              },
               "status": {
                 "enum": [
                   "waiting_for_customer",
@@ -17622,7 +17699,9 @@
             "enum": [
               "always",
               "business",
-              "custom"
+              "custom",
+              "outside_hours",
+              "unanswered"
             ],
             "type": "string"
           },
@@ -17742,6 +17821,30 @@
                 "type": "boolean"
               },
               "host": {
+                "type": "string"
+              },
+              "origination_uri": {
+                "default": null,
+                "nullable": true,
+                "type": "string"
+              },
+              "provider": {
+                "default": "other",
+                "enum": [
+                  "twilio",
+                  "telnyx",
+                  "vonage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "transport": {
+                "default": "TCP",
+                "enum": [
+                  "TCP",
+                  "UDP",
+                  "TLS"
+                ],
                 "type": "string"
               },
               "username": {
@@ -17931,7 +18034,9 @@
                 "enum": [
                   "always",
                   "business",
-                  "custom"
+                  "custom",
+                  "outside_hours",
+                  "unanswered"
                 ],
                 "type": "string"
               },
@@ -18098,12 +18203,23 @@
                 "pattern": "^\\+[1-9]\\d{6,14}$",
                 "type": "string"
               },
+              "forward_mode": {
+                "default": "always",
+                "enum": [
+                  "always",
+                  "busy_no_answer",
+                  "outside_hours"
+                ],
+                "type": "string"
+              },
               "hours_mode": {
                 "default": "always",
                 "enum": [
                   "always",
                   "business",
-                  "custom"
+                  "custom",
+                  "outside_hours",
+                  "unanswered"
                 ],
                 "type": "string"
               },
@@ -18243,7 +18359,9 @@
                 "enum": [
                   "always",
                   "business",
-                  "custom"
+                  "custom",
+                  "outside_hours",
+                  "unanswered"
                 ],
                 "type": "string"
               },
@@ -18353,6 +18471,25 @@
                     "minLength": 1,
                     "type": "string"
                   },
+                  "provider": {
+                    "default": "other",
+                    "enum": [
+                      "twilio",
+                      "telnyx",
+                      "vonage",
+                      "other"
+                    ],
+                    "type": "string"
+                  },
+                  "transport": {
+                    "default": "TCP",
+                    "enum": [
+                      "TCP",
+                      "UDP",
+                      "TLS"
+                    ],
+                    "type": "string"
+                  },
                   "username": {
                     "maxLength": 128,
                     "minLength": 1,
@@ -18411,7 +18548,9 @@
                 "enum": [
                   "always",
                   "business",
-                  "custom"
+                  "custom",
+                  "outside_hours",
+                  "unanswered"
                 ],
                 "type": "string"
               },
@@ -18572,11 +18711,23 @@
             "nullable": true,
             "type": "string"
           },
+          "forward_mode": {
+            "default": null,
+            "enum": [
+              "always",
+              "busy_no_answer",
+              "outside_hours"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
           "hours_mode": {
             "enum": [
               "always",
               "business",
-              "custom"
+              "custom",
+              "outside_hours",
+              "unanswered"
             ],
             "type": "string"
           },
@@ -18608,6 +18759,25 @@
                 "type": "string"
               },
               "number": {
+                "type": "string"
+              },
+              "provider": {
+                "default": "other",
+                "enum": [
+                  "twilio",
+                  "telnyx",
+                  "vonage",
+                  "other"
+                ],
+                "type": "string"
+              },
+              "transport": {
+                "default": "TCP",
+                "enum": [
+                  "TCP",
+                  "UDP",
+                  "TLS"
+                ],
                 "type": "string"
               },
               "username": {
@@ -20394,7 +20564,9 @@
             "enum": [
               "always",
               "business",
-              "custom"
+              "custom",
+              "outside_hours",
+              "unanswered"
             ],
             "type": "string"
           },

@@ -1,5 +1,6 @@
 import type { ForwardingTest, PhoneNumberResponse, PhonePlanResponse, SipVerification, TransferTarget } from '@portal/schemas';
-import { businessHours, forwardingTest, sipVerification, transferTarget } from '@portal/schemas';
+import { businessHours, forwardMode, forwardingTest, sipVerification, transferTarget } from '@portal/schemas';
+import { sipOriginationUri } from '../../common/env';
 import { FORWARDING_TEST_RING_MS } from '../calls/forwarding-test';
 import { SipCredentialsCipher } from '../crypto';
 
@@ -24,6 +25,7 @@ type NumberRow = {
   forwardingFrom: string | null;
   forwardingStatus: string | null;
   carrier: string | null;
+  forwardMode?: string | null;
   rentalCredits: number;
   nextRentalAt: Date | null;
   error: string | null;
@@ -41,6 +43,8 @@ export const SIP_VERIFY_LEASE_MS = 90_000;
 export interface NumberExtras {
   plan?: { sipJson: unknown } | null;
   calls7d?: number;
+  /** Where the trunk sends inbound calls (`SIP_ORIGINATION_URI`); the environment's unless a test says otherwise. */
+  originationUri?: string | null;
 }
 
 /** Row → wire. No `type` (it names the telephony vendor), no platform metadata, no token. */
@@ -69,10 +73,21 @@ export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.ca
           from: row.forwardingFrom,
           status: (row.forwardingStatus ?? 'waiting_for_customer') as NonNullable<PhoneNumberResponse['forwarding']>['status'],
           carrier: (row.carrier as NonNullable<PhoneNumberResponse['forwarding']>['carrier']) ?? null,
+          mode: parseForwardMode(row.forwardMode),
           test: forwardingTestOf(row),
         }
       : null,
-    sip: sip ? { host: sip.host, username: sip.username, has_password: sip.has_password, verification: verificationOf(row) } : null,
+    sip: sip
+      ? {
+          host: sip.host,
+          username: sip.username,
+          has_password: sip.has_password,
+          provider: sip.provider,
+          transport: sip.transport,
+          origination_uri: row.originationUri === undefined ? sipOriginationUri() : row.originationUri,
+          verification: verificationOf(row),
+        }
+      : null,
     calls_7d: calls7d,
     rental_credits: row.rentalCredits,
     next_rental_at: row.nextRentalAt?.toISOString() ?? null,
@@ -118,6 +133,7 @@ type PlanRow = {
   tollFree: boolean;
   existingNumber: string | null;
   carrier: string | null;
+  forwardMode?: string | null;
   sipJson: unknown;
   hoursMode: string;
   transferTargetsJson: unknown;
@@ -139,6 +155,7 @@ export function toPlanResponse(row: PlanRow): PhonePlanResponse {
     toll_free: row.tollFree,
     existing_number: row.existingNumber,
     carrier: (row.carrier as PhonePlanResponse['carrier']) ?? null,
+    forward_mode: parseForwardMode(row.forwardMode),
     sip: SipCredentialsCipher.redact(row.sipJson),
     hours_mode: row.hoursMode as PhonePlanResponse['hours_mode'],
     transfer_targets: parseTargets(row.transferTargetsJson),
@@ -153,6 +170,12 @@ export function toPlanResponse(row: PlanRow): PhonePlanResponse {
 export function parseTargets(value: unknown): TransferTarget[] {
   if (!Array.isArray(value)) return [];
   return value.map((item) => transferTarget.safeParse(item)).filter((r) => r.success).map((r) => r.data);
+}
+
+/** A value written before the column existed, or by hand, reads as "not said" rather than failing the whole row. */
+export function parseForwardMode(value: unknown): PhonePlanResponse['forward_mode'] {
+  const parsed = forwardMode.safeParse(value);
+  return parsed.success ? parsed.data : null;
 }
 
 function parseHours(value: unknown) {

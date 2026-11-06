@@ -330,6 +330,7 @@ export class ActivationWorker {
       forwardingFrom: plan.option === 'forward' ? plan.existingNumber : null,
       forwardingStatus: plan.option === 'forward' ? ('waiting_for_customer' as const) : null,
       carrier: plan.option === 'forward' ? plan.carrier : null,
+      forwardMode: plan.option === 'forward' ? plan.forwardMode : null,
     };
   }
 

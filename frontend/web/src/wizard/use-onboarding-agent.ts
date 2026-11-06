@@ -27,6 +27,11 @@ export function useOnboardingAgent() {
  * not sent back to W1 by the next page's guard (QA-005). Idempotent: never moves
  * backwards (the server refuses to as well), so revisiting W1 after generating does not
  * un-generate anything.
+ *
+ * §12.2 "only advances on 2xx" (Z-61): a write that fails *throws*, and the page it is
+ * on shows the error and keeps the person there with Continue as the retry. Moving on
+ * regardless used to leave the workspace one step behind the page, and the next guard
+ * sent the person back without a word.
  */
 export function useAdvanceOnboarding() {
   const api = useApi();
@@ -49,8 +54,6 @@ export function useAdvanceOnboarding() {
         try {
           await update.mutateAsync({ body: { step } });
           await queryClient.invalidateQueries({ queryKey: ['getWorkspace'] });
-        } catch {
-          /* a transient failure: the page still moves on, and the next advance retries */
         } finally {
           inFlight.current = null;
         }

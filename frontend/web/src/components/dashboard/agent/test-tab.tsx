@@ -7,6 +7,7 @@ import * as React from 'react';
 import { AfterCallCard } from '@/src/components/wizard/after-call-card';
 import { ImprovePanel } from '@/src/components/wizard/improve-panel';
 import { TestCallPanel } from '@/src/components/wizard/test-call-panel';
+import { routes } from '@/src/routes';
 
 /**
  * D3 Test (spec p. 36) — the W5 panel, on the draft or another version picked in its
@@ -26,7 +27,7 @@ export function TestTab({ agent, canEdit }: { agent: AgentDetail; canEdit: boole
       <div className="flex flex-col gap-6">
         {/* The version under test is the panel's selector now (QA-082), so the hint names none. */}
         <Alert variant="info">{t('hint')}</Alert>
-        <TestCallPanel agent={agent} onEnded={setLastCallId} />
+        <TestCallPanel agent={agent} onEnded={setLastCallId} outOfCredits={{ href: routes.app.wallet, label: t('topUp') }} />
         {lastCallId ? <AfterCallCard key={lastCallId} callId={lastCallId} agent={agent} /> : null}
       </div>
       <div className="flex flex-col gap-6 lg:sticky lg:top-24 lg:self-start">

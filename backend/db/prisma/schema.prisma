@@ -163,11 +163,16 @@ enum InvoiceStatus {
   @@map("invoice_status")
 }
 
-/// Spec §13.9 / §11. `always` = 24/7, `business` = follow business hours.
+/// Spec §13.9 / §8 W6 / D4. `always` = 24/7, `business` = during the workspace's hours,
+/// `custom` = the number's own schedule, `outside_hours` = only while the business is closed
+/// (the customer's phone rings first), `unanswered` = answer whatever the carrier forwards
+/// (busy / no answer; nothing declined here). ADR 0040.
 enum HoursMode {
   always
   business
   custom
+  outside_hours
+  unanswered
 
   @@map("hours_mode")
 }
@@ -744,7 +749,10 @@ model PhonePlan {
   existingNumber      String?         @map("existing_number")
   /// D6, Option B: which carrier's forwarding guide the customer was shown.
   carrier             String?
-  /// Option C. `{number, host, username, password: <envelope>}` — the password is
+  /// Option B (W6, ADR 0040): always / busy_no_answer / outside_hours, as the customer said
+  /// they will forward. Informational; the carrier does the forwarding.
+  forwardMode         String?         @map("forward_mode")
+  /// Option C. `{number, host, username, password: <envelope>, provider?, transport?}` — the password is
   /// envelope-encrypted (a KMS-wrapped data key, AES-256-GCM, §17) and never logged.
   sipJson             Json?           @map("sip_json")
   hoursMode           HoursMode       @default(always) @map("hours_mode")
@@ -809,6 +817,8 @@ model PhoneNumber {
   forwardingFrom      String?           @map("forwarding_from")
   forwardingStatus    ForwardingStatus? @map("forwarding_status")
   carrier             String?
+  /// Copied from the plan (ADR 0040): which dial codes the live page and D4 show.
+  forwardMode         String?           @map("forward_mode")
   /// Customer-safe reason when status = failed.
   error               String?
   releasedAt          DateTime?         @map("released_at")

@@ -4,11 +4,14 @@ import { isApiError, useApi, useGetPricing, useGetWallet, useListAgentVersions }
 import type { AgentDetail } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, cn } from '@portal/ui';
 import { Mic, PhoneOff } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { CallMyPhone } from './call-my-phone';
+import { LeaveCallPrompt } from './leave-call-prompt';
+import { detectBrowser } from '@/src/wizard/browser-help';
 import { formatCredits } from '@/src/wizard/plan-gates';
 import { canTransfer, needsPhoneTransfer } from '@/src/wizard/test-scenarios';
 import { resolveTestVersion, testableVersions } from '@/src/wizard/test-versions';
@@ -26,7 +29,17 @@ import { PRICING_STALE_MS } from '@/src/lib/pricing';
  * API will ring — the draft and every version that was published (`testableVersions`).
  * The browser test and "Call my phone" both use the version picked here.
  */
-export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded: (callId: string) => void }) {
+export interface TestCallPanelProps {
+  agent: AgentDetail;
+  onEnded: (callId: string) => void;
+  /**
+   * §8 W5 "balance 0 during trial → 'You've used your free test minutes — activate to
+   * keep testing' with CTA": where that button goes (W6 in the wizard, the wallet on D3).
+   */
+  outOfCredits: { href: string; label: string };
+}
+
+export function TestCallPanel({ agent, onEnded, outOfCredits }: TestCallPanelProps) {
   const tt = useTranslations('wizard.w5.call');
   const t = useTranslations();
   const api = useApi();
@@ -71,7 +84,12 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
   }, [state.status, state.callId, state.elapsedS, onEnded]);
 
   const noCredits = balance !== null && balance <= 0;
+  const onTrial = wallet.data ? wallet.data.last_pack_credits == null : false;
   const transfers = canTransfer(draft?.brief);
+  // §8 W5 "Scenario chips: clicking shows 'Try saying: …'": the chips, and the one whose hint is open.
+  const scenarios = React.useMemo(() => (draft?.scenarios ?? []).slice(0, 5), [draft?.scenarios]);
+  const [hint, setHint] = React.useState<number | null>(null);
+  React.useEffect(() => setHint(null), [draft?.version_no]);
 
   return (
     <Card>
@@ -134,7 +152,22 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
         </dl>
 
         {state.failure ? <FailureAlert failure={state.failure} /> : null}
-        {noCredits && !inCall ? <Alert variant="warning">{t('errors.NO_CREDITS')} {tt('noCreditsHint')}</Alert> : null}
+        {noCredits && !inCall ? (
+          <Alert
+            variant="warning"
+            title={onTrial ? tt('trialUsedTitle') : t('errors.NO_CREDITS')}
+            actions={
+              <Button size="sm" asChild>
+                <Link href={outOfCredits.href} data-testid="out-of-credits-cta">
+                  {outOfCredits.label}
+                </Link>
+              </Button>
+            }
+          >
+            {onTrial ? tt('trialUsedBody') : tt('noCreditsHint')}
+          </Alert>
+        ) : null}
+        <LeaveCallPrompt live={inCall} hangUp={end} />
 
         <div className="flex flex-wrap items-center gap-3">
           {inCall ? (
@@ -174,20 +207,44 @@ export function TestCallPanel({ agent, onEnded }: { agent: AgentDetail; onEnded:
         {/* A browser call has no phone line: a transfer to staff cannot complete here (BUG-006). */}
         {transfers ? <p className="text-xs text-muted-foreground">{tt('transferNote')}</p> : null}
 
-        {draft?.scenarios?.length ? (
+        {scenarios.length && draft ? (
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-medium text-muted-foreground">{tt('tryThese')}</p>
-            <ul className="flex flex-col gap-1.5 text-sm">
-              {draft.scenarios.slice(0, 4).map((s) => (
-                <li key={s.title} className="rounded-md border border-border px-3 py-2">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{s.title}</span>
+            <p id={`scenarios-${agent.id}`} className="text-xs font-medium text-muted-foreground">
+              {tt('tryThese')}
+            </p>
+            {/* Chips, not a list: the hint is read one at a time, so a phone screen is not five quotes long. */}
+            <ul className="flex flex-wrap gap-2" aria-labelledby={`scenarios-${agent.id}`}>
+              {scenarios.map((s, i) => (
+                <li key={s.title}>
+                  <button
+                    type="button"
+                    className={cn(
+                      'inline-flex min-h-9 items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+                      hint === i ? 'border-primary bg-accent/60 text-accent-foreground' : 'border-border bg-card hover:border-primary/40',
+                    )}
+                    aria-pressed={hint === i}
+                    aria-controls={`scenario-hint-${agent.id}`}
+                    data-testid="scenario-chip"
+                    onClick={() => {
+                      setHint((cur) => (cur === i ? null : i));
+                      track('scenario_chip_opened', { agent_id: agent.id, index: i });
+                    }}
+                  >
+                    {s.title}
                     {needsPhoneTransfer(s, draft.brief) ? <Badge variant="outline">{tt('phoneOnly')}</Badge> : null}
-                  </span>
-                  <span className="block text-xs text-muted-foreground">“{s.say_this}”</span>
+                  </button>
                 </li>
               ))}
             </ul>
+            <p id={`scenario-hint-${agent.id}`} className={cn('rounded-md bg-muted px-3 py-2 text-sm', hint === null && 'text-muted-foreground')} aria-live="polite">
+              {hint !== null && scenarios[hint] ? (
+                <>
+                  <span className="font-medium">{tt('trySaying')}</span> <span dir="auto">“{scenarios[hint].say_this}”</span>
+                </>
+              ) : (
+                tt('pickScenario')
+              )}
+            </p>
           </div>
         ) : null}
       </CardContent>
@@ -224,13 +281,39 @@ function Stat({ label, value, hint, live }: { label: string; value: string; hint
 function FailureAlert({ failure }: { failure: TestCallFailure }) {
   const t = useTranslations();
   const tt = useTranslations('wizard.w5.call.errors');
-  if (failure.kind === 'mic_denied') return <Alert variant="danger" title={tt('micDeniedTitle')}>{tt('micDenied')}</Alert>;
+  if (failure.kind === 'mic_denied') return <MicDeniedHelp />;
   if (failure.kind === 'mic_missing') return <Alert variant="danger" title={tt('micMissingTitle')}>{tt('micMissing')}</Alert>;
   if (failure.kind === 'api') {
     const title = isApiError(failure.error, 'NO_CREDITS') ? tt('noCreditsTitle') : tt('apiTitle');
     return <Alert variant="danger" title={title}>{errorMessage(failure.error, t)}</Alert>;
   }
   return <Alert variant="danger" title={tt('connectionTitle')}>{tt('connection')}</Alert>;
+}
+
+/**
+ * §8 W5 "mic denied → inline instructions per browser": the steps for the browser in
+ * use (Chrome, Edge, Safari, Firefox), from its user agent; anything else gets the
+ * generic line. Steps are the catalogue's, so they read in the portal's language.
+ */
+function MicDeniedHelp() {
+  const tt = useTranslations('wizard.w5.call.errors');
+  const browser = React.useSyncExternalStore(
+    () => () => undefined,
+    () => detectBrowser(navigator.userAgent),
+    () => 'other' as const,
+  );
+  const steps = tt.raw(`micHelp.${browser}`) as string[];
+  return (
+    <Alert variant="danger" title={tt('micDeniedTitle')}>
+      <p>{tt('micDenied')}</p>
+      <p className="mt-2 text-xs font-medium">{tt(`micHelpTitle.${browser}`)}</p>
+      <ol className="mt-1 list-decimal space-y-0.5 ps-5 text-sm" data-testid="mic-help">
+        {steps.map((s) => (
+          <li key={s}>{s}</li>
+        ))}
+      </ol>
+    </Alert>
+  );
 }
 
 function clock(totalS: number): string {

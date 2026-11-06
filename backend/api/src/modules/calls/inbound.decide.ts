@@ -1,5 +1,5 @@
 import type { AgentTier, DeclineReason, WorkspaceCaps } from '@portal/schemas';
-import { rateForTier } from '@portal/schemas';
+import { hoursModeUsesSchedule, rateForTier } from '@portal/schemas';
 import type { CurrentPricing } from '../config';
 import { clampDuration } from '../retell';
 import { transferFailVariables } from '../prompting/transfer-fail-message';
@@ -180,11 +180,16 @@ export function decide(input: DecisionInput): Decision {
   if (!input.caps) warnings.push('caps_unknown');
   else if (others.length >= input.caps.concurrency_cap) return decline('cap');
 
-  // 6. Hours. `always` skips the arithmetic entirely.
-  if (number.hours_mode !== 'always') {
+  // 6. Hours. `always` and `unanswered` skip the arithmetic entirely: the carrier's own
+  // busy / no-answer forwarding is the gate for `unanswered`, so whatever reaches the
+  // number is a call the customer did not pick up (ADR 0040). `outside_hours` is the
+  // spec's "Only outside business hours": declined while the business is *open*, so the
+  // customer's own phone rings first. No schedule (or an unreadable zone) cannot say
+  // "closed", so it answers rather than refusing every caller for ever.
+  if (hoursModeUsesSchedule(number.hours_mode)) {
     const verdict = isOpen(number.hours, now, number.timezone);
-    if (!verdict.open) return decline('hours');
     if (verdict.note) warnings.push(`hours_${verdict.note}`);
+    else if (number.hours_mode === 'outside_hours' ? verdict.open : !verdict.open) return decline('hours');
   }
 
   // max_call_duration_ms = min(planMax, remainingCredits/rate × 60000), clamped to Retell's window.

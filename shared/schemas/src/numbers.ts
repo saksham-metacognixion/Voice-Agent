@@ -46,8 +46,44 @@ export const forwardingTest = z.object({
 });
 export type ForwardingTest = z.infer<typeof forwardingTest>;
 
-export const hoursMode = z.enum(['always', 'business', 'custom']);
+/**
+ * When a number lets the agent pick up (§8 W6 "Answer calls", §13.9 check 6, D4 Routing).
+ *   always         — every call, day and night.
+ *   outside_hours  — only while the workspace's business hours say *closed*: during open
+ *                    hours the call is declined so the customer's own phone rings first
+ *                    (the spec's "Only outside business hours"). No hours set = answered.
+ *   unanswered     — the spec's "Only when I don't answer": the agent answers whatever
+ *                    reaches the number; the customer's carrier forwards only the calls
+ *                    they did not pick up (busy / no answer), so nothing is declined here.
+ *   business       — only during the workspace's business hours (D4, ADR 0028).
+ *   custom         — only during this number's own schedule (`hours_override`, D16).
+ */
+export const hoursMode = z.enum(['always', 'business', 'custom', 'outside_hours', 'unanswered']);
 export type HoursMode = z.infer<typeof hoursMode>;
+
+/** The three modes §8 W6 offers, in the spec's order. D4 adds `business` and `custom`. */
+export const ANSWER_MODES = ['always', 'outside_hours', 'unanswered'] as const satisfies readonly HoursMode[];
+
+/** Modes that look at a clock: the §13.9 check reads `hours` for these and for nothing else. */
+export function hoursModeUsesSchedule(mode: HoursMode): boolean {
+  return mode === 'business' || mode === 'custom' || mode === 'outside_hours';
+}
+
+/**
+ * §8 W6 Option B "Forward — Always / When busy or no answer / Outside business hours".
+ * Informational: the forwarding itself is set on the customer's carrier. Kept so W6
+ * restores the choice and the live page shows the matching dial codes.
+ */
+export const forwardMode = z.enum(['always', 'busy_no_answer', 'outside_hours']);
+export type ForwardMode = z.infer<typeof forwardMode>;
+
+/** §8 W6 Option C "Provider" — drives the instructions panel, never a credential. */
+export const sipProvider = z.enum(['twilio', 'telnyx', 'vonage', 'other']);
+export type SipProvider = z.infer<typeof sipProvider>;
+
+/** §8 W6 Option C "Transport": what the platform's `import-phone-number` takes (default TCP). */
+export const sipTransport = z.enum(['TCP', 'UDP', 'TLS']);
+export type SipTransport = z.infer<typeof sipTransport>;
 
 /** ADR 0003 §4: the platform sells US and CA numbers only. */
 export const purchasableCountry = z.enum(['US', 'CA']);
@@ -101,6 +137,8 @@ export const sipCredentials = z.object({
   host: sipHost,
   username: z.string().trim().min(1).max(128).optional(),
   password: z.string().min(1).max(256).optional(),
+  provider: sipProvider.default('other'),
+  transport: sipTransport.default('TCP'),
 });
 export type SipCredentials = z.infer<typeof sipCredentials>;
 
@@ -188,6 +226,7 @@ export const phonePlanRequest = z.discriminatedUnion('option', [
     /** The line the customer already has and will forward to the new number. */
     existing_number: e164,
     carrier: carrier.default('other'),
+    forward_mode: forwardMode.default('always'),
     nickname: z.string().trim().min(1).max(60).optional(),
     ...routing,
   }),
@@ -211,8 +250,19 @@ export const phonePlanResponse = z.object({
   toll_free: z.boolean(),
   existing_number: z.string().nullable(),
   carrier: carrier.nullable(),
-  /** Option C: host and username only. The password is never returned. */
-  sip: z.object({ number: z.string(), host: z.string(), username: z.string().nullable(), has_password: z.boolean() }).nullable(),
+  /** Option B: how the customer said they will forward. Null for A and C, and for a plan saved before it existed. */
+  forward_mode: forwardMode.nullable().default(null),
+  /** Option C: host, username, provider and transport. The password is never returned. */
+  sip: z
+    .object({
+      number: z.string(),
+      host: z.string(),
+      username: z.string().nullable(),
+      has_password: z.boolean(),
+      provider: sipProvider.default('other'),
+      transport: sipTransport.default('TCP'),
+    })
+    .nullable(),
   hours_mode: hoursMode,
   transfer_targets: z.array(transferTarget),
   allowed_countries: z.array(z.string()),
@@ -234,6 +284,7 @@ export const buyNumberRequest = z.object({
   /** Option B: the line that will be forwarded to this number. */
   forward_from: e164.optional(),
   carrier: carrier.optional(),
+  forward_mode: forwardMode.optional(),
   ...routing,
 });
 export type BuyNumberRequest = z.infer<typeof buyNumberRequest>;
@@ -300,6 +351,8 @@ export const phoneNumberResponse = z.object({
       from: z.string(),
       status: forwardingStatus,
       carrier: carrier.nullable(),
+      /** W6: always / busy or no answer / outside hours, as the customer said they would forward. */
+      mode: forwardMode.nullable().default(null),
       /** D17: the last "Test forwarding". Null before the first. */
       test: forwardingTest.nullable().default(null),
     })
@@ -310,6 +363,13 @@ export const phoneNumberResponse = z.object({
       host: z.string(),
       username: z.string().nullable(),
       has_password: z.boolean(),
+      provider: sipProvider.default('other'),
+      transport: sipTransport.default('TCP'),
+      /**
+       * W7b / D4: the address the customer's trunk sends inbound calls to (`SIP_ORIGINATION_URI`,
+       * one per environment). Null until ops sets it; the page then says to ask support.
+       */
+      origination_uri: z.string().nullable().default(null),
       /** D16: the last re-verify, `pending` while one runs. Null before the first. */
       verification: sipVerification.nullable().default(null),
     })

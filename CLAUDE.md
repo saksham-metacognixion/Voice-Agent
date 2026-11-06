@@ -159,7 +159,14 @@ margin per pack and tier; the generation target amended to p95 ≤ 16 s with thi
 wizard close — "Save and exit" as the §6.4 dismissal (`tenants.onboarding_dismissed_at`, `POST /workspace/onboarding-dismiss`,
 the dashboard opens with "Continue setup"), Back and Continue in `WizardFooter`, the industry catalogue (`INDUSTRY_GROUPS`) behind
 a searchable `Combobox`, `brief.never_do_presets` + `brief.services_notes`, FAQ routing on the `knowledge_base` gate, the
-main language from the workspace country at `POST /agents`, the automatic native voice and the accent filter (5 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+main language from the workspace country at `POST /agents`, the automatic native voice and the accent filter (5 Nov). 0040 the
+W5–W7 close, the knowledge and live pages and the §12 gaps — the spec's three answer modes as `hours_mode` values
+(`outside_hours` declines while the business is *open*, `unanswered` declines nothing) beside D4's `business` / `custom`,
+Option B's `forward_mode` and Option C's `provider` / `transport` (in `sip_json`, to the platform's import), `SIP_ORIGINATION_URI`
+on `sip.origination_uri`, the W6 area code required with Suggest from the time zone, transfer pre-fill from the brief, the
+allowed-countries default, W5 chips / Keep-Undo (`draft/select`) / per-browser mic help / the trial CTA, the W7 summary card,
+10 % / 20 % top-up and minutes per pack, Copy and the SIP guide and the next-steps checklist on the live page, `app/error.tsx`,
+step writes that throw, and the "End your test call?" prompt (6 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -362,7 +369,11 @@ job settles.
   malformed or national = refused while a restriction is set; `decline_reason = country`) →
   balance > −grace → active calls < plan cap → hours rule. Hours: `custom` = the
   number's own schedule and zone, `business` = the workspace's (none set = open, `no_schedule`),
-  `always` = none. On a date: closed date → `date_overrides` entry (no intervals = closed) →
+  `always` = none; since ADR 0040 `outside_hours` = the spec's "Only outside business hours"
+  (declined while the workspace's hours say *open*, answered when closed or with no schedule)
+  and `unanswered` = "Only when I don't answer" (nothing declined; the carrier's busy / no-answer
+  forwarding is the gate). `hoursModeUsesSchedule()` in `@portal/schemas` is the one predicate;
+  W6 offers the spec's three (`ANSWER_MODES`), D4 all five. On a date: closed date → `date_overrides` entry (no intervals = closed) →
   weekday; a closed date also shuts the previous evening's overnight spill (D16). `isOpen` lives
   in `@portal/schemas` so D4's "open now" is the same decision; writes go through
   `businessHoursInput` (known IANA zone, ≤ 4 non-overlapping intervals a day, real unique dates). The SA12 `reject_inbound`
@@ -719,8 +730,13 @@ job settles.
   DELETE releases on the platform **first** and keeps the row as `released` (calls reference
   it). PATCH edits routing and labels only; provider identity is not on the request shape.
 - Option B (forwarding) is a bought number plus `forwarding_status = waiting_for_customer`
-  until the customer confirms; the agent is live on the new number regardless. Option D
-  (porting) is refused (P3).
+  until the customer confirms; the agent is live on the new number regardless. Its W6
+  `forward_mode` (`always` / `busy_no_answer` / `outside_hours`, ADR 0040) is informational —
+  the carrier forwards — kept on the plan and copied to the number (`forwarding.mode`) so the
+  live page shows the right codes. Option C carries `provider` and `transport` in `sip_json`
+  (clear, not secrets); the transport reaches `import-phone-number`, the provider picks the
+  instructions; `SIP_ORIGINATION_URI` (one per environment, `sipOriginationUri()`) is
+  `sip.origination_uri`, null = "ask support". Option D (porting) is refused (P3).
 - **SIP passwords are envelope-encrypted** (`modules/crypto`): fresh AES-256-GCM data key per
   secret, wrapped by KMS (`SIP_CREDENTIALS_KMS_KEY_ID`) in staging/prod or a local key
   (`SIP_CREDENTIALS_LOCAL_KEY`, refused in prod) in dev/test; the plan id is the AAD. Three call
@@ -1118,6 +1134,13 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   read-only. Unsaved edits survive a background refetch and warn on `beforeunload`.
 - `BriefFields` and `VoiceSettings` (`src/components/wizard/`) are the W2/W3 bodies and the
   D3 Brief/Voice tabs at once. Change a field there, not in a page.
+- **A step write that fails stops the page** (ADR 0040 §8): `useAdvanceOnboarding` throws,
+  the page shows `wizard.stepSaveFailed` and Continue becomes Retry; nothing moves on to a
+  step its guard will refuse. **A live test call asks before the page is left**:
+  `LeaveCallPrompt` (mounted by `TestCallPanel`) holds links, the back button and
+  `guardNavigation()` callers behind "End your test call?"; Leave hangs up first.
+  **`app/error.tsx` / `app/global-error.tsx`** are the §12.1 boundary (`reportError`,
+  `boundary` tag); `/dev/crash/` throws on demand under `APP_ENV=dev`.
 - **The script is editable on W2 too.** Once the draft has a prompt, the Generate panel shows
   "Edit the script", which opens `PromptTab` (the D3 Advanced editor, same lint and
   `PUT …/versions/:v/prompt`) in a section under the brief; it stays mounted while hidden

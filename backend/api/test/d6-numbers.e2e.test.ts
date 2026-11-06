@@ -45,12 +45,15 @@ describe('PUT /agents/:id/phone-plan', () => {
     expect(first.status).toBe(200);
     expect(first.body).toMatchObject({ option: 'new', country: 'CA', area_code: '450', status: 'pending', sip: null, transfer_targets: [{ label: 'Front desk', number: '+15145550100' }] });
 
-    const second = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'forward', country: 'CA', existing_number: '+15145550199', carrier: 'bell' });
+    const second = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'forward', country: 'CA', existing_number: '+15145550199', carrier: 'bell', forward_mode: 'busy_no_answer', hours_mode: 'outside_hours' });
     expect(second.status).toBe(200);
     expect(second.body.id).toBe(first.body.id);
     expect(second.body).toMatchObject({ option: 'forward', existing_number: '+15145550199', carrier: 'bell', country: 'CA', area_code: null });
     expect(await adminDb.phonePlan.count({ where: { agentId } })).toBe(1);
-    expect((await call('GET', `/agents/${agentId}/phone-plan`, headers)).body.option).toBe('forward');
+    const reread = await call('GET', `/agents/${agentId}/phone-plan`, headers);
+    expect(reread.body).toMatchObject({ option: 'forward', forward_mode: 'busy_no_answer', hours_mode: 'outside_hours' });
+    // Back to a bought number: Option B's forward mode is reset with the rest of its fields.
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', hours_mode: 'unanswered' })).body).toMatchObject({ forward_mode: null, hours_mode: 'unanswered' });
   });
 
   it('Option C needs the sip_import gate, encrypts the password at rest and never returns it', async () => {
@@ -64,9 +67,9 @@ describe('PUT /agents/:id/phone-plan', () => {
     const scale = await paidWorkspace(app, 'plan-sip-scale', 'scale');
     const scaleAuth = await auth(scale.sub, scale.workspaceId);
     const agentId = await publishedAgent(call, scaleAuth, { publish: false });
-    const saved = await call('PUT', `/agents/${agentId}/phone-plan`, scaleAuth, { option: 'sip', sip: { number: '+14505550123', host: 'sip.example.com', username: 'trunk', password: 'Tr0nk-pa55' } });
+    const saved = await call('PUT', `/agents/${agentId}/phone-plan`, scaleAuth, { option: 'sip', sip: { number: '+14505550123', host: 'sip.example.com', username: 'trunk', password: 'Tr0nk-pa55', provider: 'twilio', transport: 'TLS' } });
     expect(saved.status).toBe(200);
-    expect(saved.body.sip).toEqual({ number: '+14505550123', host: 'sip.example.com', username: 'trunk', has_password: true });
+    expect(saved.body.sip).toEqual({ number: '+14505550123', host: 'sip.example.com', username: 'trunk', has_password: true, provider: 'twilio', transport: 'TLS' });
     expect(JSON.stringify(saved.body)).not.toContain('Tr0nk-pa55');
 
     const row = await adminDb.phonePlan.findUniqueOrThrow({ where: { id: saved.body.id as string } });
@@ -178,7 +181,7 @@ describe('POST /numbers/import (Option C)', () => {
     const sipNumber = nanpNumber();
     const accepted = await call('POST', '/numbers/import', headers, {
       agent_id: agentId,
-      sip: { number: sipNumber, host: 'sip:pbx.example.com:5060', username: 'trunk', password: 'Imp0rt-pa55' },
+      sip: { number: sipNumber, host: 'sip:pbx.example.com:5060', username: 'trunk', password: 'Imp0rt-pa55', provider: 'telnyx', transport: 'UDP' },
     });
     expect(accepted.status).toBe(202);
     const number = accepted.body.number as Record<string, unknown>;
@@ -191,6 +194,8 @@ describe('POST /numbers/import (Option C)', () => {
     const platform = retell.phoneNumbers.get(sipNumber)!;
     expect(platform.phone_number_type).toBe('custom');
     expect(platform.sip).toMatchObject({ termination_uri: 'sip:pbx.example.com:5060', username: 'trunk', password_seen: true });
+    // W6's transport reaches the platform's import (ADR 0040).
+    expect(platform.sip_outbound_trunk_config?.transport).toBe('UDP');
 
     // Nowhere at rest, in any table, in clear.
     const plan = await adminDb.phonePlan.findUniqueOrThrow({ where: { id: row.planId! } });
@@ -202,7 +207,7 @@ describe('POST /numbers/import (Option C)', () => {
 
     // D4 SIP section: host and username come back, the password only as a flag.
     const read = await call('GET', `/numbers/${row.id}`, headers);
-    expect(read.body.sip).toEqual({ host: 'sip:pbx.example.com:5060', username: 'trunk', has_password: true, verification: null });
+    expect(read.body.sip).toEqual({ host: 'sip:pbx.example.com:5060', username: 'trunk', has_password: true, provider: 'telnyx', transport: 'UDP', origination_uri: null, verification: null });
     const listed = await call('GET', '/numbers', headers);
     expect(JSON.stringify(listed.body)).not.toContain('Imp0rt-pa55');
     expect(JSON.stringify(read.body)).not.toContain('Imp0rt-pa55');
@@ -495,7 +500,7 @@ describe('PATCH and DELETE /numbers/:id', () => {
     const row = await waitForNumber((accepted.body.number as { id: string }).id);
     expect(row.status).toBe('active');
     const shown = await call('GET', `/numbers/${row.id}`, headers);
-    expect(shown.body.forwarding).toEqual({ from: '+15145550100', status: 'waiting_for_customer', carrier: 'bell', test: null });
+    expect(shown.body.forwarding).toEqual({ from: '+15145550100', status: 'waiting_for_customer', carrier: 'bell', mode: 'always', test: null });
 
     const guide = await call('GET', `/numbers/forwarding-guide?carrier=bell&destination=${encodeURIComponent(row.e164!)}`, headers);
     expect(guide.status).toBe(200);

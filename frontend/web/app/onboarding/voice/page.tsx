@@ -2,7 +2,7 @@
 
 import { useApi, useGetAgent } from '@portal/api-client';
 import type { AgentDetail } from '@portal/schemas';
-import { Button, ErrorState, PageLoader } from '@portal/ui';
+import { Alert, Button, ErrorState, PageLoader } from '@portal/ui';
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
@@ -55,24 +55,40 @@ function VoiceLoader() {
 
 function VoiceInner({ agent }: { agent: AgentDetail }) {
   const tw = useTranslations('wizard.w3');
+  const t = useTranslations();
   const router = useRouter();
   const advance = useAdvanceOnboarding();
   const [state, setState] = React.useState<VoiceSettingsState>({ voiceId: agent.draft?.settings.voice_id ?? null, saving: false });
+  const [stepError, setStepError] = React.useState<string | null>(null);
+  const [leaving, setLeaving] = React.useState(false);
 
+  // §12.2: the step moves only once the write answered; a failure stays here (Z-61).
   async function next() {
-    if (!state.voiceId) return;
-    await advance(5, 'voice');
-    router.push(routes.onboarding.test);
+    if (!state.voiceId || leaving) return;
+    setStepError(null);
+    setLeaving(true);
+    try {
+      await advance(5, 'voice');
+      router.push(routes.onboarding.test);
+    } catch (e) {
+      setStepError(errorMessage(e, t));
+      setLeaving(false);
+    }
   }
 
   return (
     <>
       <WizardHeading title={tw('title')} subtitle={tw('subtitle')} />
       <VoiceSettings agent={agent} onStateChange={setState} />
+      {stepError ? (
+        <Alert variant="danger" title={t('wizard.stepSaveFailed')} className="mt-6" data-testid="step-save-error">
+          {stepError}
+        </Alert>
+      ) : null}
       {/* §7.3: Back to the brief, Continue bottom right; it waits for a voice and for the pending save (QA-007). */}
       <WizardFooter backHref={routes.onboarding.brief} note={state.voiceId ? undefined : tw('noneSelected')}>
-        <Button size="lg" onClick={() => void next()} disabled={!state.voiceId || state.saving} loading={state.saving} data-testid="wizard-continue">
-          {state.saving ? tw('saving') : tw('continue')} {state.saving ? null : <ArrowRight aria-hidden />}
+        <Button size="lg" onClick={() => void next()} disabled={!state.voiceId || state.saving || leaving} loading={state.saving || leaving} data-testid="wizard-continue">
+          {state.saving ? tw('saving') : stepError ? t('common.retry') : tw('continue')} {state.saving || leaving ? null : <ArrowRight aria-hidden />}
         </Button>
       </WizardFooter>
     </>

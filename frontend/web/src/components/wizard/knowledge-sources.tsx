@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
+import { ConfirmDialog } from '@/src/components/dashboard/confirm-dialog';
 import { errorMessage } from '@/src/lib/errors';
 import { PHOTO_TYPES, isPhoto, photoToText, toBase64 } from '@/src/wizard/photo-text';
 import { formatNumber } from '@/src/lib/format';
@@ -47,6 +48,8 @@ export function KnowledgeSources({ agentId, locked }: { agentId: string; locked:
   const sources = (list.data ?? []).filter((s) => s.role !== 'menu');
   const settled = isKnowledgeSettled(list.data);
   const [removing, setRemoving] = React.useState<string | null>(null);
+  // §8 W4 "Remove | confirm" (Z-29): the row asked about, until the dialog closes.
+  const [toRemove, setToRemove] = React.useState<KnowledgeSourceResponse | null>(null);
 
   const refetch = list.refetch;
   React.useEffect(() => {
@@ -57,6 +60,7 @@ export function KnowledgeSources({ agentId, locked }: { agentId: string; locked:
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['listAgentKnowledge', { id: agentId }] });
 
+  // Runs from the dialog's Remove: a thrown error stays in the dialog with the message.
   async function remove(source: KnowledgeSourceResponse) {
     if (removing) return;
     setRemoving(source.id);
@@ -64,8 +68,7 @@ export function KnowledgeSources({ agentId, locked }: { agentId: string; locked:
       await deleteAgentKnowledge(api, { id: agentId, sourceId: source.id });
       track('knowledge_removed', { agent_id: agentId, type: source.type });
       await invalidate();
-    } catch (e) {
-      toast.error(errorMessage(e, t));
+      toast.success(tk('removed', { name: source.name }));
     } finally {
       setRemoving(null);
     }
@@ -101,11 +104,22 @@ export function KnowledgeSources({ agentId, locked }: { agentId: string; locked:
         ) : (
           <ul className="flex flex-col gap-2">
             {sources.map((s) => (
-              <SourceRow key={s.id} source={s} removing={removing === s.id} disabled={locked || Boolean(removing)} onRemove={() => void remove(s)} />
+              <SourceRow key={s.id} source={s} removing={removing === s.id} disabled={locked || Boolean(removing)} onRemove={() => setToRemove(s)} />
             ))}
           </ul>
         )}
       </section>
+      <ConfirmDialog
+        open={toRemove !== null}
+        onOpenChange={(open) => (open ? undefined : setToRemove(null))}
+        title={tk('removeTitle', { name: toRemove?.name ?? '' })}
+        description={tk('removeBody')}
+        consequences={[tk('removeConsequence')]}
+        confirmLabel={tk('removeConfirm')}
+        onConfirm={async () => {
+          if (toRemove) await remove(toRemove);
+        }}
+      />
     </div>
   );
 }
@@ -128,7 +142,7 @@ function SourceRow({ source, removing, disabled, onRemove }: { source: Knowledge
         {detail ? <span className="truncate text-xs text-muted-foreground">{detail}</span> : null}
         {source.status === 'failed' ? <span className="text-xs text-danger">{source.error ?? tk('failedDefault')}</span> : null}
       </div>
-      <Button variant="ghost" size="icon" onClick={onRemove} disabled={disabled || source.status === 'deleting'} loading={removing} aria-label={tk('remove', { name: source.name })}>
+      <Button variant="ghost" size="icon" onClick={onRemove} disabled={disabled || source.status === 'deleting'} loading={removing} aria-label={tk('remove', { name: source.name })} data-testid="source-remove">
         {removing ? null : <Trash2 />}
       </Button>
     </li>

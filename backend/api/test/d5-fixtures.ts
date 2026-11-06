@@ -384,7 +384,7 @@ export class FakeRetellGateway {
     });
   }
 
-  importPhoneNumber(input: { numberToken: string; agentId: string; e164: string; terminationUri: string; sipUsername?: string; sipPassword?: string; nickname: string }) {
+  importPhoneNumber(input: { numberToken: string; agentId: string; e164: string; terminationUri: string; sipUsername?: string; sipPassword?: string; transport?: 'TCP' | 'UDP' | 'TLS'; nickname: string }) {
     return this.record('importPhoneNumber', [redactSip(input)], () => {
       if (this.phoneNumbers.has(input.e164)) throw notFoundLike(400, `phone number ${input.e164} already exists`);
       const number: FakePhoneNumber = {
@@ -395,7 +395,7 @@ export class FakeRetellGateway {
         inbound_agents: [{ agent_id: input.agentId, agent_version: 'latest_published', weight: 1 }],
         inbound_webhook_url: this.config.inboundWebhookUrl(input.numberToken),
         sip: { termination_uri: input.terminationUri, username: input.sipUsername ?? null, password_seen: Boolean(input.sipPassword) },
-        sip_outbound_trunk_config: { termination_uri: input.terminationUri, auth_username: input.sipUsername ?? null, transport: 'TCP' },
+        sip_outbound_trunk_config: { termination_uri: input.terminationUri, auth_username: input.sipUsername ?? null, transport: input.transport ?? 'TCP' },
       };
       this.phoneNumbers.set(input.e164, number);
       return { ...number };
