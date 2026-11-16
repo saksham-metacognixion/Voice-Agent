@@ -258,7 +258,7 @@ export class AdminCustomersService {
         }),
         adminDb.phoneNumber.groupBy({
           by: ['tenantId'],
-          where: { tenantId: { in: ids }, status: 'active' },
+          where: { tenantId: { in: ids }, status: 'active', staffPausedAt: null },
           _count: { _all: true },
         }),
         adminDb.membership.findMany({

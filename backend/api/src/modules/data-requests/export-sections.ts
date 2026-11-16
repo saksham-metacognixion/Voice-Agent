@@ -68,6 +68,8 @@ export function numberLine(row: {
   requestedAreaCode: string | null;
   tollFree: boolean;
   status: string;
+  /** QA-104: a number support paused reads `paused` in the export, as it does in D4. */
+  staffPausedAt?: Date | null;
   agentId: string | null;
   hoursMode: string;
   hoursOverrideJson: unknown;
@@ -90,7 +92,7 @@ export function numberLine(row: {
     row.areaCode,
     row.requestedAreaCode,
     row.tollFree,
-    row.status,
+    row.staffPausedAt ? 'paused' : row.status,
     row.agentId,
     row.hoursMode,
     json(row.hoursOverrideJson),

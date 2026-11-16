@@ -505,7 +505,7 @@ export function ForwardingSection({ number, disabled }: { number: PhoneNumberRes
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <CarrierForwardingGuide carrier={carrier} onCarrierChange={setCarrier} />
-        {!disabled && number.status === 'active' ? <ForwardingTestPanel number={number} /> : null}
+        {!disabled && number.status === 'active' && !number.staff_paused ? <ForwardingTestPanel number={number} /> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {!disabled ? (
           <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">

@@ -615,6 +615,9 @@ describe('agent, number and user controls', () => {
     // Customer: sees it (no reason code), cannot switch it on, the refusal changes nothing.
     const shown = await customer('GET', `/numbers/${numberId}`);
     expect(shown.body).toMatchObject({ paused: true, staff_paused: true, staff_pause_ticket_id: ticket.id });
+    // Staff-side reads agree: search says paused, and the SA1 / customer-list counts drop it.
+    const found = await call('GET', `/admin/search?q=${encodeURIComponent((await row()).e164!)}`, staff.readOnly.token);
+    expect((found.body.results as Array<{ id: string; status: string }>).find((r) => r.id === numberId)?.status).toBe('paused');
     expect(JSON.stringify(shown.body)).not.toContain('service_issue');
     const refused = await customer('PATCH', `/numbers/${numberId}`, { paused: false });
     expect(refused.status).toBe(409);

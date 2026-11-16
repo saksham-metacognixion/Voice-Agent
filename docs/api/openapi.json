@@ -42238,12 +42238,13 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONCURRENCY_LIMIT, CONFLICT, FORWARDING_TEST_IN_PROGRESS, TESTS_PAUSED}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONCURRENCY_LIMIT, CONFLICT, FORWARDING_TEST_IN_PROGRESS, NUMBER_STAFF_PAUSED, TESTS_PAUSED}",
             "x-error-codes": [
               "AGENT_NOT_PUBLISHED",
               "CONCURRENCY_LIMIT",
               "CONFLICT",
               "FORWARDING_TEST_IN_PROGRESS",
+              "NUMBER_STAFF_PAUSED",
               "TESTS_PAUSED"
             ]
           },

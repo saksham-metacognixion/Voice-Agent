@@ -846,6 +846,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
       'WORKSPACE_PAUSED',
       'AGENT_NOT_PUBLISHED',
       'FORWARDING_TEST_IN_PROGRESS',
+      'NUMBER_STAFF_PAUSED',
       'TESTS_PAUSED',
       'TEST_RATE_LIMIT',
       'CONCURRENCY_LIMIT',

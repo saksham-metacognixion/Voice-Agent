@@ -96,7 +96,8 @@ export class AdminKpisService {
       this.atRiskCount(now),
       adminDb.tenant.count({ where: { createdAt: { gte: from } } }),
       adminDb.agent.groupBy({ by: ['status'], where: { deletedAt: null }, _count: { _all: true } }),
-      adminDb.phoneNumber.count({ where: { status: 'active' } }),
+      // A number support paused is not answering, whatever its own status says (QA-104).
+      adminDb.phoneNumber.count({ where: { status: 'active', staffPausedAt: null } }),
       adminDb.phoneNumber.count({ where: { status: 'provisioning' } }),
       adminDb.phoneNumber.count({ where: { releasedAt: { gte: from } } }),
       adminDb.purchase.groupBy({

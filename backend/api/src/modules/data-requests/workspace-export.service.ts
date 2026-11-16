@@ -215,6 +215,7 @@ export class WorkspaceExportService {
             requestedAreaCode: true,
             tollFree: true,
             status: true,
+            staffPausedAt: true,
             agentId: true,
             hoursMode: true,
             hoursOverrideJson: true,
