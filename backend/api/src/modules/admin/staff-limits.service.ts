@@ -104,6 +104,17 @@ export class StaffLimitsService {
   }
 
   /**
+   * The ticket a pause names on D1 (ADR 0041): the one given, when it belongs to the
+   * workspace, else null. `assertPauseTicket` already demands one of support; for the
+   * other roles the ticket is optional and a foreign id is simply not recorded.
+   */
+  async workspaceTicket(tenantId: string, ticketId: number | undefined): Promise<number | null> {
+    if (!ticketId) return null;
+    const ticket = await adminDb.supportTicket.findFirst({ where: { id: ticketId, tenantId }, select: { id: true } });
+    return ticket?.id ?? null;
+  }
+
+  /**
    * Admin §2.2: support may pause only against a ticket, and one of this workspace's —
    * not any number typed into the field (review, 28 Sep). The same rule for a workspace,
    * an agent and a number (QA-034): pulling one agent or one number off the phone is the

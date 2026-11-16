@@ -327,7 +327,7 @@ export class NumberProvisioningService {
     }
     await adminDb.phoneNumber.update({
       where: { id: row.id },
-      data: { status: 'released', releasedAt: new Date(), agentId: null, nextRentalAt: null, pausedAt: null },
+      data: { status: 'released', releasedAt: new Date(), agentId: null, nextRentalAt: null, pausedAt: null, staffPausedAt: null, staffPausedReason: null, staffPausedTicketId: null, staffPausedBy: null },
     });
     await this.refresh(workspaceId, 'release');
     return { released: true };

@@ -416,7 +416,7 @@
   },
   "wizard": {
     "title": "Configurer votre agent",
-    "NUMBER_STAFF_PAUSED": "Ce numéro a été mis en pause par notre équipe de soutien : ce changement n’est pas offert depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
+    "NUMBER_STAFF_PAUSED": "Ce numéro a été mis en pause par notre équipe de soutien. Vous ne pouvez pas le réactiver depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
     "steps": {
       "template": "Modèle",
       "brief": "Entreprise",

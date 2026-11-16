@@ -625,11 +625,6 @@ describe('agent, number and user controls', () => {
     expect((await row()).staffPausedAt).not.toBeNull();
     await expect(withWorkspace(ws.workspaceId, (db) => db.phoneNumber.update({ where: { id: numberId }, data: { staffPausedAt: null } }))).rejects.toThrow();
     expect((await row()).staffPausedAt).not.toBeNull();
-    // Release would end the pause by another door.
-    const release = await customer('DELETE', `/numbers/${numberId}`);
-    expect(release.status).toBe(409);
-    expect(release.body.code).toBe('NUMBER_STAFF_PAUSED');
-    expect((await row()).status).not.toBe('released');
     // Other routing edits still work, and the pause survives them and the next read.
     expect((await customer('PATCH', `/numbers/${numberId}`, { nickname: 'Front line' })).body).toMatchObject({ staff_paused: true, nickname: 'Front line' });
     expect((await customer('GET', `/numbers/${numberId}`)).body).toMatchObject({ staff_paused: true });

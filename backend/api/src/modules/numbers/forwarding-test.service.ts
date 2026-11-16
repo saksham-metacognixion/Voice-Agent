@@ -73,6 +73,7 @@ export class ForwardingTestService {
           e164: true,
           status: true,
           pausedAt: true,
+          staffPausedAt: true,
           forwardingFrom: true,
           forwardingTestJson: true,
           agent: { select: { id: true, tier: true, retellAgentId: true, publishedVersion: true, deletedAt: true } },
@@ -91,6 +92,7 @@ export class ForwardingTestService {
     if (!row.forwardingFrom) throw new AppError('NOT_FORWARDING_NUMBER', 'Only a number your existing line forwards to can be tested this way.');
     if (row.tenantPaused) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to resume it.');
     if (!row.e164 || row.status !== 'active') throw new AppError('CONFLICT', 'This number is not connected yet. Try again once it is live.');
+    if (row.staffPausedAt) throw new AppError('NUMBER_STAFF_PAUSED', 'This number has been paused by our support team. Please contact support.');
     if (row.pausedAt) throw new AppError('CONFLICT', 'This number is paused. Resume it to test the forwarding.');
     const agent = row.agent && !row.agent.deletedAt ? row.agent : null;
     if (!agent?.retellAgentId || row.published?.retellAgentVersion == null) {
