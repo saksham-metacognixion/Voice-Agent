@@ -26,8 +26,9 @@ type Row = Prisma.PhoneNumberGetPayload<{ include: typeof WITH }>;
 
 /**
  * SA7 "Numbers" and the staff pause/resume (D12 §8). Pause is the customer's D4 pause
- * (`NumbersService.update({paused})`) done from the console: `paused_at` + `status`,
- * then the runtime cache, whose `num:{e164}.number_paused` is what the §13.9 checks
+ * (`NumbersService.update({paused})`) done from the console, but kept apart from it
+ * (QA-104): `staff_paused_*` is staff's alone, the customer's switch (`paused_at` +
+ * `status`) is never touched by a pause or a resume. The runtime cache, whose `num:{e164}.number_paused` is what the §13.9 checks
  * decline on. Release, resync and reprovision (admin §9) go through the services the
  * customer's D4 and the provisioning job use (`NumberProvisioningService`, `JobQueues`):
  * the console never talks to the voice platform on its own.
@@ -47,7 +48,8 @@ export class AdminNumbersService {
   async list(query: AdminNumbersQuery): Promise<Page<AdminNumberResponse>> {
     const where: Prisma.PhoneNumberWhereInput = {};
     if (query.tenant_id) where.tenantId = query.tenant_id;
-    if (query.status) where.status = query.status;
+    if (query.status === 'paused') where.AND = [{ OR: [{ status: 'paused' }, { staffPausedAt: { not: null } }] }];
+    else if (query.status) where.status = query.status;
     // The same predicate as the SA1 "Overdue number rentals" count (admin-kpis.service.ts).
     if (query.rental_overdue === 'true') {
       where.rentalOverdueSince = { not: null };
@@ -113,7 +115,7 @@ export class AdminNumbersService {
     await this.limits.assertCan(staff, 'can_pause_tenant');
     const row = await adminDb.phoneNumber.findUnique({
       where: { id },
-      select: { id: true, tenantId: true, status: true, pausedAt: true },
+      select: { id: true, tenantId: true, status: true, staffPausedAt: true },
     });
     if (!row) throw AppError.notFound('Number');
     if (paused) await this.limits.assertPauseTicket(staff, row.tenantId, body.ticket_id, 'number');
@@ -124,16 +126,23 @@ export class AdminNumbersService {
         'CONFLICT',
         `A ${row.status} number cannot be ${paused ? 'paused' : 'resumed'}.`,
       );
-    const already = paused ? row.status === 'paused' : row.status === 'active';
+    // QA-104: the staff pause is its own state. `status` / `paused_at` stay the customer's
+    // switch, so a pause here never reads as theirs and a resume never touches their choice.
+    const already = paused ? row.staffPausedAt !== null : row.staffPausedAt === null;
     if (!already) {
+      const ticketId = paused ? await this.limits.workspaceTicket(row.tenantId, body.ticket_id) : null;
       const action = paused ? 'number.paused' : 'number.resumed';
       await adminDb.$transaction(async (tx) => {
         await tx.phoneNumber.update({
           where: { id },
-          data: {
-            status: paused ? 'paused' : 'active',
-            pausedAt: paused ? (row.pausedAt ?? new Date()) : null,
-          },
+          data: paused
+            ? {
+                staffPausedAt: new Date(),
+                staffPausedReason: body.reason_code,
+                staffPausedTicketId: ticketId,
+                staffPausedBy: staff.staffId,
+              }
+            : { staffPausedAt: null, staffPausedReason: null, staffPausedTicketId: null, staffPausedBy: null },
         });
         await tx.auditLog.create({
           data: {
@@ -141,7 +150,7 @@ export class AdminNumbersService {
             action,
             targetType: 'number',
             targetId: id,
-            metaJson: { by: 'staff', reason_code: body.reason_code },
+            metaJson: { by: 'staff', reason_code: body.reason_code, ...(ticketId ? { ticket_id: ticketId } : {}) },
           },
         });
         await this.audit.record(
@@ -153,8 +162,8 @@ export class AdminNumbersService {
             tenantId: row.tenantId,
             reasonCode: body.reason_code,
             note: body.note,
-            before: { status: row.status },
-            after: { status: paused ? 'paused' : 'active' },
+            before: { staff_paused: !paused },
+            after: { staff_paused: paused, ...(ticketId ? { ticket_id: ticketId } : {}) },
             request,
           },
           tx,
@@ -295,6 +304,9 @@ export class AdminNumbersService {
       status: r.status,
       paused_at: iso(r.pausedAt),
       forwarding_status: r.forwardingStatus,
+      staff_paused_at: iso(r.staffPausedAt),
+      staff_paused_reason: r.staffPausedReason,
+      staff_paused_ticket_id: r.staffPausedTicketId,
       rental_credits: r.rentalCredits,
       next_rental_at: iso(r.nextRentalAt),
       rental_overdue_since: iso(r.rentalOverdueSince),

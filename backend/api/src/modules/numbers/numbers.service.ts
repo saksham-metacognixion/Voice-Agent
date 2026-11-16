@@ -201,6 +201,11 @@ export class NumbersService {
 
     if (repoint && row.e164) {
       // Outside the transaction. If this fails the local row already names the new agent;
+      if (patch.paused === false && current.staffPausedAt) {
+        // QA-104: support's pause is not the customer's to lift, by any route. The check is
+        // on the row read in this transaction; the trigger refuses a write of the columns.
+        throw new AppError('NUMBER_STAFF_PAUSED', 'This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.');
+      }
       // the next `bind` (or the customer's retry) converges the platform side.
       try {
         await this.retell.updatePhoneNumber(row.e164, { agentId: repoint.retellAgentId, numberToken: row.inboundToken });
@@ -242,6 +247,8 @@ export class NumbersService {
     return { number: toNumberResponse(fresh), job_id: row.id };
   }
 
+      // QA-104: releasing would end the pause by another door (and hand the number back to the carrier).
+      if (row.staffPausedAt) throw new AppError('NUMBER_STAFF_PAUSED', 'This number has been paused by our support team, so it cannot be released from your dashboard. Please contact support.');
   /** §5.4: no phone number before the first purchase. Off-wizard buys check it here; the activation job checks it in `provision`. */
   private async assertMayProvision(ctx: WorkspaceContext, sip = false): Promise<void> {
     const paid = await withWorkspace(ctx, (db) => db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }));

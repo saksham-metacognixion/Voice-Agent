@@ -416,6 +416,7 @@
   },
   "wizard": {
     "title": "Set up your agent",
+    "NUMBER_STAFF_PAUSED": "This number was paused by our support team, so this change isn’t available from your dashboard. Please contact support.",
     "steps": {
       "template": "Template",
       "brief": "Business",
@@ -2504,6 +2505,10 @@
         "unknown": "Unknown caller"
       },
       "forwarding": {
+        "staffPaused": "This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.",
+        "staffPausedTicket": "Support ticket #{id}",
+        "staffPausedContact": "Contact support: {email}",
+        "staffPausedHint": "Only our support team can turn this number back on.",
         "title": "Forward your existing line",
         "body": "Callers keep dialling {from}. Your carrier forwards those calls to {to}, which your agent answers.",
         "bodyPending": "Callers keep dialling {from}. Your carrier forwards those calls to this number once it is set up.",

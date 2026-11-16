@@ -416,6 +416,7 @@
   },
   "wizard": {
     "title": "Configurer votre agent",
+    "NUMBER_STAFF_PAUSED": "Ce numéro a été mis en pause par notre équipe de soutien : ce changement n’est pas offert depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
     "steps": {
       "template": "Modèle",
       "brief": "Entreprise",
@@ -2504,6 +2505,10 @@
         "unknown": "Appelant inconnu"
       },
       "forwarding": {
+        "staffPaused": "Ce numéro a été mis en pause par notre équipe de soutien. Vous ne pouvez pas le réactiver depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
+        "staffPausedTicket": "Billet de soutien nº {id}",
+        "staffPausedContact": "Communiquer avec le soutien : {email}",
+        "staffPausedHint": "Seule notre équipe de soutien peut remettre ce numéro en service.",
         "title": "Renvoyer votre ligne existante",
         "body": "Vos appelants continuent de composer le {from}. Votre fournisseur renvoie ces appels au {to}, auquel votre agent répond.",
         "bodyPending": "Vos appelants continuent de composer le {from}. Votre fournisseur renvoie ces appels à ce numéro dès qu’il est configuré.",

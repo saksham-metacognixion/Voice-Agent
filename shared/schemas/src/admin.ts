@@ -313,6 +313,10 @@ export const adminNumberResponse = z.object({
   type: z.string(),
   status: phoneNumberStatus,
   paused_at: isoDateTime.nullable(),
+  /** QA-104: the staff pause, apart from the customer's own switch (`paused_at`). */
+  staff_paused_at: isoDateTime.nullable().default(null),
+  staff_paused_reason: z.string().nullable().default(null),
+  staff_paused_ticket_id: z.number().int().nullable().default(null),
   forwarding_status: z.string().nullable(),
   rental_credits: z.number().int(),
   next_rental_at: isoDateTime.nullable(),

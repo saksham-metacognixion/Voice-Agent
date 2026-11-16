@@ -824,6 +824,14 @@ model PhoneNumber {
   releasedAt          DateTime?         @map("released_at")
   retellMetaJson      Json?             @map("retell_meta_json")
   /// P2 (D16) SIP re-verify: the last check's outcome — status, time, per-check results.
+  /// QA-104: the staff pause, independent of the customer's own switch (`status` / `paused_at`).
+  /// Set and cleared only by the console; the customer path cannot write them (trigger
+  /// `guard_number_staff_pause`). A number answers only while neither pause is set.
+  staffPausedAt       DateTime?         @map("staff_paused_at")
+  /// `reason_code` from the staff action (admin Appendix B). Never shown to the customer.
+  staffPausedReason   String?           @map("staff_paused_reason")
+  staffPausedTicketId Int?              @map("staff_paused_ticket_id")
+  staffPausedBy       String?           @map("staff_paused_by")
   /// Never a credential: no password, no digest, no platform payload.
   sipVerificationJson Json?             @map("sip_verification_json")
   /// The re-verify lease: claimed by a conditional UPDATE, cleared when the check ends,

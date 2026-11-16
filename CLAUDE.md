@@ -1276,6 +1276,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   next request (the 60 s SLA is the TTL's bound on a missed drop). **The sync archives
   nothing**: the Prices it supersedes are what checkout sells until the flip, and a sync
   that archived them and then died left every purchase failing on an inactive Price.
+- **A staff pause of a number is `phone_numbers.staff_paused_*`, never `status`/`paused_at`** (QA-104, ADR 0042): the customer's PATCH gets `409 NUMBER_STAFF_PAUSED` for `paused: false` while it is set, the trigger `guard_number_staff_pause` refuses the columns from `portal_app`, `number_paused` in `num:{e164}` includes it, and a resume leaves the customer's own switch as it was.
   `archiveSuperseded(current)` runs after the flip (and at the start of the next publish or
   rollback, for a version dated ahead) and archives, on Stripe and in `stripe_price_map`,
   only rows of *earlier effective* versions the current one does not sell. The plan is

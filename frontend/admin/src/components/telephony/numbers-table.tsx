@@ -71,7 +71,20 @@ export function NumbersTable({ rows, showCustomer = true, onOpen }: { rows: Admi
       : []),
     { key: 'agent', header: 'Agent', cell: (r) => r.agent_name ?? <span className="text-muted-foreground">unbound</span> },
     { key: 'type', header: 'Type', cell: (r) => <span className="whitespace-nowrap">{humanize(r.type)}{r.forwarding_status ? ` · ${humanize(r.forwarding_status)}` : ''}</span> },
-    { key: 'status', header: 'Status', cell: (r) => <NumberStatusBadge status={r.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      cell: (r) => (
+        <span className="flex flex-wrap items-center gap-1">
+          <NumberStatusBadge status={r.status} />
+          {r.staff_paused_at ? (
+            <Badge variant="danger" className="whitespace-nowrap" title={r.staff_paused_reason ? `Reason: ${humanize(r.staff_paused_reason)}` : undefined}>
+              Paused by support{r.staff_paused_ticket_id ? ` · #${r.staff_paused_ticket_id}` : ''}
+            </Badge>
+          ) : null}
+        </span>
+      ),
+    },
     { key: 'caller_id', header: 'Caller ID', cell: (r) => <Badge variant={callerIdVariant(r)} className="whitespace-nowrap">{callerIdLabel(r)}</Badge> },
     { key: 'rental', header: 'Rental', align: 'right', cell: (r) => (r.rental_credits ? `${formatNumber(r.rental_credits, 0)} cr/mo` : <span className="text-muted-foreground">0</span>) },
     { key: 'next', header: 'Next rental', cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{formatDate(r.next_rental_at)}</span> },
@@ -91,11 +104,11 @@ export function NumbersTable({ rows, showCustomer = true, onOpen }: { rows: Admi
                 {callerAction === 'verify' ? 'Verify caller ID' : 'Revoke caller ID'}
               </PermissionButton>
             ) : null}
-            {r.status === 'paused' ? (
+            {r.staff_paused_at ? (
               <PermissionButton size="sm" variant="outline" denied={denied} onClick={() => setTarget({ number: r, action: 'resume' })}>
                 Resume
               </PermissionButton>
-            ) : r.status === 'active' ? (
+            ) : r.status === 'active' || r.status === 'paused' ? (
               <PermissionButton size="sm" variant="outline" denied={denied} onClick={() => setTarget({ number: r, action: 'pause' })}>
                 Pause
               </PermissionButton>
@@ -114,7 +127,7 @@ export function NumbersTable({ rows, showCustomer = true, onOpen }: { rows: Admi
         onOpenChange={(o) => (o ? undefined : setTarget(null))}
         title={`${target?.action === 'pause' ? 'Pause' : 'Resume'} ${formatPhone(target?.number.e164)}`}
         description={target ? `${target.number.tenant_name} · ${target.number.agent_name ?? 'unbound'}` : undefined}
-        consequences={target?.action === 'pause' ? ['Inbound calls to this number are declined (busy tone, no charge).', 'Rental keeps accruing; the number is not released.'] : ['Inbound calls are answered again by the bound agent.']}
+        consequences={target?.action === 'pause' ? ['Inbound calls to this number are declined (busy tone, no charge), whatever the customer’s switch says.', 'The customer cannot switch it back on; only staff can resume it.', 'Rental keeps accruing; the number is not released.'] : ['The support pause is lifted. The customer’s own on/off switch is unchanged: calls are answered again unless they switched the number off.']}
         confirmLabel={target?.action === 'pause' ? 'Pause number' : 'Resume number'}
         destructive={target?.action === 'pause'}
         onConfirm={run}

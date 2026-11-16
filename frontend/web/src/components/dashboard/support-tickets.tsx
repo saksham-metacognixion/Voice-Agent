@@ -8,6 +8,7 @@ import { ChevronDown, ChevronUp, LifeBuoy, Mail, MessageSquare, Send } from 'luc
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
+import { useUrlQuery } from '@/src/lib/use-url-query';
 import { config } from '@/src/config';
 import { errorMessage } from '@/src/lib/errors';
 import { formatDateTime } from '@/src/lib/format';
@@ -118,7 +119,13 @@ export function MyTicketsCard() {
   const t = useTranslations('dashboard.help.tickets');
   const api = useApi();
   const tickets = useListSupportTickets(api, { limit: 20 }, { staleTime: 15_000, refetchInterval: 60_000 });
-  const [open, setOpen] = React.useState<number | null>(null);
+  const [params] = useUrlQuery();
+  // `?ticket=<id>` (the staff-pause notice on a number) opens that ticket.
+  const wanted = Number(params.get('ticket')) || null;
+  const [open, setOpen] = React.useState<number | null>(wanted);
+  React.useEffect(() => {
+    if (wanted) setOpen(wanted);
+  }, [wanted]);
   return (
     <Card id="tickets">
       <CardHeader>

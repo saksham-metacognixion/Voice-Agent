@@ -138,6 +138,8 @@ export const ErrorCode = {
   CALLER_ID_UNVERIFIED: 'CALLER_ID_UNVERIFIED',
   /** D18 (QA-085): the caller ID asked for — or the only verified one — is paused; resume it in Numbers. */
   NUMBER_PAUSED: 'NUMBER_PAUSED',
+  /** QA-104: support paused this number; PATCH /numbers/:id refuses to switch it back on. */
+  NUMBER_STAFF_PAUSED: 'NUMBER_STAFF_PAUSED',
   OUTBOUND_NOT_CONFIGURED: 'OUTBOUND_NOT_CONFIGURED',
   /** D18 (QA-087): `tenants.timezone` is not a zone this runtime knows, so no local day or calling window can be judged. */
   WORKSPACE_TIMEZONE_INVALID: 'WORKSPACE_TIMEZONE_INVALID',
@@ -248,6 +250,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   CALLER_ID_REQUIRED: 409,
   CALLER_ID_UNVERIFIED: 409,
   NUMBER_PAUSED: 409,
+  NUMBER_STAFF_PAUSED: 409,
   OUTBOUND_NOT_CONFIGURED: 409,
   WORKSPACE_TIMEZONE_INVALID: 409,
   DNC_LISTED: 409,

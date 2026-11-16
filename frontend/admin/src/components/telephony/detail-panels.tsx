@@ -74,6 +74,7 @@ export function NumberSheet({ id, onClose }: { id: string | null; onClose: () =>
           </Fact>
           <Fact label="Status">
             <NumberStatusBadge status={n.status} />
+            {n.staff_paused_at ? <Badge variant="danger">Paused by support{n.staff_paused_ticket_id ? ` · #${n.staff_paused_ticket_id}` : ''}</Badge> : null}
           </Fact>
           <Fact label="Type">{humanize(n.type)}</Fact>
           <Fact label="Forwarding">{n.forwarding_status ? humanize(n.forwarding_status) : '–'}</Fact>

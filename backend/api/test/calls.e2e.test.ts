@@ -131,6 +131,19 @@ describe('POST /webhooks/retell/inbound/:number_token — the six checks (§13.9
     expect((await inbound(number, inboundEvent({ callId: b, to: number.e164 }))).json()).toEqual({ call_inbound: { reject: true } });
     expect(await waitFor('paused number row', () => callRow(b))).toMatchObject({ status: 'declined', declineReason: 'paused' });
 
+    // QA-104: a staff pause declines even though the customer's own switch is on.
+    const staffPaused = await readyWorkspace('staff-paused-num');
+    await adminDb.phoneNumber.update({ where: { id: staffPaused.numberId }, data: { staffPausedAt: new Date(), staffPausedReason: 'abuse' } });
+    await runtimeCache.refresh(staffPaused.tenantId);
+    const sp = callId();
+    expect((await inbound(staffPaused, inboundEvent({ callId: sp, to: staffPaused.e164 }))).json()).toEqual({ call_inbound: { reject: true } });
+    expect(await waitFor('staff-paused number row', () => callRow(sp))).toMatchObject({ status: 'declined', declineReason: 'paused' });
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: staffPaused.numberId } })).status).toBe('active');
+    // Lifted: answered again, the customer's switch never changed.
+    await adminDb.phoneNumber.update({ where: { id: staffPaused.numberId }, data: { staffPausedAt: null, staffPausedReason: null } });
+    await runtimeCache.refresh(staffPaused.tenantId);
+    expect((await inbound(staffPaused, inboundEvent({ callId: callId(), to: staffPaused.e164 }))).json()).not.toEqual({ call_inbound: { reject: true } });
+
     const draft = await readyWorkspace('draft-agent');
     await adminDb.agent.update({ where: { id: draft.agentId }, data: { status: 'draft' } });
     await runtimeCache.refresh(draft.tenantId);

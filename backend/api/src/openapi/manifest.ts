@@ -818,7 +818,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     body: 'updateNumberRequest',
     response: { schema: 'phoneNumberResponse' },
     roles: ['owner', 'admin', 'editor'],
-    errors: ['NOT_FOUND', 'CONFLICT', 'VALIDATION_FAILED', 'AGENT_NOT_PUBLISHED'],
+    errors: ['NOT_FOUND', 'CONFLICT', 'VALIDATION_FAILED', 'AGENT_NOT_PUBLISHED', 'NUMBER_STAFF_PAUSED'],
   },
   {
     method: 'POST',

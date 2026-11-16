@@ -338,7 +338,12 @@ export const phoneNumberResponse = z.object({
   requested_area_code: z.string().nullable().default(null),
   toll_free: z.boolean(),
   status: phoneNumberStatus,
+  /** The customer's own switch off, or staff's pause (`staff_paused`). */
   paused: z.boolean(),
+  /** QA-104: support paused this number. Only staff can lift it; the customer's switch is locked. */
+  staff_paused: z.boolean().default(false),
+  /** The support ticket the pause names, when it named one. The staff reason code is never sent. */
+  staff_pause_ticket_id: z.number().int().nullable().default(null),
   hours_mode: hoursMode,
   hours_override: businessHours.nullable(),
   transfer_targets: z.array(transferTarget),

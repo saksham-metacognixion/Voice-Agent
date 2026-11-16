@@ -2,7 +2,7 @@ import { RETELL_COSTS_V1 } from '../../db/prisma/seed-data/retell-costs-v1';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { adminDb } from '@portal/db';
+import { adminDb, withWorkspace } from '@portal/db';
 import { type PricingConfig, pricingConfig } from '@portal/schemas';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { StripeGateway } from '../src/modules/billing';
@@ -544,7 +544,7 @@ describe('agent, number and user controls', () => {
   });
 
   it('QA-034: number pause takes the workspace pause\'s checks; resume needs the capability only', async () => {
-    const status = async () => (await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: numberId } })).status;
+    const status = async () => ((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: numberId } })).staffPausedAt ? 'paused' : 'active');
     const ticket = await adminDb.supportTicket.create({ data: { tenantId: ws.workspaceId, subject: 'QA-034 number' } });
 
     const noTicket = await call('POST', `/admin/numbers/${numberId}/pause`, staff.support.token, reason);
@@ -564,7 +564,7 @@ describe('agent, number and user controls', () => {
 
     const paused = await call('POST', `/admin/numbers/${numberId}/pause`, staff.support.token, { ...reason, ticket_id: ticket.id });
     expect(paused.status).toBe(200);
-    expect(paused.body.status).toBe('paused');
+    expect(paused.body.staff_paused_at).not.toBeNull();
     await withPauseCapability('support', false, async () => {
       const limited = await call('POST', `/admin/numbers/${numberId}/resume`, staff.support.token, reason);
       expect(limited.status).toBe(403);
@@ -573,13 +573,13 @@ describe('agent, number and user controls', () => {
     expect(await status()).toBe('paused');
     const resumed = await call('POST', `/admin/numbers/${numberId}/resume`, staff.support.token, reason);
     expect(resumed.status).toBe(200);
-    expect(resumed.body.status).toBe('active');
+    expect(resumed.body.staff_paused_at).toBeNull();
   });
 
   it('pauses and resumes a number', async () => {
     const paused = await call('POST', `/admin/numbers/${numberId}/pause`, staff.ops.token, reason);
-    expect(paused.body.status).toBe('paused');
-    expect(paused.body.paused_at).not.toBeNull();
+    expect(paused.body.status).toBe('active');
+    expect(paused.body.staff_paused_at).not.toBeNull();
     const list = await call('GET', `/admin/numbers?status=paused`, staff.readOnly.token);
     expect((list.body.items as Array<{ id: string }>).some((n) => n.id === numberId)).toBe(true);
     const resumed = await call(
@@ -589,7 +589,65 @@ describe('agent, number and user controls', () => {
       reason,
     );
     expect(resumed.body.status).toBe('active');
+    expect(resumed.body.staff_paused_at).toBeNull();
     expect(resumed.body.paused_at).toBeNull();
+  });
+
+  it('QA-104: a staff pause is not the customer\'s to lift, and lifting it leaves their switch alone', async () => {
+    const owner = { authorization: `Bearer ${await h.customerTenant.mint(ws.sub)}`, 'x-workspace-id': ws.workspaceId };
+    const customer = (method: string, path: string, body?: unknown) => call(method, path, null, body, owner);
+    const row = () => adminDb.phoneNumber.findUniqueOrThrow({ where: { id: numberId } });
+    const ticket = await adminDb.supportTicket.create({ data: { tenantId: ws.workspaceId, subject: 'QA-104' } });
+
+    // The customer turns the number off themselves first: that choice must survive the staff round trip.
+    expect((await customer('PATCH', `/numbers/${numberId}`, { paused: true })).body).toMatchObject({ paused: true, staff_paused: false, status: 'paused' });
+    expect((await customer('PATCH', `/numbers/${numberId}`, { paused: false })).body).toMatchObject({ paused: false });
+    expect((await customer('PATCH', `/numbers/${numberId}`, { paused: true })).status).toBe(200);
+
+    const paused = await call('POST', `/admin/numbers/${numberId}/pause`, staff.support.token, { ...reason, ticket_id: ticket.id });
+    expect(paused.status).toBe(200);
+    expect(paused.body).toMatchObject({ status: 'paused', staff_paused_ticket_id: ticket.id, staff_paused_reason: 'service_issue' });
+    const stored = await row();
+    expect(stored).toMatchObject({ staffPausedTicketId: ticket.id, staffPausedBy: staff.support.id });
+    expect(stored.staffPausedAt).not.toBeNull();
+    expect(await adminDb.staffAuditLog.count({ where: { action: 'number.paused', targetId: numberId } })).toBeGreaterThan(0);
+
+    // Customer: sees it (no reason code), cannot switch it on, the refusal changes nothing.
+    const shown = await customer('GET', `/numbers/${numberId}`);
+    expect(shown.body).toMatchObject({ paused: true, staff_paused: true, staff_pause_ticket_id: ticket.id });
+    expect(JSON.stringify(shown.body)).not.toContain('service_issue');
+    const refused = await customer('PATCH', `/numbers/${numberId}`, { paused: false });
+    expect(refused.status).toBe(409);
+    expect(refused.body.code).toBe('NUMBER_STAFF_PAUSED');
+    expect(await row()).toMatchObject({ staffPausedTicketId: ticket.id, status: 'paused' });
+    // Staff fields are not on the request shape, and the database refuses the customer role anyway.
+    expect((await customer('PATCH', `/numbers/${numberId}`, { paused: true, staff_paused: false, staff_paused_at: null })).body).toMatchObject({ staff_paused: true });
+    expect((await row()).staffPausedAt).not.toBeNull();
+    await expect(withWorkspace(ws.workspaceId, (db) => db.phoneNumber.update({ where: { id: numberId }, data: { staffPausedAt: null } }))).rejects.toThrow();
+    expect((await row()).staffPausedAt).not.toBeNull();
+    // Release would end the pause by another door.
+    const release = await customer('DELETE', `/numbers/${numberId}`);
+    expect(release.status).toBe(409);
+    expect(release.body.code).toBe('NUMBER_STAFF_PAUSED');
+    expect((await row()).status).not.toBe('released');
+    // Other routing edits still work, and the pause survives them and the next read.
+    expect((await customer('PATCH', `/numbers/${numberId}`, { nickname: 'Front line' })).body).toMatchObject({ staff_paused: true, nickname: 'Front line' });
+    expect((await customer('GET', `/numbers/${numberId}`)).body).toMatchObject({ staff_paused: true });
+    // The hot path declines it.
+    expect(await h.app.get(RedisCache).getJson(redisKeys.number((await row()).e164!))).toMatchObject({ number_paused: true });
+
+    // Customers cannot call the staff endpoints, and a role without the capability cannot resume.
+    expect((await call('POST', `/admin/numbers/${numberId}/resume`, await h.customerTenant.mint(ws.sub), reason)).status).toBeGreaterThanOrEqual(401);
+    expect((await call('POST', `/admin/numbers/${numberId}/resume`, staff.readOnly.token, reason)).body.code).toBe('FORBIDDEN_ROLE');
+    expect((await row()).staffPausedAt).not.toBeNull();
+
+    // Resume: the staff pause goes, the customer's own off switch is exactly as they left it.
+    const resumed = await call('POST', `/admin/numbers/${numberId}/resume`, staff.ops.token, reason);
+    expect(resumed.status).toBe(200);
+    expect(resumed.body).toMatchObject({ staff_paused_at: null, staff_paused_ticket_id: null, status: 'paused' });
+    expect(await row()).toMatchObject({ staffPausedAt: null, staffPausedBy: null, staffPausedReason: null, status: 'paused' });
+    expect((await customer('GET', `/numbers/${numberId}`)).body).toMatchObject({ staff_paused: false, paused: true });
+    expect((await customer('PATCH', `/numbers/${numberId}`, { paused: false })).body).toMatchObject({ paused: false, status: 'active', staff_paused: false });
   });
 
   it('QA-043: a draft agent paused by staff resumes as a draft, not stuck and not live', async () => {

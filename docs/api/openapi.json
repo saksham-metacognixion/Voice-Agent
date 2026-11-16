@@ -3714,6 +3714,22 @@
             "default": false,
             "type": "boolean"
           },
+          "staff_paused_at": {
+            "default": null,
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_reason": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_ticket_id": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
           "caller_id_verified_via": {
             "default": null,
             "enum": [
@@ -3818,6 +3834,22 @@
             "exclusiveMinimum": false,
             "maximum": 10000,
             "minimum": 0,
+            "nullable": true,
+            "type": "integer"
+          },
+          "staff_paused_at": {
+            "default": null,
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_reason": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_ticket_id": {
+            "default": null,
             "nullable": true,
             "type": "integer"
           },
@@ -17461,6 +17493,15 @@
                     "minLength": 2,
                     "type": "string"
                   },
+              "staff_pause_ticket_id": {
+                "default": null,
+                "nullable": true,
+                "type": "integer"
+              },
+              "staff_paused": {
+                "default": false,
+                "type": "boolean"
+              },
                   "registration_country": {
                     "type": "string"
                   },
@@ -18111,6 +18152,15 @@
                     "default": {},
                     "type": "object"
                   },
+          "staff_pause_ticket_id": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "staff_paused": {
+            "default": false,
+            "type": "boolean"
+          },
                   "timezone": {
                     "minLength": 1,
                     "type": "string"
@@ -42046,7 +42096,7 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONFLICT}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONFLICT, NUMBER_STAFF_PAUSED}",
             "x-error-codes": [
               "AGENT_NOT_PUBLISHED",
               "CONFLICT"
@@ -42577,7 +42627,8 @@
             },
             "description": "Error envelope; `code` ∈ {CONFLICT}",
             "x-error-codes": [
-              "CONFLICT"
+              "CONFLICT",
+              "NUMBER_STAFF_PAUSED"
             ]
           },
           "422": {

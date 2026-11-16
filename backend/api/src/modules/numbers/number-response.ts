@@ -16,6 +16,8 @@ type NumberRow = {
   tollFree: boolean;
   status: string;
   pausedAt: Date | null;
+  staffPausedAt?: Date | null;
+  staffPausedTicketId?: number | null;
   hoursMode: string;
   hoursOverrideJson: unknown;
   transferTargetsJson: unknown;
@@ -61,7 +63,9 @@ export function toNumberResponse(row: NumberRow & NumberExtras, calls7d = row.ca
     requested_area_code: row.requestedAreaCode ?? null,
     toll_free: row.tollFree,
     status: row.status as PhoneNumberResponse['status'],
-    paused: row.pausedAt !== null || row.status === 'paused',
+    paused: row.pausedAt !== null || row.status === 'paused' || Boolean(row.staffPausedAt),
+    staff_paused: Boolean(row.staffPausedAt),
+    staff_pause_ticket_id: row.staffPausedAt ? (row.staffPausedTicketId ?? null) : null,
     hours_mode: row.hoursMode as PhoneNumberResponse['hours_mode'],
     hours_override: parseHours(row.hoursOverrideJson),
     transfer_targets: parseTargets(row.transferTargetsJson),

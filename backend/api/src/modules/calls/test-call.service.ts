@@ -141,7 +141,7 @@ export class TestCallService {
         db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { country: true } }),
         db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }),
         db.phoneNumber.findMany({
-          where: { tenantId: ctx.workspaceId, status: 'active', pausedAt: null, e164: { not: null } },
+          where: { tenantId: ctx.workspaceId, status: 'active', pausedAt: null, staffPausedAt: null, e164: { not: null } },
           select: { id: true, e164: true, country: true, agentId: true, transferFailMessage: true, transferTargetsJson: true },
           orderBy: { createdAt: 'asc' },
         }),

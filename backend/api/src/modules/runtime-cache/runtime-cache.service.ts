@@ -90,7 +90,7 @@ export class RuntimeCacheService {
         inbound_token: number.inboundToken,
         workspace_id: workspaceId,
         workspace_paused: tenant.pausedAt !== null,
-        number_paused: number.pausedAt !== null || number.status === 'paused',
+        number_paused: number.pausedAt !== null || number.status === 'paused' || number.staffPausedAt !== null,
         number_active: number.status === 'active',
         agent_id: number.agent?.id ?? null,
         retell_agent_id: number.agent?.retellAgentId ?? null,

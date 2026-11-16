@@ -13,6 +13,8 @@ export interface CallerIdCandidate {
   agentId: string | null;
   status: string;
   pausedAt: Date | null;
+  /** QA-104: support's pause. Optional so older fixtures still type. */
+  staffPausedAt?: Date | null;
   callerIdVerifiedAt: Date | null;
 }
 
@@ -26,19 +28,19 @@ export interface CallerIdCandidate {
 export function callerIdCandidates<S extends Record<string, boolean>>(db: WorkspaceDb, workspaceId: string, select: S) {
   return db.phoneNumber.findMany({
     where: { tenantId: workspaceId, status: { in: ['active', 'paused'] }, e164: { not: null } },
-    select: { id: true, e164: true, agentId: true, status: true, pausedAt: true, callerIdVerifiedAt: true, ...select },
+    select: { id: true, e164: true, agentId: true, status: true, pausedAt: true, staffPausedAt: true, callerIdVerifiedAt: true, ...select },
     orderBy: { createdAt: 'asc' },
   });
 }
 
 /** Verified (by purchase or by staff), live and not paused: the only kind of number a callback may come from. */
 export function usableCallerId(n: CallerIdCandidate): n is CallerIdCandidate & { e164: string } {
-  return n.e164 !== null && n.callerIdVerifiedAt !== null && n.status === 'active' && n.pausedAt === null;
+  return n.e164 !== null && n.callerIdVerifiedAt !== null && n.status === 'active' && n.pausedAt === null && !n.staffPausedAt;
 }
 
 /** A verified number that is paused — the one state a customer can fix on their own, in Numbers. */
 function pausedCallerId(n: CallerIdCandidate): boolean {
-  return n.e164 !== null && n.callerIdVerifiedAt !== null && (n.status === 'paused' || n.pausedAt !== null);
+  return n.e164 !== null && n.callerIdVerifiedAt !== null && (n.status === 'paused' || n.pausedAt !== null || Boolean(n.staffPausedAt));
 }
 
 export type CallerIdPick = { kind: 'ok'; number: CallerId } | { kind: 'none' | 'unverified' | 'paused' };

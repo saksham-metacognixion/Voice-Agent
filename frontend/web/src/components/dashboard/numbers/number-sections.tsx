@@ -27,7 +27,8 @@ import { errorMessage } from '@/src/lib/errors';
 import { formatDateTime, formatDuration, formatPhone } from '@/src/lib/format';
 import { useCursorPager } from '@/src/lib/use-cursor-pager';
 import { MAX_BLOCKLIST, isNumberEditable, maskSecretish, parseBlocklist } from '@/src/dashboard/numbers-view';
-import { callPath, settingsPath } from '@/src/routes';
+import { config } from '@/src/config';
+import { callPath, routes, settingsPath } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { ForwardingTestPanel } from './forwarding-test';
@@ -117,7 +118,8 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
   const currentIsUnpublished = number.agent_id && !options.some((a) => a.id === number.agent_id);
   const patch: UpdateNumberRequest = {};
   if (agentId && agentId !== number.agent_id) patch.agent_id = agentId;
-  if (active === number.paused) patch.paused = !active;
+  // A staff pause is not the customer's to lift: the switch is locked and never sends `paused`.
+  if (!number.staff_paused && active === number.paused) patch.paused = !active;
   if (mode !== number.hours_mode) patch.hours_mode = mode;
   if (mode === 'custom' && JSON.stringify(hours) !== JSON.stringify(number.hours_override)) patch.hours_override = hours;
   const dirty = Object.keys(patch).length > 0;
@@ -133,8 +135,24 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
         <CardDescription>{t('body')}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">
-        <Field id="route-active" label={t('active')} description={t('activeHint')}>
-          <Switch id="route-active" checked={active} onCheckedChange={setActive} disabled={disabled || busy} />
+        {number.staff_paused ? (
+          <Alert variant="warning">
+            <p>{t('staffPaused')}</p>
+            <p className="mt-1 text-sm">
+              {number.staff_pause_ticket_id ? (
+                <Link href={`${routes.app.help}?ticket=${number.staff_pause_ticket_id}#tickets`} className="underline">
+                  {t('staffPausedTicket', { id: number.staff_pause_ticket_id })}
+                </Link>
+              ) : (
+                <a href={`mailto:${config.support.email}`} className="underline">
+                  {t('staffPausedContact', { email: config.support.email })}
+                </a>
+              )}
+            </p>
+          </Alert>
+        ) : null}
+        <Field id="route-active" label={t('active')} description={number.staff_paused ? t('staffPausedHint') : t('activeHint')}>
+          <Switch id="route-active" checked={active && !number.staff_paused} onCheckedChange={setActive} disabled={disabled || busy || number.staff_paused} />
         </Field>
 
         <Field id="route-agent" label={t('agent')} description={options.length ? t('agentHint') : t('agentNone')} className="sm:max-w-md">
