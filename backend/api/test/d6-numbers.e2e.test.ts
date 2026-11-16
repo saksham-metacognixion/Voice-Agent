@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { adminDb } from '@portal/db';
+import { adminDb, isNumberHeldViolation } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import Retell from 'retell-sdk';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { isEnvelope } from '../src/modules/crypto';
-import { SipProbe, type SipProbeResult, numberNickname } from '../src/modules/numbers';
+import { PLATFORM_REJECTED_REASON, SipProbe, type SipProbeResult, numberNickname } from '../src/modules/numbers';
 import { RedisCache, redisKeys } from '../src/modules/redis';
-import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness, waitFor, nanpNumber } from './d5-fixtures';
+import { RuntimeCacheService } from '../src/modules/runtime-cache';
+import { type FakeRetellGateway, addMember, createWorkspace, startD5Harness, waitFor, waitForJob, nanpNumber } from './d5-fixtures';
 import { authFor, caller, paidWorkspace, publishedAgent, waitForNumber } from './d6-fixtures';
 
 /*
@@ -109,7 +111,9 @@ describe('POST /numbers/buy and the provisioning job', () => {
     const trialAgent = await publishedAgent(call, trialAuth);
     const refused = await call('POST', '/numbers/buy', trialAuth, { agent_id: trialAgent, country: 'CA' });
     expect(refused.status).toBe(402);
-    expect(refused.body.code).toBe('NO_CREDITS');
+    // QA-108 / ORL-NUM-629: trial credits are not a purchase; "out of credits" was the wrong reason.
+    expect(refused.body.code).toBe('PURCHASE_REQUIRED');
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: trial.workspaceId } })).toBe(0);
 
     const ws = await paidWorkspace(app, 'buy', 'growth');
     const headers = await auth(ws.sub, ws.workspaceId);
@@ -161,8 +165,10 @@ describe('POST /numbers/buy and the provisioning job', () => {
     const first = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA' });
     expect(first.status).toBe(202);
     const second = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA' });
-    expect(second.status).toBe(400);
-    expect(second.body.code).toBe('PLAN_LIMIT');
+    // QA-108 / ORL-NUM-630: the plan includes a number and it is held — not "your plan does not include that".
+    expect(second.status).toBe(409);
+    expect(second.body).toEqual({ code: 'NUMBER_LIMIT', message: 'Your plan includes 1 phone number. Upgrade to add another.' });
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(1);
   });
 
   it('an editor cannot buy; a viewer cannot edit', async () => {
@@ -212,6 +218,199 @@ describe('POST /numbers/import (Option C)', () => {
     expect(JSON.stringify(listed.body)).not.toContain('Imp0rt-pa55');
     expect(JSON.stringify(read.body)).not.toContain('Imp0rt-pa55');
   }, 30_000);
+});
+
+describe('QA-105: a released own line can be connected again; a held one cannot be taken', () => {
+  const IN_USE = 'That number is already in use.';
+  const trunk = (e164: string, password = 'First-pa55') => ({ number: e164, host: 'sip:pbx.example.com:5060', username: 'trunk', password });
+
+  async function connectedLine(label: string) {
+    const ws = await paidWorkspace(app, label, 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const e164 = nanpNumber();
+    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) });
+    expect(accepted.status).toBe(202);
+    const row = await waitForNumber((accepted.body.number as { id: string }).id);
+    expect(row.status).toBe('active');
+    return { ws, headers, agentId, e164, row };
+  }
+
+  const heldRows = (e164: string) => adminDb.phoneNumber.count({ where: { e164, status: { not: 'released' } } });
+  const cachedNumberId = async (e164: string) => (await app.get(RedisCache).getJson<{ number_id: string }>(redisKeys.number(e164)))?.number_id ?? null;
+
+  it('ORL-NUM-631: release, connect the same line again, and it goes active as a new row — twice over', async () => {
+    const { ws, headers, agentId, e164, row: first } = await connectedLine('qa105-reconnect');
+    expect((await call('DELETE', `/numbers/${first.id}`, headers)).body).toEqual({ released: true });
+    expect(retell.phoneNumbers.has(e164)).toBe(false);
+
+    const again = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { ...trunk(e164, 'Second-pa55'), host: 'sip:pbx2.example.com:5061' } });
+    expect(again.status).toBe(202);
+    const second = await waitForNumber((again.body.number as { id: string }).id);
+    expect(second.id).not.toBe(first.id);
+    expect(second).toMatchObject({ status: 'active', e164, agentId, type: 'custom_sip', error: null, releasedAt: null });
+    // Its own plan (fresh sealed credentials) and its own inbound token, not the released row's.
+    expect(second.planId).not.toBe(first.planId);
+    expect(second.inboundToken).not.toBe(first.inboundToken);
+    const platform = retell.phoneNumbers.get(e164)!;
+    expect(platform.sip).toMatchObject({ termination_uri: 'sip:pbx2.example.com:5061', username: 'trunk', password_seen: true });
+    const agent = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    expect(platform.inbound_agents[0]).toMatchObject({ agent_id: agent.retellAgentId, agent_version: 'latest_published' });
+
+    // The released row is history: still released, still naming the number.
+    expect(await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: first.id } })).toMatchObject({ status: 'released', e164 });
+    const audit = await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'number.import_requested', targetId: second.id } });
+    expect(audit.metaJson).toMatchObject({ reconnects_number_id: first.id });
+    expect(JSON.stringify(audit.metaJson)).not.toContain('Second-pa55');
+
+    // The inbound path's record is the new row's, and a refresh that walks the released row leaves it alone.
+    expect(await cachedNumberId(e164)).toBe(second.id);
+    await app.get(RuntimeCacheService).refresh(ws.workspaceId);
+    expect(await cachedNumberId(e164)).toBe(second.id);
+
+    // D4 lists both: the live line and its history.
+    const listed = (await call('GET', '/numbers', headers)).body as unknown as Array<{ id: string; status: string; e164: string }>;
+    expect(listed.filter((n) => n.e164 === e164).map((n) => n.status).sort()).toEqual(['active', 'released']);
+
+    // Release and connect a third time: two released rows, still exactly one holding the number.
+    expect((await call('DELETE', `/numbers/${second.id}`, headers)).body).toEqual({ released: true });
+    const third = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164, 'Third-pa55') });
+    expect(third.status).toBe(202);
+    const thirdRow = await waitForNumber((third.body.number as { id: string }).id);
+    expect(thirdRow.status).toBe('active');
+    expect(await adminDb.phoneNumber.count({ where: { e164, status: 'released' } })).toBe(2);
+    expect(await heldRows(e164)).toBe(1);
+    expect(await cachedNumberId(e164)).toBe(thirdRow.id);
+  }, 60_000);
+
+  it('ORL-NUM-632: another workspace is told the number is in use, and the holder is untouched', async () => {
+    const holder = await connectedLine('qa105-holder');
+    const before = await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: holder.row.id } });
+    const platformBefore = structuredClone(retell.phoneNumbers.get(holder.e164)!);
+
+    const other = await paidWorkspace(app, 'qa105-other', 'scale');
+    const otherAuth = await auth(other.sub, other.workspaceId);
+    const otherAgent = await publishedAgent(call, otherAuth);
+    const imports = retell.countOf('importPhoneNumber');
+
+    const refused = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, sip: trunk(holder.e164, 'Thief-pa55') });
+    expect(refused.status).toBe(409);
+    expect(refused.body).toEqual({ code: 'NUMBER_IN_USE', message: IN_USE, fields: [{ field: 'sip.number', message: IN_USE }] });
+    // Nothing about the holder in the answer, nothing written for the caller, nothing asked of the platform.
+    expect(JSON.stringify(refused.body)).not.toContain(holder.ws.workspaceId);
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: other.workspaceId } })).toBe(0);
+    expect(await adminDb.phonePlan.count({ where: { tenantId: other.workspaceId } })).toBe(0);
+    expect(retell.countOf('importPhoneNumber')).toBe(imports);
+    expect(await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: holder.row.id } })).toEqual(before);
+    expect(retell.phoneNumbers.get(holder.e164)).toEqual(platformBefore);
+    expect(await cachedNumberId(holder.e164)).toBe(holder.row.id);
+
+    // W6 says so too, before the customer pays for an activation that would fail.
+    const plan = await call('PUT', `/agents/${otherAgent}/phone-plan`, otherAuth, { option: 'sip', sip: trunk(holder.e164, 'Thief-pa55') });
+    expect(plan.status).toBe(409);
+    expect(plan.body.code).toBe('NUMBER_IN_USE');
+
+    // Once the holder releases it, it is free for anyone — and the old owner's refresh cannot take it back.
+    await call('DELETE', `/numbers/${holder.row.id}`, holder.headers);
+    const taken = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, sip: trunk(holder.e164, 'Mine-pa55') });
+    expect(taken.status).toBe(202);
+    const takenRow = await waitForNumber((taken.body.number as { id: string }).id);
+    expect(takenRow).toMatchObject({ status: 'active', tenantId: other.workspaceId });
+    await app.get(RuntimeCacheService).refresh(holder.ws.workspaceId);
+    expect(await cachedNumberId(holder.e164)).toBe(takenRow.id);
+    expect(await heldRows(holder.e164)).toBe(1);
+  }, 60_000);
+
+  it('a W6 plan for a line another workspace connected since fails activation once, permanently, with the same sentence', async () => {
+    const ws = await paidWorkspace(app, 'qa105-w6', 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const e164 = nanpNumber();
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip: trunk(e164) })).status).toBe(200);
+
+    // Someone else connects it between W6 and go-live.
+    const other = await paidWorkspace(app, 'qa105-w6-other', 'scale');
+    const otherAuth = await auth(other.sub, other.workspaceId);
+    const otherAgent = await publishedAgent(call, otherAuth);
+    const theirs = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, sip: trunk(e164) });
+    await waitForNumber((theirs.body.number as { id: string }).id);
+
+    const imports = retell.countOf('importPhoneNumber');
+    const jobId = (await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string;
+    const job = await waitForJob(jobId, 30_000);
+    expect(job.status).toBe('failed');
+    expect(job.stepsJson).toMatchObject({ attempt: 1, error_kind: 'number_in_use', customer_reason: IN_USE });
+    expect(retell.countOf('importPhoneNumber')).toBe(imports);
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+    expect(await heldRows(e164)).toBe(1);
+  }, 60_000);
+
+  it('two presses at once connect the line once', async () => {
+    const ws = await paidWorkspace(app, 'qa105-race', 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const e164 = nanpNumber();
+    const body = { agent_id: agentId, sip: trunk(e164) };
+    const answers = await Promise.all([call('POST', '/numbers/import', headers, body), call('POST', '/numbers/import', headers, body)]);
+    expect(answers.map((a) => a.status).sort()).toEqual([202, 409]);
+    expect(answers.find((a) => a.status === 409)!.body.code).toBe('NUMBER_IN_USE');
+    const won = answers.find((a) => a.status === 202)!;
+    expect((await waitForNumber((won.body.number as { id: string }).id)).status).toBe('active');
+    expect(await adminDb.phoneNumber.count({ where: { e164 } })).toBe(1);
+  }, 30_000);
+
+  it('bad SIP details are a 422; a connection the platform refuses fails, holds the line until released, then reconnects', async () => {
+    const ws = await paidWorkspace(app, 'qa105-fail', 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const e164 = nanpNumber();
+
+    const badNumber = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { ...trunk(e164), number: '450-555' } });
+    expect(badNumber.status).toBe(422);
+    expect(badNumber.body.code).toBe('VALIDATION_FAILED');
+    expect(JSON.stringify(badNumber.body.fields)).toContain('sip.number');
+    const badHost = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { ...trunk(e164), host: '' } });
+    expect(badHost.status).toBe(422);
+    expect(JSON.stringify(badHost.body.fields)).toContain('sip.host');
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+
+    retell.failNext('importPhoneNumber', 1, Retell.APIError.generate(400, { message: 'invalid termination uri' }, 'invalid termination uri', new Headers()));
+    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) });
+    expect(accepted.status).toBe(202);
+    const failed = await waitForNumber((accepted.body.number as { id: string }).id);
+    expect(failed).toMatchObject({ status: 'failed', error: PLATFORM_REJECTED_REASON });
+
+    // The failed row still holds the number (support can reprovision it), so a second press is refused…
+    expect((await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) })).body.code).toBe('NUMBER_IN_USE');
+    // …until the customer releases it, which the platform never had, and connects again.
+    expect((await call('DELETE', `/numbers/${failed.id}`, headers)).body).toEqual({ released: true });
+    const retried = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) });
+    expect(retried.status).toBe(202);
+    expect((await waitForNumber((retried.body.number as { id: string }).id)).status).toBe('active');
+  }, 60_000);
+
+  it('the database holds one row per number while any number of released rows keep it as history', async () => {
+    const ws = await paidWorkspace(app, 'qa105-index', 'scale');
+    const e164 = nanpNumber();
+    const row = (status: 'released' | 'active' | 'failed') => ({
+      tenantId: ws.workspaceId,
+      e164,
+      type: 'custom_sip' as const,
+      status,
+      inboundToken: `tok_${randomUUID().replace(/-/g, '')}`,
+      rentalCredits: 0,
+    });
+    await adminDb.phoneNumber.create({ data: row('released') });
+    await adminDb.phoneNumber.create({ data: row('released') });
+    await adminDb.phoneNumber.create({ data: row('active') });
+    const duplicate = await adminDb.phoneNumber.create({ data: row('failed') }).catch((e: unknown) => e);
+    expect(isNumberHeldViolation(duplicate)).toBe(true);
+    // And a released row can never be put back over the live one.
+    const released = await adminDb.phoneNumber.findFirstOrThrow({ where: { e164, status: 'released' } });
+    const revived = await adminDb.phoneNumber.update({ where: { id: released.id }, data: { status: 'active' } }).catch((e: unknown) => e);
+    expect(isNumberHeldViolation(revived)).toBe(true);
+    expect(await heldRows(e164)).toBe(1);
+  });
 });
 
 describe('POST /numbers/:id/sip/verify (D16)', () => {
@@ -459,6 +658,39 @@ describe('PATCH and DELETE /numbers/:id', () => {
     expect((await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: 'Back soon.' })).body.transfer_fail_message).toBe('Back soon.');
     expect((await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: null })).body.transfer_fail_message).toBeNull();
 
+    // QA-106 (ORL-NUM-639 / ORL-NUM-646): a number without its country code, or a hand-off
+    // target that is not real, is refused before anything is stored — a direct request gets no further than
+    // the form; the real one is stored in E.164 and reaches `num:{e164}` for the transfer.
+    for (const body of [
+      { transfer_targets: [{ label: 'Front desk', number: '4165550101' }] },
+      { transfer_targets: [{ label: 'Front desk', number: '+4165550101' }] },
+      { transfer_targets: [{ label: 'Front desk', number: '+1 416 555 0101' }] },
+      { blocklist: ['5145550123'] },
+      { blocklist: ['15145550123'] },
+      { blocklist: ['+15145550123', '+1 514 555 0123'] },
+    ]) {
+      const refused = await call('PATCH', `/numbers/${row.id}`, headers, body);
+      expect(refused.status, JSON.stringify(body)).toBe(422);
+      expect(refused.body.code).toBe('VALIDATION_FAILED');
+    }
+    const unchanged = await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id } });
+    expect(unchanged.blocklist).toEqual(['+15145550666']);
+    expect(unchanged.transferTargetsJson).toEqual([{ label: 'Owner', number: '+15145550001' }]);
+    const handoff = await call('PATCH', `/numbers/${row.id}`, headers, { transfer_targets: [{ label: 'Front desk', number: '+14165550101' }], blocklist: ['+15145550666', '+15145550123'] });
+    expect(handoff.status).toBe(200);
+    expect(handoff.body).toMatchObject({ transfer_targets: [{ label: 'Front desk', number: '+14165550101' }], blocklist: ['+15145550666', '+15145550123'] });
+    // The block list is compared, never dialled: a caller ID that is not a real number may be listed, and declines.
+    const spoofed = await call('PATCH', `/numbers/${row.id}`, headers, { blocklist: ['+15145550666', '+15555550123', '+0123'] });
+    expect(spoofed.status).toBe(200);
+    expect(spoofed.body.blocklist).toEqual(['+15145550666', '+15555550123', '+0123']);
+    expect((await cache.getJson<{ blocklist: string[] }>(redisKeys.number(row.e164!)))?.blocklist).toEqual(expect.arrayContaining(['+15555550123', '+0123']));
+    expect(await cache.getJson<{ transfer_numbers: string[]; blocklist: string[] }>(redisKeys.number(row.e164!))).toMatchObject({ transfer_numbers: ['+14165550101'] });
+    // A row saved before the rule reads back as it was, for the form to mark — never dropped, never rewritten.
+    await adminDb.phoneNumber.update({ where: { id: row.id }, data: { transferTargetsJson: [{ label: 'Old desk', number: '+4165550101' }], blocklist: ['+5145550123'] } });
+    expect((await call('GET', `/numbers/${row.id}`, headers)).body).toMatchObject({ transfer_targets: [{ label: 'Old desk', number: '+4165550101' }], blocklist: ['+5145550123'] });
+    expect((await call('PATCH', `/numbers/${row.id}`, headers, { transfer_fail_message: 'Back soon.' })).status).toBe(200);
+    await adminDb.phoneNumber.update({ where: { id: row.id }, data: { transferTargetsJson: [{ label: 'Owner', number: '+15145550001' }], blocklist: ['+15145550666'] } });
+
     const paused = await call('PATCH', `/numbers/${row.id}`, headers, { paused: true });
     expect(paused.body).toMatchObject({ paused: true, status: 'paused' });
     expect(await cache.getJson<{ number_paused: boolean }>(redisKeys.number(row.e164!))).toMatchObject({ number_paused: true });
@@ -526,5 +758,80 @@ describe('PATCH and DELETE /numbers/:id', () => {
     expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id } })).status).toBe('active');
     // And a number cannot be bought for another workspace's agent.
     expect((await call('POST', '/numbers/buy', otherAuth, { agent_id: agentId, country: 'CA' })).status).toBe(404);
+  }, 30_000);
+});
+
+/*
+ * QA-107 (ORL-NUM-628): the line a customer keeps (Option B) or brings (Option C) is refused
+ * without its country code, on every entry point, before anything is stored or bought.
+ * QA-108 (ORL-NUM-673): releasing a number while it carries a live call says so.
+ */
+describe('QA-107 / QA-108: number entry and refusals', () => {
+  it('ORL-NUM-628: W6, Keep your number and Bring your own line refuse a number without its country code, and buy nothing', async () => {
+    const ws = await paidWorkspace(app, 'qa107', 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const bought = retell.countOf('createPhoneNumber');
+    const imported = retell.countOf('importPhoneNumber');
+    const sip = (number: string) => ({ number, host: 'sip:pbx.example.com:5060', username: 'trunk', password: 'Qa107-pa55' });
+
+    for (const typed of ['5145550123', '4165550101', '+5145550123', '+4165550101', '+9995551234', '']) {
+      const plan = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'forward', country: 'CA', existing_number: typed });
+      expect([plan.status, plan.body.code, (plan.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'VALIDATION_FAILED', 'existing_number']);
+      const own = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip: sip(typed) });
+      expect([own.status, (own.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'sip.number']);
+      const keep = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA', forward_from: typed, carrier: 'bell' });
+      expect([keep.status, (keep.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'forward_from']);
+      const bring = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: sip(typed) });
+      expect([bring.status, (bring.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'sip.number']);
+    }
+    expect(await adminDb.phonePlan.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+    expect(retell.countOf('createPhoneNumber')).toBe(bought);
+    expect(retell.countOf('importPhoneNumber')).toBe(imported);
+
+    // With its country code the same line is taken, North American or not.
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'forward', country: 'CA', existing_number: '+15145550123' })).body.existing_number).toBe('+15145550123');
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip: sip('+442071838750') })).status).toBe(200);
+    const keep = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA', forward_from: '+14165550101', carrier: 'bell' });
+    expect(keep.status).toBe(202);
+    expect((keep.body.number as { forwarding: { from: string } }).forwarding.from).toBe('+14165550101');
+  }, 30_000);
+
+  it('ORL-NUM-628: a W6 plan saved before the rule fails activation before anything is bought', async () => {
+    const ws = await paidWorkspace(app, 'qa107-old-plan', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'forward', country: 'CA', area_code: '514', existing_number: '+15145550123' })).status).toBe(200);
+    // As the old portal stored `5145550123`: a `+` in front, read as Peru.
+    await adminDb.phonePlan.updateMany({ where: { agentId }, data: { existingNumber: '+5145550123' } });
+    const bought = retell.countOf('createPhoneNumber');
+    const started = await call('POST', `/agents/${agentId}/activate`, headers, {});
+    expect(started.status).toBe(202);
+    const job = await waitForJob(started.body.job_id as string, 30_000);
+    expect(job.status).toBe('failed');
+    expect(job.stepsJson).toMatchObject({ attempt: 1, error_kind: 'invalid_number' });
+    expect((job.stepsJson as { customer_reason?: string }).customer_reason).toMatch(/country code/);
+    expect(retell.countOf('createPhoneNumber')).toBe(bought);
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+  }, 40_000);
+
+  it('ORL-NUM-673: a number on a live call is not released, and the refusal says so', async () => {
+    const ws = await paidWorkspace(app, 'qa108-release', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const accepted = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA' });
+    const row = await waitForNumber((accepted.body.number as { id: string }).id);
+    const callId = `call_qa108_${randomUUID().slice(0, 8)}`;
+    await adminDb.call.create({ data: { id: callId, tenantId: ws.workspaceId, agentId, numberId: row.id, channel: 'phone', status: 'in_progress', startedAt: new Date() } });
+
+    const refused = await call('DELETE', `/numbers/${row.id}`, headers);
+    expect(refused.status).toBe(409);
+    expect(refused.body).toEqual({ code: 'NUMBER_ON_CALL', message: 'This number is on a call right now. You can release it once the call ends.' });
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id } })).status).toBe('active');
+    expect(retell.phoneNumbers.has(row.e164!)).toBe(true);
+
+    await adminDb.call.update({ where: { id: callId }, data: { status: 'ended', endedAt: new Date() } });
+    expect((await call('DELETE', `/numbers/${row.id}`, headers)).body).toEqual({ released: true });
   }, 30_000);
 });

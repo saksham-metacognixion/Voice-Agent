@@ -4,6 +4,7 @@ import { Prisma, adminDb } from '@portal/db';
 import { SipCredentialsCipher } from '../crypto';
 import { RetellGateway, isRetellNotFound, type PhoneNumberFacts } from '../retell';
 import { PlatformConfigService } from '../config';
+import { NotificationsFeedService } from '../notifications';
 import { RuntimeCacheService } from '../runtime-cache';
 import { RENTAL_REF_TYPE, WalletService, addMonths } from '../wallet/wallet.service';
 import { decideRental, firstMonthRentalDue } from './rental-rules';
@@ -70,6 +71,7 @@ export class NumberProvisioningService {
     private readonly runtimeCache: RuntimeCacheService,
     private readonly wallet: WalletService,
     private readonly config: PlatformConfigService,
+    private readonly feed: NotificationsFeedService,
   ) {}
 
   // ------------------------------------------------------------------ provision
@@ -251,6 +253,13 @@ export class NumberProvisioningService {
       });
     }
     if (!wasActive || !correct) await this.refresh(workspaceId, 'bind');
+    // §7.2 "number provisioning done" (ADR 0041): once per number, on the first bind that
+    // made it active — W7's activation and a D4 purchase both end here.
+    if (!wasActive) {
+      await this.feed
+        .record({ workspaceId, kind: 'number_active', dedupeKey: `number_active:${row.id}`, payload: { number_id: row.id, e164: row.e164 } })
+        .catch((e: unknown) => this.log.warn(`number_active row for ${row.id} not recorded: ${String(e)}`));
+    }
     return { e164: row.e164, updated: !correct };
   }
 

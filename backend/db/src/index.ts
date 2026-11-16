@@ -65,6 +65,7 @@ export type { TemplateFileResult, TemplateRowShape } from './templates.js';
 export {
   APPEND_ONLY_VIOLATION,
   CALL_DEBIT_ONCE_CONSTRAINT,
+  NUMBER_HELD_CONSTRAINT,
   RENTAL_DEBIT_ONCE_CONSTRAINT,
   TRANSFER_DEBIT_ONCE_CONSTRAINT,
   WEBHOOK_DEDUPE_CONSTRAINT,
@@ -76,4 +77,5 @@ export {
   isDuplicateRentalDebit,
   isDuplicateTransferDebit,
   isDuplicateWebhook,
+  isNumberHeldViolation,
 } from './errors.js';

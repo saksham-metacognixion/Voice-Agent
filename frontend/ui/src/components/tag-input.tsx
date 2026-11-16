@@ -17,6 +17,8 @@ export interface TagInputProps {
   disabled?: boolean;
   removeLabel?: string;
   className?: string;
+  /** Marks a chip the form will refuse (D4 block list, QA-106); the field takes the danger border while any is. */
+  isInvalid?: (tag: string) => boolean;
   'aria-describedby'?: string;
 }
 
@@ -25,12 +27,13 @@ export interface TagInputProps {
  * on an empty input removes the last tag, which is the behaviour people expect from a
  * chip field and the one that does not need a mouse.
  */
-export function TagInput({ id, value, onChange, placeholder, maxLength = 60, max, disabled, removeLabel, className, ...rest }: TagInputProps) {
+export function TagInput({ id, value, onChange, placeholder, maxLength = 60, max, disabled, removeLabel, className, isInvalid, ...rest }: TagInputProps) {
   const labels = useUiLabels();
   const remove = removeLabel ?? labels.remove;
   const [draft, setDraft] = React.useState('');
   const inputRef = React.useRef<HTMLInputElement>(null);
   const full = max !== undefined && value.length >= max;
+  const anyInvalid = isInvalid ? value.some(isInvalid) : false;
 
   function commit(raw: string) {
     const parts = raw
@@ -52,12 +55,19 @@ export function TagInput({ id, value, onChange, placeholder, maxLength = 60, max
       className={cn(
         'flex min-h-10 w-full flex-wrap items-center gap-1.5 rounded-md border border-input bg-card px-2 py-1.5 text-sm shadow-card transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30',
         disabled && 'cursor-not-allowed opacity-60',
+        anyInvalid && 'border-danger ring-danger/25 focus-within:border-danger focus-within:ring-danger/25',
         className,
       )}
       onClick={() => inputRef.current?.focus()}
     >
       {value.map((tag) => (
-        <span key={tag} className="inline-flex max-w-full items-center gap-1 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+        <span
+          key={tag}
+          className={cn(
+            'inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium',
+            isInvalid?.(tag) ? 'bg-danger/12 text-danger ring-1 ring-danger/40' : 'bg-secondary text-secondary-foreground',
+          )}
+        >
           <span className="truncate">{tag}</span>
           {disabled ? null : (
             <button
@@ -81,6 +91,7 @@ export function TagInput({ id, value, onChange, placeholder, maxLength = 60, max
           value={draft}
           disabled={disabled}
           placeholder={value.length === 0 ? placeholder : undefined}
+          aria-invalid={anyInvalid || undefined}
           className="min-w-[8rem] flex-1 bg-transparent px-1 py-0.5 text-sm outline-none placeholder:text-muted-foreground"
           onChange={(e) => setDraft(e.target.value)}
           onBlur={() => commit(draft)}

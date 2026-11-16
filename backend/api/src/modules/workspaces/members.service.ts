@@ -12,7 +12,7 @@ import type {
 import { inviteStatusAt } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { portalUrl } from '../../common/env';
-import { NotificationsService } from '../notifications';
+import { NotificationsFeedService, NotificationsService } from '../notifications';
 import { inviteLink, renderInviteEmail } from './invite-email';
 import { type AuthenticatedUser, type WorkspaceContext, assertTermsAccepted } from '../auth';
 
@@ -39,7 +39,10 @@ export const INVITE_TTL_MS = 7 * 86_400_000;
 export class MembersService {
   private readonly log = new Logger(MembersService.name);
 
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly feed: NotificationsFeedService,
+  ) {}
 
   // ------------------------------------------------------------------ members
 
@@ -385,7 +388,7 @@ export class MembersService {
     // §6.3 A1 (ADR 0036): joining is one of the three doors the Terms gate.
     await assertTermsAccepted(user.userId);
 
-    return adminDb.$transaction(async (tx) => {
+    const result = await adminDb.$transaction(async (tx): Promise<AcceptInviteResponse & { joined?: { invite_id: string; email: string } }> => {
       const invite = await tx.invite.findUnique({
         where: { tokenHash },
         include: { tenant: { select: { id: true, name: true } } },
@@ -429,8 +432,17 @@ export class MembersService {
       });
 
       this.log.log(`workspace ${invite.tenantId}: ${user.userId} joined as ${invite.role}`);
-      return { workspace_id: invite.tenantId, workspace_name: invite.tenant.name, role: invite.role };
+      return { workspace_id: invite.tenantId, workspace_name: invite.tenant.name, role: invite.role, joined: { invite_id: invite.id, email: invite.email } };
     });
+    const { joined, ...answer } = result;
+    if (joined) {
+      // §7.2 "member joined" (ADR 0041): one bell row per accepted invitation, for the whole
+      // workspace. After the transaction: a bell row is not worth refusing a join over.
+      await this.feed
+        .record({ workspaceId: answer.workspace_id, kind: 'member_joined', dedupeKey: `member_joined:${joined.invite_id}`, payload: { email: joined.email, role: answer.role } })
+        .catch((e: unknown) => this.log.warn(`member_joined row not recorded: ${String(e)}`));
+    }
+    return answer;
   }
 
   private async audit(

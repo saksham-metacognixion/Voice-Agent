@@ -5,6 +5,7 @@ import type { AgentTier } from '@portal/schemas';
 import { EventsService } from '../events';
 import { type InboundDecisionJob, JobQueues } from '../jobs';
 import { PlatformConfigService } from '../config';
+import { NotificationsFeedService } from '../notifications';
 import { REDIS, type RedisLike, redisKeys } from '../redis';
 import { RETELL_TRANSFER_EVENTS, channelOf, clampDuration, directionOf, type RetellCallFacts, type RetellLifecycleEvent, type RetellTransferEvent } from '../retell';
 import { DuplicateCallDebit, DuplicateTransferDebit, WalletService } from '../wallet';
@@ -12,6 +13,7 @@ import { roundCredits } from '../wallet/fifo';
 import { ACTIVE_SLACK_MS, RETELL_MAX_CALL_MS, encodeActive, parseActiveHash } from './inbound.decide';
 import { usedKnowledge } from './call-knowledge.service';
 import { type Charge, computeCharge } from './metering';
+import { messageCaptured } from './message-captured';
 import { type TransferEventFact, type TransferFacts, computeTransferCharge, foldTransfer } from './transfer';
 
 export type LifecycleOutcome =
@@ -59,6 +61,7 @@ export class CallsService {
     private readonly config: PlatformConfigService,
     private readonly events: EventsService,
     private readonly queues: JobQueues,
+    private readonly feed: NotificationsFeedService,
   ) {}
 
   // ---------------------------------------------------------------- write-behind (§13.9)
@@ -595,6 +598,13 @@ export class CallsService {
     }
 
     await this.publishCall(workspaceId, call.call_id, 'analyzed', { outcome: outcomeOf(analysis) });
+    // §7.2 "new messages captured" (ADR 0041): one bell row per call, real callers only.
+    // Exactly-once on the key, so the recovery path's replay of this event records nothing twice.
+    if (!isTestCall(call) && messageCaptured(analysis)) {
+      await this.feed
+        .record({ workspaceId, kind: 'message_captured', dedupeKey: `message_captured:${call.call_id}`, payload: { call_id: call.call_id, from_number: call.from_number ?? null } })
+        .catch((e: unknown) => this.log.warn(`message_captured row for ${call.call_id} not recorded: ${String(e)}`));
+    }
     return { outcome: 'analyzed', callId: call.call_id, retellCostCents };
   }
 
@@ -719,15 +729,21 @@ export class CallsService {
     });
   }
 
-  /** Our phone number in this call: `to_number` inbound, `from_number` outbound. `e164` is unique, so a hit is ours. */
+  /**
+   * Our phone number in this call: `to_number` inbound, `from_number` outbound. One row holds
+   * a number at a time (`phone_numbers_e164_held_key`), so that row is ours; released rows
+   * with the same e164 are history (QA-105), and the latest of them answers only a late
+   * event for a number nobody holds any more — the case a single row used to answer.
+   */
   private async numberOf(call: RetellCallFacts, workspaceId?: string) {
     const e164 = ourEnd(call);
     if (!e164) return null;
-    const row = await adminDb.phoneNumber.findUnique({
-      where: { e164 },
-      select: { id: true, e164: true, tenantId: true, agentId: true, agent: { select: { tier: true } } },
-    });
-    return row && (workspaceId === undefined || row.tenantId === workspaceId) ? row : null;
+    const select = { id: true, e164: true, tenantId: true, agentId: true, agent: { select: { tier: true } } } as const;
+    const scope = workspaceId === undefined ? {} : { tenantId: workspaceId };
+    return (
+      (await adminDb.phoneNumber.findFirst({ where: { e164, ...scope, status: { not: 'released' } }, select })) ??
+      (await adminDb.phoneNumber.findFirst({ where: { e164, ...scope, status: 'released' }, orderBy: { releasedAt: 'desc' }, select }))
+    );
   }
 
   private load(callId: string) {

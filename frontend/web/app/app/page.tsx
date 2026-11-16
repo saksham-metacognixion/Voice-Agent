@@ -6,7 +6,9 @@ import { useRouter } from 'next/navigation';
 import { ActivityChart } from '@/src/components/dashboard/activity-chart';
 import { AgentsCard } from '@/src/components/dashboard/agents-card';
 import { AlertBanner } from '@/src/components/dashboard/alert-banner';
+import { AnnouncementsBanner } from '@/src/components/dashboard/announcements-banner';
 import { ChecklistCard } from '@/src/components/dashboard/checklist-card';
+import { NumbersFixNotice } from '@/src/components/dashboard/numbers/numbers-fix-notice';
 import { CreditsCard } from '@/src/components/dashboard/credits-card';
 import { RecentCallsCard } from '@/src/components/dashboard/recent-calls-card';
 import { TodayCard } from '@/src/components/dashboard/today-card';
@@ -18,7 +20,7 @@ import { callPath } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /**
- * D1 Home (spec pp. 32–33): the alert banner, credits, today, agents, the setup
+ * D1 Home (spec pp. 32–33): staff announcements, the alert banner, credits, today, agents, the setup
  * checklist, recent calls and the 30-day chart — every widget its own query, all of
  * them refreshed by the workspace's SSE stream, so a call that comes in while the page
  * is open shows up in "Today", the chart and the recent list without a reload.
@@ -43,7 +45,9 @@ export default function HomePage() {
         description={ws.workspace ? t('dashboard.home.welcome', { workspace: ws.workspace.name }) : undefined}
         actions={<LiveDot state={stream} />}
       />
+      <AnnouncementsBanner />
       <AlertBanner />
+      <NumbersFixNotice />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
         <CreditsCard />
         <TodayCard />

@@ -229,7 +229,7 @@ export class WorkspacesService {
    */
   async checklist(ctx: WorkspaceContext): Promise<WorkspaceChecklist> {
     const state = await withWorkspace(ctx, async (db) => {
-      const [tenant, agents, published, generated, purchases, numbers] = await Promise.all([
+      const [tenant, agents, published, generated, purchases, numbers, forwarding, members, invites] = await Promise.all([
         db.tenant.findUniqueOrThrow({
           where: { id: ctx.workspaceId },
           select: { onboardingStep: true, onboardingCompletedAt: true },
@@ -239,8 +239,15 @@ export class WorkspacesService {
         db.agentVersion.count({ where: { agent: { tenantId: ctx.workspaceId }, promptText: { not: null } } }),
         db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }),
         db.phoneNumber.count({ where: { tenantId: ctx.workspaceId, status: { in: ['active', 'provisioning'] } } }),
+        // D1 "Forwarding tested" (ADR 0041): the Option B numbers, and whether any test landed or the customer confirmed.
+        db.phoneNumber.findMany({
+          where: { tenantId: ctx.workspaceId, forwardingFrom: { not: null }, status: { in: ['active', 'paused', 'provisioning'] } },
+          select: { forwardingStatus: true, forwardingTestJson: true },
+        }),
+        db.membership.count({ where: { tenantId: ctx.workspaceId } }),
+        db.invite.count({ where: { tenantId: ctx.workspaceId } }),
       ]);
-      return { tenant, agents, published, generated, purchases, numbers };
+      return { tenant, agents, published, generated, purchases, numbers, forwarding, members, invites };
     });
 
     const checklist = {
@@ -250,13 +257,18 @@ export class WorkspacesService {
       agent_published: state.published > 0,
       credits_purchased: state.purchases > 0,
       number_attached: state.numbers > 0,
+      forwarding_tested: forwardingTested(state.forwarding),
+      // A second member, or an invitation sent: the row is "Invite your team", and sending one is the act.
+      team_invited: state.members > 1 || state.invites > 0,
       onboarding_step: state.tenant.onboardingStep,
     };
+    const rows = [checklist.agent_created, checklist.agent_generated, checklist.agent_published, checklist.credits_purchased, checklist.number_attached, checklist.team_invited, ...(checklist.forwarding_tested === null ? [] : [checklist.forwarding_tested])];
     return {
       ...checklist,
       // §6.4 redirects to /onboarding/* until there is a published agent; the rest of the
       // list is progress, not a gate.
       complete: Boolean(state.tenant.onboardingCompletedAt) || checklist.agent_published,
+      all_done: rows.every(Boolean),
     };
   }
 
@@ -354,6 +366,7 @@ function toResponse(
     onboardingDismissedAt: Date | null;
     pausedAt: Date | null;
     pausedReason: string | null;
+    pausedTicketId: number | null;
     createdAt: Date;
   },
   role: WorkspaceContext['role'],
@@ -379,6 +392,7 @@ function toResponse(
     onboarding_dismissed_at: tenant.onboardingDismissedAt?.toISOString() ?? null,
     paused: tenant.pausedAt !== null,
     paused_reason: tenant.pausedReason,
+    paused_ticket_id: tenant.pausedAt !== null ? tenant.pausedTicketId : null,
     role,
     mfa,
     created_at: tenant.createdAt.toISOString(),
@@ -411,4 +425,18 @@ function assertTimezone(timezone: string): void {
       { field: 'timezone', message: 'Pick a time zone from the list' },
     ]);
   }
+}
+
+/**
+ * D1 "Forwarding tested" (ADR 0041). Null when nothing forwards to the agent — there is
+ * nothing to test, and the card leaves the row out. Done when a forwarding number's last
+ * "Test forwarding" landed (D17) or the customer confirmed the forwarding on the live page.
+ */
+export function forwardingTested(numbers: Array<{ forwardingStatus: string | null; forwardingTestJson: unknown }>): boolean | null {
+  if (numbers.length === 0) return null;
+  return numbers.some((n) => {
+    if (n.forwardingStatus === 'ready') return true;
+    const test = n.forwardingTestJson;
+    return Boolean(test && typeof test === 'object' && (test as { status?: unknown }).status === 'landed');
+  });
 }

@@ -433,6 +433,8 @@ model Tenant {
   pausedAt              DateTime? @map("paused_at")
   /// admin §8 — set when staff pause the workspace, surfaced in the D1 banner.
   pausedReason          String?   @map("paused_reason")
+  /// The support ticket the staff pause was filed under, for D1's "see ticket #…" (ADR 0041).
+  pausedTicketId        Int?      @map("paused_ticket_id")
   recordingDefault      Boolean   @default(true) @map("recording_default")
   retentionDays         Int       @default(90) @map("retention_days")
   /// D6 Data & privacy (QA-081): new agents start with PII removal on (plan gate `pii_removal`).
@@ -499,6 +501,8 @@ model Membership {
   userId    String     @map("user_id") @db.Uuid
   role      MemberRole
   createdAt DateTime   @default(now()) @map("created_at")
+  /// §7.2 bell: when this member last opened it; rows created after it are unread (ADR 0041).
+  notificationsSeenAt DateTime? @map("notifications_seen_at")
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -609,6 +613,9 @@ model Agent {
   draftVersion     Int?        @map("draft_version")
   publishedVersion Int?        @map("published_version")
   status           AgentStatus @default(draft)
+  /// `customer` (D3 Pause) or `staff` (the console); cleared on resume. The D1 card names a staff pause and its ticket (ADR 0041).
+  pausedBy         String?     @map("paused_by")
+  pausedTicketId   Int?        @map("paused_ticket_id")
   maxCallDurationS Int         @default(600) @map("max_call_duration_s")
   recordingEnabled Boolean     @default(true) @map("recording_enabled")
   addonsJson       Json?       @map("addons_json")
@@ -779,7 +786,11 @@ model PhoneNumber {
   tenantId            String            @map("tenant_id") @db.Uuid
   agentId             String?           @map("agent_id") @db.Uuid
   /// D6: NULL while a bought number is still being provisioned — the platform picks it.
-  e164                String?           @unique
+  /// QA-105: unique among the rows that *hold* a number — every status but `released` —
+  /// through the hand-written partial index `phone_numbers_e164_held_key`. A released row
+  /// keeps its e164 as history (calls and rental rows reference it), and the same number
+  /// can be imported or bought again, by this workspace or another, as a new row.
+  e164                String?
   /// D6: the W6 plan this number executes. One number per plan (§13.8).
   planId              String?           @unique @map("plan_id") @db.Uuid
   nickname            String?
@@ -813,6 +824,14 @@ model PhoneNumber {
   rentalOverdueSince  DateTime?         @map("rental_overdue_since")
   status              PhoneNumberStatus @default(provisioning)
   pausedAt            DateTime?         @map("paused_at")
+  /// QA-104: the staff pause, independent of the customer's own switch (`status` / `paused_at`).
+  /// Set and cleared only by the console; the customer path cannot write them (trigger
+  /// `guard_number_staff_pause`). A number answers only while neither pause is set.
+  staffPausedAt       DateTime?         @map("staff_paused_at")
+  /// `reason_code` from the staff action (admin Appendix B). Never shown to the customer.
+  staffPausedReason   String?           @map("staff_paused_reason")
+  staffPausedTicketId Int?              @map("staff_paused_ticket_id")
+  staffPausedBy       String?           @map("staff_paused_by")
   /// D6, Option B: the customer's existing line and whether they confirmed the forwarding.
   forwardingFrom      String?           @map("forwarding_from")
   forwardingStatus    ForwardingStatus? @map("forwarding_status")
@@ -824,14 +843,6 @@ model PhoneNumber {
   releasedAt          DateTime?         @map("released_at")
   retellMetaJson      Json?             @map("retell_meta_json")
   /// P2 (D16) SIP re-verify: the last check's outcome — status, time, per-check results.
-  /// QA-104: the staff pause, independent of the customer's own switch (`status` / `paused_at`).
-  /// Set and cleared only by the console; the customer path cannot write them (trigger
-  /// `guard_number_staff_pause`). A number answers only while neither pause is set.
-  staffPausedAt       DateTime?         @map("staff_paused_at")
-  /// `reason_code` from the staff action (admin Appendix B). Never shown to the customer.
-  staffPausedReason   String?           @map("staff_paused_reason")
-  staffPausedTicketId Int?              @map("staff_paused_ticket_id")
-  staffPausedBy       String?           @map("staff_paused_by")
   /// Never a credential: no password, no digest, no platform payload.
   sipVerificationJson Json?             @map("sip_verification_json")
   /// The re-verify lease: claimed by a conditional UPDATE, cleared when the check ends,
@@ -856,6 +867,7 @@ model PhoneNumber {
 
   @@index([tenantId, status])
   @@index([nextRentalAt])
+  @@index([e164])
   @@map("phone_numbers")
 }
 

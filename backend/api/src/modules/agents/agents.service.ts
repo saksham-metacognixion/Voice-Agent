@@ -295,29 +295,47 @@ export class AgentsService {
           ...(query.status ? { status: query.status } : {}),
         },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        include: { _count: { select: { phoneNumbers: true } } },
+        include: {
+          _count: { select: { phoneNumbers: true } },
+          // D1's card shows the line the agent answers on: the first active number, by age.
+          phoneNumbers: { where: { status: { in: ['active', 'paused'] }, e164: { not: null } }, orderBy: { createdAt: 'asc' }, take: 1, select: { e164: true } },
+        },
       }),
     );
     const page = toPage(rows, query);
+    // Whether each draft has a script, so D1 can offer Publish without opening the agent.
+    const drafts = page.items.filter((r) => r.draftVersion !== null);
+    const withPrompt = drafts.length
+      ? await withWorkspace(ctx, (db) =>
+          db.agentVersion.findMany({
+            where: { OR: drafts.map((r) => ({ agentId: r.id, versionNo: r.draftVersion! })), promptText: { not: null } },
+            select: { agentId: true },
+          }),
+        )
+      : [];
+    const hasPrompt = new Set(withPrompt.map((v) => v.agentId));
     return {
       next_cursor: page.next_cursor,
-      items: page.items.map((row) => toSummary(row, row._count.phoneNumbers)),
+      items: page.items.map((row) =>
+        toSummary(row, { numbersAttached: row._count.phoneNumbers, numberE164: row.phoneNumbers[0]?.e164 ?? null, draftHasPrompt: hasPrompt.has(row.id) }),
+      ),
     };
   }
 
   async get(ctx: WorkspaceContext, agentId: string): Promise<AgentDetail> {
-    const { agent, versions, numbers } = await withWorkspace(ctx, async (db) => {
+    const { agent, versions, numbers, first } = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
       const wanted = [agent.draftVersion, agent.publishedVersion].filter(
         (v): v is number => v !== null,
       );
-      const [versions, numbers] = await Promise.all([
+      const [versions, numbers, first] = await Promise.all([
         wanted.length
           ? db.agentVersion.findMany({ where: { agentId, versionNo: { in: wanted } } })
           : Promise.resolve([]),
         db.phoneNumber.count({ where: { agentId, tenantId: ctx.workspaceId } }),
+        db.phoneNumber.findFirst({ where: { agentId, tenantId: ctx.workspaceId, status: { in: ['active', 'paused'] }, e164: { not: null } }, orderBy: { createdAt: 'asc' }, select: { e164: true } }),
       ]);
-      return { agent, versions, numbers };
+      return { agent, versions, numbers, first };
     });
 
     const find = (no: number | null) => versions.find((v) => v.versionNo === no) ?? null;
@@ -325,7 +343,7 @@ export class AgentsService {
     const published = find(agent.publishedVersion);
 
     return {
-      ...toSummary(agent, numbers),
+      ...toSummary(agent, { numbersAttached: numbers, numberE164: first?.e164 ?? null, draftHasPrompt: draft?.promptText !== null && draft?.promptText !== undefined }),
       draft: draft ? toVersionDetail(draft, agent) : null,
       published: published ? toVersionDetail(published, agent) : null,
     };
@@ -1095,10 +1113,22 @@ type AgentRow = LiveSettingsColumns & {
   draftVersion: number | null;
   publishedVersion: number | null;
   createdAt: Date;
+  /** Optional so the tests' bare rows and a row read before the columns existed still build (ADR 0041). */
+  pausedBy?: string | null;
+  pausedTicketId?: number | null;
 };
 
+/** What the list and the detail know beside the row: the numbers and whether the draft has a script (D1 card, ADR 0041). */
+export interface SummaryFacts {
+  numbersAttached: number;
+  numberE164?: string | null;
+  draftHasPrompt?: boolean;
+}
+
 /** The live values: what is on the phone and what a call bills at (see `agentSummary`). */
-export function toSummary(agent: AgentRow, numbersAttached: number): AgentSummary {
+export function toSummary(agent: AgentRow, facts: number | SummaryFacts): AgentSummary {
+  const f: SummaryFacts = typeof facts === 'number' ? { numbersAttached: facts } : facts;
+  const paused = agent.status === 'paused';
   return {
     id: agent.id,
     name: agent.name,
@@ -1113,7 +1143,11 @@ export function toSummary(agent: AgentRow, numbersAttached: number): AgentSummar
     published_version: agent.publishedVersion,
     has_unpublished_changes:
       agent.draftVersion !== null && agent.draftVersion !== agent.publishedVersion,
-    numbers_attached: numbersAttached,
+    draft_has_prompt: f.draftHasPrompt ?? false,
+    numbers_attached: f.numbersAttached,
+    number_e164: f.numberE164 ?? null,
+    paused_by: paused && (agent.pausedBy === 'customer' || agent.pausedBy === 'staff') ? agent.pausedBy : null,
+    paused_ticket_id: paused && agent.pausedBy === 'staff' ? (agent.pausedTicketId ?? null) : null,
     max_call_duration_s: agent.maxCallDurationS,
     recording_enabled: agent.recordingEnabled,
     created_at: agent.createdAt.toISOString(),

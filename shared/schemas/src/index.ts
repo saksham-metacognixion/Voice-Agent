@@ -18,6 +18,7 @@ export * from './agents.js';
 export * from './industries.js';
 export * from './voices.js';
 export * from './knowledge.js';
+export * from './phone.js';
 export * from './numbers.js';
 export * from './widget.js';
 export * from './outbound.js';

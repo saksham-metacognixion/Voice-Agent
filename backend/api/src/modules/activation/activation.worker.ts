@@ -1,14 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
-import { Prisma, adminDb } from '@portal/db';
-import { ActivationEvents, type ActivationStep } from '@portal/schemas';
+import { Prisma, adminDb, isNumberHeldViolation } from '@portal/db';
+import { ActivationEvents, isDialableE164, type ActivationStep } from '@portal/schemas';
 import { AgentEvents, AgentPublishService } from '../agents';
 import { OpsAlertService } from '../alerts';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
 import { type ActivationJob, JobRecordsService } from '../jobs';
-import { NumberProvisioningService, ProvisioningError, classifyError, decideRental, newInboundToken } from '../numbers';
+import { NUMBER_IN_USE_MESSAGE, NumberProvisioningService, ProvisioningError, classifyError, decideRental, newInboundToken, numberHolder } from '../numbers';
 import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService } from '../wallet';
 import { failActiveSpan, reportError } from '../../observability';
@@ -157,6 +157,7 @@ export class ActivationWorker {
       if (found.kind === 'none') {
         throw new ProvisioningError('no_plan', 'Choose a phone number option before going live.', `agent ${data.agentId} has no pending phone plan and no active number`);
       }
+      assertPlanNumbers(found.plan);
       await this.assertBillingState(data.workspaceId);
       numberId = found.kind === 'row' ? await this.refreshNumberRow(found.plan, found.number) : await this.createNumberRow(data, found.plan);
       state = completeStepFacts(state, { number_id: numberId });
@@ -271,6 +272,13 @@ export class ActivationWorker {
    * the number SA5 published, not one compiled in (CLAUDE.md, Configuration). BYO SIP is 0.
    */
   private async createNumberRow(data: ActivationJob, plan: PendingPlan): Promise<string> {
+    const fields = await this.numberFieldsOf(plan);
+    // QA-105: a SIP line some other row holds (W6 checked when the plan was saved; another
+    // workspace may have connected it since). Permanent: retrying cannot free it.
+    if (fields.e164) {
+      const holder = await numberHolder(fields.e164);
+      if (holder && holder.planId !== plan.id) throw numberHeld(fields.e164);
+    }
     try {
       const row = await adminDb.phoneNumber.create({
         data: {
@@ -278,7 +286,7 @@ export class ActivationWorker {
           agentId: data.agentId,
           planId: plan.id,
           inboundToken: newInboundToken(),
-          ...(await this.numberFieldsOf(plan)),
+          ...fields,
           status: 'provisioning',
         },
         select: { id: true },
@@ -288,6 +296,8 @@ export class ActivationWorker {
       // Lost the race with a duplicate delivery of this very job: adopt its row.
       const existing = await adminDb.phoneNumber.findUnique({ where: { planId: plan.id }, select: { id: true } });
       if (existing) return existing.id;
+      // Lost it to another row taking the same number between the check and the insert.
+      if (fields.e164 && isNumberHeldViolation(error)) throw numberHeld(fields.e164);
       throw error;
     }
   }
@@ -384,4 +394,26 @@ export class ActivationWorker {
 /** Adds top-level facts (number id, e164, forwarding) without touching a step record. */
 function completeStepFacts(state: ActivationSteps, facts: Partial<ActivationSteps>): ActivationSteps {
   return { ...state, ...facts };
+}
+
+/**
+ * QA-107: a plan saved before the country-code rule can hold a Montreal line typed as
+ * `5145550123` and stored as Peruvian `+5145550123`. Checked before anything is bought:
+ * the bought number would forward from a stranger's line, and "Test forwarding" would ring it.
+ */
+function assertPlanNumbers(plan: PendingPlan): void {
+  if (plan.option === 'forward' && !(plan.existingNumber && isDialableE164(plan.existingNumber))) {
+    throw new ProvisioningError('invalid_number', 'Enter your existing number with its country code, e.g. +14505550123, on the phone step, then go live again.', `plan ${plan.id}: existing_number is not a dialable E.164 number`);
+  }
+  if (plan.option === 'sip') {
+    const sipNumber = plan.sipJson && typeof plan.sipJson === 'object' ? (plan.sipJson as { number?: unknown }).number : null;
+    if (typeof sipNumber !== 'string' || !isDialableE164(sipNumber)) {
+      throw new ProvisioningError('invalid_number', 'Enter the number of your own line with its country code, e.g. +14505550123, on the phone step, then go live again.', `plan ${plan.id}: sip number is not a dialable E.164 number`);
+    }
+  }
+}
+
+/** QA-105: the customer reads the same sentence D4 and W6 answer with; the detail names no workspace. */
+function numberHeld(e164: string): ProvisioningError {
+  return new ProvisioningError('number_in_use', NUMBER_IN_USE_MESSAGE, `${e164} is held by another phone_numbers row`, { retryable: false });
 }

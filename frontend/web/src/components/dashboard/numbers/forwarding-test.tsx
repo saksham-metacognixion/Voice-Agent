@@ -1,7 +1,7 @@
 'use client';
 
 import { testNumberForwarding, useApi, useGetNumber } from '@portal/api-client';
-import type { ForwardingTest, PhoneNumberResponse } from '@portal/schemas';
+import { isDialableE164, type ForwardingTest, type PhoneNumberResponse } from '@portal/schemas';
 import { Alert, Badge, Button, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { PhoneForwarded } from 'lucide-react';
@@ -36,6 +36,8 @@ export function ForwardingTestPanel({ number }: { number: PhoneNumberResponse })
   const [busy, setBusy] = React.useState(false);
   const test = number.forwarding?.test ?? null;
   const calling = busy || test?.status === 'calling';
+  // QA-107: a line saved without its country code (`+5145550123`, Peru) is never rung; the API refuses it too.
+  const fromValid = isDialableE164(number.forwarding!.from);
   const [lingering, setLingering] = React.useState(false);
 
   // Only a poll while one rings (and briefly after a miss); settled, the page's own query is enough.
@@ -91,10 +93,11 @@ export function ForwardingTestPanel({ number }: { number: PhoneNumberResponse })
           <p className="text-sm font-medium">{t('title')}</p>
           <p className="text-xs text-muted-foreground">{t('body', { from: formatPhone(number.forwarding!.from) })}</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => void start()} loading={busy} disabled={calling || !number.e164}>
+        <Button variant="outline" size="sm" onClick={() => void start()} loading={busy} disabled={calling || !number.e164 || !fromValid}>
           <PhoneForwarded /> {calling ? t('calling') : test ? t('again') : t('start')}
         </Button>
       </div>
+      {fromValid ? null : <Alert variant="warning">{tc('errors.FORWARDING_NUMBER_INVALID')}</Alert>}
       <TestLine test={busy && !test ? null : test} calling={calling} />
       {test?.status === 'not_landed' && !calling ? <Alert variant="warning">{t('notLandedHint')}</Alert> : null}
       {test?.status === 'landed' && test.caller_id === 'original' && !calling ? <p className="text-xs text-muted-foreground">{t('callerIdOriginal')}</p> : null}

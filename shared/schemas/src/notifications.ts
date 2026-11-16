@@ -49,3 +49,75 @@ export type NotificationSettingsResponse = z.infer<typeof notificationSettingsRe
 
 export const updateNotificationSettingsRequest = notificationSettingsResponse.omit({ is_default: true }).partial();
 export type UpdateNotificationSettingsRequest = z.infer<typeof updateNotificationSettingsRequest>;
+
+// ---------------------------------------------------------------------------
+// §7.2 notifications bell (ADR 0041)
+// ---------------------------------------------------------------------------
+
+/**
+ * The kinds the bell shows, from the `notifications` outbox rows the workspace already
+ * writes (§13.1). The spec names five (§7.2): low balance, new messages captured, number
+ * provisioning done, failed auto top-up, member joined; the rental and release rows ride
+ * along because they are the same outbox. Emails that are not news to a member (the daily
+ * digest, an invitation, a purchase review) are never listed.
+ */
+export const notificationKind = z.enum([
+  'low_balance',
+  'message_captured',
+  'number_active',
+  'auto_topup_failed',
+  'member_joined',
+  'rental_overdue',
+  'number_released',
+]);
+export type NotificationKind = z.infer<typeof notificationKind>;
+
+export const notificationItemResponse = z.object({
+  id: uuid,
+  kind: notificationKind,
+  /** Customer-safe facts the bell renders its line from: `{call_id, from_number}`, `{number_id, e164}`, `{email, role}`, `{balance}`. */
+  meta: z.record(z.string(), z.unknown()).nullable(),
+  created_at: isoDateTime,
+  /** Created after the caller last opened the bell (`POST /notifications/seen`). */
+  unread: z.boolean(),
+});
+export type NotificationItemResponse = z.infer<typeof notificationItemResponse>;
+
+/** GET /notifications — the caller's feed, newest first, 20 at most. */
+export const notificationsResponse = z.object({
+  items: z.array(notificationItemResponse),
+  unread: z.number().int().min(0),
+  seen_at: isoDateTime.nullable(),
+});
+export type NotificationsResponse = z.infer<typeof notificationsResponse>;
+
+/** POST /notifications/seen — the caller opened the bell; everything up to now is read. */
+export const notificationsSeenResponse = z.object({ seen_at: isoDateTime });
+export type NotificationsSeenResponse = z.infer<typeof notificationsSeenResponse>;
+
+// ---------------------------------------------------------------------------
+// Staff announcements (§16 `GET /announcements/active`, admin SA10)
+// ---------------------------------------------------------------------------
+
+export const announcementSeverity = z.enum(['info', 'warning', 'danger']);
+export type AnnouncementSeverity = z.infer<typeof announcementSeverity>;
+
+/**
+ * One in-app banner staff published (admin §8 `announcements`, type `banner`), already
+ * filtered to this workspace's audience and to its start/end window. Plain text: the
+ * portal renders it as text, never as HTML.
+ */
+export const announcementResponse = z.object({
+  id: uuid,
+  severity: announcementSeverity,
+  body: z.string(),
+  starts_at: isoDateTime.nullable(),
+  ends_at: isoDateTime.nullable(),
+  /** False = shown until it ends; true = the person may hide it (per browser, there is no per-member row). */
+  dismissible: z.boolean(),
+  created_at: isoDateTime,
+});
+export type AnnouncementResponse = z.infer<typeof announcementResponse>;
+
+export const activeAnnouncementsResponse = z.object({ items: z.array(announcementResponse) });
+export type ActiveAnnouncementsResponse = z.infer<typeof activeAnnouncementsResponse>;

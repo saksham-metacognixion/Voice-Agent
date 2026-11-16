@@ -5,6 +5,7 @@ import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { SipCredentialsCipher } from '../crypto';
+import { numberHolder, numberInUse } from './number-holds';
 import { toPlanResponse } from './number-response';
 
 /**
@@ -46,12 +47,18 @@ export class PhonePlansService {
       }
     }
 
+    // QA-105: a line another row holds (any workspace) would only fail after payment, at
+    // activation. Read outside the transaction; the plan's own row (a failed activation's)
+    // is not in the way. A released row holds nothing.
+    const holder = input.option === 'sip' ? await numberHolder(input.sip.number) : null;
+
     const row = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, agentId);
       const tenant = await db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { pausedAt: true } });
       if (tenant.pausedAt) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to continue.');
 
       const existing = await db.phonePlan.findFirst({ where: { agentId: agent.id, tenantId: ctx.workspaceId, status: 'pending' } });
+      if (holder && (!existing || holder.planId !== existing.id)) throw numberInUse('sip.number');
       const planId = existing?.id;
       const data = await this.planData(ctx, agentId, input, planId);
 

@@ -187,6 +187,55 @@ describe('POST /numbers/:id/forwarding/test — "Test forwarding" (D4)', () => {
     return { ws, headers, agentId, number };
   }
 
+  // QA-107: a line stored before the country-code rule (`5145550123` → Peruvian `+5145550123`) is never rung.
+  it('refuses to ring a forwarded line saved without its country code, and places nothing', async () => {
+    const ws = await paidWorkspace(app, 'fwd-foreign', 'starter');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const number = await liveNumber(ws.workspaceId, agentId, { forwardingFrom: '+5145550123' });
+    const before = retell.countOf('createPhoneCall');
+    const res = await call('POST', `/numbers/${number.id}/forwarding/test`, headers);
+    expect(res.status).toBe(409);
+    expect(res.body.code).toBe('FORWARDING_NUMBER_INVALID');
+    expect(retell.countOf('createPhoneCall')).toBe(before);
+    expect(await redis.get(redisKeys.forwardingTest(number.e164))).toBeNull();
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: number.id } })).forwardingTestJson).toBeNull();
+  });
+
+  // QA-107 (ADR 0045): the customer repairs the line on D4, and the test then rings the right one.
+  it('lets the customer correct the forwarded line on D4: a typed line without its country code is refused, a real one resets the forwarding and is rung', async () => {
+    const ws = await paidWorkspace(app, 'fwd-repair', 'starter');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const number = await liveNumber(ws.workspaceId, agentId, { forwardingFrom: '+5145550123' });
+    await adminDb.phoneNumber.update({ where: { id: number.id }, data: { forwardingStatus: 'ready' } });
+
+    for (const typed of ['5145550123', '+5145550123', '+1 514 555']) {
+      const refused = await call('PATCH', `/numbers/${number.id}`, headers, { forwarding_from: typed });
+      expect([refused.status, (refused.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'forwarding_from']);
+    }
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: number.id } })).forwardingFrom).toBe('+5145550123');
+
+    const fixed = await call('PATCH', `/numbers/${number.id}`, headers, { forwarding_from: '+15145550123' });
+    expect(fixed.status).toBe(200);
+    expect(fixed.body.forwarding).toMatchObject({ from: '+15145550123', status: 'waiting_for_customer', test: null });
+
+    const res = await call('POST', `/numbers/${number.id}/forwarding/test`, headers);
+    expect(res.status).toBe(200);
+    expect(lastArgs<{ toNumber: string }>('createPhoneCall').toNumber).toBe('+15145550123');
+
+    // Not while a test rings: the marker names the line being rung.
+    const ringing = await call('PATCH', `/numbers/${number.id}`, headers, { forwarding_from: '+14165550101' });
+    expect([ringing.status, ringing.body.code]).toEqual([409, 'FORWARDING_TEST_IN_PROGRESS']);
+
+    // Only a forwarding number has a line to correct; a viewer cannot change it.
+    const plain = await liveNumber(ws.workspaceId, agentId);
+    const notForward = await call('PATCH', `/numbers/${plain.id}`, headers, { forwarding_from: '+15145550123' });
+    expect([notForward.status, notForward.body.code]).toEqual([400, 'BAD_REQUEST']);
+    const viewer = await addMember(ws.workspaceId, 'fwd-viewer', 'viewer');
+    expect((await call('PATCH', `/numbers/${number.id}`, await auth(viewer.sub, ws.workspaceId), { forwarding_from: '+14165550101' })).status).toBe(403);
+  });
+
   it('rings the original line from the number, recognises the forwarded call on the inbound path, turns it away and marks the forwarding ready', async () => {
     const { ws, headers, number } = await forwardingSetup('fwd-landed');
     const res = await call('POST', `/numbers/${number.id}/forwarding/test`, headers);

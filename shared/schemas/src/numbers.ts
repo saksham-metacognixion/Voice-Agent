@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { businessHours, businessHoursInput } from './business-hours.js';
 import { e164, isoDateTime, uuid } from './common.js';
+import { blockedCaller, dialableE164 } from './phone.js';
 import { countryCode } from './workspaces.js';
 
 /*
@@ -95,12 +96,26 @@ export const areaCode = z.string().regex(/^[2-9]\d{2}$/, 'Three-digit area code'
 export const carrier = z.enum(['bell', 'rogers', 'telus', 'videotron', 'att', 'verizon', 'tmobile', 'other']);
 export type Carrier = z.infer<typeof carrier>;
 
-/** One transfer target (§11 hand-off). */
+/**
+ * One transfer target (§11 hand-off), as a request sends it: a real number with its
+ * country code, in E.164 (QA-106 — `dialableE164`).
+ */
 export const transferTarget = z.object({
+  label: z.string().trim().min(1).max(60),
+  number: dialableE164,
+});
+export type TransferTarget = z.infer<typeof transferTarget>;
+
+/**
+ * A transfer target as stored and answered: the rule requests had before QA-106 (E.164
+ * shape only). A row saved under it (`+4165550101`, a typed Toronto number read as Swiss)
+ * must still reach the form, where the editor marks it, rather than drop out of the
+ * response and be erased by the next save.
+ */
+export const storedTransferTarget = z.object({
   label: z.string().trim().min(1).max(60),
   number: e164,
 });
-export type TransferTarget = z.infer<typeof transferTarget>;
 
 /** QA-083: the same ceiling as a brief hand-off rule's `read_message`. */
 export const TRANSFER_FAIL_MESSAGE_MAX_CHARS = 500;
@@ -131,8 +146,8 @@ const sipHost = z
  * the moment it arrives and is never stored, logged or returned in clear (§17).
  */
 export const sipCredentials = z.object({
-  /** The number the trunk delivers, in E.164. */
-  number: e164,
+  /** The number the trunk delivers: a real number with its country code (QA-107, `dialableE164`). */
+  number: dialableE164,
   /** Termination URI / SIP host the platform registers against. */
   host: sipHost,
   username: z.string().trim().min(1).max(128).optional(),
@@ -223,8 +238,11 @@ export const phonePlanRequest = z.discriminatedUnion('option', [
     option: z.literal('forward'),
     country: purchasableCountry,
     area_code: areaCode.optional(),
-    /** The line the customer already has and will forward to the new number. */
-    existing_number: e164,
+    /**
+     * The line the customer already has and will forward to the new number. "Test forwarding"
+     * rings it, so it must be a real number with its country code (QA-107, `dialableE164`).
+     */
+    existing_number: dialableE164,
     carrier: carrier.default('other'),
     forward_mode: forwardMode.default('always'),
     nickname: z.string().trim().min(1).max(60).optional(),
@@ -264,7 +282,7 @@ export const phonePlanResponse = z.object({
     })
     .nullable(),
   hours_mode: hoursMode,
-  transfer_targets: z.array(transferTarget),
+  transfer_targets: z.array(storedTransferTarget),
   allowed_countries: z.array(z.string()),
   status: phonePlanStatus,
   /** The number this plan produced, once executed. */
@@ -281,8 +299,8 @@ export const buyNumberRequest = z.object({
   area_code: areaCode.optional(),
   toll_free: z.boolean().default(false),
   nickname: z.string().trim().min(1).max(60).optional(),
-  /** Option B: the line that will be forwarded to this number. */
-  forward_from: e164.optional(),
+  /** Option B: the line that will be forwarded to this number, with its country code (QA-107). */
+  forward_from: dialableE164.optional(),
   carrier: carrier.optional(),
   forward_mode: forwardMode.optional(),
   ...routing,
@@ -312,10 +330,16 @@ export const updateNumberRequest = z
     /** QA-083: null (or blank) clears it. */
     transfer_fail_message: transferFailMessage.nullable().optional(),
     allowed_countries: z.array(countryCode).max(20).optional(),
-    blocklist: z.array(e164).max(200).optional(),
+    /** QA-106: `+` and digits, as the caller ID is compared (never dialled, so a spoofed one may be listed). */
+    blocklist: z.array(blockedCaller).max(200).optional(),
     paused: z.boolean().optional(),
     /** Option B: the customer confirms the carrier forwarding is switched on. */
     forwarding_confirmed: z.boolean().optional(),
+    /**
+     * Option B: correct the line callers dial today (QA-107, ADR 0045). The only way to repair
+     * a line saved before the country-code rule; a change waits for the customer again.
+     */
+    forwarding_from: dialableE164.optional(),
   })
   .refine((v) => Object.keys(v).length > 0, 'Nothing to update');
 export type UpdateNumberRequest = z.infer<typeof updateNumberRequest>;
@@ -346,7 +370,7 @@ export const phoneNumberResponse = z.object({
   staff_pause_ticket_id: z.number().int().nullable().default(null),
   hours_mode: hoursMode,
   hours_override: businessHours.nullable(),
-  transfer_targets: z.array(transferTarget),
+  transfer_targets: z.array(storedTransferTarget),
   /** QA-083: read word for word when a transfer fails; null = the fixed rule's own words. */
   transfer_fail_message: z.string().nullable().default(null),
   allowed_countries: z.array(z.string()),

@@ -87,3 +87,14 @@ export const TRANSFER_DEBIT_ONCE_CONSTRAINT = 'credit_ledger_transfer_debit_once
 export function isDuplicateTransferDebit(error: unknown): boolean {
   return isUniqueViolation(error, TRANSFER_DEBIT_ONCE_CONSTRAINT) || isUniqueViolation(error, 'ref_id') || uniqueTargetUnknown(error);
 }
+
+/**
+ * QA-105: one `phone_numbers` row holds a number at a time (partial on `status <> 'released'`).
+ * Hand-written, so Prisma may name it, name the column, or name nothing; callers use this only
+ * where the row's other unique keys (`plan_id`, `inbound_token`) cannot be the one that collided.
+ */
+export const NUMBER_HELD_CONSTRAINT = 'phone_numbers_e164_held_key';
+
+export function isNumberHeldViolation(error: unknown): boolean {
+  return isUniqueViolation(error, NUMBER_HELD_CONSTRAINT) || isUniqueViolation(error, 'e164') || uniqueTargetUnknown(error);
+}

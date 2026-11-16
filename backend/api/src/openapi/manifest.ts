@@ -155,6 +155,15 @@ export const MANIFEST: readonly EndpointSpec[] = [
   // ------------------------------------------------------------------ config (§13.12)
   {
     method: 'GET',
+    path: '/announcements/active',
+    operationId: 'listActiveAnnouncements',
+    summary: 'D1 — the staff banners (SA10) this workspace should see now',
+    tag: 'config',
+    spec: '§16, admin §5.3',
+    response: { schema: 'activeAnnouncementsResponse' },
+  },
+  {
+    method: 'GET',
     path: '/pricing',
     operationId: 'getPricing',
     summary: 'Current pricing config: packs, rates, recurring charges, wallet policy',
@@ -749,7 +758,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     body: 'phonePlanRequest',
     response: { schema: 'phonePlanResponse' },
     roles: ['owner', 'admin', 'editor'],
-    errors: ['NOT_FOUND', 'PLAN_LIMIT', 'VALIDATION_FAILED', 'NOT_CONFIGURED'],
+    errors: ['NOT_FOUND', 'PLAN_LIMIT', 'VALIDATION_FAILED', 'NOT_CONFIGURED', 'NUMBER_IN_USE'],
   },
   {
     method: 'GET',
@@ -787,7 +796,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     body: 'buyNumberRequest',
     response: { schema: 'numberAccepted' },
     roles: ['owner', 'admin'],
-    errors: ['NO_CREDITS', 'PLAN_LIMIT', 'EMAIL_UNVERIFIED', 'VALIDATION_FAILED'],
+    errors: ['PURCHASE_REQUIRED', 'NO_CREDITS', 'PLAN_LIMIT', 'NUMBER_LIMIT', 'EMAIL_UNVERIFIED', 'VALIDATION_FAILED'],
   },
   {
     method: 'POST',
@@ -798,7 +807,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     body: 'importNumberRequest',
     response: { schema: 'numberAccepted' },
     roles: ['owner', 'admin'],
-    errors: ['NO_CREDITS', 'PLAN_LIMIT', 'EMAIL_UNVERIFIED', 'VALIDATION_FAILED', 'NOT_CONFIGURED'],
+    errors: ['PURCHASE_REQUIRED', 'NO_CREDITS', 'PLAN_LIMIT', 'NUMBER_LIMIT', 'EMAIL_UNVERIFIED', 'VALIDATION_FAILED', 'NOT_CONFIGURED', 'NUMBER_IN_USE'],
   },
   {
     method: 'GET',
@@ -813,12 +822,12 @@ export const MANIFEST: readonly EndpointSpec[] = [
     method: 'PATCH',
     path: '/numbers/:id',
     operationId: 'updateNumber',
-    summary: 'Routing and labels: agent, hours, transfer targets, blocklist, pause',
+    summary: 'Routing and labels: agent, hours, transfer targets, blocklist, pause, the forwarded line',
     tag: 'numbers',
     body: 'updateNumberRequest',
     response: { schema: 'phoneNumberResponse' },
     roles: ['owner', 'admin', 'editor'],
-    errors: ['NOT_FOUND', 'CONFLICT', 'VALIDATION_FAILED', 'AGENT_NOT_PUBLISHED', 'NUMBER_STAFF_PAUSED'],
+    errors: ['NOT_FOUND', 'CONFLICT', 'BAD_REQUEST', 'VALIDATION_FAILED', 'AGENT_NOT_PUBLISHED', 'NUMBER_STAFF_PAUSED', 'FORWARDING_TEST_IN_PROGRESS'],
   },
   {
     method: 'POST',
@@ -842,6 +851,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     errors: [
       'NOT_FOUND',
       'NOT_FORWARDING_NUMBER',
+      'FORWARDING_NUMBER_INVALID',
       'CONFLICT',
       'WORKSPACE_PAUSED',
       'AGENT_NOT_PUBLISHED',
@@ -864,7 +874,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     tag: 'numbers',
     response: { schema: 'releasedResponse' },
     roles: ['owner', 'admin'],
-    errors: ['NOT_FOUND', 'UPSTREAM_UNAVAILABLE'],
+    errors: ['NOT_FOUND', 'NUMBER_ON_CALL', 'UPSTREAM_UNAVAILABLE'],
   },
 
   // ------------------------------------------------------------------ activation (§13.8)
@@ -1341,6 +1351,24 @@ export const MANIFEST: readonly EndpointSpec[] = [
     tag: 'notifications',
     spec: '§5.4, §5.3, §14.3',
     response: { schema: 'activeAlertsResponse' },
+  },
+  {
+    method: 'GET',
+    path: '/notifications',
+    operationId: 'listNotifications',
+    summary: '§7.2 bell — the caller’s recent notifications from the outbox, newest first, with the unread count',
+    tag: 'notifications',
+    spec: '§7.2, §13.1',
+    response: { schema: 'notificationsResponse' },
+  },
+  {
+    method: 'POST',
+    path: '/notifications/seen',
+    operationId: 'markNotificationsSeen',
+    summary: '§7.2 bell — the caller opened it; everything up to now is read',
+    tag: 'notifications',
+    spec: '§7.2',
+    response: { schema: 'notificationsSeenResponse' },
   },
   {
     method: 'POST',

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Prisma, withWorkspace } from '@portal/db';
-import type { ForwardingTest } from '@portal/schemas';
+import { isDialableE164, type ForwardingTest } from '@portal/schemas';
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
@@ -90,6 +90,11 @@ export class ForwardingTestService {
     });
     if (!row) throw AppError.notFound('Phone number');
     if (!row.forwardingFrom) throw new AppError('NOT_FORWARDING_NUMBER', 'Only a number your existing line forwards to can be tested this way.');
+    // QA-107: a line saved before the country-code rule (`5145550123` stored as Peruvian
+    // `+5145550123`) is never rung — the test would call a stranger abroad on the customer's credits.
+    if (!isDialableE164(row.forwardingFrom)) {
+      throw new AppError('FORWARDING_NUMBER_INVALID', 'Your existing line was saved without its country code, so we will not call it. Correct it under Your existing line, then test again.');
+    }
     if (row.tenantPaused) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to resume it.');
     if (!row.e164 || row.status !== 'active') throw new AppError('CONFLICT', 'This number is not connected yet. Try again once it is live.');
     if (row.staffPausedAt) throw new AppError('NUMBER_STAFF_PAUSED', 'This number has been paused by our support team. Please contact support.');

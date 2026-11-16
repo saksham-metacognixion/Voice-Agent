@@ -121,7 +121,40 @@
       "balance": "The balance is high, so owners and admins verify with an authenticator app before changing anything.",
       "action": "Verify now"
     },
-    "viewOnly": "You have view-only access to this workspace. Ask an owner or admin if you need to change something."
+    "viewOnly": "You have view-only access to this workspace. Ask an owner or admin if you need to change something.",
+    "balanceWithMinutes": "{credits} credits · ≈ {minutes} min",
+    "balanceOutTopUp": "Agent paused — top up",
+    "balanceOut": "Agent paused — out of credits",
+    "approxMinutes": "≈ {minutes} min of calls",
+    "topUpHint": "Open the wallet to top up",
+    "pausedByStaffTicket": "Your account is paused — see ticket #{ticket}",
+    "pausedBody": "Our team paused this workspace. Your agent is not answering calls until it is resumed.",
+    "pausedOpenTicket": "Open Help",
+    "pausedContact": "Contact support",
+    "unpublished": {
+      "label": "{n, plural, one {# unpublished change} other {# unpublished changes}}"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "aria": "Notifications",
+      "ariaUnread": "Notifications, {n, plural, one {# unread} other {# unread}}",
+      "empty": "Nothing new yet. A low balance, a message taken, a number going live and a new member will show here.",
+      "loadFailed": "Notifications could not be loaded",
+      "kind": {
+        "low_balance": "Balance low: {balance} credits left",
+        "low_balance_plain": "Your balance is low",
+        "message_captured": "Message taken from {number}",
+        "message_captured_plain": "A caller left a message",
+        "number_active": "{number} is live and taking calls",
+        "number_active_plain": "Your number is live and taking calls",
+        "number_released": "{number} was released",
+        "number_released_plain": "A number was released",
+        "member_joined": "{email} joined the workspace",
+        "member_joined_plain": "A new member joined the workspace",
+        "rental_overdue": "A number’s monthly rental is overdue",
+        "auto_topup_failed": "Auto top-up failed: your card was declined"
+      }
+    }
   },
   "auth": {
     "brand": "From conversation to action.",
@@ -383,6 +416,7 @@
     "CALLER_ID_REQUIRED": "You need a verified number to call from. Numbers you buy from us are verified automatically.",
     "CALLER_ID_UNVERIFIED": "That number is not verified for outbound calls. Contact support to verify it.",
     "NUMBER_PAUSED": "That number is paused, so no callback can come from it. Resume it in Numbers, or pick another verified number.",
+    "NUMBER_STAFF_PAUSED": "This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.",
     "WORKSPACE_TIMEZONE_INVALID": "Your workspace time zone is not one we recognise, so calling hours cannot be checked. Correct it in Settings → Workspace → Time zone.",
     "DESTINATION_INVALID": "This call has no phone number we can call back.",
     "DNC_LISTED": "This number is on your do-not-call list.",
@@ -399,7 +433,10 @@
       "retry": "Try again",
       "home": "Go to the dashboard",
       "support": "Contact support"
-    }
+    },
+    "NUMBER_LIMIT": "Every phone number your plan includes is already in use. Upgrade your plan to add another.",
+    "NUMBER_ON_CALL": "This number is on a call right now. You can release it once the call ends.",
+    "FORWARDING_NUMBER_INVALID": "Your existing line was saved without its country code, so we will not call it. Correct it under Your existing line, then test again."
   },
   "validation": {
     "required": "Required",
@@ -416,7 +453,6 @@
   },
   "wizard": {
     "title": "Set up your agent",
-    "NUMBER_STAFF_PAUSED": "This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.",
     "steps": {
       "template": "Template",
       "brief": "Business",
@@ -1688,7 +1724,13 @@
         "expiring": "Expiring next",
         "expiringValue": "{credits} on {date}",
         "nothingExpiring": "Nothing expiring",
-        "autoTopupOn": "Auto top-up is on: refills below {threshold} credits."
+        "autoTopupOn": "Auto top-up is on: refills below {threshold} credits.",
+        "approxMinutes": "≈ {minutes} min at Standard",
+        "approxDays": "≈ {days, plural, one {# day} other {# days}} left",
+        "noUsage": "No calls in the last 7 days",
+        "outOfCredits": "Out of credits",
+        "approxHint": "Estimates from the published rate and the last 7 days’ use",
+        "autoTopupOff": "Auto top-up is off."
       },
       "today": {
         "title": "Today",
@@ -1702,11 +1744,30 @@
         "answered": "Answered",
         "phoneCalls": "Phone",
         "websiteCalls": "Website",
-        "channelMinutes": "{minutes} min"
+        "channelMinutes": "{minutes} min",
+        "messages": "Messages taken",
+        "sentiment": "Positive callers",
+        "sentimentValue": "{pct}%",
+        "sentimentHint": "{positive} positive · {neutral} neutral · {negative} negative",
+        "sentimentNone": "No rated calls yet"
       },
       "agents": {
         "title": "Agents",
-        "all": "All agents"
+        "all": "All agents",
+        "test": "Test",
+        "publish": "Publish",
+        "edit": "Edit",
+        "view": "View",
+        "seeChecks": "See the checks",
+        "pausedByStaffTicket": "Paused by Oraly support · ticket #{ticket}",
+        "pausedByStaff": "Paused by Oraly support",
+        "pausedByYou": "Paused by your team",
+        "pausedPlain": "Paused",
+        "publishTitle": "Publish {name} v{n}?",
+        "publishBodyLive": "Version {live} is live now. The draft replaces it on your numbers once the checks pass.",
+        "publishBodyFirst": "This puts the agent on your numbers once the checks pass.",
+        "publishChecks": "The script is checked first; an error stops the publish.",
+        "publishNumbers": "Numbers pointed at this agent use the new version from their next call."
       },
       "checklist": {
         "title": "Set-up checklist",
@@ -1717,7 +1778,9 @@
           "agent_generated": "Write the agent from your brief",
           "agent_published": "Publish the agent",
           "credits_purchased": "Buy your first credits",
-          "number_attached": "Attach a phone number"
+          "number_attached": "Attach a phone number",
+          "forwarding_tested": "Test call forwarding",
+          "team_invited": "Invite your team"
         }
       },
       "recent": {
@@ -2040,7 +2103,14 @@
       "status": {
         "live": "Live",
         "paused": "Paused",
-        "draft": "Draft"
+        "draft": "Draft",
+        "noNumber": "No number"
+      },
+      "noNumber": {
+        "title": "This agent has no phone number",
+        "body": "Callers cannot reach it yet.",
+        "askAdmin": "Callers cannot reach it yet. Ask an owner or admin to add a number.",
+        "add": "Add a number"
       },
       "templates": {
         "receptionist": "Receptionist",
@@ -2085,8 +2155,10 @@
         "firstTitle": "Draft v{n} is ready to publish",
         "hint": "Publishing runs the checks and puts this version on your numbers.",
         "pausedHint": "This agent is paused. Publishing updates it but does not resume it.",
+        "hintNoNumber": "Publishing runs the checks. This agent has no phone number, so callers cannot reach it until you add one.",
         "button": "Publish v{n}",
         "done": "Version {n} is live.",
+        "doneNoNumber": "Version {n} is published. The agent has no phone number yet.",
         "alreadyLive": "Version {n} was already live.",
         "blocked": "Fix these before publishing",
         "warnings": "Published with warnings",
@@ -2445,6 +2517,10 @@
         "agentNone": "Publish an agent first — none is live yet.",
         "active": "Answer calls on this number",
         "activeHint": "Off pauses this number: callers hear a busy tone and nothing is charged.",
+        "staffPaused": "This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.",
+        "staffPausedTicket": "Support ticket #{id}",
+        "staffPausedContact": "Contact support: {email}",
+        "staffPausedHint": "Only our support team can turn this number back on.",
         "hours": "When to answer",
         "modes": {
           "always": "Around the clock",
@@ -2502,13 +2578,12 @@
         "block": "Block",
         "blocked": "Blocked",
         "blockedToast": "{number} is blocked on this number.",
-        "unknown": "Unknown caller"
+        "unknown": "Unknown caller",
+        "misread": "These were saved without their country code, so they block nobody:",
+        "misreadRow": "{entry} → {suggestion}",
+        "misreadUse": "Use the corrected numbers"
       },
       "forwarding": {
-        "staffPaused": "This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.",
-        "staffPausedTicket": "Support ticket #{id}",
-        "staffPausedContact": "Contact support: {email}",
-        "staffPausedHint": "Only our support team can turn this number back on.",
         "title": "Forward your existing line",
         "body": "Callers keep dialling {from}. Your carrier forwards those calls to {to}, which your agent answers.",
         "bodyPending": "Callers keep dialling {from}. Your carrier forwards those calls to this number once it is set up.",
@@ -2543,6 +2618,12 @@
             "landed": "Forwarding works: the call reached your agent.",
             "notLanded": "The test call was not forwarded."
           }
+        },
+        "line": {
+          "label": "Your existing line",
+          "hint": "The number your callers dial today, with its country code. After a change, turn forwarding on from that line and test again.",
+          "save": "Save line",
+          "saved": "Line saved. Turn forwarding on from it, then test again."
         }
       },
       "sip": {
@@ -2645,7 +2726,17 @@
         "buyCredits": "Buy credits",
         "adminOnly": "Only an owner or admin can add a number.",
         "started": "We are setting up your number. It appears here as soon as it is ready.",
-        "sipLocked": "Bringing your own line is part of a bigger pack."
+        "sipLocked": "Bringing your own line is part of a bigger pack.",
+        "purchaseRequired": "Buy a credit pack before adding a phone number. Free trial credits are for browser test calls only.",
+        "limitReached": "Your {plan} plan includes {max, plural, one {one phone number} other {# phone numbers}}. Upgrade your plan to add another.",
+        "upgrade": "Upgrade plan"
+      },
+      "fixNotice": {
+        "title": "Some phone numbers need fixing",
+        "body": "These were saved without their country code. Until they’re corrected, a hand-off goes to the wrong number and a blocked caller still gets through.",
+        "handoff": "{count, plural, one {Fix # hand-off number} other {Fix # hand-off numbers}}",
+        "blocked": "{count, plural, one {Fix # blocked caller} other {Fix # blocked callers}}",
+        "dismiss": "Hide"
       }
     },
     "wallet": {
@@ -3435,6 +3526,12 @@
       "today": "today at {time}",
       "tomorrow": "tomorrow at {time}",
       "onDay": "{day} at {time}"
+    },
+    "announcements": {
+      "title": "From the Oraly team",
+      "dismiss": "Hide",
+      "until": "Until {date}",
+      "posted": "Posted {date}"
     }
   },
   "impersonation": {

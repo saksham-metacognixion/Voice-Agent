@@ -14,6 +14,7 @@ import { formatDate, formatPhone } from '@/src/lib/format';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { AddNumberDialog } from './add-number-dialog';
+import { NumbersFixNotice } from './numbers-fix-notice';
 import { NumberLabel, NumberStatusBadge, NumberTypeBadge, useAgentsForNumbers, useNumbersNav } from './number-bits';
 import { RenameNumberDialog } from './rename-number-dialog';
 
@@ -24,7 +25,7 @@ import { RenameNumberDialog } from './rename-number-dialog';
  * the activation SSE frame refreshes it too, but a number bought from here has no
  * activation job to publish one.
  */
-export function NumbersList() {
+export function NumbersList({ addRequested = false, addAgentId = null, onAddClosed }: { addRequested?: boolean; addAgentId?: string | null; onAddClosed?: () => void } = {}) {
   const t = useTranslations('dashboard.numbers');
   const tc = useTranslations();
   const api = useApi();
@@ -114,6 +115,7 @@ export function NumbersList() {
           ) : undefined
         }
       />
+      <NumbersFixNotice />
       {numbers.isPending ? (
         <div className="flex flex-col gap-2" aria-busy>
           {[0, 1, 2].map((i) => (
@@ -138,7 +140,16 @@ export function NumbersList() {
       ) : (
         <DataTable label={t('listLabel')} rows={rows} columns={columns} rowKey={(n) => n.id} onRowClick={(n) => nav.open(n.id)} rowClassName={(n) => (isNumberEditable(n) ? undefined : 'opacity-70')} />
       )}
-      {canAdmin ? <AddNumberDialog open={adding} onOpenChange={setAdding} /> : null}
+      {canAdmin ? (
+        <AddNumberDialog
+          open={adding || addRequested}
+          agentId={addRequested ? addAgentId : null}
+          onOpenChange={(open) => {
+            setAdding(open);
+            if (!open && addRequested) onAddClosed?.();
+          }}
+        />
+      ) : null}
       <RenameNumberDialog number={renaming} onOpenChange={(open) => (open ? undefined : setRenaming(null))} />
     </>
   );

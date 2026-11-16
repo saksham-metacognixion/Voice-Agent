@@ -838,7 +838,18 @@ export const agentSummary = z.object({
   published_version: z.number().int().nullable(),
   /** True when the draft is ahead of the published version — D3's sticky bottom bar. */
   has_unpublished_changes: z.boolean(),
+  /** The draft has a script, so Publish can be offered without opening the agent (D1 card, ADR 0041). */
+  draft_has_prompt: z.boolean(),
   numbers_attached: z.number().int(),
+  /** The first active number pointed at the agent, for the D1 card. Null without one. */
+  number_e164: z.string().nullable(),
+  /**
+   * Who paused it (ADR 0041): the customer from D3, or staff from the console — the D1
+   * card says which, and names the ticket for a staff pause. Null while not paused, and
+   * null for a pause recorded before the column existed.
+   */
+  paused_by: z.enum(['customer', 'staff']).nullable(),
+  paused_ticket_id: z.number().int().nullable(),
   max_call_duration_s: z.number().int(),
   recording_enabled: z.boolean(),
   created_at: isoDateTime,

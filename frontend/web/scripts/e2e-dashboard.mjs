@@ -1,7 +1,9 @@
 /**
  * The dashboard end to end (D10): sign in through the stand-in issuer as the owner of a
  * live workspace, then D1 (banner, credits, today, agents, checklist, recent calls, the
- * 30-day chart), D2 (URL-synced filters, sort, pagination, selection, bulk mark handled,
+ * 30-day chart, and since ADR 0041 the §7.2 chip, bell and pill, announcements, the
+ * messages/sentiment/days-left figures, the agent card's buttons, the checklist rows, a
+ * blocked-request pass), D2 (URL-synced filters, sort, pagination, selection, bulk mark handled,
  * CSV export, the detail drawer with summary, captured fields, transcript, recording,
  * note) and D3 (list, every tab, the Advanced editor's live lint and save, versions,
  * settings). A `call:` frame is pushed through the API's own event bus to prove the SSE
@@ -13,9 +15,14 @@
  * (it inserts nothing; it publishes one frame on the workspace's channel).
  *
  *   PORTAL_URL=http://localhost:3005 API_URL=http://localhost:4001 node scripts/e2e-dashboard.mjs
+ *
+ * With E2E_USER_FILE (the issuer's LOCAL_ISSUER_USER_FILE) the run ends with a viewer
+ * pass: the owner invites a viewer, the identity file is rewritten, the invite is
+ * accepted, and D1 is read as the viewer — no Top up, no Publish, no Test, the API
+ * refusing checkout and publish. Without it that pass is SKIP.
  */
 import { launch } from './cdp.mjs';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 const S = fileURLToPath(new URL('../.e2e', import.meta.url)); mkdirSync(S, { recursive: true });
 const BASE = (process.env.PORTAL_URL ?? 'http://localhost:3005').replace(/\/+$/, '');
@@ -33,6 +40,11 @@ const bodyText = () => b.evaluate('document.body.innerText');
 const count = (selector) => b.evaluate(`document.querySelectorAll(${JSON.stringify(selector)}).length`);
 /** Radix Tabs activate on pointer/mouse down, not on click; press the tab the way a pointer does. */
 const pressTab = (label) => b.evaluate(`(() => { const el = [...document.querySelectorAll('[role="tab"]')].find(t => t.textContent.trim() === ${JSON.stringify(label)}); if (!el) return 'missing'; el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 })); el.click(); return 'ok'; })()`);
+/** Radix menus (the bell, the account menu) open on pointer down, like its tabs; press the trigger the way a pointer does. */
+const pressMenu = (selector) => b.evaluate(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return 'missing'; el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0, pointerType: 'mouse' })); el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 })); el.click(); return 'ok'; })()`);
+/** The page's own token and workspace, for a request the script makes from Node so an intended refusal never lands in the browser console. */
+const pageSession = () => b.evaluate(`(() => { const keys = Object.keys(localStorage).filter(k => k.startsWith('@@auth0spajs@@') && !k.includes('@@user@@')); let token = null; for (const k of keys) { try { token = JSON.parse(localStorage.getItem(k)).body.access_token; } catch {} } const ws = localStorage.getItem('portal:workspace') ?? localStorage.getItem('portal-workspace') ?? null; return { token, wsId: ws && ws.startsWith('"') ? JSON.parse(ws) : ws }; })()`);
+const nodeCall = async (method, route, body) => { const s = await pageSession(); const res = await fetch(`${API}${route}`, { method, headers: { Authorization: `Bearer ${s.token}`, 'X-Workspace-Id': s.wsId, 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) }); const text = await res.text(); let json = null; try { json = JSON.parse(text); } catch {} return { status: res.status, json }; };
 /** The open drawer's text (Radix marks its content `data-state="open"`). */
 const drawerText = () => b.evaluate(`document.querySelector('#call-note')?.closest('[data-state="open"], [role="dialog"]')?.innerText ?? document.body.innerText`);
 /** The signed-in API client from inside the page: the SPA's token + workspace header. */
@@ -66,11 +78,80 @@ try {
   ok('D1 today card renders', home.includes('Today') && home.includes('Missed'));
   ok('D1 agent card lists the agent', home.includes('Restaurant Reservations'));
   const checklist = await apiCall('GET', '/workspace/checklist');
-  ok('D1 checklist follows the server: hidden when complete, shown with progress otherwise', checklist.json?.complete ? !home.includes('Set-up checklist') : home.includes('of 6 done'), `complete=${checklist.json?.complete}`);
+  ok('D1 checklist follows the server: hidden once every row is done, shown with progress otherwise', checklist.json?.all_done ? !home.includes('Set-up checklist') : /of [78] done/.test(home), `all_done=${checklist.json?.all_done}`);
   ok('D1 30-day chart draws bars from /stats', (await count('svg[role="img"] path')) > 5, `bars=${await count('svg[role="img"] path')}`);
   ok('D1 recent calls lists 5 rows', (await b.evaluate(`[...document.querySelectorAll('a[href^="/app/calls/?call="]')].length`)) === 5);
   ok('D1 live indicator is green (SSE open)', Boolean(await waitFor(`document.body.innerText.includes('Live')`, 10000)));
+
+  // 1b. §7.2 shell and the D1 widgets of ADR 0041, each read against the API it renders.
+  const agentsApi = await apiCall('GET', '/agents?limit=10');
+  const agentRows = agentsApi.json?.items ?? [];
+  const anyUnpublished = agentRows.some((a) => a.has_unpublished_changes);
+  const chips = await count('[data-testid="unpublished-chip"]');
+  ok('shell unpublished-changes chip follows the agents\' draft state', anyUnpublished ? chips === 1 : chips === 0, `unpublished=${anyUnpublished} chips=${chips}`);
+  if (anyUnpublished) {
+    const href = await b.evaluate(`document.querySelector('[data-testid="unpublished-chip"]')?.getAttribute('href')`);
+    const changed = agentRows.filter((a) => a.has_unpublished_changes);
+    ok('shell chip opens the one agent\'s Test tab, or the list for several', changed.length === 1 ? href === `/app/agents/detail/?id=${changed[0].id}&tab=test` : href === '/app/agents/', href);
+  }
+  ok('shell notifications bell renders', (await count('[data-testid="notifications-bell"]')) === 1);
+  const feedApi = await apiCall('GET', '/notifications');
+  const badge = await b.evaluate(`document.querySelector('[data-testid="notifications-unread"]')?.textContent ?? null`);
+  ok('shell bell unread badge matches GET /notifications', feedApi.json?.unread > 0 ? badge !== null : badge === null, `unread=${feedApi.json?.unread} badge=${badge}`);
+  await pressMenu('[data-testid="notifications-bell"]'); await sleep(900);
+  const menu = await b.evaluate(`document.querySelector('[role="menu"]')?.innerText ?? ''`);
+  ok('shell bell opens with the list or the empty state', menu.includes('Notifications') && ((feedApi.json?.items ?? []).length ? !menu.includes('Nothing new') : menu.includes('Nothing new')), menu.replace(/\n/g, ' | ').slice(0, 120));
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`); await sleep(500);
+  if (feedApi.json?.unread > 0) { const after = await apiCall('GET', '/notifications'); ok('shell bell marks the feed seen on open', after.json?.unread === 0, `unread=${after.json?.unread}`); }
+  const walletApi = await apiCall('GET', '/wallet');
+  const pill = await b.evaluate(`document.querySelector('aside [data-testid="balance-pill"]')?.innerText ?? ''`);
+  ok('shell balance pill shows credits and ≈ minutes, or the paused copy at ≤ 0', walletApi.json?.balance > 0 ? /credits · ≈ \d+ min/.test(pill) : /Agent paused/.test(pill), pill);
+  ok('D1 credits outlook shows ≈ minutes, days left and says it is an estimate', /≈ \d+ min at Standard/.test(home) && /(≈ \d+ days? left|No calls in the last 7 days|Out of credits)/.test(home) && home.includes('Estimates from'), (home.match(/≈ [^\n]*/) ?? [''])[0]);
+  ok('D1 credits card states the auto top-up setting', /Auto top-up is (on|off)/.test(home));
+  ok('D1 top-up button is offered to the owner', (await count('[data-testid="top-up"]')) === 1);
+  const statsApi = await apiCall('GET', '/stats?range=today');
+  const messagesTxt = await b.evaluate(`document.querySelector('[data-testid="messages-taken"] dd')?.textContent ?? null`);
+  ok('D1 today card shows messages taken from /stats', messagesTxt !== null && Number(messagesTxt.replace(/[^\d]/g, '')) === statsApi.json?.messages_taken, `card=${messagesTxt} api=${statsApi.json?.messages_taken}`);
+  const sentimentTxt = await b.evaluate(`document.querySelector('[data-testid="sentiment"]')?.innerText ?? ''`);
+  const known = (s) => (s?.positive ?? 0) + (s?.neutral ?? 0) + (s?.negative ?? 0);
+  ok('D1 today card shows the positive share or "no rated calls"', known(statsApi.json?.sentiment) > 0 ? /\d+%/.test(sentimentTxt) : sentimentTxt.includes('No rated calls'), sentimentTxt.replace(/\n/g, ' | '));
+  const publishable = agentRows.some((a) => a.draft_has_prompt && (a.has_unpublished_changes || a.published_version === null));
+  ok('D1 agent card offers Test and Edit, and Publish only while a draft waits', (await count('[data-testid="agent-test"]')) >= 1 && (await count('[data-testid="agent-edit"]')) >= 1 && ((await count('[data-testid="agent-publish"]')) >= 1) === publishable, `publishable=${publishable}`);
+  ok('D1 agent card shows the agent\'s number', !agentRows.some((a) => a.number_e164) || /\+1 \d{3} \d{3} \d{4}/.test(home));
+  ok('D1 shows no paused-by-staff banner on a running workspace', (await count('[data-testid="paused-banner"]')) === 0 && !home.includes('Your account is paused'));
+  const rowsShown = await b.evaluate(`[...document.querySelectorAll('[data-testid^="checklist-"]')].map(a => a.dataset.testid.slice('checklist-'.length) + ':' + a.dataset.done)`);
+  ok('D1 checklist rows mirror GET /workspace/checklist', checklist.json?.all_done ? rowsShown.length === 0 : rowsShown.length >= 7 && rowsShown.every((r) => { const [k, d] = r.split(':'); return String(checklist.json[k]) === d; }), rowsShown.join(','));
   await b.shot(`${S}/shot-d1-home.png`, true);
+
+  // 1c. A staff announcement, from the table SA10 will write (D20): shown, then hidden per browser.
+  try {
+    const { withAnnouncement } = await import('./e2e-db.mjs');
+    const annText = `E2E notice ${Date.now().toString(36)}: planned maintenance tonight.`;
+    const shown = await withAnnouncement({ body: annText, severity: 'warning' }, async () => {
+      await b.goto(`${BASE}/app/`, 3000);
+      const seen = await waitFor(`document.body.innerText.includes(${JSON.stringify(annText)})`, 15000);
+      const before = await bodyText();
+      await b.evaluate(`document.querySelector('[data-testid="announcements"] button')?.click()`); await sleep(500);
+      return { seen: Boolean(seen), before, after: await bodyText() };
+    });
+    ok('D1 shows an active staff announcement from GET /announcements/active', shown.seen && shown.before.includes('From the Oraly team'));
+    ok('D1 hides a dismissible announcement on Hide, per browser', !shown.after.includes(annText));
+    await b.shot(`${S}/shot-d1-announcement.png`);
+  } catch (e) {
+    results.push(`SKIP D1 announcement (no database access from this box: ${String(e).slice(0, 120)})`); console.log(results.at(-1));
+  }
+
+  // 1d. Blocked requests: announcements, the bell and the 7-day stats fail; Home still renders.
+  await b.send('Network.enable', {});
+  await b.send('Network.setBlockedURLs', { urls: ['*/announcements/active*', '*/notifications*', '*/stats?range=7d*'] });
+  await b.goto(`${BASE}/app/`, 3000); await waitFor(`document.body.innerText.includes('Recent calls')`, 15000); await sleep(1500);
+  const broken = await bodyText();
+  ok('D1 survives failed announcements, notifications and 7-day stats requests', broken.includes('Recent calls') && broken.includes('Credits') && /≈ \d+ min at Standard/.test(broken) && (await count('[data-testid="notifications-bell"]')) === 1);
+  await pressMenu('[data-testid="notifications-bell"]'); await sleep(900);
+  ok('shell bell shows the failure and a retry when its request fails', (await b.evaluate(`document.querySelector('[role="menu"]')?.innerText ?? ''`)).includes('could not be loaded'));
+  await b.evaluate(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`); await sleep(300);
+  await b.send('Network.setBlockedURLs', { urls: [] });
+  await b.goto(`${BASE}/app/`, 3000); await waitFor(`document.body.innerText.includes('Recent calls')`, 15000);
   await b.evaluate(`localStorage.setItem('portal-theme', 'dark')`); await b.goto(`${BASE}/app/`, 3500); await waitFor(`document.body.innerText.includes('Recent calls')`, 15000); await sleep(1000);
   await b.shot(`${S}/shot-d1-home-dark.png`, true);
   await b.evaluate(`localStorage.setItem('portal-theme', 'light')`);
@@ -208,9 +289,12 @@ try {
   await b.goto(`${BASE}/app/agents/`, 3000); await waitFor(`document.body.innerText.includes('Restaurant Reservations')`, 15000);
   ok('D3 lists the agent with its status', (await bodyText()).includes('Draft'));
   await b.shot(`${S}/shot-d3-list.png`);
-  await b.evaluate(`document.querySelector('a[href^="/app/agents/detail/?id="]').click()`); await sleep(2500);
+  // The list's own link, not the header's unpublished-changes chip (which opens the Test tab).
+  await b.evaluate(`document.querySelector('main a[href^="/app/agents/detail/?id="]').click()`); await sleep(2500);
   ok('D3 opens the detail page with ?id=', (await path()).startsWith('/app/agents/detail/?id='), await path());
   await waitFor(`document.body.innerText.includes('Configuration')`, 15000);
+  // The overview's recent-calls card is its own query; wait for both before reading the page.
+  await waitFor(`document.body.innerText.includes('Max call length') && document.body.innerText.includes('Recent calls')`, 15000);
   ok('D3 Overview shows live vs draft settings', (await bodyText()).includes('Max call length') && (await bodyText()).includes('Recent calls'));
   await b.shot(`${S}/shot-d3-overview.png`, true);
   const tabs = ['Brief', 'Advanced', 'Voice', 'Knowledge', 'Test', 'Versions', 'Settings'];
@@ -274,7 +358,8 @@ try {
   ok('D3 publish bar offers the draft', Boolean(publishBtn));
   if (publishBtn) {
     await b.evaluate(`[...document.querySelectorAll('button')].find(b => /^Publish v\\d+/.test(b.textContent.trim())).click()`);
-    const published = await waitFor(`/Version \\d+ is live|already live/.test(document.body.innerText) ? document.body.innerText.match(/Version \\d+ is live|already live[^\\n]*/)[0] : null`, 60000, 500);
+    // The seeded agent holds no number, so the message is "is published", not "is live".
+    const published = await waitFor(`/Version \\d+ is (live|published)|already live/.test(document.body.innerText) ? document.body.innerText.match(/Version \\d+ is (live|published)|already live[^\\n]*/)[0] : null`, 60000, 500);
     ok('D3 publish goes live (real platform sync)', Boolean(published), String(published));
     await sleep(1500);
     await pressTab('Overview'); await sleep(1500);
@@ -290,6 +375,66 @@ try {
     const wide = overflow > 1 ? await b.evaluate(`[...document.querySelectorAll('body *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1 && getComputedStyle(e).position !== 'fixed').slice(0, 6).map(e => e.tagName + '.' + String(e.className).slice(0, 60) + '@' + Math.round(e.getBoundingClientRect().right)).join(' | ')`) : '';
     ok(`${name} has no horizontal page scroll at 390px`, overflow <= 1, `overflow=${overflow} ${wide}`);
     await b.shot(`${S}/shot-mobile-${name}.png`, true);
+  }
+
+  // 8. The viewer (§6.1 on D1): invite, switch identity, accept, read Home with no money or publish controls.
+  const userFile = process.env.E2E_USER_FILE;
+  if (!userFile) {
+    results.push('SKIP viewer pass (set E2E_USER_FILE to the issuer\'s LOCAL_ISSUER_USER_FILE)'); console.log(results.at(-1));
+  } else {
+    const original = readFileSync(userFile, 'utf8');
+    try {
+      await b.send('Emulation.clearDeviceMetricsOverride', {});
+      await b.goto(`${BASE}/app/`, 3000); await waitFor(`document.body.innerText.includes('Recent calls')`, 15000);
+      const ws2 = await apiCall('GET', '/workspace');
+      const liveAgent = (await apiCall('GET', '/agents?limit=10')).json?.items?.[0];
+      const id = Date.now().toString(36);
+      const email = `e2e-viewer-${id}@example.test`;
+      const invite = await apiCall('POST', '/invites', { email, role: 'viewer' });
+      ok('owner invites a viewer through POST /invites', invite.status === 201 && Boolean(invite.json?.token), `status=${invite.status}`);
+      // Sign out through the account menu, switch the issuer's identity, sign in from the invite link.
+      await pressMenu('button[aria-label="Account"]'); await sleep(600);
+      await clickText('Sign out', '[role="menuitem"]'); await sleep(3000);
+      writeFileSync(userFile, JSON.stringify({ sub: `auth0|e2e-viewer-${id}`, email, name: 'E2E Viewer', email_verified: true }));
+      await b.goto(`${BASE}/invite/?token=${encodeURIComponent(invite.json?.token ?? '')}`, 3000);
+      await waitFor(`location.pathname === '/login/' || document.body.innerText.includes('Accept invitation')`, 15000);
+      if ((await path()).startsWith('/login/')) { await clickText('Sign in'); await sleep(2500); }
+      // A new person meets the Terms screen first (ADR 0036) and is sent on to the invite afterwards.
+      await waitFor(`location.pathname === '/terms/' || document.body.innerText.includes('Accept invitation')`, 20000);
+      if ((await path()).startsWith('/terms/')) {
+        await waitFor(`!!document.querySelector('#terms-agree')`, 10000);
+        await b.evaluate(`document.querySelector('#terms-agree').click()`); await sleep(300);
+        await clickText('Continue'); await sleep(2000);
+        ok('viewer accepts the Terms and is sent on to the invitation', Boolean(await waitFor(`document.body.innerText.includes('Accept invitation')`, 20000)), await path());
+      }
+      await waitFor(`document.body.innerText.includes('Accept invitation')`, 20000);
+      await clickText('Accept invitation'); await sleep(1500);
+      ok('viewer accepts the invitation', Boolean(await waitFor(`document.body.innerText.includes('Open workspace')`, 15000)));
+      // The sign-in's return path is the invite page itself, so "Open workspace" can land back on it; Home is the destination.
+      await clickText('Open workspace'); await sleep(2500);
+      if ((await path()) !== '/app/') await b.goto(`${BASE}/app/`, 3000);
+      await waitFor(`location.pathname === '/app/'`, 20000);
+      await waitFor(`document.body.innerText.includes('Recent calls') && !document.querySelector('[aria-busy]')`, 20000); await sleep(1000);
+      const vhome = await bodyText();
+      ok('viewer lands on D1 with the dashboard information', (await path()) === '/app/' && /\d+(\.\d+)? credits/.test(vhome) && vhome.includes('Today') && vhome.includes('Recent calls'), await path());
+      ok('viewer sees no Top up button', (await count('[data-testid="top-up"]')) === 0 && !/Buy credits/.test(vhome));
+      ok('viewer sees no Publish or Test on the agent card, only View', (await count('[data-testid="agent-publish"]')) === 0 && (await count('[data-testid="agent-test"]')) === 0 && (await count('[data-testid="agent-view"]')) >= 1);
+      ok('viewer sees the bell and the balance pill', (await count('[data-testid="notifications-bell"]')) === 1 && (await count('[data-testid="balance-pill"]')) >= 1);
+      await b.shot(`${S}/shot-d1-viewer.png`, true);
+      if (liveAgent) {
+        await b.goto(`${BASE}/app/agents/detail/?id=${liveAgent.id}&tab=test`, 3000); await sleep(2000);
+        ok('viewer opening the Test tab by URL gets the editors-only note and no publish bar', (await bodyText()).includes('Test calls can be made by editors') && !/Publish v\d+/.test(await bodyText()));
+        const publish = await nodeCall('POST', `/agents/${liveAgent.id}/publish`, {});
+        ok('API refuses a viewer\'s publish', publish.status === 403 && publish.json?.code === 'FORBIDDEN_ROLE', `status=${publish.status}`);
+      }
+      await b.goto(`${BASE}/app/wallet/`, 3000); await sleep(1500);
+      ok('viewer opening the wallet by URL sees the read-only note', (await bodyText()).includes('An owner or admin manages payments'));
+      const checkout = await nodeCall('POST', '/wallet/checkout', { pack_id: 'growth' });
+      ok('API refuses a viewer\'s checkout', checkout.status === 403 && checkout.json?.code === 'FORBIDDEN_ROLE', `status=${checkout.status}`);
+      void ws2;
+    } finally {
+      writeFileSync(userFile, original);
+    }
   }
 } catch (e) {
   ok('script completed without an exception', false, e?.stack ?? String(e));

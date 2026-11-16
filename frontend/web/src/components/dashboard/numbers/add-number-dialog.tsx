@@ -1,6 +1,6 @@
 'use client';
 
-import { buyNumber, importNumber, useApi, useGetFlags, useGetPricing, useGetWallet } from '@portal/api-client';
+import { buyNumber, importNumber, isApiError, useApi, useGetFlags, useGetPricing, useGetWallet, useListNumbers } from '@portal/api-client';
 import { buyNumberRequest, importNumberRequest, type Carrier, type PurchasableCountry } from '@portal/schemas';
 import { Alert, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -12,6 +12,7 @@ import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwardi
 import { PhoneOptionCards, type WizardPhoneOption } from '@/src/components/wizard/phone-option-cards';
 import { normaliseE164 } from '@/src/components/wizard/transfer-targets-editor';
 import { errorMessage } from '@/src/lib/errors';
+import { addNumberBlock, type AddNumberBlock } from '@/src/dashboard/numbers-view';
 import { formatCreditsValue } from '@/src/lib/format';
 import { routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
@@ -23,10 +24,12 @@ import { useAgentsForNumbers } from './number-bits';
  * D4 "+ Add number" (spec p. 36): the W6 options outside the wizard. A and B are
  * `POST /numbers/buy` — refused here, as by the API, when the balance cannot pay the
  * first month's rental — and C is `POST /numbers/import` behind the `sip_import` gate.
+ * No pack bought yet, or every number the plan includes already held, is said up front
+ * and again from the API's code (QA-108), never as "out of credits" or "not included".
  * Both answer 202: the row exists and provisioning runs as a job, so the dialog closes
  * and the list (which polls while a number provisions) shows it arrive.
  */
-export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+export function AddNumberDialog({ open, onOpenChange, agentId: preselect = null }: { open: boolean; onOpenChange: (open: boolean) => void; agentId?: string | null }) {
   const t = useTranslations('dashboard.numbers.addDialog');
   const tw = useTranslations('wizard.w6');
   const tc = useTranslations();
@@ -37,6 +40,7 @@ export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const flags = useGetFlags(api, { staleTime: 60_000, enabled: open });
   const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS, enabled: open });
   const wallet = useGetWallet(api, { staleTime: 15_000, enabled: open });
+  const numbers = useListNumbers(api, { staleTime: 10_000, enabled: open });
 
   const [option, setOption] = React.useState<WizardPhoneOption>('new');
   const [agentId, setAgentId] = React.useState<string>('');
@@ -53,6 +57,18 @@ export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   React.useEffect(() => {
     if (!agentId && agents.published.length > 0) setAgentId(agents.published[0]!.id);
   }, [agents.published, agentId]);
+  // An agent's "Add a number" link names the agent. Applied once per opening, so a
+  // refetch of the list never takes the picker back from the person.
+  const preselected = React.useRef(false);
+  React.useEffect(() => {
+    if (!open) {
+      preselected.current = false;
+      return;
+    }
+    if (preselected.current || !preselect || !agents.published.some((a) => a.id === preselect)) return;
+    preselected.current = true;
+    setAgentId(preselect);
+  }, [open, preselect, agents.published]);
   React.useEffect(() => {
     if (!open) {
       setErrors({});
@@ -67,6 +83,9 @@ export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const sipPack = cheapestPackWith(pricing.data, 'sip_import');
   const sipLocked = flags.data && !flags.data.gates.sip_import ? (sipPack ? tw('options.sip.locked', { pack: sipPack.name }) : tw('options.sip.lockedGeneric')) : null;
   const noAgent = agents.query.isSuccess && agents.published.length === 0;
+  const block = addNumberBlock({ lastPackCredits: wallet.data?.last_pack_credits, maxNumbers: flags.data?.caps.max_numbers, numbers: numbers.data });
+  const planName = flags.data ? tc(`shell.tier.${flags.data.plan_tier}` as never) : '';
+  const blockMessage = (b: NonNullable<AddNumberBlock>) => (b.kind === 'purchase' ? t('purchaseRequired') : t('limitReached', { plan: planName, max: b.max }));
 
   async function submit() {
     if (busy) return;
@@ -108,7 +127,10 @@ export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenC
       toast.success(t('started'));
       onOpenChange(false);
     } catch (e) {
-      setError(errorMessage(e, tc));
+      // The dialog knows the plan and its cap, so these two read better here than as `errors.*`.
+      if (isApiError(e, 'PURCHASE_REQUIRED')) setError(blockMessage({ kind: 'purchase' }));
+      else if (isApiError(e, 'NUMBER_LIMIT') && flags.data) setError(blockMessage({ kind: 'limit', max: flags.data.caps.max_numbers }));
+      else setError(errorMessage(e, tc));
     } finally {
       setBusy(false);
     }
@@ -196,7 +218,18 @@ export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenC
             </div>
           ) : null}
 
-          {cannotAfford ? (
+          {block ? (
+            <Alert
+              variant="warning"
+              actions={
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={routes.app.wallet}>{block.kind === 'purchase' ? t('buyCredits') : t('upgrade')}</Link>
+                </Button>
+              }
+            >
+              {blockMessage(block)}
+            </Alert>
+          ) : cannotAfford ? (
             <Alert
               variant="warning"
               actions={
@@ -215,7 +248,7 @@ export function AddNumberDialog({ open, onOpenChange }: { open: boolean; onOpenC
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             {tc('common.cancel')}
           </Button>
-          <Button onClick={() => void submit()} loading={busy} disabled={busy || noAgent || !agentId || cannotAfford || (option === 'sip' && Boolean(sipLocked))}>
+          <Button onClick={() => void submit()} loading={busy} disabled={busy || noAgent || !agentId || Boolean(block) || cannotAfford || (option === 'sip' && Boolean(sipLocked))}>
             {option === 'sip' ? t('submitSip') : t('submitNew')}
           </Button>
         </DialogFooter>

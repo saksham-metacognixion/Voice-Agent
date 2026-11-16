@@ -310,7 +310,7 @@ export class CallsQueryService {
            GROUP BY 1
            ORDER BY 1`,
         ]);
-      const [answered, completed, test, channels] = await Promise.all([
+      const [answered, completed, test, channels, analysed] = await Promise.all([
         db.call.count({ where: { ...where, status: { not: 'declined' } } }),
         // The average is over calls that have a duration. `answered` includes the ones
         // still ringing or talking, whose duration_s is null until call_ended writes it;
@@ -324,8 +324,27 @@ export class CallsQueryService {
           _count: { _all: true },
           _sum: { durationS: true, creditsCharged: true, transferCreditsCharged: true },
         }),
+        // D1 Today (ADR 0041): messages taken and the sentiment split, from the analysis of
+        // the window's real calls. `messages` mirrors `messageCaptured()` in message-captured.ts:
+        // `message_taken` true (boolean or the string), or a `callback_number` that is a JSON
+        // string with something other than whitespace in it. A number or a blank string is
+        // not a message there, so it is not one here.
+        db.$queryRaw<Array<{ messages: bigint; positive: bigint; neutral: bigint; negative: bigint; unknown: bigint }>>`
+          SELECT count(*) FILTER (WHERE coalesce(analysis_json->'custom_analysis_data'->>'message_taken', '') = 'true'
+                                     OR (jsonb_typeof(analysis_json->'custom_analysis_data'->'callback_number') = 'string'
+                                         AND analysis_json->'custom_analysis_data'->>'callback_number' ~ '[^[:space:]]')) AS messages,
+                 count(*) FILTER (WHERE lower(left(analysis_json->>'user_sentiment', 3)) = 'pos') AS positive,
+                 count(*) FILTER (WHERE lower(left(analysis_json->>'user_sentiment', 3)) = 'neu') AS neutral,
+                 count(*) FILTER (WHERE lower(left(analysis_json->>'user_sentiment', 3)) = 'neg') AS negative,
+                 count(*) FILTER (WHERE analysis_json->>'user_sentiment' IS NOT NULL
+                                    AND lower(left(analysis_json->>'user_sentiment', 3)) NOT IN ('pos', 'neu', 'neg')) AS unknown
+            FROM calls
+           WHERE tenant_id = ${ctx.workspaceId}::uuid
+             AND started_at >= ${from} AND started_at < ${to}
+             AND is_test = false
+             AND analysis_json IS NOT NULL`,
       ]);
-      return { totals, missedByReason, daily, answered, completed, test, channels };
+      return { totals, missedByReason, daily, answered, completed, test, channels, analysed: analysed[0] };
     });
 
     const total = rows.totals._count._all;
@@ -355,6 +374,13 @@ export class CallsQueryService {
       by_channel: {
         phone: channelTotals(rows.channels.find((c) => c.channel === 'phone')),
         web: channelTotals(rows.channels.find((c) => c.channel === 'web')),
+      },
+      messages_taken: Number(rows.analysed?.messages ?? 0),
+      sentiment: {
+        positive: Number(rows.analysed?.positive ?? 0),
+        neutral: Number(rows.analysed?.neutral ?? 0),
+        negative: Number(rows.analysed?.negative ?? 0),
+        unknown: Number(rows.analysed?.unknown ?? 0),
       },
     };
   }

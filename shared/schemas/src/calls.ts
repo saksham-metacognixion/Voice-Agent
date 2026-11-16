@@ -266,6 +266,15 @@ export const statsDay = z.object({
   credits: z.number(),
 });
 
+/** The platform writes `Positive` / `Neutral` / `Negative` / `Unknown`; anything else counts as unknown. */
+export const sentimentCounts = z.object({
+  positive: z.number().int(),
+  neutral: z.number().int(),
+  negative: z.number().int(),
+  unknown: z.number().int(),
+});
+export type SentimentCounts = z.infer<typeof sentimentCounts>;
+
 const channelStats = z.object({
   calls: z.number().int(),
   minutes: z.number(),
@@ -297,6 +306,14 @@ export const statsResponse = z.object({
   by_channel: z
     .object({ phone: channelStats, web: channelStats })
     .default({ phone: { calls: 0, minutes: 0, credits: 0 }, web: { calls: 0, minutes: 0, credits: 0 } }),
+  /**
+   * D1 Today (spec p. 33, ADR 0041): calls whose analysis captured a message
+   * (`message_taken` true or a `callback_number`), real callers only — a test call's
+   * message is the owner's own.
+   */
+  messages_taken: z.number().int().default(0),
+  /** D1 Today: `user_sentiment` across the window's analysed real calls, as counts; the card makes the percentage. */
+  sentiment: sentimentCounts.default({ positive: 0, neutral: 0, negative: 0, unknown: 0 }),
 });
 export type StatsResponse = z.infer<typeof statsResponse>;
 

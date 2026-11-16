@@ -14,4 +14,6 @@ export { SipProbe, probeSip, parseSipHost, sameSipHost } from './sip-probe';
 export type { SipProbeResult, SipProbeOutcome } from './sip-probe';
 export { SipVerificationService, SIP_VERIFY_PER_HOUR } from './sip-verification.service';
 export { decideRental, firstMonthRentalDue } from './rental-rules';
+export { NUMBER_IN_USE_MESSAGE, HOLDING_STATUSES, numberHolder, assertNumberFree, numberInUse } from './number-holds';
+export type { NumberHolder } from './number-holds';
 export type { FirstMonthRow } from './rental-rules';

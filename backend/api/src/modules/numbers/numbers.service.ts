@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, adminDb, withWorkspace, type WorkspaceDb } from '@portal/db';
+import { Prisma, adminDb, isNumberHeldViolation, withWorkspace, type WorkspaceDb } from '@portal/db';
 import type { BuyNumberRequest, Carrier, ForwardingGuide, ImportNumberRequest, NumberAccepted, PhoneNumberResponse, UpdateNumberRequest } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { WorkspaceContext } from '../auth';
@@ -10,9 +10,10 @@ import { RetellGateway } from '../retell';
 import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService } from '../wallet';
 import { forwardingGuideFor } from './forwarding-guide';
+import { assertNumberFree, numberInUse } from './number-holds';
 import { newInboundToken } from './number-provisioning.service';
 import { decideRental } from './rental-rules';
-import { toNumberResponse } from './number-response';
+import { forwardingTestOf, toNumberResponse } from './number-response';
 import { NumberProvisioningService } from './number-provisioning.service';
 
 const PROVISIONING_STATUSES = ['provisioning', 'active', 'paused'] as const;
@@ -103,18 +104,32 @@ export class NumbersService {
     return this.queueProvisioning(ctx, row);
   }
 
-  /** Option C outside the wizard. The password is sealed before the row exists. */
+  /**
+   * Option C outside the wizard. The password is sealed before the row exists.
+   *
+   * QA-105: a number is refused only while some row *holds* it — in this workspace or any
+   * other (`assertNumberFree`, outside RLS). A released row holds nothing, so a line the
+   * customer released is connected again as a new row: the released one stays as history
+   * (calls and its audit trail point at it), the new one gets its own plan, sealed
+   * credentials and inbound token, and goes through the ordinary provisioning job. The
+   * check is a courtesy; `phone_numbers_e164_held_key` is the guarantee, and a request that
+   * loses the race to it gets the same `NUMBER_IN_USE`.
+   */
   async import(ctx: WorkspaceContext, input: ImportNumberRequest): Promise<NumberAccepted> {
     const flags = await this.config.flagsFor(ctx.workspaceId);
     if (!flags.gates.sip_import) throw new AppError('PLAN_LIMIT', 'Bringing your own SIP trunk is available on higher plans.');
     if (!this.sip.configured) throw new AppError('NOT_CONFIGURED', 'SIP import is unavailable right now. We have been notified.');
     await this.assertMayProvision(ctx, true);
+    await assertNumberFree(input.sip.number, 'sip.number');
 
     const row = await withWorkspace(ctx, async (db) => {
       const agent = await this.loadAgent(db, ctx, input.agent_id);
       await this.assertUnderCap(db, ctx);
-      const clash = await db.phoneNumber.findFirst({ where: { e164: input.sip.number, status: { in: [...PROVISIONING_STATUSES] } }, select: { id: true } });
-      if (clash) throw new AppError('NUMBER_IN_USE', 'That number is already attached to an agent.');
+      const previous = await db.phoneNumber.findFirst({
+        where: { tenantId: ctx.workspaceId, e164: input.sip.number, status: 'released' },
+        orderBy: { releasedAt: 'desc' },
+        select: { id: true },
+      });
 
       // The plan row is where SIP credentials live (one place, one AAD), even off-wizard.
       const planId = crypto.randomUUID();
@@ -134,24 +149,34 @@ export class NumbersService {
           status: 'executed',
         },
       });
-      const created = await db.phoneNumber.create({
-        data: {
-          tenantId: ctx.workspaceId,
-          agentId: agent.id,
-          planId: plan.id,
-          type: 'custom_sip',
-          e164: input.sip.number,
-          nickname: input.nickname ?? null,
-          inboundToken: newInboundToken(),
-          rentalCredits: 0,
-          hoursMode: input.hours_mode,
-          hoursOverrideJson: input.hours_override ? (input.hours_override as Prisma.InputJsonValue) : Prisma.DbNull,
-          transferTargetsJson: input.transfer_targets as unknown as Prisma.InputJsonValue,
-          allowedCountries: input.allowed_countries,
-          status: 'provisioning',
-        },
+      const created = await db.phoneNumber
+        .create({
+          data: {
+            tenantId: ctx.workspaceId,
+            agentId: agent.id,
+            planId: plan.id,
+            type: 'custom_sip',
+            e164: input.sip.number,
+            nickname: input.nickname ?? null,
+            inboundToken: newInboundToken(),
+            rentalCredits: 0,
+            hoursMode: input.hours_mode,
+            hoursOverrideJson: input.hours_override ? (input.hours_override as Prisma.InputJsonValue) : Prisma.DbNull,
+            transferTargetsJson: input.transfer_targets as unknown as Prisma.InputJsonValue,
+            allowedCountries: input.allowed_countries,
+            status: 'provisioning',
+          },
+        })
+        .catch((error: unknown) => {
+          // The plan id is fresh and the token random: the only key two requests can share is the number.
+          throw isNumberHeldViolation(error) ? numberInUse('sip.number') : error;
+        });
+      await this.audit(db, ctx, 'number.import_requested', created.id, {
+        agent_id: agent.id,
+        host: input.sip.host,
+        has_password: Boolean(input.sip.password),
+        reconnects_number_id: previous?.id ?? null,
       });
-      await this.audit(db, ctx, 'number.import_requested', created.id, { agent_id: agent.id, host: input.sip.host, has_password: Boolean(input.sip.password) });
       return created;
     });
     return this.queueProvisioning(ctx, row);
@@ -184,6 +209,18 @@ export class NumbersService {
       if (patch.paused !== undefined) {
         data.pausedAt = patch.paused ? (current.pausedAt ?? new Date()) : null;
         if (current.status === 'active' || current.status === 'paused') data.status = patch.paused ? 'paused' : 'active';
+      }
+      if (patch.forwarding_from !== undefined) {
+        // QA-107 (ADR 0045): the customer corrects the line they forward from. A change waits for
+        // them again and drops the last test, which rang the old line; a late outcome of that test
+        // matches on its id and finds nothing. Refused while one rings: the marker names the old line.
+        if (!current.forwardingFrom) throw new AppError('BAD_REQUEST', 'This number is not a forwarding destination.', [{ field: 'forwarding_from', message: 'Not a forwarding number' }]);
+        if (patch.forwarding_from !== current.forwardingFrom) {
+          if (forwardingTestOf(current)?.status === 'calling') throw new AppError('FORWARDING_TEST_IN_PROGRESS', 'A forwarding test is already ringing for this number.');
+          data.forwardingFrom = patch.forwarding_from;
+          data.forwardingStatus = 'waiting_for_customer';
+          data.forwardingTestJson = Prisma.DbNull;
+        }
       }
       if (patch.forwarding_confirmed !== undefined) {
         if (!current.forwardingFrom) throw new AppError('BAD_REQUEST', 'This number is not a forwarding destination.', [{ field: 'forwarding_confirmed', message: 'Not a forwarding number' }]);
@@ -223,7 +260,7 @@ export class NumbersService {
     await withWorkspace(ctx, async (db) => {
       const row = await this.loadNumber(db, ctx, numberId);
       const live = await db.call.count({ where: { numberId: row.id, tenantId: ctx.workspaceId, status: 'in_progress' } });
-      if (live > 0) throw new AppError('NUMBER_IN_USE', 'This number is on a call right now. Try again when it ends.');
+      if (live > 0) throw new AppError('NUMBER_ON_CALL', 'This number is on a call right now. You can release it once the call ends.');
       await this.audit(db, ctx, 'number.release_requested', row.id, { e164: row.e164, status_before: row.status });
     });
     try {
@@ -250,7 +287,8 @@ export class NumbersService {
   /** §5.4: no phone number before the first purchase. Off-wizard buys check it here; the activation job checks it in `provision`. */
   private async assertMayProvision(ctx: WorkspaceContext, sip = false): Promise<void> {
     const paid = await withWorkspace(ctx, (db) => db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }));
-    if (paid === 0) throw new AppError('NO_CREDITS', 'Buy a credit pack before adding a phone number.');
+    // QA-108: trial credits are a balance but not a purchase, so this is not NO_CREDITS ("you are out of credits").
+    if (paid === 0) throw new AppError('PURCHASE_REQUIRED', 'Buy a credit pack before adding a phone number. Free trial credits are for browser test calls only.');
     const balance = await this.wallet.balance(ctx.workspaceId);
     if (balance <= 0) throw new AppError('NO_CREDITS', 'Top up your credits before adding a phone number.');
     // ADR 0035: a bought number's first month is charged when it goes active, so the
@@ -268,7 +306,9 @@ export class NumbersService {
     const caps = await this.config.capsFor(ctx.workspaceId);
     const held = await db.phoneNumber.count({ where: { tenantId: ctx.workspaceId, status: { in: [...PROVISIONING_STATUSES] } } });
     if (held >= caps.max_numbers) {
-      throw new AppError('PLAN_LIMIT', caps.max_numbers === 0 ? 'Your plan does not include a phone number yet.' : `Your plan includes ${caps.max_numbers} phone number${caps.max_numbers === 1 ? '' : 's'}. Upgrade to add another.`);
+      // QA-108: a plan with no numbers is PLAN_LIMIT; a plan whose numbers are all held is NUMBER_LIMIT.
+      if (caps.max_numbers === 0) throw new AppError('PLAN_LIMIT', 'Your plan does not include a phone number yet.');
+      throw new AppError('NUMBER_LIMIT', `Your plan includes ${caps.max_numbers} phone number${caps.max_numbers === 1 ? '' : 's'}. Upgrade to add another.`);
     }
   }
 

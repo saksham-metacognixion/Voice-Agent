@@ -5,16 +5,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton } f
 import { Activity } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { LoadError } from '@/src/components/dashboard/query-states';
+import { sentimentShare } from '@/src/dashboard/home-view';
 import { formatCreditsValue, formatDuration, formatNumber } from '@/src/lib/format';
 
 /**
  * D1 "Today" (spec p. 33): `GET /stats?range=today`, whole local days in the workspace
- * timezone (`resolveWindow` on the API). Refreshed on every `call:` frame.
+ * timezone (`resolveWindow` on the API) — calls, minutes, missed, messages taken and the
+ * callers' sentiment (ADR 0041). Refreshed on every `call:` frame.
  */
 export function TodayCard() {
   const t = useTranslations('dashboard.home.today');
   const api = useApi();
   const stats = useGetStats(api, { range: 'today' }, { staleTime: 30_000 });
+  const sentiment = stats.data ? sentimentShare(stats.data.sentiment) : null;
 
   return (
     <Card className="flex flex-col">
@@ -38,6 +41,13 @@ export function TodayCard() {
             <Stat label={t('calls')} value={formatNumber(stats.data.calls.total, 0)} hint={stats.data.calls.test ? t('ofWhichTests', { n: stats.data.calls.test }) : undefined} />
             <Stat label={t('missed')} value={formatNumber(stats.data.calls.missed, 0)} tone={stats.data.calls.missed > 0 ? 'danger' : undefined} />
             <Stat label={t('minutes')} value={formatNumber(stats.data.minutes, 1)} />
+            <Stat label={t('messages')} value={formatNumber(stats.data.messages_taken, 0)} testId="messages-taken" />
+            <Stat
+              label={t('sentiment')}
+              value={sentiment?.positivePct === null || sentiment === null ? '–' : t('sentimentValue', { pct: sentiment.positivePct })}
+              hint={sentiment && sentiment.positivePct !== null ? t('sentimentHint', { positive: stats.data.sentiment.positive, neutral: stats.data.sentiment.neutral, negative: stats.data.sentiment.negative }) : t('sentimentNone')}
+              testId="sentiment"
+            />
             <Stat label={t('credits')} value={formatCreditsValue(stats.data.credits_used)} />
             <Stat label={t('avgDuration')} value={formatDuration(stats.data.avg_duration_s)} />
             <Stat label={t('answered')} value={formatNumber(stats.data.calls.answered, 0)} />
@@ -55,9 +65,9 @@ export function TodayCard() {
   );
 }
 
-function Stat({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: 'danger' }) {
+function Stat({ label, value, hint, tone, testId }: { label: string; value: string; hint?: string; tone?: 'danger'; testId?: string }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col" data-testid={testId}>
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className={`text-xl font-semibold tabular-nums ${tone === 'danger' ? 'text-danger' : ''}`}>{value}</dd>
       {hint ? <dd className="text-[11px] text-muted-foreground">{hint}</dd> : null}

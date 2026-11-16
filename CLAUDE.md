@@ -166,7 +166,13 @@ Option B's `forward_mode` and Option C's `provider` / `transport` (in `sip_json`
 on `sip.origination_uri`, the W6 area code required with Suggest from the time zone, transfer pre-fill from the brief, the
 allowed-countries default, W5 chips / Keep-Undo (`draft/select`) / per-browser mic help / the trial CTA, the W7 summary card,
 10 % / 20 % top-up and minutes per pack, Copy and the SIP guide and the next-steps checklist on the live page, `app/error.tsx`,
-step writes that throw, and the "End your test call?" prompt (6 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+step writes that throw, and the "End your test call?" prompt (6 Nov), 0041 the §7.2 shell and D1
+close — the unpublished-changes chip over `listAgents`, the notifications bell as a read over the D7
+outbox (`GET /notifications`, `in_app` rows for message captured / number active / member joined, unread
+per membership), the pill's ≈ minutes and "Agent paused — top up", `GET /announcements/active` from the
+`config` module with the audience applied in code, `messages_taken` + `sentiment` on `GET /stats`, days
+left as balance ÷ the 7-day burn, the agent card's Test / Publish / Edit by role, `forwarding_tested` /
+`team_invited` / `all_done` on the checklist, and the pause ticket on the workspace and the agent (16 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -197,7 +203,8 @@ backend/                          → AWS EC2 (Docker Compose)
   db/             @portal/db          Prisma schema, the two role-scoped clients, withWorkspace(),
                                       migrations incl. hand-written RLS/grants/triggers, seed
 shared/
-  schemas/        @portal/schemas     zod request/response/SSE schemas, enums, error codes. Depends on zod only.
+  schemas/        @portal/schemas     zod request/response/SSE schemas, enums, error codes. Depends on zod and
+                                      libphonenumber-js (`max` metadata, `phone.ts`, ADR 0044) only.
   config/         @portal/config      tsconfig bases, eslint, tailwind preset
 templates/                        *.json agent templates (receptionist, appointment, afterhours, lead_qual,
                                   faq_support, restaurant, custom). The files are the source; `pnpm db:seed`
@@ -729,6 +736,38 @@ job settles.
   are the only code that changes a platform number, and `bind` is read-compare-update.
   DELETE releases on the platform **first** and keeps the row as `released` (calls reference
   it). PATCH edits routing and labels only; provider identity is not on the request shape.
+- **A hand-off target or a blocked caller carries its typed country code** (QA-106, ADR 0044): a
+  leading `+` or `00`, never a default region — putting a `+` in front of typed digits saved
+  `4165550101` as Swiss. Formatting (spaces, hyphens, dots, brackets) is removed. **Two rules, because
+  only one list is dialled**: `transferTarget` is `dialableE164` / `toDialableE164()` (a real number,
+  `libphonenumber-js/max`; `min` calls `+5145550123` Peruvian); `updateNumberRequest.blocklist` is
+  `blockedCaller` / `toBlockedCaller()` (`+` and 1–15 digits — a spoofed caller ID can be blocked, and
+  Recent callers offers "Block" for whatever the carrier sent). `normaliseCallerId` in `@portal/schemas`
+  is the one comparison form; the API's `normalisePhone` is that function. Responses read with
+  `storedTransferTarget` (the old shape rule), so a row saved wrong before is shown and marked, never
+  dropped or rewritten — and announced: `NumbersFixNotice` ("Some phone numbers need fixing", D1 and
+  the D4 list, editor+) from the pure `numbersNeedingFix()` / `nationalReading()`, and
+  `pnpm --filter @portal/api numbers:needing-fix [--csv]` is support's list of affected workspaces.
+  **The kept and the brought line too** (QA-107, ADR 0045): W6 `existing_number`, `sipCredentials.number`
+  and `buyNumberRequest.forward_from` are `dialableE164`; the portal's `normaliseE164` is
+  `toDialableE164(v) ?? v.trim()`. A row stored wrong before is never acted on: activation fails
+  `invalid_number` before buying, "Test forwarding" is `409 FORWARDING_NUMBER_INVALID` before ringing,
+  and the customer corrects it on D4's Forwarding tab (`PATCH /numbers/:id {forwarding_from}`, which resets
+  the forwarding to waiting and drops the last test; refused while one rings).
+- **Numbers refusals have one code per reason** (QA-108, ADR 0045): no pack bought = `402
+  PURCHASE_REQUIRED` (never `NO_CREDITS`, trial credits are not a purchase), every included number held =
+  `409 NUMBER_LIMIT` (`PLAN_LIMIT` only for a plan with none, or the SIP gate), release during a live call
+  = `409 NUMBER_ON_CALL` (`NUMBER_IN_USE` means another row holds the number). D4 "Add number" says the
+  first two before sending (`addNumberBlock()`).
+- **One row holds a number; released rows are history** (QA-105, ADR 0043): `e164` is unique
+  only where `status <> 'released'` (`phone_numbers_e164_held_key`, hand-written), so a
+  released line is connected again — here or in another workspace — as a **new** row with its
+  own plan and token, never by reviving the released one. `assertNumberFree()` /
+  `numberHolder()` (`modules/numbers/number-holds.ts`, on `adminDb` — RLS hides the other
+  workspace) refuse a held number with `409 NUMBER_IN_USE` "That number is already in use." on
+  D4 import, W6 SIP and activation (`number_in_use`, permanent); a failed row still holds it
+  until released. Never look a number up by e164 without preferring the holding row, and a
+  released row removes `num:{e164}` only while the record is its own (`RedisCache.delJsonIf`).
 - Option B (forwarding) is a bought number plus `forwarding_status = waiting_for_customer`
   until the customer confirms; the agent is live on the new number regardless. Its W6
   `forward_mode` (`always` / `busy_no_answer` / `outside_hours`, ADR 0040) is informational —
@@ -1203,10 +1242,34 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   in `src/config.ts`; SMS and the weekly summary have no sender and are not shown;
   Help's status is `GET /health/ready`. Pricing copy on Help comes from `GET /pricing`.
 - The balance pill is amber under 20 % of the last pack and red at or below 0
-  (`balanceTone()`, §7.2), 20 credits before the first pack.
+  (`balanceTone()`, §7.2), 20 credits before the first pack. **The §7.2 shell is complete
+  since ADR 0041**: the pill carries "≈ N min" from `GET /pricing`'s Standard rate and
+  reads "Agent paused — top up" at ≤ 0 (owner/admin; "out of credits" for the rest);
+  `UnpublishedChip` reads `listAgents` and sends one agent to its Test tab (the publish
+  bar is on every tab now), several to the list; `NotificationsBell` reads
+  `GET /notifications` — **a read over the D7 outbox**, never a second table: the
+  low-balance and failed-top-up emails are its rows, and `NotificationsFeedService.record()`
+  writes the three that mail nobody as `in_app` rows (`message_captured:<call_id>` from
+  `call_analyzed` for real callers, `number_active:<number id>` from the first `bind`,
+  `member_joined:<invite id>` after an accepted invite), exactly-once on `dedupe_key`.
+  Unread is `memberships.notifications_seen_at` (`POST /notifications/seen`); the SSE topic
+  `notifications` refetches the list. The D1 decisions are pure in `src/dashboard/home-view.ts`:
+  `creditsOutlook` (≈ minutes, days left = balance ÷ the 7-day burn, `null` with no usage,
+  never NaN), `sentimentShare` (positive share of the *known* sentiments), `agentCardActions`
+  (Test / Publish / Edit for editor+, View for a viewer), `canTopUp` (owner/admin, the
+  checkout roles — gates the card, the pill copy and the low-balance CTA), `checklistRows`
+  (`forwarding_tested` null = no row) and the pause notices (a workspace pause is always
+  staff's and names `paused_ticket_id`; an agent's `paused_by` tells the customer's own
+  pause from staff's). Staff announcements (`AnnouncementsBanner`, `GET /announcements/active`)
+  are plain text, refetched every five minutes at most, dismissible ones hidden per browser.
 - D11 exit check: `pnpm --filter @portal/web e2e:dashboard-d11` (124 checks incl. every
   screen, tab and dialog at 390 px) after `e2e:dashboard`, same stack. The D10 suite
-  needs its `d10seed_*` calls and ≥ 6 versions on the live workspace's agent.
+  needs its `d10seed_*` calls and ≥ 6 versions on the live workspace's agent —
+  `pnpm --filter @portal/api e2e:d10-seed` builds the whole fixture on a dev box (the owner
+  identity into `E2E_USER_FILE`, a paid live workspace, the agent created and published
+  through the running API, seven versions, sixty calls); with `E2E_USER_FILE` set the run
+  ends with the viewer pass (invite, switch identity, accept, read D1 with no money or
+  publish controls).
 
 **Admin console (admin spec §2–§10 — ADR 0021, D12)**
 
@@ -1237,6 +1300,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   `provider_error` (QA-042).
   `redact()` blanks credential-named fields (`secret`, `password`, `token`, `api_key`…),
   never the substring `key`: a flag's `key` and an `idempotency_key` are identifiers.
+- **A staff pause of a number is `phone_numbers.staff_paused_*`, never `status`/`paused_at`** (QA-104, ADR 0042): the customer's PATCH gets `409 NUMBER_STAFF_PAUSED` for `paused: false` while it is set, the trigger `guard_number_staff_pause` refuses the columns from `portal_app`, `number_paused` in `num:{e164}` includes it, and a resume leaves the customer's own switch as it was.
 - **Pause is one rule at every level** (QA-034): workspace, agent and number pause all
   take `can_pause_tenant` (`StaffLimitsService.assertCan`) and, for support, a ticket of
   that workspace (`assertPauseTicket`); resume takes the capability, no ticket. A staff
@@ -1276,7 +1340,6 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   next request (the 60 s SLA is the TTL's bound on a missed drop). **The sync archives
   nothing**: the Prices it supersedes are what checkout sells until the flip, and a sync
   that archived them and then died left every purchase failing on an inactive Price.
-- **A staff pause of a number is `phone_numbers.staff_paused_*`, never `status`/`paused_at`** (QA-104, ADR 0042): the customer's PATCH gets `409 NUMBER_STAFF_PAUSED` for `paused: false` while it is set, the trigger `guard_number_staff_pause` refuses the columns from `portal_app`, `number_paused` in `num:{e164}` includes it, and a resume leaves the customer's own switch as it was.
   `archiveSuperseded(current)` runs after the flip (and at the start of the next publish or
   rollback, for a version dated ahead) and archives, on Stripe and in `stripe_price_map`,
   only rows of *earlier effective* versions the current one does not sell. The plan is
@@ -1608,8 +1671,8 @@ throws and never waits past its budget (ADR 0010 §6).
 - Pagination: `?cursor=&limit=`.
 - Long operations return `202 {job_id}`; the client subscribes to SSE and falls back to
   `GET /jobs/:id` every 3 s.
-- SSE topics: `wallet`, `alerts` (D7: `opened` / `resolved` / `dismissed`), `agent:{id}`,
-  `call:{id}`, `activation:{id}`. `GET /events` is an ordinary
+- SSE topics: `wallet`, `alerts` (D7: `opened` / `resolved` / `dismissed`), `notifications`
+  (ADR 0041: `new {kind}`), `agent:{id}`, `call:{id}`, `activation:{id}`. `GET /events` is an ordinary
   authenticated route (the client is `@microsoft/fetch-event-source`), narrowed with `?topics=`, and
   only ever carries `ctx.workspaceId`'s own channel. **Every open stream is ended on
   shutdown** (`EventsController.beforeApplicationShutdown`): Fastify's close forces only
@@ -1759,6 +1822,13 @@ throws and never waits past its budget (ADR 0010 §6).
   files a `data_requests` row + an SA4 ticket + an ops alert and deletes **nothing**);
   `recordingResponse.download_url` (owner/admin) and `…/recording/stream?download=1`
   (download-purpose token only); `VERSION_NOT_TESTABLE` on both test mints.
+- ADR 0041 routes: `GET /announcements/active` (any member, tag `config`,
+  `activeAnnouncementsResponse`), `GET /notifications` (`notificationsResponse`: items with
+  `kind`, `meta`, `unread`, plus `unread` and `seen_at`) and `POST /notifications/seen`
+  (`notificationsSeenResponse`), both any member; `GET /stats` answers `messages_taken` and
+  `sentiment`; `GET /workspace/checklist` answers `forwarding_tested` (nullable),
+  `team_invited` and `all_done`; `workspaceResponse.paused_ticket_id`; `agentSummary`
+  carries `draft_has_prompt`, `number_e164`, `paused_by` and `paused_ticket_id`.
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 

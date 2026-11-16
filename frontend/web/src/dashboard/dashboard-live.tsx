@@ -107,6 +107,10 @@ export function DashboardLiveProvider({ children, enabled = true }: { children: 
         invalidate('listActiveAlerts');
         return;
       }
+      if (event.topic === 'notifications') {
+        invalidate('listNotifications');
+        return;
+      }
       if (event.topic.startsWith('agent:')) {
         invalidate('listAgents', 'getWorkspaceChecklist', `getAgent|${event.topic.slice('agent:'.length)}`);
         return;

@@ -1,5 +1,6 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigController } from './config.controller';
+import { AnnouncementsService } from './announcements.service';
 import { PlatformConfigService } from './platform-config.service';
 
 /**
@@ -11,7 +12,7 @@ import { PlatformConfigService } from './platform-config.service';
 @Global()
 @Module({
   controllers: [ConfigController],
-  providers: [PlatformConfigService],
-  exports: [PlatformConfigService],
+  providers: [PlatformConfigService, AnnouncementsService],
+  exports: [PlatformConfigService, AnnouncementsService],
 })
 export class PlatformConfigModule {}

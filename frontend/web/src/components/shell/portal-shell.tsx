@@ -6,9 +6,12 @@ import { usePathname } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { DashboardLiveProvider } from '@/src/dashboard/dashboard-live';
+import { workspacePauseNotice } from '@/src/dashboard/home-view';
 import { routes, stepPath } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { BalancePill } from './balance-pill';
+import { NotificationsBell } from './notifications-bell';
+import { UnpublishedChip } from './unpublished-chip';
 import { MfaBanner } from './mfa-banner';
 import { NAV_GROUPS, NAV_ITEMS, TAB_BAR_KEYS, isNavActive, type NavItem } from './nav-items';
 import { UserMenu } from './user-menu';
@@ -17,9 +20,10 @@ import { WorkspaceSwitcher } from './workspace-switcher';
 /**
  * §7.2 global shell: a fixed left nav on desktop; on anything narrower than `lg` the nav
  * becomes a bottom tab bar (§12.5) — the four screens an owner opens most, and "More"
- * for the rest in a bottom sheet. The header carries the workspace switcher, balance
- * pill, theme and account. Status banners (paused workspace, unfinished setup) sit above
- * the page content so every screen shows them.
+ * for the rest in a bottom sheet. The header carries the workspace switcher, the
+ * unpublished-changes chip, the balance pill, the notifications bell, theme and account
+ * (§7.2). Status banners (paused workspace, unfinished setup) sit above the page content
+ * so every screen shows them.
  *
  * The dashboard's one SSE stream is opened here (`DashboardLiveProvider`), so the pill,
  * D5 and whatever page is open share one connection that lives as long as the shell.
@@ -30,6 +34,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
 
   const workspace = ws.workspace;
   const setupIncomplete = workspace && !workspace.onboarding_completed_at;
+  const pause = workspacePauseNotice(workspace);
   const themeLabels = { light: t('common.theme.light'), dark: t('common.theme.dark'), system: t('common.theme.system'), toggle: t('common.theme.toggle') };
 
   return (
@@ -57,7 +62,9 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             </Link>
             <WorkspaceSwitcher className="min-w-0 shrink" />
             <div className="ms-auto flex items-center gap-1 sm:gap-2">
+              <UnpublishedChip />
               <BalancePill className="lg:hidden" compact />
+              <NotificationsBell />
               <LanguageMenu className="hidden sm:inline-flex" />
               <ThemeToggle labels={themeLabels} className="hidden sm:inline-flex" />
               <UserMenu />
@@ -67,9 +74,19 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
           {/* The bottom padding keeps the last row of every page clear of the tab bar (4rem + the home indicator). */}
           <main className="flex-1 px-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-8 lg:pb-6">
             <div className="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-6">
-              {workspace?.paused ? (
-                <Alert variant="danger" title={t('shell.pausedBanner')}>
-                  {workspace.paused_reason ? t('shell.pausedReason', { reason: workspace.paused_reason }) : null}
+              {workspace && pause ? (
+                <Alert
+                  variant="danger"
+                  title={pause.ticketId ? t('shell.pausedByStaffTicket', { ticket: pause.ticketId }) : t('shell.pausedBanner')}
+                  data-testid="paused-banner"
+                  actions={
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={routes.app.help}>{pause.ticketId ? t('shell.pausedOpenTicket') : t('shell.pausedContact')}</Link>
+                    </Button>
+                  }
+                >
+                  <span className="block">{t('shell.pausedBody')}</span>
+                  {workspace.paused_reason ? <span className="block">{t('shell.pausedReason', { reason: workspace.paused_reason })}</span> : null}
                 </Alert>
               ) : null}
               <MfaBanner />

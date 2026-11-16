@@ -1,5 +1,5 @@
 import type { ForwardingTest, PhoneNumberResponse, PhonePlanResponse, SipVerification, TransferTarget } from '@portal/schemas';
-import { businessHours, forwardMode, forwardingTest, sipVerification, transferTarget } from '@portal/schemas';
+import { businessHours, forwardMode, forwardingTest, sipVerification, storedTransferTarget } from '@portal/schemas';
 import { sipOriginationUri } from '../../common/env';
 import { FORWARDING_TEST_RING_MS } from '../calls/forwarding-test';
 import { SipCredentialsCipher } from '../crypto';
@@ -173,7 +173,8 @@ export function toPlanResponse(row: PlanRow): PhonePlanResponse {
 
 export function parseTargets(value: unknown): TransferTarget[] {
   if (!Array.isArray(value)) return [];
-  return value.map((item) => transferTarget.safeParse(item)).filter((r) => r.success).map((r) => r.data);
+  // Shape only (QA-106): a target saved before the number rule tightened is shown, not dropped.
+  return value.map((item) => storedTransferTarget.safeParse(item)).filter((r) => r.success).map((r) => r.data);
 }
 
 /** A value written before the column existed, or by hand, reads as "not said" rather than failing the whole row. */

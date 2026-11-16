@@ -37,6 +37,25 @@ describe('RedisCache', () => {
     expect(Date.now() - started).toBeLessThan(500);
   });
 
+  it('deletes a JSON entry only while it still names the caller (QA-105)', async () => {
+    const redis = new InMemoryRedis();
+    const cache = new RedisCache(redis);
+    await cache.setJson('num:+14505550123', { number_id: 'new-row' });
+
+    // A released row's refresh: the record is another row's now, so it stays.
+    expect(await cache.delJsonIf('num:+14505550123', 'number_id', 'old-row')).toBe(0);
+    expect(await cache.getJson('num:+14505550123')).toEqual({ number_id: 'new-row' });
+    // Its owner removes it; a missing key is nothing to do.
+    expect(await cache.delJsonIf('num:+14505550123', 'number_id', 'new-row')).toBe(1);
+    expect(await cache.delJsonIf('num:+14505550123', 'number_id', 'new-row')).toBe(0);
+    // Unreadable JSON is of no use to anyone and goes.
+    await cache.set('num:+14505550124', '{not json');
+    expect(await cache.delJsonIf('num:+14505550124', 'number_id', 'any')).toBe(1);
+
+    redis.down = true;
+    await expect(cache.delJsonIf('num:+14505550123', 'number_id', 'x')).resolves.toBe(0);
+  });
+
   it('drops a corrupt JSON entry instead of returning it', async () => {
     const redis = new InMemoryRedis();
     await redis.set('k', '{not json');

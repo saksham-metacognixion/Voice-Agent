@@ -43,6 +43,17 @@ describe('errorMessage', () => {
     expect(errorMessage(api('serverReasons', 'Server text.'), t)).toBe('Server text.');
   });
 
+  // QA-108 (ORL-NUM-629, -630, -673): the Numbers page refusals each say their own reason, in every locale.
+  it('tells a missing pack, a full number allowance and a number on a call apart from the generic lines', () => {
+    for (const locale of ['en', 'ar', 'fr-CA'] as const) {
+      const t = translator(locale);
+      const own = ['PURCHASE_REQUIRED', 'NUMBER_LIMIT', 'NUMBER_ON_CALL', 'FORWARDING_NUMBER_INVALID'] as const;
+      for (const code of own) expect(errorMessage(api(code), t)).toBe(messages[locale].errors[code]);
+      const generic = ['NO_CREDITS', 'PLAN_LIMIT', 'NUMBER_IN_USE'].map((code) => errorMessage(api(code), t));
+      expect(new Set([...own.map((code) => errorMessage(api(code), t)), ...generic]).size).toBe(own.length + generic.length);
+    }
+  });
+
   it('says the session ended for a lost session', () => {
     expect(errorMessage(new AuthRequiredError(), translator('en'))).toBe(messages.en.errors.UNAUTHENTICATED);
   });

@@ -25,6 +25,10 @@ export type ProvisioningErrorKind =
   | 'agent_missing'
   | 'number_missing'
   | 'number_released'
+  /** QA-105: another row (this workspace's or another's) holds the SIP number (permanent). */
+  | 'number_in_use'
+  /** QA-107: the plan's forwarded line or SIP number is not a real number with its country code (permanent; fix it on W6). */
+  | 'invalid_number'
   | 'not_configured'
   | 'rejected'
   | 'area_code_unavailable'
@@ -62,6 +66,8 @@ const PERMANENT_APP_CODES = new Set([
   'BAD_REQUEST',
   'VALIDATION_FAILED',
   'PLAN_LIMIT',
+  'NUMBER_LIMIT',
+  'PURCHASE_REQUIRED',
   'NO_CREDITS',
   'FORBIDDEN_ROLE',
 ]);

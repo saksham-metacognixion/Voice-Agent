@@ -100,6 +100,12 @@ export const workspaceResponse = z.object({
   /** Set by staff (SA12). The D1 banner reads it; the inbound path declines on it. */
   paused: z.boolean(),
   paused_reason: z.string().nullable(),
+  /**
+   * The support ticket the staff pause was filed under, when there is one (D1: "Your
+   * account is paused — see ticket #…", ADR 0041). A workspace pause is always staff's
+   * (SA2); nothing on the customer side pauses a workspace.
+   */
+  paused_ticket_id: z.number().int().nullable(),
   /** The caller's own role in this workspace, so the UI can gate without a second call. */
   role: memberRole,
   /** §6.2 MFA rule for the caller here (ADR 0036): the shell's banner and A5's copy read it. */
@@ -116,8 +122,17 @@ export const workspaceChecklist = z.object({
   agent_published: z.boolean(),
   credits_purchased: z.boolean(),
   number_attached: z.boolean(),
+  /**
+   * D1's last two rows (ADR 0041). `forwarding_tested` is null when no number forwards to
+   * the agent — there is nothing to test — and the card leaves the row out.
+   */
+  forwarding_tested: z.boolean().nullable(),
+  team_invited: z.boolean(),
   onboarding_step: z.number().int(),
+  /** §6.4: the wizard is done (published agent or `onboarding_completed_at`). The route guards read this. */
   complete: z.boolean(),
+  /** Every row that applies is done; D1 hides the card on this, not on `complete`. */
+  all_done: z.boolean(),
 });
 export type WorkspaceChecklist = z.infer<typeof workspaceChecklist>;
 

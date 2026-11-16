@@ -164,6 +164,18 @@ try {
     await b.send('Input.insertText', { text: '12' }); await key('Enter', 'Enter', 13); await sleep(300);
     ok('D4 callers: an entry that is not a number is refused before saving', /Not a phone number in international format/.test(await bodyText()));
     await b.evaluate(`document.querySelector('#callers-block').focus()`); await key('Backspace', 'Backspace', 8); await sleep(200);
+    // QA-106 / ORL-NUM-646: typed without +1, the digits are not read as Peru (+51).
+    await b.evaluate(`document.querySelector('#callers-block').focus()`);
+    await b.send('Input.insertText', { text: '5145550123' }); await key('Enter', 'Enter', 13); await sleep(300);
+    const saveCallersDisabled = await b.evaluate(`[...document.querySelectorAll('button')].find(e => e.textContent.trim() === 'Save callers')?.disabled`);
+    ok('D4 callers: a number without its country code is refused, and Save stays off', /Not a phone number in international format: 5145550123/.test(await bodyText()) && saveCallersDisabled === true, String(saveCallersDisabled));
+    await b.evaluate(`document.querySelector('#callers-block').focus()`); await key('Backspace', 'Backspace', 8); await sleep(200);
+    // A caller ID that is not a real number (555 is no area code) may be listed: the list is compared, never dialled.
+    await b.evaluate(`document.querySelector('#callers-block').focus()`);
+    await b.send('Input.insertText', { text: '+1 (555) 555-0199' }); await key('Enter', 'Enter', 13); await sleep(300);
+    const spoofedSaveDisabled = await b.evaluate(`[...document.querySelectorAll('button')].find(e => e.textContent.trim() === 'Save callers')?.disabled`);
+    ok('D4 callers: a caller ID that is not a real number is accepted', !/Not a phone number in international format/.test(await bodyText()) && spoofedSaveDisabled === false, String(spoofedSaveDisabled));
+    await b.evaluate(`document.querySelector('#callers-block').focus()`); await key('Backspace', 'Backspace', 8); await sleep(200);
 
     if (live.forwarding) {
       await pressTab('Forwarding'); await sleep(1500);
@@ -172,6 +184,22 @@ try {
     }
     await pressTab('Hand-off'); await sleep(600);
     ok('D4 hand-off editor renders', /transfer a caller/i.test(await bodyText()));
+    // QA-106 / ORL-NUM-639: typed without +1, the digits are not read as Switzerland (+41).
+    if ((live.transfer_targets ?? []).length < 5) {
+      const lastRow = (sel) => `[...document.querySelectorAll('${sel}')].at(-1)`;
+      const setLast = (sel, value) => b.evaluate(`(() => { const el = ${lastRow(sel)}; if (!el) return 'missing'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return 'ok'; })()`);
+      await clickText('Add a person'); await sleep(200);
+      await setLast('[id^="tt-label-"]', 'QA desk'); await setLast('[id^="tt-number-"]', '4165550101'); await sleep(150);
+      await clickText('Save hand-off'); await sleep(600);
+      const marked = await b.evaluate(`${lastRow('[id^="tt-number-"]')}?.getAttribute('aria-invalid') === 'true'`);
+      const unsaved = JSON.stringify((await apiCall('GET', `/numbers/${live.id}`)).json?.transfer_targets) === JSON.stringify(live.transfer_targets ?? []);
+      ok('D4 hand-off: a number without its country code is marked and not saved', /Fix the highlighted rows first/.test(await bodyText()) && marked && unsaved, `${marked}/${unsaved}`);
+      await setLast('[id^="tt-number-"]', '+1 416 555 0101'); await sleep(150);
+      await clickText('Save hand-off'); await sleep(1500);
+      const targets = (await apiCall('GET', `/numbers/${live.id}`)).json?.transfer_targets ?? [];
+      ok('D4 hand-off: the same number with +1 is saved in E.164', targets.some((t) => t.label === 'QA desk' && t.number === '+14165550101'), JSON.stringify(targets));
+      await apiCall('PATCH', `/numbers/${live.id}`, { transfer_targets: live.transfer_targets ?? [] });
+    }
 
     // Danger zone: the typed confirmation gates the button. Cancelled — this is a real number.
     await pressTab('Danger zone'); await sleep(600);

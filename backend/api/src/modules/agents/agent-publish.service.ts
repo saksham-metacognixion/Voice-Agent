@@ -286,7 +286,7 @@ export class AgentPublishService {
       if (!agent) throw AppError.notFound('Agent');
       if (agent.status === 'paused') return false;
 
-      await db.agent.update({ where: { id: agentId }, data: { status: 'paused' } });
+      await db.agent.update({ where: { id: agentId }, data: { status: 'paused', pausedBy: 'customer', pausedTicketId: null } });
       await this.agents.audit(db, ctx, 'agent.paused', agentId, { was: agent.status });
       return true;
     });
@@ -308,7 +308,7 @@ export class AgentPublishService {
         throw new AppError('AGENT_NOT_PUBLISHED', 'Publish this agent before putting it back on the phone.');
       }
 
-      await db.agent.update({ where: { id: agentId }, data: { status: 'live' } });
+      await db.agent.update({ where: { id: agentId }, data: { status: 'live', pausedBy: null, pausedTicketId: null } });
       await this.agents.audit(db, ctx, 'agent.resumed', agentId, { version_no: agent.publishedVersion });
       return true;
     });

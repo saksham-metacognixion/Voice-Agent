@@ -48,7 +48,17 @@ export default function NumbersPage() {
           }
         />
       ) : (
-        <NumbersList />
+        // `?add=1&agent=` (`addNumberPath`) opens "Add number" on that agent; closing the dialog drops both.
+        <NumbersList
+          addRequested={params.get('add') === '1'}
+          addAgentId={params.get('agent')}
+          onAddClosed={() =>
+            setParams((next) => {
+              next.delete('add');
+              next.delete('agent');
+            }, 'replace')
+          }
+        />
       )}
     </NumbersNavContext.Provider>
   );

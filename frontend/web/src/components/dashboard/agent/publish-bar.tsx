@@ -5,8 +5,10 @@ import type { AgentDetail, LintFinding } from '@portal/schemas';
 import { Alert, Button, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { Rocket, Undo2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useServerCopy } from '@/src/i18n/server-copy';
+import { addNumberPath } from '@/src/routes';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
@@ -39,6 +41,7 @@ export function PublishBar({ agent, canEdit, editorDirty = false, discard = fals
   const publish = usePublishAgent(api);
   const discardDraft = useDiscardAgentDraft(api);
   const role = useRole();
+  const router = useRouter();
   const [findings, setFindings] = React.useState<LintFinding[] | null>(null);
   const [confirmDiscard, setConfirmDiscard] = React.useState(false);
 
@@ -47,6 +50,7 @@ export function PublishBar({ agent, canEdit, editorDirty = false, discard = fals
   if (!needsPublish || !draft) return null;
   const live = agent.published_version;
   const canDiscard = discard && role.canEdit && live !== null && agent.has_unpublished_changes;
+  const noNumber = agent.numbers_attached === 0;
 
   async function runDiscard() {
     const res = await discardDraft.mutateAsync({ params: { id: agent.id } });
@@ -62,7 +66,11 @@ export function PublishBar({ agent, canEdit, editorDirty = false, discard = fals
     try {
       const res = await publish.mutateAsync({ params: { id: agent.id }, body: { version_no: draft!.version_no } });
       track('agent_published', { agent_id: agent.id, version_no: res.version_no, from: 'dashboard' });
-      toast.success(res.already_published ? t('alreadyLive', { n: res.version_no }) : t('done', { n: res.version_no }));
+      if (res.already_published) toast.success(t('alreadyLive', { n: res.version_no }));
+      else if (noNumber) {
+        // "Live" would be untrue with nothing to ring. Buying a number is owner/admin, so only they get the button.
+        toast.warning(t('doneNoNumber', { n: res.version_no }), role.canAdmin ? { action: { label: tc('dashboard.agents.noNumber.add'), onClick: () => router.push(addNumberPath(agent.id)) } } : undefined);
+      } else toast.success(t('done', { n: res.version_no }));
       const warnings = res.lint.findings.filter((f) => f.severity === 'warning');
       if (warnings.length) setFindings(warnings);
       await queryClient.invalidateQueries({ queryKey: ['getAgent', { id: agent.id }] });
@@ -93,7 +101,7 @@ export function PublishBar({ agent, canEdit, editorDirty = false, discard = fals
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/40 bg-popover px-4 py-3 shadow-popover">
         <div className="text-sm">
           <p className="font-medium">{agent.published_version === null ? t('firstTitle', { n: draft.version_no }) : t('title', { n: draft.version_no, live: agent.published_version })}</p>
-          <p className={editorDirty ? 'text-xs text-warning-emphasis' : 'text-xs text-muted-foreground'}>{editorDirty ? t('saveFirst') : agent.status === 'paused' ? t('pausedHint') : t('hint')}</p>
+          <p className={editorDirty ? 'text-xs text-warning-emphasis' : 'text-xs text-muted-foreground'}>{editorDirty ? t('saveFirst') : agent.status === 'paused' ? t('pausedHint') : noNumber ? t('hintNoNumber') : t('hint')}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {canDiscard ? (

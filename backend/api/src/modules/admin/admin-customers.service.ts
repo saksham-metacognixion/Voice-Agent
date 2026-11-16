@@ -436,10 +436,12 @@ export class AdminCustomersService {
     await this.limits.assertPauseTicket(staff, id, body.ticket_id, 'workspace');
     if (!tenant.pausedAt) {
       const reason = body.note ? `${body.reason_code}: ${body.note}` : body.reason_code;
+      // D1 "see ticket #…" (ADR 0041): kept only when the ticket is this workspace's.
+      const ticketId = await this.limits.workspaceTicket(id, body.ticket_id);
       await adminDb.$transaction(async (tx) => {
         await tx.tenant.update({
           where: { id },
-          data: { pausedAt: new Date(), pausedReason: reason },
+          data: { pausedAt: new Date(), pausedReason: reason, pausedTicketId: ticketId },
         });
         await tx.auditLog.create({
           data: {
@@ -483,7 +485,7 @@ export class AdminCustomersService {
     const tenant = await this.exists(id);
     if (tenant.pausedAt) {
       await adminDb.$transaction(async (tx) => {
-        await tx.tenant.update({ where: { id }, data: { pausedAt: null, pausedReason: null } });
+        await tx.tenant.update({ where: { id }, data: { pausedAt: null, pausedReason: null, pausedTicketId: null } });
         await tx.auditLog.create({
           data: {
             tenantId: id,

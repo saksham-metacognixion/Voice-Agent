@@ -15,6 +15,9 @@ import { NUMBER_RECORD_VERSION, type NumberRecord, normalisePhone } from './numb
  */
 export const NUMBER_TTL_S = 86_400;
 
+/** Rows that get a `num:{e164}` record. Released, releasing and failed rows lose theirs. */
+const SERVED_STATUSES: ReadonlySet<string> = new Set(['provisioning', 'active', 'paused']);
+
 export interface RefreshSummary {
   workspaceId: string;
   numbers: number;
@@ -72,14 +75,19 @@ export class RuntimeCacheService {
 
     const tenantHours = parseBusinessHours(tenant.businessHoursJson);
     const briefs = await this.publishedBriefs(numbers.map((n) => n.agent));
+    const served = new Set(numbers.filter((n) => n.e164 && SERVED_STATUSES.has(n.status)).map((n) => n.e164 as string));
     let removed = 0;
     let written = 0;
     for (const number of numbers) {
       // D6: a bought number has no e164 until the platform answers; there is nothing to
       // key on yet and the inbound path cannot be asked about it.
       if (!number.e164) continue;
-      if (number.status === 'released' || number.status === 'releasing' || number.status === 'failed') {
-        removed += await this.cache.del(redisKeys.number(number.e164));
+      if (!SERVED_STATUSES.has(number.status)) {
+        // QA-105: a released number can be connected again as a new row, here or in another
+        // workspace, so `num:{e164}` may be someone else's now. Never touch it while a row
+        // of this workspace serves the number, and otherwise remove it only while it is
+        // still this row's record — another workspace's refresh is not ours to undo.
+        if (!served.has(number.e164)) removed += await this.cache.delJsonIf(redisKeys.number(number.e164), 'number_id', number.id);
         continue;
       }
       const tier: AgentTier = number.agent?.tier ?? 'standard';
@@ -127,7 +135,8 @@ export class RuntimeCacheService {
 
   /** After a `num:{e164}` miss on the hot path: find the number's workspace and refresh it. */
   async refreshNumber(e164: string): Promise<RefreshSummary | null> {
-    const number = await adminDb.phoneNumber.findFirst({ where: { e164 }, select: { tenantId: true } });
+    // The row that holds the number: a released row with the same e164 is history (QA-105).
+    const number = await adminDb.phoneNumber.findFirst({ where: { e164, status: { not: 'released' } }, select: { tenantId: true } });
     if (!number) {
       this.log.warn(`refreshNumber(${e164}): no such number; the inbound webhook for it was not ours`);
       return null;

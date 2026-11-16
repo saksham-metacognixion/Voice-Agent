@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma, adminDb } from '@portal/db';
+import { toBlockedCaller, toDialableE164, updateNumberRequest } from '@portal/schemas';
 import Redis from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -8,6 +9,7 @@ import { OpsAlertService } from '../src/modules/alerts';
 import { EventsService } from '../src/modules/events';
 import { PlatformConfigService } from '../src/modules/config';
 import { JobQueues, QUEUES } from '../src/modules/jobs';
+import { NumbersService } from '../src/modules/numbers';
 import { RedisCache, redisKeys } from '../src/modules/redis';
 import { RetellGateway } from '../src/modules/retell';
 import { RuntimeCacheService } from '../src/modules/runtime-cache';
@@ -171,6 +173,26 @@ describe('POST /webhooks/retell/inbound/:number_token — the six checks (§13.9
     const g = callId();
     expect((await inbound(global, inboundEvent({ callId: g, to: global.e164, from: spammer }))).json()).toEqual({ call_inbound: { reject: true } });
     expect(await waitFor('global blocked row', () => callRow(g))).toMatchObject({ declineReason: 'blocked' });
+  });
+
+  it('ORL-NUM-646: a caller blocked from D4 as typed is declined, and the number without its country code is refused (QA-106)', async () => {
+    const ws = await readyWorkspace('blocked-d4');
+    // Typed without +1, "5145550123" used to be saved as +5145550123 (Peru) and never matched.
+    expect(toDialableE164('5145550123')).toBeNull();
+    expect(toBlockedCaller('5145550123')).toBeNull();
+    expect(updateNumberRequest.safeParse({ blocklist: ['5145550123'] }).success).toBe(false);
+    // What the Callers form sends for "+1 (514) 555-0123" and for a spoofed caller ID, through the controller's parse and the service.
+    const patch = updateNumberRequest.parse({ blocklist: [toBlockedCaller('+1 (514) 555-0123'), toBlockedCaller('+1 555 555 0199')] });
+    const saved = await app.get(NumbersService).update({ userId: ws.userId, workspaceId: ws.tenantId, role: 'owner' }, ws.numberId, patch);
+    expect(saved.blocklist).toEqual(['+15145550123', '+15555550199']);
+
+    const id = callId();
+    expect((await inbound(ws, inboundEvent({ callId: id, to: ws.e164, from: '+15145550123' }))).json()).toEqual({ call_inbound: { reject: true } });
+    expect(await waitFor('D4 blocked row', () => callRow(id))).toMatchObject({ status: 'declined', declineReason: 'blocked', fromNumber: '+15145550123' });
+    // Not a real number (555 is no area code), but it is what the carrier showed: blocked all the same.
+    const spoofed = callId();
+    expect((await inbound(ws, inboundEvent({ callId: spoofed, to: ws.e164, from: '+15555550199' }))).json()).toEqual({ call_inbound: { reject: true } });
+    expect(await waitFor('spoofed blocked row', () => callRow(spoofed))).toMatchObject({ status: 'declined', declineReason: 'blocked' });
   });
 
   it('declines on the concurrency cap once the plan’s slots are full', async () => {

@@ -11,7 +11,8 @@ import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { AgentStatusBadge, CallStatusBadge, TierBadge } from '@/src/components/dashboard/status-badges';
 import { callerLabel } from '@/src/dashboard/caller';
 import { formatDateTime, formatDuration } from '@/src/lib/format';
-import { agentPath, callPath, routes } from '@/src/routes';
+import { addNumberPath, agentPath, callPath, routes } from '@/src/routes';
+import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 
 /**
@@ -26,6 +27,7 @@ export function OverviewTab({ agent }: { agent: AgentDetail }) {
   const tl = useTranslations('dashboard.calls');
   const api = useApi();
   const ws = useWorkspace();
+  const { canAdmin } = useRole();
   const live = agent.published;
   const draft = agent.draft;
   const shown = draft ?? live;
@@ -106,12 +108,17 @@ export function OverviewTab({ agent }: { agent: AgentDetail }) {
           <CardContent>
             <dl className="grid grid-cols-2 gap-3">
               <Fact label={t('statusLabel')}>
-                <AgentStatusBadge status={agent.status} />
+                <AgentStatusBadge agent={agent} />
               </Fact>
               <Fact label={t('numbers')}>
                 {agent.numbers_attached ? (
                   <Link href={routes.app.numbers} className="text-primary hover:underline">
                     {ta('numbers', { n: agent.numbers_attached })}
+                  </Link>
+                ) : canAdmin && agent.published_version !== null ? (
+                  // A number can only point at a published agent, so the link waits for the first publish.
+                  <Link href={addNumberPath(agent.id)} className="text-primary hover:underline">
+                    {ta('noNumber.add')}
                   </Link>
                 ) : (
                   t('noNumbers')

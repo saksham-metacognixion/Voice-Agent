@@ -121,7 +121,40 @@
       "balance": "Le solde est élevé : les propriétaires et les administrateurs confirment avec une application d’authentification avant de modifier quoi que ce soit.",
       "action": "Confirmer maintenant"
     },
-    "viewOnly": "Vous avez un accès en lecture seule à cet espace de travail. Demandez à un propriétaire ou à un administrateur si vous devez modifier quelque chose."
+    "viewOnly": "Vous avez un accès en lecture seule à cet espace de travail. Demandez à un propriétaire ou à un administrateur si vous devez modifier quelque chose.",
+    "balanceWithMinutes": "{credits} crédits · ≈ {minutes} min",
+    "balanceOutTopUp": "Agent en pause — rechargez",
+    "balanceOut": "Agent en pause — plus de crédits",
+    "approxMinutes": "≈ {minutes} min d’appels",
+    "topUpHint": "Ouvrez le portefeuille pour recharger",
+    "pausedByStaffTicket": "Votre compte est en pause — voir le billet nº {ticket}",
+    "pausedBody": "Notre équipe a mis cet espace de travail en pause. Votre agent ne répond pas aux appels tant qu’il n’est pas réactivé.",
+    "pausedOpenTicket": "Ouvrir l’aide",
+    "pausedContact": "Joindre le soutien",
+    "unpublished": {
+      "label": "{n, plural, one {# modification non publiée} other {# modifications non publiées}}"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "aria": "Notifications",
+      "ariaUnread": "Notifications, {n, plural, one {# non lue} other {# non lues}}",
+      "empty": "Rien de neuf pour l’instant. Un solde bas, un message pris, un numéro mis en service et un nouveau membre apparaîtront ici.",
+      "loadFailed": "Impossible de charger les notifications",
+      "kind": {
+        "low_balance": "Solde bas : il reste {balance} crédits",
+        "low_balance_plain": "Votre solde est bas",
+        "message_captured": "Message pris de {number}",
+        "message_captured_plain": "Un appelant a laissé un message",
+        "number_active": "{number} est en service et prend les appels",
+        "number_active_plain": "Votre numéro est en service et prend les appels",
+        "number_released": "{number} a été libéré",
+        "number_released_plain": "Un numéro a été libéré",
+        "member_joined": "{email} a rejoint l’espace de travail",
+        "member_joined_plain": "Un nouveau membre a rejoint l’espace de travail",
+        "rental_overdue": "La location mensuelle d’un numéro est en retard",
+        "auto_topup_failed": "La recharge automatique a échoué : votre carte a été refusée"
+      }
+    }
   },
   "auth": {
     "brand": "De la conversation à l’action.",
@@ -383,6 +416,7 @@
     "CALLER_ID_REQUIRED": "Il vous faut un numéro vérifié d’où appeler. Les numéros achetés chez nous sont vérifiés automatiquement.",
     "CALLER_ID_UNVERIFIED": "Ce numéro n’est pas vérifié pour les appels sortants. Communiquez avec le soutien pour le faire vérifier.",
     "NUMBER_PAUSED": "Ce numéro est en pause : aucun rappel ne peut en partir. Réactivez-le dans Numéros ou choisissez un autre numéro vérifié.",
+    "NUMBER_STAFF_PAUSED": "Ce numéro a été mis en pause par notre équipe de soutien. Vous ne pouvez pas le réactiver depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
     "WORKSPACE_TIMEZONE_INVALID": "Le fuseau horaire de votre espace de travail n’est pas reconnu : les heures d’appel ne peuvent pas être vérifiées. Corrigez-le dans Paramètres → Espace de travail → Fuseau horaire.",
     "DESTINATION_INVALID": "Cet appel n’a aucun numéro de téléphone que nous pouvons rappeler.",
     "DNC_LISTED": "Ce numéro figure sur votre liste de numéros exclus.",
@@ -399,7 +433,10 @@
       "retry": "Réessayer",
       "home": "Aller au tableau de bord",
       "support": "Contacter le soutien"
-    }
+    },
+    "NUMBER_LIMIT": "Tous les numéros de téléphone inclus dans votre formule sont déjà utilisés. Passez à une formule supérieure pour en ajouter un autre.",
+    "NUMBER_ON_CALL": "Ce numéro est en communication en ce moment. Vous pourrez le libérer une fois l’appel terminé.",
+    "FORWARDING_NUMBER_INVALID": "Votre ligne actuelle a été enregistrée sans l’indicatif de pays, nous ne l’appellerons donc pas. Corrigez-la sous Votre ligne actuelle, puis refaites le test."
   },
   "validation": {
     "required": "Obligatoire",
@@ -416,7 +453,6 @@
   },
   "wizard": {
     "title": "Configurer votre agent",
-    "NUMBER_STAFF_PAUSED": "Ce numéro a été mis en pause par notre équipe de soutien. Vous ne pouvez pas le réactiver depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
     "steps": {
       "template": "Modèle",
       "brief": "Entreprise",
@@ -1688,7 +1724,13 @@
         "expiring": "Prochaine expiration",
         "expiringValue": "{credits} le {date}",
         "nothingExpiring": "Aucune expiration à venir",
-        "autoTopupOn": "La recharge automatique est activée : le solde est rechargé sous {threshold} crédits."
+        "autoTopupOn": "La recharge automatique est activée : le solde est rechargé sous {threshold} crédits.",
+        "approxMinutes": "≈ {minutes} min au tarif Standard",
+        "approxDays": "≈ {days, plural, one {# jour} other {# jours}} restants",
+        "noUsage": "Aucun appel depuis 7 jours",
+        "outOfCredits": "Plus de crédits",
+        "approxHint": "Estimations selon le tarif publié et l’usage des 7 derniers jours",
+        "autoTopupOff": "La recharge automatique est désactivée."
       },
       "today": {
         "title": "Aujourd’hui",
@@ -1702,11 +1744,30 @@
         "answered": "Répondus",
         "phoneCalls": "Téléphone",
         "websiteCalls": "Site web",
-        "channelMinutes": "{minutes} min"
+        "channelMinutes": "{minutes} min",
+        "messages": "Messages pris",
+        "sentiment": "Appelants satisfaits",
+        "sentimentValue": "{pct} %",
+        "sentimentHint": "{positive} positifs · {neutral} neutres · {negative} négatifs",
+        "sentimentNone": "Aucun appel évalué pour l’instant"
       },
       "agents": {
         "title": "Agents",
-        "all": "Tous les agents"
+        "all": "Tous les agents",
+        "test": "Tester",
+        "publish": "Publier",
+        "edit": "Modifier",
+        "view": "Voir",
+        "seeChecks": "Voir les vérifications",
+        "pausedByStaffTicket": "En pause par le soutien Oraly · billet nº {ticket}",
+        "pausedByStaff": "En pause par le soutien Oraly",
+        "pausedByYou": "En pause par votre équipe",
+        "pausedPlain": "En pause",
+        "publishTitle": "Publier {name} v{n}?",
+        "publishBodyLive": "La version {live} est en ligne. Le brouillon la remplace sur vos numéros une fois les vérifications réussies.",
+        "publishBodyFirst": "L’agent sera mis sur vos numéros une fois les vérifications réussies.",
+        "publishChecks": "Le script est d’abord vérifié; une erreur bloque la publication.",
+        "publishNumbers": "Les numéros reliés à cet agent utilisent la nouvelle version dès leur prochain appel."
       },
       "checklist": {
         "title": "Étapes de configuration",
@@ -1717,7 +1778,9 @@
           "agent_generated": "Rédiger l’agent à partir de votre fiche",
           "agent_published": "Publier l’agent",
           "credits_purchased": "Acheter vos premiers crédits",
-          "number_attached": "Associer un numéro de téléphone"
+          "number_attached": "Associer un numéro de téléphone",
+          "forwarding_tested": "Tester le renvoi d’appels",
+          "team_invited": "Inviter votre équipe"
         }
       },
       "recent": {
@@ -2040,7 +2103,14 @@
       "status": {
         "live": "En service",
         "paused": "En pause",
-        "draft": "Brouillon"
+        "draft": "Brouillon",
+        "noNumber": "Sans numéro"
+      },
+      "noNumber": {
+        "title": "Cet agent n’a pas de numéro de téléphone",
+        "body": "Les appelants ne peuvent pas encore le joindre.",
+        "askAdmin": "Les appelants ne peuvent pas encore le joindre. Demandez à un propriétaire ou à un administrateur d’ajouter un numéro.",
+        "add": "Ajouter un numéro"
       },
       "templates": {
         "receptionist": "Réceptionniste",
@@ -2085,8 +2155,10 @@
         "firstTitle": "Le brouillon v{n} est prêt à être publié",
         "hint": "La publication lance les vérifications et met cette version sur vos numéros.",
         "pausedHint": "Cet agent est en pause. La publication le met à jour, mais ne le fait pas reprendre.",
+        "hintNoNumber": "La publication lance les vérifications. Cet agent n’a pas de numéro de téléphone : les appelants ne pourront pas le joindre tant que vous n’en aurez pas ajouté un.",
         "button": "Publier v{n}",
         "done": "La version {n} est en service.",
+        "doneNoNumber": "La version {n} est publiée. L’agent n’a pas encore de numéro de téléphone.",
         "alreadyLive": "La version {n} était déjà en service.",
         "blocked": "Corrigez ces points avant de publier",
         "warnings": "Publié avec des avertissements",
@@ -2445,6 +2517,10 @@
         "agentNone": "Publiez d’abord un agent — aucun n’est encore en service.",
         "active": "Répondre aux appels sur ce numéro",
         "activeHint": "Désactivé, ce numéro est en pause : les appelants entendent un signal occupé et rien n’est facturé.",
+        "staffPaused": "Ce numéro a été mis en pause par notre équipe de soutien. Vous ne pouvez pas le réactiver depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
+        "staffPausedTicket": "Billet de soutien nº {id}",
+        "staffPausedContact": "Communiquer avec le soutien : {email}",
+        "staffPausedHint": "Seule notre équipe de soutien peut remettre ce numéro en service.",
         "hours": "Quand répondre",
         "modes": {
           "always": "24 heures sur 24",
@@ -2502,13 +2578,12 @@
         "block": "Bloquer",
         "blocked": "Bloqué",
         "blockedToast": "{number} est bloqué sur ce numéro.",
-        "unknown": "Appelant inconnu"
+        "unknown": "Appelant inconnu",
+        "misread": "Ces numéros ont été enregistrés sans l’indicatif de pays et ne bloquent donc personne :",
+        "misreadRow": "{entry} → {suggestion}",
+        "misreadUse": "Utiliser les numéros corrigés"
       },
       "forwarding": {
-        "staffPaused": "Ce numéro a été mis en pause par notre équipe de soutien. Vous ne pouvez pas le réactiver depuis votre tableau de bord. Veuillez communiquer avec le soutien.",
-        "staffPausedTicket": "Billet de soutien nº {id}",
-        "staffPausedContact": "Communiquer avec le soutien : {email}",
-        "staffPausedHint": "Seule notre équipe de soutien peut remettre ce numéro en service.",
         "title": "Renvoyer votre ligne existante",
         "body": "Vos appelants continuent de composer le {from}. Votre fournisseur renvoie ces appels au {to}, auquel votre agent répond.",
         "bodyPending": "Vos appelants continuent de composer le {from}. Votre fournisseur renvoie ces appels à ce numéro dès qu’il est configuré.",
@@ -2543,6 +2618,12 @@
             "landed": "Le renvoi fonctionne : l’appel a joint votre agent.",
             "notLanded": "L’appel test n’a pas été renvoyé."
           }
+        },
+        "line": {
+          "label": "Votre ligne actuelle",
+          "hint": "Le numéro que vos clients composent aujourd’hui, avec l’indicatif de pays. Après une modification, activez le renvoi depuis cette ligne et refaites le test.",
+          "save": "Enregistrer la ligne",
+          "saved": "Ligne enregistrée. Activez le renvoi depuis cette ligne, puis refaites le test."
         }
       },
       "sip": {
@@ -2645,7 +2726,17 @@
         "buyCredits": "Acheter des crédits",
         "adminOnly": "Seul un propriétaire ou un administrateur peut ajouter un numéro.",
         "started": "Nous configurons votre numéro. Il apparaîtra ici dès qu’il sera prêt.",
-        "sipLocked": "Utiliser votre propre ligne fait partie d’un forfait supérieur."
+        "sipLocked": "Utiliser votre propre ligne fait partie d’un forfait supérieur.",
+        "purchaseRequired": "Achetez un forfait de crédits avant d’ajouter un numéro de téléphone. Les crédits de l’essai gratuit ne servent qu’aux appels test dans le navigateur.",
+        "limitReached": "Votre formule {plan} inclut {max, plural, one {un numéro de téléphone} other {# numéros de téléphone}}. Passez à une formule supérieure pour en ajouter un autre.",
+        "upgrade": "Changer de formule"
+      },
+      "fixNotice": {
+        "title": "Certains numéros de téléphone sont à corriger",
+        "body": "Ils ont été enregistrés sans l’indicatif de pays. Tant qu’ils ne sont pas corrigés, un transfert aboutit au mauvais numéro et un appelant bloqué peut encore appeler.",
+        "handoff": "{count, plural, one {Corriger # numéro de transfert} other {Corriger # numéros de transfert}}",
+        "blocked": "{count, plural, one {Corriger # appelant bloqué} other {Corriger # appelants bloqués}}",
+        "dismiss": "Masquer"
       }
     },
     "wallet": {
@@ -3435,6 +3526,12 @@
       "today": "aujourd’hui à {time}",
       "tomorrow": "demain à {time}",
       "onDay": "{day} à {time}"
+    },
+    "announcements": {
+      "title": "De l’équipe Oraly",
+      "dismiss": "Masquer",
+      "until": "Jusqu’au {date}",
+      "posted": "Publié le {date}"
     }
   },
   "impersonation": {

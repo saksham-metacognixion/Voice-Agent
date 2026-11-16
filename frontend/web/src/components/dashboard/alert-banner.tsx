@@ -9,7 +9,9 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { errorMessage } from '@/src/lib/errors';
 import { formatCreditsValue, formatPhone } from '@/src/lib/format';
+import { canTopUp } from '@/src/dashboard/home-view';
 import { routes } from '@/src/routes';
+import { useRole } from '@/src/workspace/use-role';
 
 /**
  * D1 alert banner (spec p. 33): the open, undismissed alerts from `GET /alerts/active`
@@ -25,6 +27,7 @@ export function AlertBanner() {
   const queryClient = useQueryClient();
   const alerts = useListActiveAlerts(api, { staleTime: 30_000 });
   const dismiss = useDismissAlert(api);
+  const { role } = useRole();
   const [busy, setBusy] = React.useState<string | null>(null);
 
   if (alerts.isPending) return null;
@@ -55,6 +58,8 @@ export function AlertBanner() {
     <div className="flex flex-col gap-3" aria-live="polite">
       {items.map((alert) => {
         const view = describe(alert, t);
+        // A wallet link is "Buy credits": not offered to a role that cannot (§6.1), the page would only say so.
+        const href = view.href === routes.app.wallet && !canTopUp(role) ? null : view.href;
         return (
           <Alert
             key={alert.id}
@@ -62,9 +67,9 @@ export function AlertBanner() {
             title={view.title}
             actions={
               <>
-                {view.href ? (
+                {href ? (
                   <Button size="sm" asChild>
-                    <Link href={view.href}>{view.cta}</Link>
+                    <Link href={href}>{view.cta}</Link>
                   </Button>
                 ) : null}
                 <Button size="sm" variant="ghost" loading={busy === alert.id} onClick={() => void onDismiss(alert.id)}>

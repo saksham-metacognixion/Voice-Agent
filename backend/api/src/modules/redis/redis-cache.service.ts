@@ -34,6 +34,18 @@ end
 return 0
 `;
 
+/**
+ * `DEL key` unless it holds a JSON object whose `ARGV[1]` field is something other than
+ * `ARGV[2]`. A missing key is 0; unreadable JSON is deleted (nothing could use it). 1 when deleted.
+ */
+export const DEL_JSON_IF_FIELD_SCRIPT = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return 0 end
+local ok, rec = pcall(cjson.decode, raw)
+if ok and type(rec) == 'table' and rec[ARGV[1]] ~= ARGV[2] then return 0 end
+return redis.call('DEL', KEYS[1])
+`;
+
 @Injectable()
 export class RedisCache {
   private readonly log = new Logger(RedisCache.name);
@@ -99,6 +111,33 @@ export class RedisCache {
   async del(...keys: string[]): Promise<number> {
     if (keys.length === 0) return 0;
     return this.attempt(`DEL ${keys.join(' ')}`, () => this.client.del(...keys), DEFAULT_REDIS_TIMEOUT_MS, 0);
+  }
+
+  /**
+   * Deletes a JSON key only while it still describes `value` in `field` — so a writer that
+   * no longer owns the key (QA-105: a released number whose e164 a new row now holds)
+   * cannot remove what the owner wrote. 1 when this call deleted it.
+   */
+  async delJsonIf(key: string, field: string, value: string): Promise<number> {
+    return this.attempt(
+      `DEL ${key} if ${field}`,
+      async () => {
+        if (this.client.eval) return Number(await this.client.eval(DEL_JSON_IF_FIELD_SCRIPT, 1, key, field, value));
+        // InMemoryRedis has no Lua: two steps, exact for one process.
+        const raw = await this.client.get(key);
+        if (raw === null) return 0;
+        let rec: unknown;
+        try {
+          rec = JSON.parse(raw);
+        } catch {
+          rec = null;
+        }
+        if (rec && typeof rec === 'object' && (rec as Record<string, unknown>)[field] !== value) return 0;
+        return this.client.del(key);
+      },
+      DEFAULT_REDIS_TIMEOUT_MS,
+      0,
+    );
   }
 
   /**

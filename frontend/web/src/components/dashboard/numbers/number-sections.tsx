@@ -1,9 +1,9 @@
 'use client';
 
-import { releaseNumber, updateNumber, useApi, useListCalls } from '@portal/api-client';
-import { TRANSFER_FAIL_MESSAGE_MAX_CHARS, hoursProblems, type BusinessHours, type CallSummary, type Carrier, type HoursMode, type PhoneNumberResponse, type UpdateNumberRequest } from '@portal/schemas';
+import { isApiError, releaseNumber, updateNumber, useApi, useListCalls } from '@portal/api-client';
+import { TRANSFER_FAIL_MESSAGE_MAX_CHARS, blockedCallerFromCallerId, hoursProblems, isDialableE164, normaliseCallerId, type BusinessHours, type CallSummary, type Carrier, type HoursMode, type PhoneNumberResponse, type UpdateNumberRequest } from '@portal/schemas';
 import {
-  Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch,
+  Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch,
   TagInput, Textarea, toast,
 } from '@portal/ui';
 import { Ban, Check, Copy, Eye, EyeOff, PhoneIncoming, X } from 'lucide-react';
@@ -21,12 +21,12 @@ import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwardi
 import { CopyButton } from '@/src/components/wizard/copy-button';
 import { HoursOverridesEditor, HoursStatusLine } from '@/src/components/dashboard/hours-overrides';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
-import { TransferTargetsEditor, toDrafts, toTargets, validateTargets, type TransferTargetDraft } from '@/src/components/wizard/transfer-targets-editor';
+import { TransferTargetsEditor, normaliseE164, toDrafts, toTargets, validateTargets, type TransferTargetDraft } from '@/src/components/wizard/transfer-targets-editor';
 import { COUNTRIES, countryName } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { formatDateTime, formatDuration, formatPhone } from '@/src/lib/format';
 import { useCursorPager } from '@/src/lib/use-cursor-pager';
-import { MAX_BLOCKLIST, isNumberEditable, maskSecretish, parseBlocklist } from '@/src/dashboard/numbers-view';
+import { MAX_BLOCKLIST, applyMisreadFixes, isBlocklistEntryInvalid, isNumberEditable, maskSecretish, misreadBlocklist, parseBlocklist, rejectedNumberList } from '@/src/dashboard/numbers-view';
 import { config } from '@/src/config';
 import { callPath, routes, settingsPath } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
@@ -41,8 +41,11 @@ function sameList(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
-/** PATCH /numbers/:id with the answer written into both caches; one request at a time. */
-function usePatchNumber(number: PhoneNumberResponse) {
+/**
+ * PATCH /numbers/:id with the answer written into both caches; one request at a time.
+ * `listMessages` replaces the generic 422 copy when the API refused a number on that list.
+ */
+function usePatchNumber(number: PhoneNumberResponse, listMessages?: Partial<Record<'blocklist' | 'transfer_targets', string>>) {
   const api = useApi();
   const tc = useTranslations();
   const queryClient = useQueryClient();
@@ -59,7 +62,8 @@ function usePatchNumber(number: PhoneNumberResponse) {
         toast.success(success ?? tc('dashboard.numbers.saved'));
         return true;
       } catch (e) {
-        const msg = errorMessage(e, tc);
+        const list = isApiError(e) && e.code === 'VALIDATION_FAILED' ? rejectedNumberList(e.body.fields) : null;
+        const msg = (list ? listMessages?.[list] : undefined) ?? errorMessage(e, tc);
         setError(msg);
         toast.error(msg);
         return false;
@@ -67,7 +71,7 @@ function usePatchNumber(number: PhoneNumberResponse) {
         setBusy(false);
       }
     },
-    [api, number.id, queryClient, tc],
+    [api, number.id, queryClient, tc, listMessages],
   );
   return { save, busy, error };
 }
@@ -227,10 +231,16 @@ export function RoutingSection({ number, disabled }: { number: PhoneNumberRespon
 export function HandoffSection({ number, disabled }: { number: PhoneNumberResponse; disabled: boolean }) {
   const t = useTranslations('dashboard.numbers.handoff');
   const tw = useTranslations('wizard.w6.transfer');
-  const { save, busy, error } = usePatchNumber(number);
+  const numberError = tw('errors.number');
+  const listMessages = React.useMemo(() => ({ transfer_targets: numberError }), [numberError]);
+  const { save, busy, error } = usePatchNumber(number, listMessages);
   const [rows, setRows] = React.useState<TransferTargetDraft[]>(() => toDrafts(number.transfer_targets));
-  const [rowErrors, setRowErrors] = React.useState<Record<string, { label?: string; number?: string }>>({});
-  const [fix, setFix] = React.useState(false);
+  const messages = { label: tw('errors.label'), number: numberError };
+  // Rows are checked from the first Save, and from the start when a saved target is already
+  // one the API would refuse (written before QA-106): then live, so a fixed row clears.
+  const [checked, setChecked] = React.useState(() => Object.keys(validateTargets(rows, messages)).length > 0);
+  const rowErrors = checked ? validateTargets(rows, messages) : {};
+  const fix = Object.keys(rowErrors).length > 0;
   const savedMessage = number.transfer_fail_message ?? '';
   const [message, setMessage] = React.useState(savedMessage);
 
@@ -241,10 +251,8 @@ export function HandoffSection({ number, disabled }: { number: PhoneNumberRespon
   const dirty = targetsDirty || messageDirty;
 
   async function submit() {
-    const errs = validateTargets(rows, { label: tw('errors.label'), number: tw('errors.number') });
-    setRowErrors(errs);
-    setFix(Object.keys(errs).length > 0);
-    if (Object.keys(errs).length) return;
+    setChecked(true);
+    if (Object.keys(validateTargets(rows, messages)).length) return;
     const patch: UpdateNumberRequest = {};
     if (targetsDirty) patch.transfer_targets = toTargets(rows);
     // Blank clears it: the agent falls back to the fixed rule's own words.
@@ -298,7 +306,11 @@ export function HandoffSection({ number, disabled }: { number: PhoneNumberRespon
  */
 export function CallersSection({ number, disabled }: { number: PhoneNumberResponse; disabled: boolean }) {
   const t = useTranslations('dashboard.numbers.callers');
-  const { save, busy, error } = usePatchNumber(number);
+  const tw = useTranslations('wizard.w6.transfer');
+  const numberError = tw('errors.number');
+  const listMessages = React.useMemo(() => ({ blocklist: numberError }), [numberError]);
+  const { save, busy, error } = usePatchNumber(number, listMessages);
+  const ws = useWorkspace();
   const [countries, setCountries] = React.useState<string[]>(number.allowed_countries);
   const [blocked, setBlocked] = React.useState<string[]>(number.blocklist);
   const [adding, setAdding] = React.useState('');
@@ -323,6 +335,8 @@ export function CallersSection({ number, disabled }: { number: PhoneNumberRespon
   }, [number.allowed_countries, number.blocklist]);
 
   const parsed = parseBlocklist(blocked);
+  // Entries saved before QA-106 as `+` and a national number: allowed, but they block nobody.
+  const misread = misreadBlocklist(parsed.valid, number.country ?? ws.workspace?.country);
   const dirty = JSON.stringify(countries) !== JSON.stringify(number.allowed_countries) || JSON.stringify(parsed.valid) !== JSON.stringify(number.blocklist) || parsed.invalid.length > 0;
 
   async function submit() {
@@ -390,11 +404,33 @@ export function CallersSection({ number, disabled }: { number: PhoneNumberRespon
           <CardDescription>{t('blockBody')}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <TagInput id="callers-block" value={blocked} onChange={setBlocked} placeholder={t('blockPlaceholder')} max={MAX_BLOCKLIST} maxLength={24} disabled={disabled || busy} aria-describedby="callers-block-hint" />
+          <TagInput id="callers-block" value={blocked} onChange={setBlocked} isInvalid={isBlocklistEntryInvalid} placeholder={t('blockPlaceholder')} max={MAX_BLOCKLIST} maxLength={24} disabled={disabled || busy} aria-describedby="callers-block-hint" />
           <p id="callers-block-hint" className="text-xs text-muted-foreground">
             {t('blockMax', { max: MAX_BLOCKLIST })}
           </p>
           {parsed.invalid.length ? <Alert variant="danger">{t('blockInvalid', { entries: parsed.invalid.join(', ') })}</Alert> : null}
+          {misread.length ? (
+            <Alert
+              variant="warning"
+              data-testid="callers-misread"
+              actions={
+                !disabled ? (
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setBlocked((list) => applyMisreadFixes(list, misread))}>
+                    {t('misreadUse')}
+                  </Button>
+                ) : null
+              }
+            >
+              <p>{t('misread')}</p>
+              <ul className="mt-1 text-sm">
+                {misread.map((m) => (
+                  <li key={m.entry} dir="ltr" className="tabular-nums">
+                    {t('misreadRow', { entry: m.entry, suggestion: formatPhone(m.suggestion) })}
+                  </li>
+                ))}
+              </ul>
+            </Alert>
+          ) : null}
           {error ? <Alert variant="danger">{error}</Alert> : null}
           {!disabled ? <SaveRow label={t('save')} busy={busy} dirty={dirty} disabled={parsed.invalid.length > 0} onSave={() => void submit()} /> : null}
         </CardContent>
@@ -427,7 +463,10 @@ function RecentCallers({ number, disabled, blocklist, onBlock }: { number: Phone
       align: 'right',
       cell: (c) => {
         if (!c.from_number) return null;
-        const isBlocked = blocklist.includes(c.from_number);
+        // Whatever the carrier sent, as the inbound check compares it (QA-106): a spoofed caller ID can be blocked too.
+        const entry = blockedCallerFromCallerId(c.from_number);
+        const isBlocked = blocklist.includes(normaliseCallerId(c.from_number));
+        const blockable = entry !== null;
         return (
           <div className="flex w-full justify-end gap-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             <Button variant="outline" size="sm" className="flex-1 sm:hidden" onClick={() => router.push(callPath(c.id))}>
@@ -437,7 +476,7 @@ function RecentCallers({ number, disabled, blocklist, onBlock }: { number: Phone
               <Badge variant="outline" className="gap-1">
                 <Check className="size-3" aria-hidden /> {t('blocked')}
               </Badge>
-            ) : !disabled && blocklist.length < MAX_BLOCKLIST ? (
+            ) : !disabled && blockable && blocklist.length < MAX_BLOCKLIST ? (
               <Button
                 variant="danger-outline"
                 size="sm"
@@ -446,7 +485,7 @@ function RecentCallers({ number, disabled, blocklist, onBlock }: { number: Phone
                 disabled={blocking !== null}
                 onClick={async () => {
                   setBlocking(c.id);
-                  await onBlock(c.from_number!);
+                  await onBlock(entry!);
                   setBlocking(null);
                 }}
               >
@@ -506,6 +545,7 @@ export function ForwardingSection({ number, disabled }: { number: PhoneNumberRes
       <CardContent className="flex flex-col gap-4">
         <CarrierForwardingGuide carrier={carrier} onCarrierChange={setCarrier} />
         {!disabled && number.status === 'active' && !number.staff_paused ? <ForwardingTestPanel number={number} /> : null}
+        {!disabled ? <ExistingLineEditor number={number} /> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
         {!disabled ? (
           <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -523,6 +563,43 @@ export function ForwardingSection({ number, disabled }: { number: PhoneNumberRes
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Option B's own line, editable (QA-107, ADR 0045): the repair for a line saved without its
+ * country code, and for a typo. Judged by the API's rule before anything is sent; a line
+ * already stored wrong is marked from the start. A change sets the forwarding back to
+ * "Waiting for you" and drops the last test, so the customer turns forwarding on from the
+ * right line and tests again.
+ */
+function ExistingLineEditor({ number }: { number: PhoneNumberResponse }) {
+  const t = useTranslations('dashboard.numbers.forwarding.line');
+  const tw = useTranslations('wizard.w6.errors');
+  const { save, busy, error } = usePatchNumber(number);
+  const stored = number.forwarding!.from;
+  const [value, setValue] = React.useState(stored);
+  const [checked, setChecked] = React.useState(() => !isDialableE164(stored));
+  React.useEffect(() => setValue(stored), [stored]);
+
+  const next = normaliseE164(value);
+  const invalid = checked && !isDialableE164(next);
+  const ringing = number.forwarding?.test?.status === 'calling';
+
+  async function submit() {
+    setChecked(true);
+    if (!isDialableE164(next)) return;
+    if (await save({ forwarding_from: next }, t('saved'))) setChecked(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-3 border-t border-border pt-4">
+      <Field id="fwd-existing-line" label={t('label')} description={t('hint')} error={invalid ? tw('e164') : undefined}>
+        <Input id="fwd-existing-line" type="tel" inputMode="tel" dir="ltr" placeholder="+14505550123" value={value} onChange={(e) => setValue(e.target.value)} aria-invalid={invalid || undefined} disabled={busy || ringing} />
+      </Field>
+      {error ? <Alert variant="danger">{error}</Alert> : null}
+      <SaveRow label={t('save')} busy={busy} disabled={ringing} dirty={next !== stored} onSave={() => void submit()} />
+    </div>
   );
 }
 

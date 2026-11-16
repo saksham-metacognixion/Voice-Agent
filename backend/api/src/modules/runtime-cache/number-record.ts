@@ -1,4 +1,4 @@
-import type { AgentTier, BusinessHours, HoursMode } from '@portal/schemas';
+import { normaliseCallerId, type AgentTier, type BusinessHours, type HoursMode } from '@portal/schemas';
 
 /** Bump when the shape changes; the hot path treats an older record as a miss. */
 export const NUMBER_RECORD_VERSION = 2 as const;
@@ -102,9 +102,5 @@ export function isNumberRecord(value: unknown): value is NumberRecord {
   );
 }
 
-/** E.164-ish normalisation for blocklist comparison: digits only, leading + kept. */
-export function normalisePhone(value: string): string {
-  const digits = value.replace(/[^\d+]/g, '');
-  if (!digits) return '';
-  return digits.startsWith('+') ? `+${digits.slice(1).replace(/\+/g, '')}` : `+${digits}`;
-}
+/** Blocklist comparison: `normaliseCallerId`, the rule D4's block list and "Block" save by (QA-106). */
+export const normalisePhone = normaliseCallerId;

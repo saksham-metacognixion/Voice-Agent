@@ -409,6 +409,63 @@
         ],
         "type": "object"
       },
+      "activeAnnouncementsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "body": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "dismissible": {
+                  "type": "boolean"
+                },
+                "ends_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "severity": {
+                  "enum": [
+                    "info",
+                    "warning",
+                    "danger"
+                  ],
+                  "type": "string"
+                },
+                "starts_at": {
+                  "format": "date-time",
+                  "nullable": true,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "severity",
+                "body",
+                "starts_at",
+                "ends_at",
+                "dismissible",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
       "adminAgentResponse": {
         "properties": {
           "calls_7d": {
@@ -3657,6 +3714,22 @@
             "nullable": true,
             "type": "string"
           },
+          "staff_paused_at": {
+            "default": null,
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_reason": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_ticket_id": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
           "status": {
             "enum": [
               "provisioning",
@@ -3714,22 +3787,6 @@
             "default": false,
             "type": "boolean"
           },
-          "staff_paused_at": {
-            "default": null,
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          },
-          "staff_paused_reason": {
-            "default": null,
-            "nullable": true,
-            "type": "string"
-          },
-          "staff_paused_ticket_id": {
-            "default": null,
-            "nullable": true,
-            "type": "integer"
-          },
           "caller_id_verified_via": {
             "default": null,
             "enum": [
@@ -3779,6 +3836,22 @@
             "format": "date-time",
             "nullable": true,
             "type": "string"
+          },
+          "staff_paused_at": {
+            "default": null,
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_reason": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "staff_paused_ticket_id": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
           },
           "status": {
             "enum": [
@@ -3834,22 +3907,6 @@
             "exclusiveMinimum": false,
             "maximum": 10000,
             "minimum": 0,
-            "nullable": true,
-            "type": "integer"
-          },
-          "staff_paused_at": {
-            "default": null,
-            "format": "date-time",
-            "nullable": true,
-            "type": "string"
-          },
-          "staff_paused_reason": {
-            "default": null,
-            "nullable": true,
-            "type": "string"
-          },
-          "staff_paused_ticket_id": {
-            "default": null,
             "nullable": true,
             "type": "integer"
           },
@@ -11336,6 +11393,9 @@
             ],
             "type": "object"
           },
+          "draft_has_prompt": {
+            "type": "boolean"
+          },
           "draft_version": {
             "nullable": true,
             "type": "integer"
@@ -11363,7 +11423,23 @@
           "name": {
             "type": "string"
           },
+          "number_e164": {
+            "nullable": true,
+            "type": "string"
+          },
           "numbers_attached": {
+            "type": "integer"
+          },
+          "paused_by": {
+            "enum": [
+              "customer",
+              "staff"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "paused_ticket_id": {
+            "nullable": true,
             "type": "integer"
           },
           "primary_language": {
@@ -12202,7 +12278,11 @@
           "draft_version",
           "published_version",
           "has_unpublished_changes",
+          "draft_has_prompt",
           "numbers_attached",
+          "number_e164",
+          "paused_by",
+          "paused_ticket_id",
           "max_call_duration_s",
           "recording_enabled",
           "created_at",
@@ -12784,6 +12864,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "draft_has_prompt": {
+            "type": "boolean"
+          },
           "draft_version": {
             "nullable": true,
             "type": "integer"
@@ -12811,7 +12894,23 @@
           "name": {
             "type": "string"
           },
+          "number_e164": {
+            "nullable": true,
+            "type": "string"
+          },
           "numbers_attached": {
+            "type": "integer"
+          },
+          "paused_by": {
+            "enum": [
+              "customer",
+              "staff"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
+          "paused_ticket_id": {
+            "nullable": true,
             "type": "integer"
           },
           "primary_language": {
@@ -12870,7 +12969,11 @@
           "draft_version",
           "published_version",
           "has_unpublished_changes",
+          "draft_has_prompt",
           "numbers_attached",
+          "number_e164",
+          "paused_by",
+          "paused_ticket_id",
           "max_call_duration_s",
           "recording_enabled",
           "created_at"
@@ -16944,6 +17047,81 @@
         ],
         "type": "object"
       },
+      "notificationsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "created_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "low_balance",
+                    "message_captured",
+                    "number_active",
+                    "auto_topup_failed",
+                    "member_joined",
+                    "rental_overdue",
+                    "number_released"
+                  ],
+                  "type": "string"
+                },
+                "meta": {
+                  "additionalProperties": {},
+                  "nullable": true,
+                  "type": "object"
+                },
+                "unread": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "meta",
+                "created_at",
+                "unread"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "seen_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "unread": {
+            "exclusiveMinimum": false,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "unread",
+          "seen_at"
+        ],
+        "type": "object"
+      },
+      "notificationsSeenResponse": {
+        "properties": {
+          "seen_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seen_at"
+        ],
+        "type": "object"
+      },
       "numberAccepted": {
         "properties": {
           "job_id": {
@@ -17315,6 +17493,15 @@
                 ],
                 "type": "object"
               },
+              "staff_pause_ticket_id": {
+                "default": null,
+                "nullable": true,
+                "type": "integer"
+              },
+              "staff_paused": {
+                "default": false,
+                "type": "boolean"
+              },
               "status": {
                 "enum": [
                   "provisioning",
@@ -17493,15 +17680,6 @@
                     "minLength": 2,
                     "type": "string"
                   },
-              "staff_pause_ticket_id": {
-                "default": null,
-                "nullable": true,
-                "type": "integer"
-              },
-              "staff_paused": {
-                "default": false,
-                "type": "boolean"
-              },
                   "registration_country": {
                     "type": "string"
                   },
@@ -17974,6 +18152,15 @@
             ],
             "type": "object"
           },
+          "staff_pause_ticket_id": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "staff_paused": {
+            "default": false,
+            "type": "boolean"
+          },
           "status": {
             "enum": [
               "provisioning",
@@ -18152,15 +18339,6 @@
                     "default": {},
                     "type": "object"
                   },
-          "staff_pause_ticket_id": {
-            "default": null,
-            "nullable": true,
-            "type": "integer"
-          },
-          "staff_paused": {
-            "default": false,
-            "type": "boolean"
-          },
                   "timezone": {
                     "minLength": 1,
                     "type": "string"
@@ -19713,6 +19891,12 @@
                 "type": "string"
               },
               {
+                "enum": [
+                  "notifications"
+                ],
+                "type": "string"
+              },
+              {
                 "pattern": "^agent:[0-9a-f-]+$",
                 "type": "string"
               },
@@ -20131,6 +20315,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "messages_taken": {
+            "default": 0,
+            "type": "integer"
+          },
           "minutes": {
             "type": "number"
           },
@@ -20148,6 +20336,35 @@
               "custom"
             ],
             "type": "string"
+          },
+          "sentiment": {
+            "default": {
+              "negative": 0,
+              "neutral": 0,
+              "positive": 0,
+              "unknown": 0
+            },
+            "properties": {
+              "negative": {
+                "type": "integer"
+              },
+              "neutral": {
+                "type": "integer"
+              },
+              "positive": {
+                "type": "integer"
+              },
+              "unknown": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "positive",
+              "neutral",
+              "negative",
+              "unknown"
+            ],
+            "type": "object"
           },
           "timezone": {
             "type": "string"
@@ -20601,7 +20818,7 @@
           },
           "blocklist": {
             "items": {
-              "pattern": "^\\+[1-9]\\d{6,14}$",
+              "pattern": "^\\+\\d{1,15}$",
               "type": "string"
             },
             "maxItems": 200,
@@ -20609,6 +20826,10 @@
           },
           "forwarding_confirmed": {
             "type": "boolean"
+          },
+          "forwarding_from": {
+            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "type": "string"
           },
           "hours_mode": {
             "enum": [
@@ -21182,10 +21403,17 @@
           "agent_published": {
             "type": "boolean"
           },
+          "all_done": {
+            "type": "boolean"
+          },
           "complete": {
             "type": "boolean"
           },
           "credits_purchased": {
+            "type": "boolean"
+          },
+          "forwarding_tested": {
+            "nullable": true,
             "type": "boolean"
           },
           "number_attached": {
@@ -21193,6 +21421,9 @@
           },
           "onboarding_step": {
             "type": "integer"
+          },
+          "team_invited": {
+            "type": "boolean"
           },
           "workspace_created": {
             "type": "boolean"
@@ -21205,8 +21436,11 @@
           "agent_published",
           "credits_purchased",
           "number_attached",
+          "forwarding_tested",
+          "team_invited",
           "onboarding_step",
-          "complete"
+          "complete",
+          "all_done"
         ],
         "type": "object"
       },
@@ -21413,6 +21647,10 @@
             "nullable": true,
             "type": "string"
           },
+          "paused_ticket_id": {
+            "nullable": true,
+            "type": "integer"
+          },
           "pii_removal_default": {
             "type": "boolean"
           },
@@ -21477,6 +21715,7 @@
           "onboarding_dismissed_at",
           "paused",
           "paused_reason",
+          "paused_ticket_id",
           "role",
           "mfa",
           "created_at"
@@ -36026,6 +36265,19 @@
               "NOT_FOUND"
             ]
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NUMBER_IN_USE}",
+            "x-error-codes": [
+              "NUMBER_IN_USE"
+            ]
+          },
           "422": {
             "content": {
               "application/json": {
@@ -37641,6 +37893,80 @@
         "summary": "Hide one alert for the workspace",
         "tags": [
           "notifications"
+        ],
+        "x-auth": "workspace"
+      }
+    },
+    "/announcements/active": {
+      "get": {
+        "description": "Spec §16, admin §5.3.",
+        "operationId": "listActiveAnnouncements",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/activeAnnouncementsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "D1 — the staff banners (SA10) this workspace should see now",
+        "tags": [
+          "config"
         ],
         "x-auth": "workspace"
       }
@@ -41365,6 +41691,154 @@
         ]
       }
     },
+    "/notifications": {
+      "get": {
+        "description": "Spec §7.2, §13.1.",
+        "operationId": "listNotifications",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/notificationsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "§7.2 bell — the caller’s recent notifications from the outbox, newest first, with the unread count",
+        "tags": [
+          "notifications"
+        ],
+        "x-auth": "workspace"
+      }
+    },
+    "/notifications/seen": {
+      "post": {
+        "description": "Spec §7.2.",
+        "operationId": "markNotificationsSeen",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/notificationsSeenResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "§7.2 bell — the caller opened it; everything up to now is read",
+        "tags": [
+          "notifications"
+        ],
+        "x-auth": "workspace"
+      }
+    },
     "/numbers": {
       "get": {
         "operationId": "listNumbers",
@@ -41506,9 +41980,10 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {NO_CREDITS}",
+            "description": "Error envelope; `code` ∈ {NO_CREDITS, PURCHASE_REQUIRED}",
             "x-error-codes": [
-              "NO_CREDITS"
+              "NO_CREDITS",
+              "PURCHASE_REQUIRED"
             ]
           },
           "403": {
@@ -41525,6 +42000,19 @@
               "FORBIDDEN_ROLE",
               "NOT_A_MEMBER",
               "WORKSPACE_PAUSED"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NUMBER_LIMIT}",
+            "x-error-codes": [
+              "NUMBER_LIMIT"
             ]
           },
           "422": {
@@ -41729,9 +42217,10 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {NO_CREDITS}",
+            "description": "Error envelope; `code` ∈ {NO_CREDITS, PURCHASE_REQUIRED}",
             "x-error-codes": [
-              "NO_CREDITS"
+              "NO_CREDITS",
+              "PURCHASE_REQUIRED"
             ]
           },
           "403": {
@@ -41748,6 +42237,20 @@
               "FORBIDDEN_ROLE",
               "NOT_A_MEMBER",
               "WORKSPACE_PAUSED"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NUMBER_IN_USE, NUMBER_LIMIT}",
+            "x-error-codes": [
+              "NUMBER_IN_USE",
+              "NUMBER_LIMIT"
             ]
           },
           "422": {
@@ -41874,6 +42377,19 @@
             "description": "Error envelope; `code` ∈ {NOT_FOUND}",
             "x-error-codes": [
               "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NUMBER_ON_CALL}",
+            "x-error-codes": [
+              "NUMBER_ON_CALL"
             ]
           },
           "503": {
@@ -42041,8 +42557,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "description": "Error envelope; `code` ∈ {BAD_REQUEST, WORKSPACE_REQUIRED}",
             "x-error-codes": [
+              "BAD_REQUEST",
               "WORKSPACE_REQUIRED"
             ]
           },
@@ -42096,10 +42613,12 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONFLICT, NUMBER_STAFF_PAUSED}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONFLICT, FORWARDING_TEST_IN_PROGRESS, NUMBER_STAFF_PAUSED}",
             "x-error-codes": [
               "AGENT_NOT_PUBLISHED",
-              "CONFLICT"
+              "CONFLICT",
+              "FORWARDING_TEST_IN_PROGRESS",
+              "NUMBER_STAFF_PAUSED"
             ]
           },
           "422": {
@@ -42121,7 +42640,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "Routing and labels: agent, hours, transfer targets, blocklist, pause",
+        "summary": "Routing and labels: agent, hours, transfer targets, blocklist, pause, the forwarded line",
         "tags": [
           "numbers"
         ],
@@ -42238,11 +42757,12 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONCURRENCY_LIMIT, CONFLICT, FORWARDING_TEST_IN_PROGRESS, NUMBER_STAFF_PAUSED, TESTS_PAUSED}",
+            "description": "Error envelope; `code` ∈ {AGENT_NOT_PUBLISHED, CONCURRENCY_LIMIT, CONFLICT, FORWARDING_NUMBER_INVALID, FORWARDING_TEST_IN_PROGRESS, NUMBER_STAFF_PAUSED, TESTS_PAUSED}",
             "x-error-codes": [
               "AGENT_NOT_PUBLISHED",
               "CONCURRENCY_LIMIT",
               "CONFLICT",
+              "FORWARDING_NUMBER_INVALID",
               "FORWARDING_TEST_IN_PROGRESS",
               "NUMBER_STAFF_PAUSED",
               "TESTS_PAUSED"
@@ -42628,8 +43148,7 @@
             },
             "description": "Error envelope; `code` ∈ {CONFLICT}",
             "x-error-codes": [
-              "CONFLICT",
-              "NUMBER_STAFF_PAUSED"
+              "CONFLICT"
             ]
           },
           "422": {

@@ -108,6 +108,20 @@ export const ErrorCode = {
   VERSION_IMMUTABLE: 'VERSION_IMMUTABLE',
   ACTIVATION_IN_PROGRESS: 'ACTIVATION_IN_PROGRESS',
   NUMBER_IN_USE: 'NUMBER_IN_USE',
+  /**
+   * QA-108: the plan includes phone numbers and every one of them is held. Not PLAN_LIMIT,
+   * which the portal reads as "your plan does not include that" — the plan does include
+   * numbers, it has none left. Upgrade, or release one.
+   */
+  NUMBER_LIMIT: 'NUMBER_LIMIT',
+  /** QA-108: DELETE /numbers/:id while a call on the number is live. Not NUMBER_IN_USE, which means another row holds the number. */
+  NUMBER_ON_CALL: 'NUMBER_ON_CALL',
+  /**
+   * QA-107: "Test forwarding" refused because the stored forwarded line is not a real number
+   * with its country code (a row saved before the rule, e.g. `5145550123` stored as Peruvian
+   * `+5145550123`). Calling it would ring a stranger abroad on the customer's credits.
+   */
+  FORWARDING_NUMBER_INVALID: 'FORWARDING_NUMBER_INVALID',
   /** The version exists but its voice-platform copy is not ready yet (a test call right after Improve). Transient (QA-021). */
   VERSION_SYNCING: 'VERSION_SYNCING',
   /**
@@ -241,6 +255,9 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   VERSION_IMMUTABLE: 409,
   ACTIVATION_IN_PROGRESS: 409,
   NUMBER_IN_USE: 409,
+  NUMBER_LIMIT: 409,
+  NUMBER_ON_CALL: 409,
+  FORWARDING_NUMBER_INVALID: 409,
   VERSION_SYNCING: 409,
   VERSION_NOT_TESTABLE: 409,
   AGENT_NOT_GENERATED: 409,

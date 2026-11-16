@@ -10,6 +10,7 @@ import { createEmailSender } from './email.sender';
 import { LowBalanceAlertsService } from './low-balance.service';
 import { NotificationSettingsService } from './notification-settings.service';
 import { NotificationsService } from './notifications.service';
+import { NotificationsFeedService } from './notifications-feed.service';
 import { EMAIL_SENDER } from './notifications.tokens';
 import { AUTO_TOPUP_FAILED_KEY, WorkspaceAlertsService } from './workspace-alerts.service';
 
@@ -29,12 +30,13 @@ import { AUTO_TOPUP_FAILED_KEY, WorkspaceAlertsService } from './workspace-alert
   providers: [
     { provide: EMAIL_SENDER, useFactory: () => createEmailSender() },
     NotificationsService,
+    NotificationsFeedService,
     WorkspaceAlertsService,
     LowBalanceAlertsService,
     DailyDigestService,
     NotificationSettingsService,
   ],
-  exports: [NotificationsService, WorkspaceAlertsService, LowBalanceAlertsService, DailyDigestService, NotificationSettingsService, EMAIL_SENDER],
+  exports: [NotificationsService, NotificationsFeedService, WorkspaceAlertsService, LowBalanceAlertsService, DailyDigestService, NotificationSettingsService, EMAIL_SENDER],
 })
 export class NotificationsModule implements OnModuleInit {
   constructor(

@@ -94,8 +94,10 @@ export class AdminAgentsService {
     if (!agent || agent.deletedAt) throw AppError.notFound('Agent');
     await this.limits.assertPauseTicket(staff, agent.tenantId, body.ticket_id, 'agent');
     if (agent.status !== 'paused') {
+      // D1 names the ticket (ADR 0041) — only one of this workspace's, whatever the role.
+      const ticketId = await this.limits.workspaceTicket(agent.tenantId, body.ticket_id);
       await adminDb.$transaction(async (tx) => {
-        await tx.agent.update({ where: { id }, data: { status: 'paused' } });
+        await tx.agent.update({ where: { id }, data: { status: 'paused', pausedBy: 'staff', pausedTicketId: ticketId } });
         await tx.auditLog.create({
           data: {
             tenantId: agent.tenantId,
@@ -149,7 +151,7 @@ export class AdminAgentsService {
       // to put on the phone, so it resumes as a draft rather than staying stuck.
       const status = agent.publishedVersion === null ? 'draft' : 'live';
       await adminDb.$transaction(async (tx) => {
-        await tx.agent.update({ where: { id }, data: { status } });
+        await tx.agent.update({ where: { id }, data: { status, pausedBy: null, pausedTicketId: null } });
         await tx.auditLog.create({
           data: {
             tenantId: agent.tenantId,

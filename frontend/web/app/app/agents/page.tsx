@@ -162,7 +162,7 @@ function AgentCard({ agent, timeZone, menu }: { agent: AgentSummary; timeZone: s
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
               <TierBadge tier={agent.tier} />
-              <AgentStatusBadge status={agent.status} />
+              <AgentStatusBadge agent={agent} />
             </div>
           </div>
           <dl className="grid grid-cols-3 gap-3 text-xs">

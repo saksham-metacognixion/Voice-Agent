@@ -1,6 +1,6 @@
 'use client';
 
-import { transferTarget, type TransferTarget } from '@portal/schemas';
+import { toDialableE164, transferTarget, type TransferTarget } from '@portal/schemas';
 import { Button, Input, Label } from '@portal/ui';
 import { Plus, Trash2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -40,11 +40,15 @@ export function toTargets(rows: TransferTargetDraft[]): TransferTarget[] {
   return rows.map((r) => ({ label: r.label.trim(), number: normaliseE164(r.number) }));
 }
 
-/** "+1 (450) 555-0123" → "+14505550123". Anything that is not a leading + or a digit goes. */
+/**
+ * A typed number → what a request sends: E.164 by the API's own rule (`toDialableE164`), so
+ * "+1 (450) 555-0123" → "+14505550123", else the text as typed (trimmed), which the
+ * request schema (`dialableE164`) then refuses and the field marks. Never given a `+`:
+ * `4165550101` with one prepended is Swiss and `5145550123` Peruvian (QA-106, QA-107 —
+ * W6's existing line and own line, D4's "Keep your number" and "Bring your own line").
+ */
 export function normaliseE164(value: string): string {
-  const trimmed = value.trim();
-  const digits = trimmed.replace(/[^\d]/g, '');
-  return trimmed.startsWith('+') ? `+${digits}` : digits ? `+${digits}` : '';
+  return toDialableE164(value) ?? value.trim();
 }
 
 /**

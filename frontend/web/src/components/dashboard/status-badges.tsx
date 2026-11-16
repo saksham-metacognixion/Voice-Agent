@@ -1,9 +1,10 @@
 'use client';
 
-import type { AgentStatus, AgentTier, CallDisplayStatus } from '@portal/schemas';
+import type { AgentStatus, AgentSummary, AgentTier, CallDisplayStatus } from '@portal/schemas';
 import { Badge, Spinner } from '@portal/ui';
 import { Frown, Meh, Smile } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { agentNeedsNumber } from '@/src/dashboard/agent-reach';
 import { sentimentOf } from '@/src/dashboard/analysis';
 
 /** `calls.status` as the customer reads it (D2): declined is Missed, in_progress is Live. */
@@ -27,8 +28,11 @@ export function CallStatusBadge({ status }: { status: CallDisplayStatus }) {
   }
 }
 
-export function AgentStatusBadge({ status }: { status: AgentStatus }) {
+/** A live agent with no number reads "No number", not a green "Live": no caller can reach it (`agentNeedsNumber`). */
+export function AgentStatusBadge({ agent }: { agent: Pick<AgentSummary, 'status' | 'numbers_attached'> }) {
   const t = useTranslations('dashboard.agents.status');
+  const status: AgentStatus = agent.status;
+  if (agentNeedsNumber(agent)) return <Badge variant="warning">{t('noNumber')}</Badge>;
   if (status === 'live') return <Badge variant="success">{t('live')}</Badge>;
   if (status === 'paused') return <Badge variant="warning">{t('paused')}</Badge>;
   return <Badge variant="outline">{t('draft')}</Badge>;

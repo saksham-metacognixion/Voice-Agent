@@ -9,6 +9,7 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { BriefTab } from '@/src/components/dashboard/agent/brief-tab';
 import { KnowledgeTab } from '@/src/components/dashboard/agent/knowledge-tab';
+import { NoNumberNotice } from '@/src/components/dashboard/agent/no-number-notice';
 import { OverviewTab } from '@/src/components/dashboard/agent/overview-tab';
 import { PromptTab } from '@/src/components/dashboard/agent/prompt-tab';
 import { PublishBar } from '@/src/components/dashboard/agent/publish-bar';
@@ -100,12 +101,14 @@ export default function AgentDetailPage() {
               {data.name}
               <TemplateBadge agent={data} />
               <TierBadge tier={data.draft?.settings.tier ?? data.tier} />
-              <AgentStatusBadge status={data.status} />
+              <AgentStatusBadge agent={data} />
             </span>
           }
           description={ta('detail.subtitle', { live: data.published_version ? `v${data.published_version}` : ta('notPublished'), draft: data.draft_version ? `v${data.draft_version}` : '–' })}
         />
       </div>
+
+      <NoNumberNotice agent={data} />
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList aria-label={ta('detail.tabs')}>
@@ -129,7 +132,8 @@ export default function AgentDetailPage() {
         <TabsContent value="settings">{tab === 'settings' ? <SettingsTab key={data.draft?.version_no ?? 'none'} agent={data} canEdit={canEdit} canAdmin={canAdmin} /> : null}</TabsContent>
       </Tabs>
 
-      {tab !== 'test' ? <PublishBar agent={data} canEdit={canEdit} editorDirty={promptDirty} discard={tab === 'overview'} /> : null}
+      {/* On every tab, the Test tab included: the §7.2 chip lands here "with a Publish button" (ADR 0041). */}
+      <PublishBar agent={data} canEdit={canEdit} editorDirty={promptDirty} discard={tab === 'overview'} />
     </>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ANSWER_MODES, buyNumberRequest, hoursMode, hoursModeUsesSchedule, phoneNumberResponse, phonePlanRequest, phonePlanResponse, sipCredentials } from './numbers.js';
+import { ANSWER_MODES, buyNumberRequest, hoursMode, hoursModeUsesSchedule, importNumberRequest, updateNumberRequest, phoneNumberResponse, phonePlanRequest, phonePlanResponse, sipCredentials } from './numbers.js';
 
 /* §8 W6 fields (ADR 0040): the answer modes, Option B's forward mode and Option C's provider and transport. */
 
@@ -82,5 +82,42 @@ describe('responses written before the fields existed', () => {
     });
     expect(parsed.forwarding?.mode).toBeNull();
     expect(parsed.sip).toMatchObject({ provider: 'other', transport: 'TCP', origination_uri: null, verification: null });
+  });
+});
+
+/*
+ * QA-107 / ORL-NUM-628: the line a customer keeps (Option B) and the line they bring
+ * (Option C) carry their country code. `5145550123` read with an implied `+` is Peru and
+ * `4165550101` Switzerland; both used to be stored, bought against and rung by
+ * "Test forwarding". The same rule on W6 (phone plan), D4 "Add number" (buy and import).
+ */
+describe('QA-107: the forwarded and the own line need their country code', () => {
+  const AGENT = '00000000-0000-4000-8000-000000000001';
+  const SIP = { host: 'sip.example.com' };
+  const refused = ['5145550123', '4165550101', '+5145550123', '+4165550101', '+9995551234', '', '+', 'abc', '+1 514 555', '+1 (514) 555-0123'];
+  const accepted = ['+15145550123', '+14165550101', '+442071838750', '+33142685300', '+919876543210'];
+
+  const entryPoints: Array<[string, (n: string) => boolean]> = [
+    ['W6 Option B (existing_number)', (n) => phonePlanRequest.safeParse({ option: 'forward', country: 'CA', existing_number: n }).success],
+    ['W6 Option C (sip.number)', (n) => phonePlanRequest.safeParse({ option: 'sip', sip: { ...SIP, number: n } }).success],
+    ['D4 Keep your number (forward_from)', (n) => buyNumberRequest.safeParse({ agent_id: AGENT, country: 'CA', forward_from: n }).success],
+    ['D4 Bring your own line (sip.number)', (n) => importNumberRequest.safeParse({ agent_id: AGENT, sip: { ...SIP, number: n } }).success],
+    ['D4 Forwarding, correcting the line (forwarding_from)', (n) => updateNumberRequest.safeParse({ forwarding_from: n }).success],
+  ];
+
+  for (const [name, accepts] of entryPoints) {
+    it(`${name}: refuses a number without its country code, an invalid one or a malformed one`, () => {
+      for (const n of refused) expect(accepts(n), n).toBe(false);
+    });
+    it(`${name}: accepts real numbers in E.164, North American and international`, () => {
+      for (const n of accepted) expect(accepts(n), n).toBe(true);
+    });
+  }
+
+  it('names the field a 422 points at', () => {
+    const forward = buyNumberRequest.safeParse({ agent_id: AGENT, country: 'CA', forward_from: '5145550123' });
+    expect(new Set(forward.success ? [] : forward.error.issues.map((i) => i.path.join('.')))).toEqual(new Set(['forward_from']));
+    const sip = importNumberRequest.safeParse({ agent_id: AGENT, sip: { ...SIP, number: '+5145550123' } });
+    expect(new Set(sip.success ? [] : sip.error.issues.map((i) => i.path.join('.')))).toEqual(new Set(['sip.number']));
   });
 });
