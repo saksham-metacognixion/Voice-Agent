@@ -1308,6 +1308,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     tag: 'wallet',
     query: 'invoicesQuery',
     response: { paginated: 'invoiceResponse' },
+    roles: ['owner', 'admin'],
   },
   {
     method: 'POST',

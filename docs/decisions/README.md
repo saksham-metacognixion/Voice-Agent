@@ -66,3 +66,4 @@ Template:
 ## Consequences
 ```
 - [0017 — Portal foundation: session, gating, theme tokens, local issuer](0017-portal-foundation.md)
+- [0046 — The 17 Nov QA batch: rules the screen had and the server did not](0046-17-nov-qa-batch.md)

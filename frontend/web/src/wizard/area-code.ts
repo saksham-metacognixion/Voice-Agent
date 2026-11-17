@@ -1,4 +1,4 @@
-import type { PurchasableCountry } from '@portal/schemas';
+import { AREA_CODE_NOT_IN_COUNTRY, type PurchasableCountry } from '@portal/schemas';
 
 /**
  * §8 W6 Option A "Suggest": fills the area code from where the workspace is. The spec
@@ -37,6 +37,19 @@ const BY_ZONE: Record<PurchasableCountry, Record<string, string>> = {
     'Pacific/Honolulu': '808',
   },
 };
+
+/** Every code Suggest can fill in, per country. The request schema must accept each of them. */
+export function suggestableAreaCodes(country: PurchasableCountry): string[] {
+  return [...new Set([...Object.values(BY_ZONE[country]), COUNTRY_DEFAULT[country]])];
+}
+
+/**
+ * A request issue that says "three digits, but not an area code of this country" (999, or
+ * 212 for Canada), as opposed to a malformed code. The two get different sentences.
+ */
+export function isAreaCodeNotInCountry(issue: { path: PropertyKey[]; message: string }): boolean {
+  return issue.path.map(String).join('.') === 'area_code' && issue.message === AREA_CODE_NOT_IN_COUNTRY;
+}
 
 const COUNTRY_DEFAULT: Record<PurchasableCountry, string> = { CA: '416', US: '212' };
 

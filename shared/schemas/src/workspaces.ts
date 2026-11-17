@@ -19,10 +19,28 @@ export const countryCode = z
   .regex(/^[A-Za-z]{2}$/, 'Two-letter country code')
   .transform((value) => value.toUpperCase());
 
+/**
+ * §6.3 A3 "Country — US, CA at launch". The workspace country chooses packs, numbers and
+ * the default allowed caller countries. §20 item 4 (whether India joins) is the owner's:
+ * adding a country here is the whole change, for the set-up screen and the API alike.
+ */
+export const LAUNCH_COUNTRIES = ['US', 'CA'] as const;
+export type LaunchCountry = (typeof LAUNCH_COUNTRIES)[number];
+
+export function isLaunchCountry(code: string | null | undefined): code is LaunchCountry {
+  return Boolean(code && (LAUNCH_COUNTRIES as readonly string[]).includes(code.toUpperCase()));
+}
+
+/** A country a workspace can be created in. Any other ISO code is refused, typed or sent directly. */
+export const launchCountry = countryCode.refine(
+  isLaunchCountry,
+  'We are not available in that country yet',
+);
+
 /** A4 — Workspace setup (spec p. 12). Country and timezone are required; the rest is not. */
 export const createWorkspaceRequest = z.object({
   name: z.string().trim().min(2).max(80),
-  country: countryCode,
+  country: launchCountry,
   /** IANA name. Not validated against the tz database here — the API does that. */
   timezone: z.string().min(1).max(64),
   phone: e164.optional(),
@@ -179,7 +197,10 @@ export const inviteStatus = z.enum(['pending', 'expired', 'accepted']);
 export type InviteStatus = z.infer<typeof inviteStatus>;
 
 /** The status an invite row is in at `now`. Accepted wins over expired: it was used in time. */
-export function inviteStatusAt(row: { expires_at: string | Date; accepted_at: string | Date | null }, now: Date = new Date()): InviteStatus {
+export function inviteStatusAt(
+  row: { expires_at: string | Date; accepted_at: string | Date | null },
+  now: Date = new Date(),
+): InviteStatus {
   if (row.accepted_at) return 'accepted';
   // The same comparison the accept route makes: usable up to and including `expires_at`.
   return new Date(row.expires_at).getTime() < now.getTime() ? 'expired' : 'pending';
@@ -269,7 +290,10 @@ export type TransferOwnershipRequest = z.infer<typeof transferOwnershipRequest>;
 
 /** Narrow by the part before the dot of `action` (`agent`, `number`, `member`, …). */
 export const auditLogQuery = paginationQuery.extend({
-  area: z.string().regex(/^[a-z_]{2,32}$/).optional(),
+  area: z
+    .string()
+    .regex(/^[a-z_]{2,32}$/)
+    .optional(),
 });
 export type AuditLogQuery = z.infer<typeof auditLogQuery>;
 

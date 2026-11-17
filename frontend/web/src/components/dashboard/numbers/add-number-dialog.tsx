@@ -2,7 +2,7 @@
 
 import { buyNumber, importNumber, isApiError, useApi, useGetFlags, useGetPricing, useGetWallet, useListNumbers } from '@portal/api-client';
 import { buyNumberRequest, importNumberRequest, type Carrier, type PurchasableCountry } from '@portal/schemas';
-import { Alert, Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from '@portal/ui';
+import { Alert, Button, Checkbox, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -11,10 +11,12 @@ import { track } from '@/src/analytics/posthog';
 import { CarrierForwardingGuide } from '@/src/components/wizard/carrier-forwarding-guide';
 import { PhoneOptionCards, type WizardPhoneOption } from '@/src/components/wizard/phone-option-cards';
 import { normaliseE164 } from '@/src/components/wizard/transfer-targets-editor';
+import { countryName } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { addNumberBlock, type AddNumberBlock } from '@/src/dashboard/numbers-view';
 import { formatCreditsValue } from '@/src/lib/format';
 import { routes } from '@/src/routes';
+import { isAreaCodeNotInCountry } from '@/src/wizard/area-code';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
 import { PRICING_STALE_MS } from '@/src/lib/pricing';
@@ -50,6 +52,7 @@ export function AddNumberDialog({ open, onOpenChange, agentId: preselect = null 
   const [existing, setExisting] = React.useState('');
   const [carrier, setCarrier] = React.useState<Carrier>('other');
   const [sip, setSip] = React.useState({ number: '', host: '', username: '', password: '' });
+  const [sipConsent, setSipConsent] = React.useState(false);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -74,6 +77,7 @@ export function AddNumberDialog({ open, onOpenChange, agentId: preselect = null 
       setErrors({});
       setError(null);
       setSip((s) => ({ ...s, password: '' }));
+      setSipConsent(false);
     }
   }, [open]);
 
@@ -91,11 +95,13 @@ export function AddNumberDialog({ open, onOpenChange, agentId: preselect = null 
     if (busy) return;
     setError(null);
     const areaCodeValue = areaCode.trim() || undefined;
-    const showErrors = (issues: Array<{ path: PropertyKey[] }>) => {
+    const showErrors = (issues: Array<{ path: PropertyKey[]; message: string }>) => {
       const next: Record<string, string> = {};
       for (const issue of issues) {
         const path = issue.path.map(String).join('.');
-        next[path] = tw(`errors.${FIELD_KEYS[path] ?? 'generic'}`);
+        next[path] = isAreaCodeNotInCountry(issue)
+          ? tw('errors.areaCodeUnknown', { code: areaCodeValue ?? '', country: countryName(country) })
+          : tw(`errors.${FIELD_KEYS[path] ?? 'generic'}`);
       }
       setErrors(next);
     };
@@ -103,6 +109,7 @@ export function AddNumberDialog({ open, onOpenChange, agentId: preselect = null 
     if (option === 'sip') {
       const parsed = importNumberRequest.safeParse({
         agent_id: agentId,
+        carrier_consent: sipConsent,
         sip: { number: normaliseE164(sip.number), host: sip.host.trim(), ...(sip.username.trim() ? { username: sip.username.trim() } : {}), ...(sip.password ? { password: sip.password } : {}) },
       });
       if (!parsed.success) return showErrors(parsed.error.issues);
@@ -215,6 +222,18 @@ export function AddNumberDialog({ open, onOpenChange, agentId: preselect = null 
               <Field id="add-sip-pass" label={tw('fields.sipPassword')} optional optionalLabel={tc('common.optional')} description={tw('fields.sipPasswordHint')}>
                 <Input id="add-sip-pass" type="password" autoComplete="new-password" value={sip.password} onChange={(e) => setSip((s) => ({ ...s, password: e.target.value }))} disabled={busy} />
               </Field>
+              {/* §8 W6 C: the same gate as the wizard's, and the request carries it. */}
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label htmlFor="add-sip-consent" className="flex items-start gap-2 text-sm">
+                  <Checkbox id="add-sip-consent" className="mt-0.5" checked={sipConsent} onCheckedChange={(v) => setSipConsent(v === true)} disabled={busy} aria-invalid={fe('carrier_consent') ? true : undefined} aria-describedby={fe('carrier_consent') ? 'add-sip-consent-err' : undefined} />
+                  <span>{tw('fields.sipConsent')}</span>
+                </label>
+                {fe('carrier_consent') ? (
+                  <p id="add-sip-consent-err" className="text-xs text-danger" role="alert">
+                    {fe('carrier_consent')}
+                  </p>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
@@ -264,4 +283,5 @@ const FIELD_KEYS: Record<string, string> = {
   forward_from: 'e164',
   'sip.number': 'e164',
   'sip.host': 'sipHost',
+  carrier_consent: 'sipConsent',
 };

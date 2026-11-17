@@ -208,14 +208,35 @@ export const briefPatch = brief.partial().extend({
 });
 export type BriefPatch = z.infer<typeof briefPatch>;
 
+/** W2 fields 1 and 2 need this many characters of real text before Generate turns on. */
+export const BRIEF_MIN_REAL_CHARS = 20;
+
+/** What counts toward the minimum: the text without the spaces and line breaks around it. A field of spaces counts 0. */
+export function briefRealChars(value: string | null | undefined): number {
+  return value?.trim().length ?? 0;
+}
+
 /**
  * W2: "Generate is disabled until 1 & 2 are valid." Fields 1 and 2 have a *minimum*
  * length in the spec (20 chars) that the at-rest schema cannot enforce, because an
- * autosave of three characters must still be storable. This is where it is enforced.
+ * autosave of three characters must still be storable. This is where it is enforced —
+ * on `briefRealChars`, so twenty spaces are not a brief. The value itself is left as typed.
  */
 export const briefReadyForGeneration = brief.extend({
-  about_business: z.string().min(20, 'Tell us at least a sentence about the business').max(1_000),
-  goal: z.string().min(20, 'Describe what a good call achieves').max(800),
+  about_business: z
+    .string()
+    .max(1_000)
+    .refine(
+      (value) => briefRealChars(value) >= BRIEF_MIN_REAL_CHARS,
+      'Tell us at least a sentence about the business',
+    ),
+  goal: z
+    .string()
+    .max(800)
+    .refine(
+      (value) => briefRealChars(value) >= BRIEF_MIN_REAL_CHARS,
+      'Describe what a good call achieves',
+    ),
 });
 
 /** All the transfer numbers the brief names, in order, deduplicated. */
@@ -624,7 +645,10 @@ export type DuplicateAgentRequest = z.infer<typeof duplicateAgentRequest>;
  * is the suffix pattern (the portal passes its translated one); a pattern longer than
  * the limit on its own is cut, since a name that fails validation helps no one.
  */
-export function copyAgentName(name: string, format: (name: string) => string = (n) => `${n} (copy)`): string {
+export function copyAgentName(
+  name: string,
+  format: (name: string) => string = (n) => `${n} (copy)`,
+): string {
   const base = name.trim();
   const whole = format(base);
   if (whole.length <= AGENT_NAME_MAX) return whole;
@@ -728,7 +752,10 @@ export const agentDraftPatch = z.object({
    * captured values by name.
    */
   analysis_fields: analysisSchema
-    .refine((fields) => new Set(fields.map((f) => f.name)).size === fields.length, 'Each field needs its own name')
+    .refine(
+      (fields) => new Set(fields.map((f) => f.name)).size === fields.length,
+      'Each field needs its own name',
+    )
     .optional(),
 });
 export type AgentDraftPatch = z.infer<typeof agentDraftPatch>;

@@ -1930,7 +1930,7 @@ export function useConfirmCheckout(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { body: z.input<typeof checkoutConfirmRequest> }) => confirmCheckout(api, vars.body) });
 }
 
-/** GET /wallet/invoices — Stripe invoices mirrored for the workspace. */
+/** GET /wallet/invoices — Stripe invoices mirrored for the workspace (roles: owner, admin). */
 export function listInvoices(api: ApiClient, query?: z.input<typeof invoicesQuery>) {
   return api.get(`/wallet/invoices${qs(query)}`, paginated(invoiceResponse));
 }

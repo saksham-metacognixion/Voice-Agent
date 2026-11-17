@@ -101,8 +101,8 @@ export function FailedTopupsTable({ rows }: { rows: AdminFailedTopup[] }) {
         consequences={
           target?.action === 'retry'
             ? [
-                'The saved card is charged off-session for the configured pack, skipping the 6-hour cooldown after a decline.',
-                'Nothing is charged while a top-up is already in flight, auto top-up is off, no card is saved, or the balance is above the threshold.',
+                'The saved card is charged off-session for the configured pack, skipping the one-day wait and the three-retry limit after a decline.',
+                'Nothing is charged while a top-up is already in flight or was paid in the last 10 minutes, auto top-up is off, no card is saved, or the balance is above the threshold.',
                 'Credits are added only when Stripe confirms the payment — never from this click.',
               ]
             : ['The workspace stops topping up automatically; the saved card stays on file.', 'Low-balance alerts keep going out; the customer can switch it back on in their wallet.']
@@ -129,6 +129,10 @@ function skipReason(reason: string | null): string {
       return 'The workspace is paused.';
     case 'cooldown':
       return 'A decline is still cooling down.';
+    case 'recent':
+      return 'A top-up was paid in the last 10 minutes.';
+    case 'retries_exhausted':
+      return 'The card was declined on every retry.';
     default:
       return reason ?? 'Nothing to do.';
   }

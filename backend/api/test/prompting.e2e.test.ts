@@ -250,6 +250,19 @@ describe('POST /agents/:id/generate', () => {
     expect(request).toContain('Ask for the callback number sooner');
   });
 
+  it('refuses a brief made only of spaces: twenty spaces are not twenty characters (W2)', async () => {
+    const agentId = (await req('POST', '/agents', { template_id: 'custom' })).json().id;
+    const blank = ' '.repeat(25);
+    const saved = await req('PATCH', `/agents/${agentId}/draft`, { brief: { about_business: blank, goal: blank } });
+    expect(saved.statusCode).toBe(200);
+
+    const res = await req('POST', `/agents/${agentId}/generate`, {});
+    expect(res.statusCode).toBe(400);
+    expect(res.json().code).toBe('BRIEF_INCOMPLETE');
+    expect(res.json().fields.map((f: { field: string }) => f.field).sort()).toEqual(['brief.about_business', 'brief.goal']);
+    expect(provider.calls).toHaveLength(0);
+  });
+
   it('refuses an incomplete brief before it costs anything (W2)', async () => {
     const agentId = (await req('POST', '/agents', { template_id: 'custom' })).json().id;
     const res = await req('POST', `/agents/${agentId}/generate`, {});

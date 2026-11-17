@@ -754,6 +754,11 @@ job settles.
   `invalid_number` before buying, "Test forwarding" is `409 FORWARDING_NUMBER_INVALID` before ringing,
   and the customer corrects it on D4's Forwarding tab (`PATCH /numbers/:id {forwarding_from}`, which resets
   the forwarding to waiting and drops the last test; refused while one rings).
+- **The 17 Nov QA batch** (ADR 0046): the area code must be one of the chosen country
+  (`areaCodeCountry()` in `phone.ts`, `AREA_CODE_NOT_IN_COUNTRY` on `area_code`); Option C carries
+  `carrier_consent: true` on the plan and the import; a workspace is created in `LAUNCH_COUNTRIES` only
+  (`launchCountry` in `@portal/schemas`, re-exported by the portal); W2 counts real characters
+  (`briefRealChars`); `GET /wallet/invoices` is owner/admin.
 - **Numbers refusals have one code per reason** (QA-108, ADR 0045): no pack bought = `402
   PURCHASE_REQUIRED` (never `NO_CREDITS`, trial credits are not a purchase), every included number held =
   `409 NUMBER_LIMIT` (`PLAN_LIMIT` only for a plan with none, or the SIP gate), release during a live call
@@ -819,7 +824,7 @@ job settles.
   republish is outside the sync's `try` and a throw keeps the mark for the retry.
 - **Auto top-up (§5.4) credits nothing on the create call.** `AutoTopupService.evaluate`
   (every debit + the 15-minute `auto-topup` schedule) creates the pending purchase under the
-  wallet lock (no second charge while one is pending for 30 min, none for 6 h after a decline),
+  wallet lock (no second charge while one is pending for 30 min or within 10 min of a paid one; after a decline one retry a day, three at most, the streak reset by a purchase or by saving the switch on — ADR 0046),
   creates the off-session PaymentIntent with `idempotencyKey = topup-<purchase id>`, and
   grants only in `fulfilPaymentIntent` — from `payment_intent.succeeded` or from the schedule
   retrieving the intent — under the lock, when the purchase is still `pending` and the amount

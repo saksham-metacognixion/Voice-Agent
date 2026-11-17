@@ -21,6 +21,7 @@ import { track } from '@/src/analytics/posthog';
 import { ConfirmDialog } from '@/src/components/dashboard/confirm-dialog';
 import { errorMessage } from '@/src/lib/errors';
 import { PHOTO_TYPES, isPhoto, photoToText, toBase64 } from '@/src/wizard/photo-text';
+import { pickedFileLimit } from '@/src/wizard/upload-limits';
 import { formatNumber } from '@/src/lib/format';
 
 const POLL_MS = 3_000;
@@ -195,7 +196,8 @@ function AddSourceForm({ agentId, disabled, onAdded }: { agentId: string; disabl
     }
     if (!file) return tk('errors.file');
     if (!(KNOWLEDGE_FILE_TYPES as readonly string[]).includes(file.type) && !isPhoto(file.type)) return tk('errors.fileType');
-    if (file.size > KNOWLEDGE_MAX_FILE_BYTES) return tk('errors.fileSize', { mb: KNOWLEDGE_MAX_FILE_BYTES / 1024 / 1024 });
+    const limit = pickedFileLimit(file.type, KNOWLEDGE_MAX_FILE_BYTES);
+    if (file.size > limit) return tk('errors.fileSize', { mb: limit / 1024 / 1024 });
     if (isPhoto(file.type)) {
       // The platform ingests documents, not images: a photo is read into text and kept as text.
       setReadingPhoto(true);

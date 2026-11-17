@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { businessHours, businessHoursInput } from './business-hours.js';
 import { e164, isoDateTime, uuid } from './common.js';
-import { blockedCaller, dialableE164 } from './phone.js';
+import { areaCodeCountry, blockedCaller, dialableE164 } from './phone.js';
 import { countryCode } from './workspaces.js';
 
 /*
@@ -18,7 +18,14 @@ export type PhonePlanOption = z.infer<typeof phonePlanOption>;
 export const phonePlanStatus = z.enum(['pending', 'executed']);
 export type PhonePlanStatus = z.infer<typeof phonePlanStatus>;
 
-export const phoneNumberStatus = z.enum(['provisioning', 'active', 'paused', 'releasing', 'released', 'failed']);
+export const phoneNumberStatus = z.enum([
+  'provisioning',
+  'active',
+  'paused',
+  'releasing',
+  'released',
+  'failed',
+]);
 export type PhoneNumberStatus = z.infer<typeof phoneNumberStatus>;
 
 /** Option B: `waiting_for_customer` until they confirm the carrier forwarding is on. */
@@ -63,7 +70,11 @@ export const hoursMode = z.enum(['always', 'business', 'custom', 'outside_hours'
 export type HoursMode = z.infer<typeof hoursMode>;
 
 /** The three modes §8 W6 offers, in the spec's order. D4 adds `business` and `custom`. */
-export const ANSWER_MODES = ['always', 'outside_hours', 'unanswered'] as const satisfies readonly HoursMode[];
+export const ANSWER_MODES = [
+  'always',
+  'outside_hours',
+  'unanswered',
+] as const satisfies readonly HoursMode[];
 
 /** Modes that look at a clock: the §13.9 check reads `hours` for these and for nothing else. */
 export function hoursModeUsesSchedule(mode: HoursMode): boolean {
@@ -92,8 +103,49 @@ export type PurchasableCountry = z.infer<typeof purchasableCountry>;
 
 export const areaCode = z.string().regex(/^[2-9]\d{2}$/, 'Three-digit area code');
 
+/** The message of the issue `areaCodeInCountry` raises, so the portal can tell it from a shape error. */
+export const AREA_CODE_NOT_IN_COUNTRY = 'Not an area code in that country';
+
+/**
+ * §8 W6 "Area code — checked for the country": `999` exists nowhere and `212` is not
+ * Canadian. An unassigned code used to be saved, read as "no stock" at purchase, and a
+ * number from another area bought in its place. A toll-free number has no area code.
+ */
+function areaCodeInCountry(
+  value: { country?: string; area_code?: string; toll_free?: boolean },
+  ctx: z.RefinementCtx,
+): void {
+  // A malformed code already has `areaCode`'s own issue; one field, one reason.
+  if (!value.area_code || value.toll_free || !areaCode.safeParse(value.area_code).success) return;
+  if (areaCodeCountry(value.area_code) === value.country) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    path: ['area_code'],
+    message: AREA_CODE_NOT_IN_COUNTRY,
+  });
+}
+
+/**
+ * §8 W6 Option C "I understand this requires configuring my carrier": the gate, sent with
+ * the request so a line cannot be saved or connected without it. Only `true` is accepted.
+ */
+export const carrierConsent = z.literal(true, {
+  errorMap: () => ({
+    message: 'Confirm that you will set up your phone system to send calls here',
+  }),
+});
+
 /** Spec p. 26: the carriers W6 has a forwarding guide for. */
-export const carrier = z.enum(['bell', 'rogers', 'telus', 'videotron', 'att', 'verizon', 'tmobile', 'other']);
+export const carrier = z.enum([
+  'bell',
+  'rogers',
+  'telus',
+  'videotron',
+  'att',
+  'verizon',
+  'tmobile',
+  'other',
+]);
 export type Carrier = z.infer<typeof carrier>;
 
 /**
@@ -131,7 +183,10 @@ export const transferFailMessage = z
   .string()
   .trim()
   .max(TRANSFER_FAIL_MESSAGE_MAX_CHARS)
-  .refine((value) => !value.includes('\u0000'), 'The message contains a character that cannot be stored')
+  .refine(
+    (value) => !value.includes('\u0000'),
+    'The message contains a character that cannot be stored',
+  )
   .transform((value) => (value === '' ? null : value));
 
 const sipHost = z
@@ -139,7 +194,10 @@ const sipHost = z
   .trim()
   .min(3)
   .max(253)
-  .regex(/^(sip:)?[A-Za-z0-9.-]+(:\d{2,5})?$/, 'A SIP host such as sip.example.com or sip:pbx.example.com:5060');
+  .regex(
+    /^(sip:)?[A-Za-z0-9.-]+(:\d{2,5})?$/,
+    'A SIP host such as sip.example.com or sip:pbx.example.com:5060',
+  );
 
 /**
  * Option C credentials, as sent by the customer. The password is envelope-encrypted
@@ -225,37 +283,42 @@ const routing = {
 };
 
 /** PUT /agents/:id/phone-plan (§16). One pending plan per agent; a PUT replaces it. */
-export const phonePlanRequest = z.discriminatedUnion('option', [
-  z.object({
-    option: z.literal('new'),
-    country: purchasableCountry,
-    area_code: areaCode.optional(),
-    toll_free: z.boolean().default(false),
-    nickname: z.string().trim().min(1).max(60).optional(),
-    ...routing,
-  }),
-  z.object({
-    option: z.literal('forward'),
-    country: purchasableCountry,
-    area_code: areaCode.optional(),
-    /**
-     * The line the customer already has and will forward to the new number. "Test forwarding"
-     * rings it, so it must be a real number with its country code (QA-107, `dialableE164`).
-     */
-    existing_number: dialableE164,
-    carrier: carrier.default('other'),
-    forward_mode: forwardMode.default('always'),
-    nickname: z.string().trim().min(1).max(60).optional(),
-    ...routing,
-  }),
-  z.object({
-    option: z.literal('sip'),
-    sip: sipCredentials,
-    nickname: z.string().trim().min(1).max(60).optional(),
-    ...routing,
-  }),
-  z.object({ option: z.literal('port'), ...routing }),
-]);
+export const phonePlanRequest = z
+  .discriminatedUnion('option', [
+    z.object({
+      option: z.literal('new'),
+      country: purchasableCountry,
+      area_code: areaCode.optional(),
+      toll_free: z.boolean().default(false),
+      nickname: z.string().trim().min(1).max(60).optional(),
+      ...routing,
+    }),
+    z.object({
+      option: z.literal('forward'),
+      country: purchasableCountry,
+      area_code: areaCode.optional(),
+      /**
+       * The line the customer already has and will forward to the new number. "Test forwarding"
+       * rings it, so it must be a real number with its country code (QA-107, `dialableE164`).
+       */
+      existing_number: dialableE164,
+      carrier: carrier.default('other'),
+      forward_mode: forwardMode.default('always'),
+      nickname: z.string().trim().min(1).max(60).optional(),
+      ...routing,
+    }),
+    z.object({
+      option: z.literal('sip'),
+      sip: sipCredentials,
+      carrier_consent: carrierConsent,
+      nickname: z.string().trim().min(1).max(60).optional(),
+      ...routing,
+    }),
+    z.object({ option: z.literal('port'), ...routing }),
+  ])
+  .superRefine((plan, ctx) => {
+    if (plan.option === 'new' || plan.option === 'forward') areaCodeInCountry(plan, ctx);
+  });
 export type PhonePlanRequest = z.infer<typeof phonePlanRequest>;
 
 /** The stored plan, with every secret removed. */
@@ -293,24 +356,27 @@ export const phonePlanResponse = z.object({
 export type PhonePlanResponse = z.infer<typeof phonePlanResponse>;
 
 /** POST /numbers/buy — Option A or B outside the wizard (D4 "Add number"). */
-export const buyNumberRequest = z.object({
-  agent_id: uuid,
-  country: purchasableCountry,
-  area_code: areaCode.optional(),
-  toll_free: z.boolean().default(false),
-  nickname: z.string().trim().min(1).max(60).optional(),
-  /** Option B: the line that will be forwarded to this number, with its country code (QA-107). */
-  forward_from: dialableE164.optional(),
-  carrier: carrier.optional(),
-  forward_mode: forwardMode.optional(),
-  ...routing,
-});
+export const buyNumberRequest = z
+  .object({
+    agent_id: uuid,
+    country: purchasableCountry,
+    area_code: areaCode.optional(),
+    toll_free: z.boolean().default(false),
+    nickname: z.string().trim().min(1).max(60).optional(),
+    /** Option B: the line that will be forwarded to this number, with its country code (QA-107). */
+    forward_from: dialableE164.optional(),
+    carrier: carrier.optional(),
+    forward_mode: forwardMode.optional(),
+    ...routing,
+  })
+  .superRefine(areaCodeInCountry);
 export type BuyNumberRequest = z.infer<typeof buyNumberRequest>;
 
 /** POST /numbers/import — Option C outside the wizard. */
 export const importNumberRequest = z.object({
   agent_id: uuid,
   sip: sipCredentials,
+  carrier_consent: carrierConsent,
   nickname: z.string().trim().min(1).max(60).optional(),
   ...routing,
 });

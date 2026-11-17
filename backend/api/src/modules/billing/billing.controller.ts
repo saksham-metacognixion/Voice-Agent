@@ -21,8 +21,7 @@ import { InvoicesService } from './invoices.service';
  * other through a forwardRef, and a third file-level edge made `tsx` evaluate
  * `BillingService` before `StripeGateway` existed).
  *
- * Owner/admin for anything that authorises a charge or opens the card page; every role may
- * read invoices.
+ * Owner/admin only, all three (§6.1: buy credits, auto top-up, payment methods, invoices).
  */
 @Controller('wallet')
 export class BillingController {
@@ -43,8 +42,9 @@ export class BillingController {
     return this.topups.update(ctx, autoTopupRequest.parse(body));
   }
 
-  /** D5 "Invoices": the Stripe invoices this workspace's customer received. */
+  /** D5 "Invoices": the Stripe invoices this workspace's customer received. Owner and admin only (§6.1). */
   @Get('invoices')
+  @Roles('owner', 'admin')
   listInvoices(@Ctx() ctx: WorkspaceContext, @Query() query: Record<string, unknown>): Promise<Page<InvoiceResponse>> {
     return this.invoices.list(ctx, invoicesQuery.parse(query));
   }

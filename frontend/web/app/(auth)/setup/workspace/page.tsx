@@ -90,7 +90,8 @@ function SetupInner() {
       if (isApiError(error) && error.body.fields?.length) {
         for (const f of error.body.fields) {
           const name = f.field.split('.')[0] as keyof FormValues;
-          if (name in values) form.setError(name, { message: f.message });
+          // The API's own wording is the validation library's English; each field shows its translated line.
+          if (name in values) form.setError(name, { type: 'server' });
         }
       }
       setServerError(errorMessage(error, t));
@@ -102,7 +103,7 @@ function SetupInner() {
     <AuthLayout title={t('auth.setup.title')} subtitle={t('auth.setup.subtitle')}>
       <form onSubmit={form.handleSubmit(submit)} className="flex flex-col gap-5" noValidate>
         {serverError ? <Alert variant="danger">{serverError}</Alert> : null}
-        <Field id="name" label={t('auth.setup.name')} required error={err.name ? (err.name.message?.includes(' ') ? err.name.message : t('validation.name')) : undefined}>
+        <Field id="name" label={t('auth.setup.name')} required error={err.name ? t('validation.name') : undefined}>
           <Input id="name" autoFocus autoComplete="organization" placeholder={t('auth.setup.namePlaceholder')} invalid={Boolean(err.name)} {...form.register('name')} />
         </Field>
         <div className="grid gap-5 sm:grid-cols-2">

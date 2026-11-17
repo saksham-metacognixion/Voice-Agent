@@ -167,8 +167,6 @@ export class MembersService {
         db.membership.findUnique({ where: { tenantId_userId: { tenantId: ctx.workspaceId, userId: ctx.userId } } }),
         db.membership.findUnique({ where: { tenantId_userId: { tenantId: ctx.workspaceId, userId: targetUserId } } }),
       ]);
-      Logger.debug(current,target)
-
       if (!current || current.role !== 'owner') {
         // Someone else transferred it while this request was in flight.
         throw new AppError('OWNER_ONLY', 'You are no longer the owner of this workspace.');

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Brief } from '@portal/schemas';
+import { BRIEF_MIN_REAL_CHARS, type Brief, briefRealChars } from '@portal/schemas';
 import { Alert, Badge, Button, Field, Input, RadioCard, RadioGroup, TagInput, Textarea, cn } from '@portal/ui';
 import { AlertCircle, Check, Cloud, Loader2 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -31,15 +31,18 @@ export function BriefFields({ form, busy, fieldErrors, placeholders = {}, agentI
   const err = form.formState.errors;
   const fe = fieldErrors;
   const msg = (field: keyof Brief, fallback?: string) => fe[field] ?? (err[field]?.message as string | undefined) ?? fallback;
+  // Fields 1 and 2 count real text: a field padded to twenty characters with spaces says so.
+  const padded = (value: string | undefined) =>
+    (value?.length ?? 0) >= BRIEF_MIN_REAL_CHARS && briefRealChars(value) < BRIEF_MIN_REAL_CHARS ? t('validation.minReal', { min: BRIEF_MIN_REAL_CHARS }) : undefined;
 
   return (
     <form className="flex flex-col gap-10" onSubmit={(e) => e.preventDefault()} noValidate>
       <Section title={tw('sections.basics')}>
-        <Field id="about_business" label={tf('about_business.label')} required description={tf('about_business.hint')} addon={<Counter value={values.about_business} max={1000} min={20} />} error={msg('about_business', err.about_business ? t('validation.min', { min: 20 }) : undefined)}>
-          <Textarea id="about_business" rows={4} maxLength={1000} disabled={busy} placeholder={ph('about_business')} invalid={Boolean(err.about_business || fe.about_business)} {...form.register('about_business')} />
+        <Field id="about_business" label={tf('about_business.label')} required description={tf('about_business.hint')} addon={<Counter value={values.about_business} max={1000} min={BRIEF_MIN_REAL_CHARS} />} error={msg('about_business', err.about_business ? t('validation.min', { min: BRIEF_MIN_REAL_CHARS }) : padded(values.about_business))}>
+          <Textarea id="about_business" rows={4} maxLength={1000} disabled={busy} placeholder={ph('about_business')} invalid={Boolean(err.about_business || fe.about_business || padded(values.about_business))} {...form.register('about_business')} />
         </Field>
-        <Field id="goal" label={tf('goal.label')} required description={tf('goal.hint')} addon={<Counter value={values.goal} max={800} min={20} />} error={msg('goal')}>
-          <Textarea id="goal" rows={3} maxLength={800} disabled={busy} placeholder={ph('goal')} invalid={Boolean(err.goal || fe.goal)} {...form.register('goal')} />
+        <Field id="goal" label={tf('goal.label')} required description={tf('goal.hint')} addon={<Counter value={values.goal} max={800} min={BRIEF_MIN_REAL_CHARS} />} error={msg('goal', padded(values.goal))}>
+          <Textarea id="goal" rows={3} maxLength={800} disabled={busy} placeholder={ph('goal')} invalid={Boolean(err.goal || fe.goal || padded(values.goal))} {...form.register('goal')} />
         </Field>
         <Field id="agent_name" label={tf('agent_name.label')} description={tf('agent_name.hint')} error={msg('agent_name', err.agent_name ? t('validation.agentName') : undefined)}>
           <Input id="agent_name" maxLength={30} disabled={busy} placeholder={tf('agent_name.placeholder')} invalid={Boolean(err.agent_name)} className="sm:max-w-xs" {...form.register('agent_name', { setValueAs: (v: string) => (v?.trim() ? v : undefined) })} />
@@ -147,7 +150,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Counter({ value, max, min }: { value: string | undefined; max: number; min?: number }) {
   const n = value?.length ?? 0;
-  const short = min !== undefined && n > 0 && n < min;
+  const short = min !== undefined && n > 0 && briefRealChars(value) < min;
   return (
     <span className={cn('tabular-nums', short && 'text-warning-emphasis', n > max && 'text-danger')}>
       {n}/{max}

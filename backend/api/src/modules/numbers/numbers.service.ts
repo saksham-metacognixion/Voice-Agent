@@ -175,6 +175,7 @@ export class NumbersService {
         agent_id: agent.id,
         host: input.sip.host,
         has_password: Boolean(input.sip.password),
+        carrier_consent: input.carrier_consent,
         reconnects_number_id: previous?.id ?? null,
       });
       return created;

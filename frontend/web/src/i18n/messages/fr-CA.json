@@ -453,7 +453,8 @@
     "name": "Entre 2 et 80 caractères",
     "agentName": "Entre 2 et 30 caractères",
     "transferNumber": "Une règle de transfert nécessite un numéro vers lequel transférer",
-    "handoffMessage": "Écrivez le message que votre agent doit lire à l’appelant"
+    "handoffMessage": "Écrivez le message que votre agent doit lire à l’appelant",
+    "minReal": "Au moins {min} caractères, sans compter les espaces"
   },
   "wizard": {
     "title": "Configurer votre agent",
@@ -1321,7 +1322,8 @@
         "sipHost": "Entrez une adresse comme sip.example.com.",
         "generic": "Vérifiez ce champ.",
         "areaCodeRequired": "Entrez un indicatif régional ou appuyez sur Suggérer.",
-        "sipConsent": "Cochez la case pour continuer avec votre propre système téléphonique."
+        "sipConsent": "Cochez la case pour continuer avec votre propre système téléphonique.",
+        "areaCodeUnknown": "{code} n’est pas un indicatif régional de ce pays ({country})."
       },
       "guide": {
         "carrier": "Votre fournisseur de téléphonie",

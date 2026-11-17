@@ -16,6 +16,9 @@ import {
   createAgentRequest,
   defaultAgentLanguage,
   NEVER_DO_PRESETS,
+  BRIEF_MIN_REAL_CHARS,
+  briefReadyForGeneration,
+  briefRealChars,
 } from './agents';
 
 /*
@@ -277,3 +280,38 @@ describe('brief.never_do_presets and brief.services_notes', () => {
   });
 });
 
+/* QA bug list, 17 Nov: "Generate is enabled by a brief made only of spaces". */
+describe('briefReadyForGeneration counts real text (W2 fields 1 and 2)', () => {
+  const real = 'We are a family dental clinic in Laval.';
+  const ready = (about_business: string, goal: string) => briefReadyForGeneration.safeParse({ about_business, goal }).success;
+
+  it('spaces, tabs and line breaks are not a brief', () => {
+    expect(ready(' '.repeat(25), ' '.repeat(25))).toBe(false);
+    expect(ready(real, ' '.repeat(25))).toBe(false);
+    expect(ready(' '.repeat(25), real)).toBe(false);
+    expect(ready('\n\t '.repeat(10), real)).toBe(false);
+    expect(ready(`${' '.repeat(30)}short${' '.repeat(30)}`, real)).toBe(false);
+  });
+
+  it('twenty characters of text are enough, with or without spaces around them', () => {
+    expect(ready(real, real)).toBe(true);
+    expect(ready('x'.repeat(20), 'y'.repeat(20))).toBe(true);
+    expect(ready(`   ${'x'.repeat(20)}   `, real)).toBe(true);
+    expect(ready('x'.repeat(19), real)).toBe(false);
+  });
+
+  it('names the field and leaves the text as typed', () => {
+    const blank = briefReadyForGeneration.safeParse({ about_business: ' '.repeat(25), goal: real });
+    expect(blank.success ? [] : blank.error.issues.map((i) => i.path.join('.'))).toEqual(['about_business']);
+    const padded = briefReadyForGeneration.safeParse({ about_business: `  ${real}  `, goal: real });
+    expect(padded.success && padded.data.about_business).toBe(`  ${real}  `);
+  });
+
+  it('briefRealChars is the count both the form and the schema use', () => {
+    expect(briefRealChars(' '.repeat(25))).toBe(0);
+    expect(briefRealChars('  abc \n')).toBe(3);
+    expect(briefRealChars(undefined)).toBe(0);
+    expect(briefRealChars(null)).toBe(0);
+    expect(BRIEF_MIN_REAL_CHARS).toBe(20);
+  });
+});

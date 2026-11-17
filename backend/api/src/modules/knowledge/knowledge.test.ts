@@ -84,9 +84,9 @@ describe('phonePlanRequest', () => {
     expect(phonePlanRequest.safeParse({ option: 'new', country: 'US', area_code: '12' }).success).toBe(false);
     expect(phonePlanRequest.safeParse({ option: 'forward', country: 'CA', existing_number: '+15145550100', carrier: 'bell' }).success).toBe(true);
     expect(phonePlanRequest.safeParse({ option: 'forward', country: 'CA', existing_number: '514-555-0100' }).success).toBe(false);
-    expect(phonePlanRequest.safeParse({ option: 'sip', sip: { number: '+14505550123', host: 'sip.example.com', username: 'u', password: 'p' } }).success).toBe(true);
-    expect(phonePlanRequest.safeParse({ option: 'sip', sip: { number: '+14505550123', host: 'not a host!' } }).success).toBe(false);
-    expect(phonePlanRequest.safeParse({ option: 'sip', sip: { number: '+14505550123', host: 'sip:pbx.example.com:5060' } }).success).toBe(true);
+    expect(phonePlanRequest.safeParse({ option: 'sip', carrier_consent: true, sip: { number: '+14505550123', host: 'sip.example.com', username: 'u', password: 'p' } }).success).toBe(true);
+    expect(phonePlanRequest.safeParse({ option: 'sip', carrier_consent: true, sip: { number: '+14505550123', host: 'not a host!' } }).success).toBe(false);
+    expect(phonePlanRequest.safeParse({ option: 'sip', carrier_consent: true, sip: { number: '+14505550123', host: 'sip:pbx.example.com:5060' } }).success).toBe(true);
     expect(phonePlanRequest.safeParse({ option: 'port' }).success).toBe(true); // valid shape; the service refuses it
   });
 });

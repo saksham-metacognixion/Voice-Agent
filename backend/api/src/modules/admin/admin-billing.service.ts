@@ -554,8 +554,9 @@ export class AdminBillingService {
 
   /**
    * SA9 "Retry now": runs the §5.4 evaluation for the workspace of a failed top-up, past
-   * the decline cooldown but under every other rule (in flight, disabled, no card, above
-   * threshold). Credits still arrive only from Stripe's confirmation.
+   * the daily wait and the retry limit but under every other rule (in flight, paid in the
+   * last 10 minutes, disabled, no card, above threshold). Credits still arrive only from
+   * Stripe's confirmation.
    */
   async retryTopup(
     staff: StaffContext,

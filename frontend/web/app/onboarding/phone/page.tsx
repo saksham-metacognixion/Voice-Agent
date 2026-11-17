@@ -32,11 +32,12 @@ import { PhoneOptionCards, type WizardPhoneOption } from '@/src/components/wizar
 import { TransferTargetsEditor, normaliseE164, toDrafts, toTargets, validateTargets, type TransferTargetDraft } from '@/src/components/wizard/transfer-targets-editor';
 import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
 import { OnboardingStepGuard } from '@/src/guards/guards';
+import { countryName } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
 import { routes } from '@/src/routes';
 import { defaultAllowedCountries } from '@/src/wizard/allowed-countries';
 import { answerModeOptions, initialAnswerMode } from '@/src/wizard/answer-modes';
-import { suggestAreaCode } from '@/src/wizard/area-code';
+import { isAreaCodeNotInCountry, suggestAreaCode } from '@/src/wizard/area-code';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
 import { prefillTransferTargets } from '@/src/wizard/transfer-prefill';
 import { useAdvanceOnboarding } from '@/src/wizard/use-onboarding-agent';
@@ -168,6 +169,7 @@ function PhoneInner({ agent, saved }: { agent: AgentDetail; saved: PhonePlanResp
           ? { option: 'forward' as const, country: form.country, area_code: areaCode, existing_number: normaliseE164(form.existingNumber), carrier: form.carrier, forward_mode: form.forwardMode, ...routing }
           : {
               option: 'sip' as const,
+              carrier_consent: form.sipConsent,
               sip: {
                 number: normaliseE164(form.sipNumber),
                 host: form.sipHost.trim(),
@@ -186,8 +188,11 @@ function PhoneInner({ agent, saved }: { agent: AgentDetail; saved: PhonePlanResp
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const path = issue.path.join('.');
-        if (path.startsWith('transfer_targets')) continue;
-        errors[path] = tp(`errors.${FIELD_KEYS[path] ?? 'generic'}`);
+        // The consent has its own line below, under the checkbox.
+        if (path.startsWith('transfer_targets') || path === 'carrier_consent') continue;
+        errors[path] = isAreaCodeNotInCountry(issue)
+          ? tp('errors.areaCodeUnknown', { code: areaCode ?? '', country: countryName(form.country) })
+          : tp(`errors.${FIELD_KEYS[path] ?? 'generic'}`);
       }
     }
     // §8 W6 Option A/B: "Area code | 3-digit | ✓ (local)". The API keeps it optional for

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { TOPUP_FAILURE_COOLDOWN_MS, TOPUP_IN_FLIGHT_MS, decideTopup } from './auto-topup.service';
+import { TOPUP_FAILURE_COOLDOWN_MS, TOPUP_IN_FLIGHT_MS, TOPUP_MAX_RETRIES, TOPUP_MIN_INTERVAL_MS, decideTopup } from './auto-topup.service';
 
 /* §5.4 — when does a low balance turn into a charge, and when must it not. */
 
 const NOW = new Date('2026-09-21T12:00:00Z');
 const settings = { enabled: true, pack_id: 'starter', threshold: 15, payment_method_id: 'pm_123', card_last4: '4242' };
-const base = { settings, balance: 4, pendingSince: null, lastFailureAt: null, workspacePaused: false, now: NOW };
+const base = { settings, balance: 4, pendingSince: null, lastPaidAt: null, failures: 0, lastFailureAt: null, workspacePaused: false, now: NOW };
+const ago = (ms: number) => new Date(NOW.getTime() - ms);
+const HOUR = 60 * 60_000;
 
 describe('decideTopup', () => {
   it('charges when enabled, below the threshold, with a card and no attempt in flight', () => {
@@ -32,9 +34,36 @@ describe('decideTopup', () => {
     expect(decideTopup({ ...base, pendingSince: new Date(NOW.getTime() - TOPUP_IN_FLIGHT_MS - 1) }).action).toBe('charge');
   });
 
-  it('a declined card is not retried every fifteen minutes', () => {
-    expect(decideTopup({ ...base, lastFailureAt: new Date(NOW.getTime() - 60 * 60_000) })).toMatchObject({ reason: 'cooldown' });
-    expect(decideTopup({ ...base, lastFailureAt: new Date(NOW.getTime() - TOPUP_FAILURE_COOLDOWN_MS - 1) }).action).toBe('charge');
+  it('a paid top-up holds the next one back for ten minutes, however far below the threshold the balance still is', () => {
+    // The bug list's case: Starter (150) at threshold 500, balance 189 two minutes after a paid top-up.
+    const low = { ...base, settings: { ...settings, threshold: 500 }, balance: 189 };
+    expect(decideTopup({ ...low, lastPaidAt: ago(2 * 60_000) })).toEqual({ action: 'skip', reason: 'recent' });
+    expect(decideTopup({ ...low, lastPaidAt: ago(TOPUP_MIN_INTERVAL_MS - 1) })).toMatchObject({ reason: 'recent' });
+    expect(decideTopup({ ...low, lastPaidAt: ago(TOPUP_MIN_INTERVAL_MS) }).action).toBe('charge');
+    expect(TOPUP_MIN_INTERVAL_MS).toBe(10 * 60_000);
+  });
+
+  it('a declined card is retried once a day', () => {
+    for (const hours of [1, 6, 12, 18, 23.9]) {
+      expect(decideTopup({ ...base, failures: 1, lastFailureAt: ago(hours * HOUR) })).toMatchObject({ reason: 'cooldown' });
+    }
+    expect(decideTopup({ ...base, failures: 1, lastFailureAt: ago(TOPUP_FAILURE_COOLDOWN_MS) }).action).toBe('charge');
+    expect(TOPUP_FAILURE_COOLDOWN_MS).toBe(24 * HOUR);
+  });
+
+  it('retries three times, then stops for good', () => {
+    expect(TOPUP_MAX_RETRIES).toBe(3);
+    const dayLater = ago(TOPUP_FAILURE_COOLDOWN_MS);
+    // The first decline and two failed retries: one retry is left.
+    for (const failures of [1, 2, 3]) expect(decideTopup({ ...base, failures, lastFailureAt: dayLater }).action).toBe('charge');
+    // The third retry failed too: nothing more, at 24, 48, 72 or 96 hours.
+    for (const hours of [24, 48, 72, 96, 24 * 30]) {
+      expect(decideTopup({ ...base, failures: 4, lastFailureAt: ago(hours * HOUR) })).toEqual({ action: 'skip', reason: 'retries_exhausted' });
+    }
+  });
+
+  it('a reset streak charges again (a paid purchase, or auto top-up saved on again)', () => {
+    expect(decideTopup({ ...base, failures: 0, lastFailureAt: null }).action).toBe('charge');
   });
 
   it('a balance in the grace overdraft still charges', () => {

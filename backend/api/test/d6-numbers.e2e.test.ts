@@ -62,14 +62,14 @@ describe('PUT /agents/:id/phone-plan', () => {
     const growth = await paidWorkspace(app, 'plan-sip-growth', 'growth');
     const growthAuth = await auth(growth.sub, growth.workspaceId);
     const growthAgent = await publishedAgent(call, growthAuth, { publish: false });
-    const gated = await call('PUT', `/agents/${growthAgent}/phone-plan`, growthAuth, { option: 'sip', sip: { number: '+14505550123', host: 'sip.example.com', username: 'trunk', password: 'Tr0nk-pa55' } });
+    const gated = await call('PUT', `/agents/${growthAgent}/phone-plan`, growthAuth, { option: 'sip', carrier_consent: true, sip: { number: '+14505550123', host: 'sip.example.com', username: 'trunk', password: 'Tr0nk-pa55' } });
     expect(gated.status).toBe(400);
     expect(gated.body.code).toBe('PLAN_LIMIT');
 
     const scale = await paidWorkspace(app, 'plan-sip-scale', 'scale');
     const scaleAuth = await auth(scale.sub, scale.workspaceId);
     const agentId = await publishedAgent(call, scaleAuth, { publish: false });
-    const saved = await call('PUT', `/agents/${agentId}/phone-plan`, scaleAuth, { option: 'sip', sip: { number: '+14505550123', host: 'sip.example.com', username: 'trunk', password: 'Tr0nk-pa55', provider: 'twilio', transport: 'TLS' } });
+    const saved = await call('PUT', `/agents/${agentId}/phone-plan`, scaleAuth, { option: 'sip', carrier_consent: true, sip: { number: '+14505550123', host: 'sip.example.com', username: 'trunk', password: 'Tr0nk-pa55', provider: 'twilio', transport: 'TLS' } });
     expect(saved.status).toBe(200);
     expect(saved.body.sip).toEqual({ number: '+14505550123', host: 'sip.example.com', username: 'trunk', has_password: true, provider: 'twilio', transport: 'TLS' });
     expect(JSON.stringify(saved.body)).not.toContain('Tr0nk-pa55');
@@ -102,6 +102,62 @@ describe('PUT /agents/:id/phone-plan', () => {
     expect((await call('PUT', `/agents/${agentId}/phone-plan`, otherAuth, { option: 'new', country: 'CA' })).status).toBe(404);
     expect((await call('GET', `/agents/${agentId}/phone-plan`, otherAuth)).status).toBe(404);
   });
+});
+
+describe('QA bug list, 17 Nov: the area code and the own-line consent are checked by the server', () => {
+  it('an area code that exists nowhere, or in the other country, is a 422 on area_code and stores or buys nothing', async () => {
+    const ws = await paidWorkspace(app, 'areacode', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const before = retell.countOf('createPhoneNumber');
+
+    for (const body of [
+      { option: 'new', country: 'CA', area_code: '999' },
+      { option: 'new', country: 'CA', area_code: '212' },
+      { option: 'forward', country: 'US', area_code: '416', existing_number: '+15145550123' },
+    ]) {
+      const plan = await call('PUT', `/agents/${agentId}/phone-plan`, headers, body);
+      expect(plan.status, JSON.stringify(body)).toBe(422);
+      expect((plan.body.fields as Array<{ field: string }>).map((f) => f.field)).toEqual(['area_code']);
+    }
+    expect(await adminDb.phonePlan.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+
+    const buy = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA', area_code: '999' });
+    expect(buy.status).toBe(422);
+    expect((buy.body.fields as Array<{ field: string }>).map((f) => f.field)).toEqual(['area_code']);
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+    expect(retell.countOf('createPhoneNumber')).toBe(before);
+
+    // A code of the country is saved as before.
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', area_code: '647' })).status).toBe(200);
+  }, 60_000);
+
+  it('bring your own line without the consent is a 422 on carrier_consent: no plan, no number, nothing sent to the platform', async () => {
+    const ws = await paidWorkspace(app, 'sip-consent', 'scale');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    const sip = { number: nanpNumber(), host: 'sip:pbx.example.com:5060', username: 'trunk', password: 'Imp0rt-pa55' };
+    const before = retell.countOf('importPhoneNumber');
+
+    for (const consent of [{}, { carrier_consent: false }, { carrier_consent: 'true' }]) {
+      const plan = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip, ...consent });
+      expect(plan.status).toBe(422);
+      expect((plan.body.fields as Array<{ field: string }>).map((f) => f.field)).toEqual(['carrier_consent']);
+      const imported = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip, ...consent });
+      expect(imported.status).toBe(422);
+      expect((imported.body.fields as Array<{ field: string }>).map((f) => f.field)).toEqual(['carrier_consent']);
+    }
+    expect(await adminDb.phonePlan.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+    expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
+    expect(retell.countOf('importPhoneNumber')).toBe(before);
+
+    // With it, the plan is saved and the import is accepted; the audit row records the consent.
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip, carrier_consent: true })).status).toBe(200);
+    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip, carrier_consent: true });
+    expect(accepted.status).toBe(202);
+    const audit = await adminDb.auditLog.findFirstOrThrow({ where: { tenantId: ws.workspaceId, action: 'number.import_requested' } });
+    expect(audit.metaJson).toMatchObject({ carrier_consent: true });
+  }, 60_000);
 });
 
 describe('POST /numbers/buy and the provisioning job', () => {
@@ -187,6 +243,7 @@ describe('POST /numbers/import (Option C)', () => {
     const sipNumber = nanpNumber();
     const accepted = await call('POST', '/numbers/import', headers, {
       agent_id: agentId,
+      carrier_consent: true,
       sip: { number: sipNumber, host: 'sip:pbx.example.com:5060', username: 'trunk', password: 'Imp0rt-pa55', provider: 'telnyx', transport: 'UDP' },
     });
     expect(accepted.status).toBe(202);
@@ -229,7 +286,7 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
     const e164 = nanpNumber();
-    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) });
+    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: trunk(e164) });
     expect(accepted.status).toBe(202);
     const row = await waitForNumber((accepted.body.number as { id: string }).id);
     expect(row.status).toBe('active');
@@ -244,7 +301,7 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
     expect((await call('DELETE', `/numbers/${first.id}`, headers)).body).toEqual({ released: true });
     expect(retell.phoneNumbers.has(e164)).toBe(false);
 
-    const again = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { ...trunk(e164, 'Second-pa55'), host: 'sip:pbx2.example.com:5061' } });
+    const again = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: { ...trunk(e164, 'Second-pa55'), host: 'sip:pbx2.example.com:5061' } });
     expect(again.status).toBe(202);
     const second = await waitForNumber((again.body.number as { id: string }).id);
     expect(second.id).not.toBe(first.id);
@@ -274,7 +331,7 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
 
     // Release and connect a third time: two released rows, still exactly one holding the number.
     expect((await call('DELETE', `/numbers/${second.id}`, headers)).body).toEqual({ released: true });
-    const third = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164, 'Third-pa55') });
+    const third = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: trunk(e164, 'Third-pa55') });
     expect(third.status).toBe(202);
     const thirdRow = await waitForNumber((third.body.number as { id: string }).id);
     expect(thirdRow.status).toBe('active');
@@ -293,7 +350,7 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
     const otherAgent = await publishedAgent(call, otherAuth);
     const imports = retell.countOf('importPhoneNumber');
 
-    const refused = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, sip: trunk(holder.e164, 'Thief-pa55') });
+    const refused = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, carrier_consent: true, sip: trunk(holder.e164, 'Thief-pa55') });
     expect(refused.status).toBe(409);
     expect(refused.body).toEqual({ code: 'NUMBER_IN_USE', message: IN_USE, fields: [{ field: 'sip.number', message: IN_USE }] });
     // Nothing about the holder in the answer, nothing written for the caller, nothing asked of the platform.
@@ -306,13 +363,13 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
     expect(await cachedNumberId(holder.e164)).toBe(holder.row.id);
 
     // W6 says so too, before the customer pays for an activation that would fail.
-    const plan = await call('PUT', `/agents/${otherAgent}/phone-plan`, otherAuth, { option: 'sip', sip: trunk(holder.e164, 'Thief-pa55') });
+    const plan = await call('PUT', `/agents/${otherAgent}/phone-plan`, otherAuth, { option: 'sip', carrier_consent: true, sip: trunk(holder.e164, 'Thief-pa55') });
     expect(plan.status).toBe(409);
     expect(plan.body.code).toBe('NUMBER_IN_USE');
 
     // Once the holder releases it, it is free for anyone — and the old owner's refresh cannot take it back.
     await call('DELETE', `/numbers/${holder.row.id}`, holder.headers);
-    const taken = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, sip: trunk(holder.e164, 'Mine-pa55') });
+    const taken = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, carrier_consent: true, sip: trunk(holder.e164, 'Mine-pa55') });
     expect(taken.status).toBe(202);
     const takenRow = await waitForNumber((taken.body.number as { id: string }).id);
     expect(takenRow).toMatchObject({ status: 'active', tenantId: other.workspaceId });
@@ -326,13 +383,13 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
     const e164 = nanpNumber();
-    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip: trunk(e164) })).status).toBe(200);
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', carrier_consent: true, sip: trunk(e164) })).status).toBe(200);
 
     // Someone else connects it between W6 and go-live.
     const other = await paidWorkspace(app, 'qa105-w6-other', 'scale');
     const otherAuth = await auth(other.sub, other.workspaceId);
     const otherAgent = await publishedAgent(call, otherAuth);
-    const theirs = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, sip: trunk(e164) });
+    const theirs = await call('POST', '/numbers/import', otherAuth, { agent_id: otherAgent, carrier_consent: true, sip: trunk(e164) });
     await waitForNumber((theirs.body.number as { id: string }).id);
 
     const imports = retell.countOf('importPhoneNumber');
@@ -350,7 +407,7 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
     const e164 = nanpNumber();
-    const body = { agent_id: agentId, sip: trunk(e164) };
+    const body = { agent_id: agentId, carrier_consent: true, sip: trunk(e164) };
     const answers = await Promise.all([call('POST', '/numbers/import', headers, body), call('POST', '/numbers/import', headers, body)]);
     expect(answers.map((a) => a.status).sort()).toEqual([202, 409]);
     expect(answers.find((a) => a.status === 409)!.body.code).toBe('NUMBER_IN_USE');
@@ -365,26 +422,26 @@ describe('QA-105: a released own line can be connected again; a held one cannot 
     const agentId = await publishedAgent(call, headers);
     const e164 = nanpNumber();
 
-    const badNumber = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { ...trunk(e164), number: '450-555' } });
+    const badNumber = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: { ...trunk(e164), number: '450-555' } });
     expect(badNumber.status).toBe(422);
     expect(badNumber.body.code).toBe('VALIDATION_FAILED');
     expect(JSON.stringify(badNumber.body.fields)).toContain('sip.number');
-    const badHost = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { ...trunk(e164), host: '' } });
+    const badHost = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: { ...trunk(e164), host: '' } });
     expect(badHost.status).toBe(422);
     expect(JSON.stringify(badHost.body.fields)).toContain('sip.host');
     expect(await adminDb.phoneNumber.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
 
     retell.failNext('importPhoneNumber', 1, Retell.APIError.generate(400, { message: 'invalid termination uri' }, 'invalid termination uri', new Headers()));
-    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) });
+    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: trunk(e164) });
     expect(accepted.status).toBe(202);
     const failed = await waitForNumber((accepted.body.number as { id: string }).id);
     expect(failed).toMatchObject({ status: 'failed', error: PLATFORM_REJECTED_REASON });
 
     // The failed row still holds the number (support can reprovision it), so a second press is refused…
-    expect((await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) })).body.code).toBe('NUMBER_IN_USE');
+    expect((await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: trunk(e164) })).body.code).toBe('NUMBER_IN_USE');
     // …until the customer releases it, which the platform never had, and connects again.
     expect((await call('DELETE', `/numbers/${failed.id}`, headers)).body).toEqual({ released: true });
-    const retried = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: trunk(e164) });
+    const retried = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: trunk(e164) });
     expect(retried.status).toBe(202);
     expect((await waitForNumber((retried.body.number as { id: string }).id)).status).toBe('active');
   }, 60_000);
@@ -424,7 +481,7 @@ describe('POST /numbers/:id/sip/verify (D16)', () => {
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
     const e164 = nanpNumber();
-    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: { number: e164, host: 'sip:pbx.example.com:5060', ...sip } });
+    const accepted = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: { number: e164, host: 'sip:pbx.example.com:5060', ...sip } });
     expect(accepted.status).toBe(202);
     const row = await waitForNumber((accepted.body.number as { id: string }).id);
     expect(row.status).toBe('active');
@@ -778,11 +835,11 @@ describe('QA-107 / QA-108: number entry and refusals', () => {
     for (const typed of ['5145550123', '4165550101', '+5145550123', '+4165550101', '+9995551234', '']) {
       const plan = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'forward', country: 'CA', existing_number: typed });
       expect([plan.status, plan.body.code, (plan.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'VALIDATION_FAILED', 'existing_number']);
-      const own = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip: sip(typed) });
+      const own = await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', carrier_consent: true, sip: sip(typed) });
       expect([own.status, (own.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'sip.number']);
       const keep = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA', forward_from: typed, carrier: 'bell' });
       expect([keep.status, (keep.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'forward_from']);
-      const bring = await call('POST', '/numbers/import', headers, { agent_id: agentId, sip: sip(typed) });
+      const bring = await call('POST', '/numbers/import', headers, { agent_id: agentId, carrier_consent: true, sip: sip(typed) });
       expect([bring.status, (bring.body.fields as Array<{ field: string }>)[0]?.field], typed).toEqual([422, 'sip.number']);
     }
     expect(await adminDb.phonePlan.count({ where: { tenantId: ws.workspaceId } })).toBe(0);
@@ -792,7 +849,7 @@ describe('QA-107 / QA-108: number entry and refusals', () => {
 
     // With its country code the same line is taken, North American or not.
     expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'forward', country: 'CA', existing_number: '+15145550123' })).body.existing_number).toBe('+15145550123');
-    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', sip: sip('+442071838750') })).status).toBe(200);
+    expect((await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'sip', carrier_consent: true, sip: sip('+442071838750') })).status).toBe(200);
     const keep = await call('POST', '/numbers/buy', headers, { agent_id: agentId, country: 'CA', forward_from: '+14165550101', carrier: 'bell' });
     expect(keep.status).toBe(202);
     expect((keep.body.number as { forwarding: { from: string } }).forwarding.from).toBe('+14165550101');

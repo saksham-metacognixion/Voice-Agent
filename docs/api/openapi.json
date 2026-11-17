@@ -16072,6 +16072,9 @@
             "maxItems": 20,
             "type": "array"
           },
+          "carrier_consent": {
+            "type": "boolean"
+          },
           "hours_mode": {
             "default": "always",
             "enum": [
@@ -16240,7 +16243,8 @@
         },
         "required": [
           "agent_id",
-          "sip"
+          "sip",
+          "carrier_consent"
         ],
         "type": "object"
       },
@@ -18582,6 +18586,9 @@
                 "maxItems": 20,
                 "type": "array"
               },
+              "carrier_consent": {
+                "type": "boolean"
+              },
               "hours_mode": {
                 "default": "always",
                 "enum": [
@@ -18756,7 +18763,8 @@
             },
             "required": [
               "option",
-              "sip"
+              "sip",
+              "carrier_consent"
             ],
             "type": "object"
           },
@@ -44909,8 +44917,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
             "x-error-codes": [
+              "FORBIDDEN_ROLE",
               "NOT_A_MEMBER",
               "WORKSPACE_PAUSED"
             ]
@@ -44938,7 +44947,11 @@
         "tags": [
           "wallet"
         ],
-        "x-auth": "workspace"
+        "x-auth": "workspace",
+        "x-roles": [
+          "owner",
+          "admin"
+        ]
       }
     },
     "/wallet/ledger": {

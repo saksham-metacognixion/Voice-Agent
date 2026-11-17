@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/src/components/dashboard/confirm-dialog';
 import { StatusBadge, formatBytes, toBase64 } from '@/src/components/wizard/knowledge-sources';
 import { errorMessage } from '@/src/lib/errors';
 import { PHOTO_TYPES, isPhoto, photoToText } from '@/src/wizard/photo-text';
+import { pickedFileLimit } from '@/src/wizard/upload-limits';
 
 const POLL_MS = 3_000;
 
@@ -58,7 +59,8 @@ export function MenuUpload({ agentId, locked, published }: { agentId: string; lo
   function validate(file: File): string | null {
     if (!(KNOWLEDGE_FILE_TYPES as readonly string[]).includes(file.type) && !isPhoto(file.type)) return tm('errors.fileType');
     if (file.size === 0) return tm('errors.empty');
-    if (file.size > KNOWLEDGE_MAX_FILE_BYTES) return tm('errors.fileSize', { mb: KNOWLEDGE_MAX_FILE_BYTES / 1024 / 1024 });
+    const limit = pickedFileLimit(file.type, KNOWLEDGE_MAX_FILE_BYTES);
+    if (file.size > limit) return tm('errors.fileSize', { mb: limit / 1024 / 1024 });
     return null;
   }
 

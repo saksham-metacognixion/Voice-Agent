@@ -186,6 +186,107 @@ describe('auto top-up', () => {
     }
   }, 30_000);
 
+  it('a paid top-up blocks the next one for ten minutes, even while the balance is still below the threshold (§13.11)', async () => {
+    const ws = await paidWorkspace(app, 'topup-recent', 'growth', { savedCard: true });
+    const headers = await auth(ws.sub, ws.workspaceId);
+    // Starter (150) at threshold 400: one top-up cannot lift the balance over the threshold.
+    await call('PUT', '/wallet/auto-topup', headers, { enabled: true, pack_id: 'starter', threshold: 400 });
+    const created: PaymentIntentFacts[] = [];
+    const spy = vi.spyOn(stripe, 'createOffSessionPaymentIntent').mockImplementation(async (input) => {
+      const facts: PaymentIntentFacts = {
+        id: `pi_${randomUUID().replace(/-/g, '').slice(0, 20)}`,
+        status: 'succeeded',
+        amount: input.amountCents,
+        currency: input.currency.toLowerCase(),
+        customer: input.customerId,
+        payment_method: input.paymentMethodId,
+        metadata: { kind: 'auto_topup', workspace_id: input.workspaceId, purchase_id: input.purchaseId, pack_id: input.packId, env: 'dev' },
+        failure_code: null,
+        failure_message: null,
+      };
+      created.push(facts);
+      return facts;
+    });
+    const topups = app.get(AutoTopupService);
+    try {
+      await wallet.debit(ws.workspaceId, { credits: 450, reason: 'call', refType: 'call', refId: `call_${randomUUID()}` });
+      await waitFor('the top-up attempt', async () => (created.length ? created : null));
+      await post(event('payment_intent.succeeded', intentObject(created[0]!)));
+      expect(await wallet.balance(ws.workspaceId)).toBe(200);
+
+      // The next call two minutes later: still below 400, and nothing is charged.
+      await wallet.debit(ws.workspaceId, { credits: 1, reason: 'call', refType: 'call', refId: `call_${randomUUID()}` });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(await topups.evaluate(ws.workspaceId, 'schedule')).toEqual({ outcome: 'skipped', reason: 'recent' });
+      // Staff "Retry now" does not get past it either.
+      expect(await topups.evaluate(ws.workspaceId, 'staff', { ignoreCooldown: true })).toEqual({ outcome: 'skipped', reason: 'recent' });
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(await adminDb.purchase.count({ where: { tenantId: ws.workspaceId, isAutoTopup: true } })).toBe(1);
+
+      // Eleven minutes after the paid top-up the next one goes through.
+      await adminDb.purchase.updateMany({ where: { tenantId: ws.workspaceId, isAutoTopup: true }, data: { createdAt: new Date(Date.now() - 11 * 60_000) } });
+      expect(await topups.evaluate(ws.workspaceId, 'schedule')).toMatchObject({ outcome: 'charged' });
+      expect(spy).toHaveBeenCalledTimes(2);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 30_000);
+
+  it('a declined top-up is retried once a day, three times, then not again until auto top-up is saved on again (§13.11)', async () => {
+    const ws = await paidWorkspace(app, 'topup-retries', 'growth', { savedCard: true });
+    const headers = await auth(ws.sub, ws.workspaceId);
+    await call('PUT', '/wallet/auto-topup', headers, { enabled: true, pack_id: 'growth', threshold: 100 });
+    const spy = vi.spyOn(stripe, 'createOffSessionPaymentIntent').mockImplementation(async (input) => ({
+      id: `pi_${randomUUID().slice(0, 14)}`,
+      status: 'requires_payment_method',
+      amount: input.amountCents,
+      currency: 'usd',
+      customer: input.customerId,
+      payment_method: input.paymentMethodId,
+      metadata: { kind: 'auto_topup', workspace_id: input.workspaceId, purchase_id: input.purchaseId, pack_id: input.packId, env: 'dev' },
+      failure_code: 'card_declined',
+      failure_message: 'Your card was declined.',
+    }));
+    const topups = app.get(AutoTopupService);
+    const failed = { tenantId: ws.workspaceId, isAutoTopup: true, status: 'abandoned' as const };
+    const hoursPass = (hours: number) => adminDb.purchase.updateMany({ where: failed, data: { updatedAt: new Date(Date.now() - hours * 3_600_000) } });
+    try {
+      await wallet.debit(ws.workspaceId, { credits: 450, reason: 'call', refType: 'call', refId: `call_${randomUUID()}` });
+      await waitFor('the first decline', async () => adminDb.purchase.findFirst({ where: failed }));
+
+      // Six, twelve and eighteen hours later: still waiting for the day to pass.
+      for (const hours of [6, 12, 18]) {
+        await hoursPass(hours);
+        expect(await topups.evaluate(ws.workspaceId, 'schedule')).toEqual({ outcome: 'skipped', reason: 'cooldown' });
+      }
+      expect(spy).toHaveBeenCalledTimes(1);
+
+      // One retry a day, three of them.
+      for (const attempt of [2, 3, 4]) {
+        await hoursPass(25);
+        expect(await topups.evaluate(ws.workspaceId, 'schedule')).toMatchObject({ outcome: 'declined', reason: 'card_declined' });
+        expect(spy).toHaveBeenCalledTimes(attempt);
+      }
+
+      // The fourth day, and any day after: nothing.
+      for (const hours of [25, 49, 97]) {
+        await hoursPass(hours);
+        expect(await topups.evaluate(ws.workspaceId, 'schedule')).toEqual({ outcome: 'skipped', reason: 'retries_exhausted' });
+      }
+      await wallet.debit(ws.workspaceId, { credits: 1, reason: 'call', refType: 'call', refId: `call_${randomUUID()}` });
+      await new Promise((r) => setTimeout(r, 300));
+      expect(spy).toHaveBeenCalledTimes(4);
+      expect(await adminDb.purchase.count({ where: failed })).toBe(4);
+
+      // Saving auto top-up on again (what the customer does after changing the card) starts over.
+      expect((await call('PUT', '/wallet/auto-topup', headers, { enabled: true, pack_id: 'growth', threshold: 100 })).status).toBe(200);
+      expect(await topups.evaluate(ws.workspaceId, 'schedule')).toMatchObject({ outcome: 'declined' });
+      expect(spy).toHaveBeenCalledTimes(5);
+    } finally {
+      spy.mockRestore();
+    }
+  }, 30_000);
+
   it('payment_intent.payment_failed after a created intent abandons it; the sweep reconciles a lost webhook from Stripe', async () => {
     const ws = await paidWorkspace(app, 'topup-sweep', 'growth', { savedCard: true });
     const headers = await auth(ws.sub, ws.workspaceId);
@@ -320,6 +421,21 @@ describe('invoices', () => {
     const other = await paidWorkspace(app, 'inv-other', 'growth');
     expect(((await call('GET', '/wallet/invoices', await auth(other.sub, other.workspaceId))).body.items as unknown[]).length).toBe(0);
   }, 30_000);
+
+  it('invoices are the owner and the admin\'s: an editor and a viewer get 403 (§6.1)', async () => {
+    const ws = await paidWorkspace(app, 'inv-roles', 'growth');
+    const { addMember } = await import('./d5-fixtures');
+    expect((await call('GET', '/wallet/invoices', await auth(ws.sub, ws.workspaceId))).status).toBe(200);
+    const admin = await addMember(ws.workspaceId, 'inv-admin', 'admin');
+    expect((await call('GET', '/wallet/invoices', await auth(admin.sub, ws.workspaceId))).status).toBe(200);
+    for (const role of ['editor', 'viewer'] as const) {
+      const member = await addMember(ws.workspaceId, `inv-${role}`, role);
+      const refused = await call('GET', '/wallet/invoices', await auth(member.sub, ws.workspaceId));
+      expect(refused.status).toBe(403);
+      expect(refused.body).toMatchObject({ code: 'FORBIDDEN_ROLE' });
+      expect(refused.body.items).toBeUndefined();
+    }
+  });
 
   it('an invoice for a customer we do not know is stored with no workspace and shown to nobody', async () => {
     const id = `in_${randomUUID().replace(/-/g, '').slice(0, 20)}`;

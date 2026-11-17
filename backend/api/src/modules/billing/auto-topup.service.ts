@@ -11,12 +11,27 @@ import { type PaymentIntentFacts, StripeGateway } from './stripe.gateway';
 
 /** A pending auto top-up younger than this is "in flight": no second charge for the same threshold. */
 export const TOPUP_IN_FLIGHT_MS = 30 * 60_000;
-/** After a declined or authentication-required attempt, wait this long before trying again. */
-export const TOPUP_FAILURE_COOLDOWN_MS = 6 * 60 * 60_000;
+/** §13.11 "no top-up in last 10 min": a paid top-up holds the next one back this long, whatever the balance. */
+export const TOPUP_MIN_INTERVAL_MS = 10 * 60_000;
+/** §13.11 "retry daily": after a declined or authentication-required attempt, wait a day before trying again. */
+export const TOPUP_FAILURE_COOLDOWN_MS = 24 * 60 * 60_000;
+/** §13.11 "retry daily 3×": the declined attempt, then this many retries, then nothing until the streak is reset. */
+export const TOPUP_MAX_RETRIES = 3;
+/** Failure reasons that charged nobody and say nothing about the card, so they are not a declined attempt. */
+export const TOPUP_QUIET_FAILURES = ['payment_intent_not_found'];
 /** A pending top-up with a PaymentIntent older than this is asked about directly (webhook lost). */
 export const TOPUP_RECONCILE_AFTER_MS = 5 * 60_000;
 
-export type TopupSkipReason = 'disabled' | 'no_card' | 'no_pack' | 'above_threshold' | 'in_flight' | 'cooldown' | 'paused';
+export type TopupSkipReason =
+  | 'disabled'
+  | 'no_card'
+  | 'no_pack'
+  | 'above_threshold'
+  | 'in_flight'
+  | 'recent'
+  | 'retries_exhausted'
+  | 'cooldown'
+  | 'paused';
 
 export type TopupDecision =
   | { action: 'charge'; reason: 'below_threshold' }
@@ -33,13 +48,20 @@ export type TopupAttemptOutcome =
   | { outcome: 'skipped'; reason: TopupSkipReason };
 
 /**
- * The pure decision: charge or not, and why. `now` is a parameter so the cooldown and
- * in-flight windows can be tested without a clock.
+ * The pure decision: charge or not, and why. `now` is a parameter so the windows can be
+ * tested without a clock.
+ *
+ * `lastPaidAt` is the newest auto top-up that was paid; `failures` and `lastFailureAt`
+ * describe the current streak of declined attempts (`failureStreak()`). A threshold above
+ * balance + pack would otherwise buy a pack on every call, and a dead card would be
+ * charged for as long as the switch stayed on.
  */
 export function decideTopup(input: {
   settings: AutoTopup | null;
   balance: number;
   pendingSince: Date | null;
+  lastPaidAt: Date | null;
+  failures: number;
   lastFailureAt: Date | null;
   workspacePaused: boolean;
   now?: Date;
@@ -52,6 +74,8 @@ export function decideTopup(input: {
   if (!s.pack_id || s.threshold === null) return { action: 'skip', reason: 'no_pack' };
   if (input.balance >= s.threshold) return { action: 'skip', reason: 'above_threshold' };
   if (input.pendingSince && now.getTime() - input.pendingSince.getTime() < TOPUP_IN_FLIGHT_MS) return { action: 'skip', reason: 'in_flight' };
+  if (input.lastPaidAt && now.getTime() - input.lastPaidAt.getTime() < TOPUP_MIN_INTERVAL_MS) return { action: 'skip', reason: 'recent' };
+  if (input.failures > TOPUP_MAX_RETRIES) return { action: 'skip', reason: 'retries_exhausted' };
   if (input.lastFailureAt && now.getTime() - input.lastFailureAt.getTime() < TOPUP_FAILURE_COOLDOWN_MS) return { action: 'skip', reason: 'cooldown' };
   return { action: 'charge', reason: 'below_threshold' };
 }
@@ -203,25 +227,30 @@ export class AutoTopupService {
     const pack = settings.pack_id ? config.packs.find((p) => p.id === settings.pack_id) : undefined;
     if (!pack) return { outcome: 'skipped', reason: 'no_pack' };
 
-    const quick = decideTopup({ settings, balance, pendingSince: null, lastFailureAt: null, workspacePaused: tenant.pausedAt !== null });
+    const quick = decideTopup({ settings, balance, pendingSince: null, lastPaidAt: null, failures: 0, lastFailureAt: null, workspacePaused: tenant.pausedAt !== null });
     if (quick.action === 'skip') return { outcome: 'skipped', reason: quick.reason };
 
-    // Under the wallet lock: the balance is re-read, the in-flight and cooldown checks
-    // happen, and the pending purchase is created — all before any other writer can move.
+    // Under the wallet lock: the balance is re-read, the in-flight, recent-top-up and
+    // retry checks happen, and the pending purchase is created — all before any other
+    // writer can move.
     const created = await this.wallet.withWallet(workspaceId, async (tx) => {
-      const [sum, pending, lastFailed] = await Promise.all([
+      const [sum, pending, lastPaid, streak] = await Promise.all([
         tx.creditLedger.aggregate({ where: { tenantId: workspaceId }, _sum: { delta: true } }),
         tx.purchase.findFirst({ where: { tenantId: workspaceId, isAutoTopup: true, status: 'pending' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
-        tx.purchase.findFirst({ where: { tenantId: workspaceId, isAutoTopup: true, status: 'abandoned', failureReason: { not: null } }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+        tx.purchase.findFirst({ where: { tenantId: workspaceId, isAutoTopup: true, status: { in: ['paid', 'refunded'] } }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+        failureStreak(tx, workspaceId),
       ]);
-      // SA9 "Retry now" (D13) skips the 6-hour cooldown after a decline — a staff member
-      // has looked at it — but never the in-flight rule: a pending top-up is a charge
-      // that may still land, and a second one would be a second charge.
+      // SA9 "Retry now" (D13) skips the daily wait and the retry limit after a decline — a
+      // staff member has looked at it — but never the in-flight or the 10-minute rule: a
+      // pending top-up is a charge that may still land, and a second one would be a
+      // second charge.
       const decision = decideTopup({
         settings,
         balance: sum._sum.delta?.toNumber() ?? 0,
         pendingSince: pending?.createdAt ?? null,
-        lastFailureAt: options.ignoreCooldown ? null : (lastFailed?.updatedAt ?? null),
+        lastPaidAt: lastPaid?.createdAt ?? null,
+        failures: options.ignoreCooldown ? 0 : streak.failures,
+        lastFailureAt: options.ignoreCooldown ? null : streak.lastFailureAt,
         workspacePaused: tenant.pausedAt !== null,
       });
       if (decision.action === 'skip') return { skipped: decision.reason as TopupSkipReason };
@@ -465,6 +494,26 @@ export class AutoTopupService {
     if (stale.length || charged) this.log.log(`auto-topup sweep: ${reconciled}/${stale.length} pending reconciled, ${enabled.length} evaluated, ${charged} charged`);
     return { reconciled, evaluated: enabled.length, charged };
   }
+}
+
+/**
+ * The declined auto top-ups since the streak last reset, and when the newest one failed.
+ * A streak resets on a paid purchase (the card works, or the customer bought by hand) and
+ * when auto top-up is saved switched on again (`auto_topup.enabled` — what the customer
+ * does after changing the card), so a workspace is never stuck at the retry limit.
+ */
+export async function failureStreak(db: Prisma.TransactionClient | typeof adminDb, workspaceId: string): Promise<{ failures: number; lastFailureAt: Date | null }> {
+  const [paid, enabled] = await Promise.all([
+    db.purchase.findFirst({ where: { tenantId: workspaceId, status: { in: ['paid', 'refunded'] } }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+    db.auditLog.findFirst({ where: { tenantId: workspaceId, action: 'auto_topup.enabled' }, orderBy: { createdAt: 'desc' }, select: { createdAt: true } }),
+  ]);
+  const since = new Date(Math.max(paid?.createdAt.getTime() ?? 0, enabled?.createdAt.getTime() ?? 0));
+  const failed = { tenantId: workspaceId, isAutoTopup: true, status: 'abandoned' as const, failureReason: { not: null, notIn: TOPUP_QUIET_FAILURES }, createdAt: { gt: since } };
+  const [failures, last] = await Promise.all([
+    db.purchase.count({ where: failed }),
+    db.purchase.findFirst({ where: failed, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+  ]);
+  return { failures, lastFailureAt: last?.updatedAt ?? null };
 }
 
 function parseSettings(value: unknown): AutoTopup | null {

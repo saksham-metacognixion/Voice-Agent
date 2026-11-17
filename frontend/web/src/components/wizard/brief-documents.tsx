@@ -10,6 +10,7 @@ import { track } from '@/src/analytics/posthog';
 import { toBase64 } from '@/src/components/wizard/knowledge-sources';
 import { errorMessage } from '@/src/lib/errors';
 import { shrinkPhoto } from '@/src/wizard/photo-text';
+import { pickedFileLimit } from '@/src/wizard/upload-limits';
 import { formatNumber } from '@/src/lib/format';
 
 /**
@@ -42,7 +43,8 @@ export function BriefDocuments({ agentId, value, onChange, disabled }: { agentId
   function validate(file: File): string | null {
     if (!(BRIEF_DOCUMENT_TYPES as readonly string[]).includes(file.type)) return td('errors.fileType');
     if (file.size === 0) return td('errors.empty');
-    if (file.size > BRIEF_DOCUMENT_MAX_FILE_BYTES) return td('errors.fileSize', { mb: BRIEF_DOCUMENT_MAX_FILE_BYTES / 1024 / 1024 });
+    const limit = pickedFileLimit(file.type, BRIEF_DOCUMENT_MAX_FILE_BYTES);
+    if (file.size > limit) return td('errors.fileSize', { mb: limit / 1024 / 1024 });
     return null;
   }
 
@@ -58,6 +60,11 @@ export function BriefDocuments({ agentId, value, onChange, disabled }: { agentId
       setStage('reading');
       const photo = isImageDocumentType(file.type);
       const upload = photo ? await shrinkPhoto(file) : file;
+      // A photo the browser could not shrink goes up as it is, and the limit is on what goes up.
+      if (upload.size > BRIEF_DOCUMENT_MAX_FILE_BYTES) {
+        setError(td('errors.fileSize', { mb: BRIEF_DOCUMENT_MAX_FILE_BYTES / 1024 / 1024 }));
+        return;
+      }
       const content_base64 = await toBase64(upload);
       setStage(photo ? 'transcribing' : 'extracting');
       const name = file.name.replace(/\.[a-z0-9]+$/i, '').slice(0, 120) || file.name.slice(0, 120);

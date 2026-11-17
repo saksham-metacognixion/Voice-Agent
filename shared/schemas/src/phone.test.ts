@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { phoneNumberResponse, phonePlanRequest, transferTarget, updateNumberRequest } from './numbers.js';
-import { blockedCallerFromCallerId, dialableE164, isDialableE164, nationalReading, normaliseCallerId, toBlockedCaller, toDialableE164 } from './phone.js';
+import { areaCodeCountry, blockedCallerFromCallerId, dialableE164, isDialableE164, nationalReading, normaliseCallerId, toBlockedCaller, toDialableE164 } from './phone.js';
 
 /* QA-106: hand-off targets take a real number with its country code; blocked callers `+` and digits. */
 
@@ -164,5 +164,17 @@ describe('nationalReading', () => {
     expect(nationalReading('+0123', 'CA')).toBeNull();
     expect(nationalReading('+4165550101', null)).toBeNull();
     expect(nationalReading('4165550101', 'CA')).toBeNull();
+  });
+});
+
+describe('areaCodeCountry', () => {
+  it('names the country an area code is assigned to', () => {
+    for (const code of ['416', '647', '437', '514', '450', '236', '604', '867']) expect(areaCodeCountry(code), code).toBe('CA');
+    for (const code of ['212', '415', '907', '808', '305']) expect(areaCodeCountry(code), code).toBe('US');
+    expect(areaCodeCountry('787')).toBe('PR');
+  });
+
+  it('knows no country for a code nobody is assigned, a toll-free code or anything that is not three digits', () => {
+    for (const code of ['999', '555', '911', '200', '800', '888', '900', '12', '4165', '041', '1', '', 'abc']) expect(areaCodeCountry(code), code).toBeNull();
   });
 });

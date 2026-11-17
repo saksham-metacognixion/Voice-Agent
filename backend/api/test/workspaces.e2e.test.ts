@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { Prisma, adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { Logger } from '@nestjs/common';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { EMAIL_SENDER, type LogEmailSender, NotificationsService } from '../src/modules/notifications';
 import { WalletService } from '../src/modules/wallet';
 import type { FakeAuth0Tenant } from './auth0-double';
@@ -171,6 +172,22 @@ describe('POST /workspaces', () => {
     expect(res.statusCode).toBe(422);
     expect(res.json().code).toBe('VALIDATION_FAILED');
     expect(res.json().fields.length).toBeGreaterThan(0);
+  });
+
+  it('refuses a country we have not launched in, sent directly, and creates nothing (§6.3 A3)', async () => {
+    const user = await createUser('country');
+    const headers = await auth(user.sub);
+    for (const country of ['XX', 'DE', 'de', 'GB']) {
+      const res = await post('/workspaces', headers, { name: `Elsewhere ${country}`, country, timezone: 'Europe/Berlin' });
+      expect(res.statusCode, country).toBe(422);
+      expect(res.json().code).toBe('VALIDATION_FAILED');
+      expect(res.json().fields.map((f: { field: string }) => f.field)).toEqual(['country']);
+    }
+    expect(await adminDb.membership.count({ where: { userId: user.userId } })).toBe(0);
+    expect((await get('/workspaces', headers)).json()).toEqual([]);
+    for (const country of ['US', 'ca']) {
+      expect((await post('/workspaces', headers, { name: `Here ${country}`, country, timezone: 'America/Toronto' })).statusCode, country).toBe(201);
+    }
   });
 
   it('needs a signed-in user', async () => {
@@ -486,6 +503,28 @@ describe('ownership transfer', () => {
       where: { tenantId: owner.workspaceId, action: 'workspace.ownership_transferred' },
     });
     expect(audit?.metaJson).toMatchObject({ from_user_id: owner.userId, to_user_id: admin.userId });
+  });
+
+  it('logs one short line for a transfer and never a membership record (§17)', async () => {
+    const owner = await createWorkspace('transfer-log');
+    const admin = await addMember(owner.workspaceId, 'transfer-log-admin', 'admin');
+    const lines: unknown[][] = [];
+    const record = (...args: unknown[]) => void lines.push(args);
+    const spies = [
+      ...(['debug', 'verbose', 'log', 'warn', 'error'] as const).map((level) => vi.spyOn(Logger, level).mockImplementation(record)),
+      ...(['debug', 'verbose', 'log', 'warn', 'error'] as const).map((level) => vi.spyOn(Logger.prototype, level).mockImplementation(record)),
+    ];
+    try {
+      const res = await post('/workspace/transfer-ownership', await auth(owner.sub, owner.workspaceId), { user_id: admin.userId });
+      expect(res.statusCode).toBe(201);
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+    // Nothing logged is an object (a membership row), and no line carries a role or a join date.
+    expect(lines.flat().filter((arg) => typeof arg === 'object' && arg !== null)).toEqual([]);
+    const text = lines.flat().map(String);
+    expect(text.filter((line) => /joined|createdAt|"role"/i.test(line))).toEqual([]);
+    expect(text.filter((line) => line.includes('ownership moved'))).toEqual([`workspace ${owner.workspaceId}: ownership moved from ${owner.userId} to ${admin.userId}`]);
   });
 
   it('refuses when the target is not a member', async () => {

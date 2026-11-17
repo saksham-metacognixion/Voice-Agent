@@ -453,7 +453,8 @@
     "name": "Between 2 and 80 characters",
     "agentName": "Between 2 and 30 characters",
     "transferNumber": "A transfer rule needs a number to transfer to",
-    "handoffMessage": "Write the message your agent should read to the caller"
+    "handoffMessage": "Write the message your agent should read to the caller",
+    "minReal": "At least {min} characters, not counting spaces"
   },
   "wizard": {
     "title": "Set up your agent",
@@ -1321,7 +1322,8 @@
         "sipHost": "Enter an address such as sip.example.com.",
         "generic": "Check this field.",
         "areaCodeRequired": "Enter an area code, or press Suggest.",
-        "sipConsent": "Tick the box to continue with your own phone system."
+        "sipConsent": "Tick the box to continue with your own phone system.",
+        "areaCodeUnknown": "{code} is not an area code in {country}."
       },
       "guide": {
         "carrier": "Your phone company",
