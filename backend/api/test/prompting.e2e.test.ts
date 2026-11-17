@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { adminDb } from '@portal/db';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -670,6 +672,24 @@ describe('generation performance (D5 exit check)', () => {
 
 /** A 1×1 PNG. Its pixels do not matter: the scripted provider answers for the model. */
 const PNG_1PX = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+describe('POST /agents/:id/documents/extract — Word 97–2003', () => {
+  it('reads a .doc price list into the brief text, with no model call (QA bug list, 17 Nov)', async () => {
+    const agentId = await readyAgent();
+    const before = provider.calls.length;
+    const doc = readFileSync(join(__dirname, 'fixtures/documents/price-list.doc')).toString('base64');
+    const res = await req('POST', `/agents/${agentId}/documents/extract`, { name: 'Price list', content_type: 'application/msword', content_base64: doc });
+    expect(res.statusCode).toBe(201);
+    expect(res.json()).toMatchObject({ name: 'Price list', content_type: 'application/msword', truncated: false });
+    expect(res.json().text).toContain('Check-up and cleaning $150');
+    expect(res.json().text).toContain('Blanchiment des dents 300 $');
+    expect(provider.calls.length).toBe(before);
+
+    const broken = await req('POST', `/agents/${agentId}/documents/extract`, { name: 'Broken', content_type: 'application/msword', content_base64: Buffer.from('not a word file').toString('base64') });
+    expect(broken.statusCode).toBe(400);
+    expect(broken.json().code).toBe('DOCUMENT_UNREADABLE');
+  });
+});
 
 describe('POST /agents/:id/documents/extract — photos', () => {
   const photo = (name = 'Dinner menu') => ({ name, content_type: 'image/png', content_base64: PNG_1PX });

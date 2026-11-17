@@ -19,7 +19,9 @@ import {
   BRIEF_MIN_REAL_CHARS,
   briefReadyForGeneration,
   briefRealChars,
+  BRIEF_DOCUMENT_TYPES,
 } from './agents';
+import { KNOWLEDGE_FILE_TYPES } from './knowledge';
 
 /*
  * §9.8 analysis fields and the W3 languages — the two places where a value that passed
@@ -313,5 +315,17 @@ describe('briefReadyForGeneration counts real text (W2 fields 1 and 2)', () => {
     expect(briefRealChars(undefined)).toBe(0);
     expect(briefRealChars(null)).toBe(0);
     expect(BRIEF_MIN_REAL_CHARS).toBe(20);
+  });
+});
+
+/* QA bug list, 17 Nov: ".doc files are accepted in 'What your agent knows' but refused as a brief business document". */
+describe('the brief and "What your agent knows" take the same document files', () => {
+  it('every knowledge file type is a brief document type', () => {
+    for (const type of KNOWLEDGE_FILE_TYPES) expect(BRIEF_DOCUMENT_TYPES as readonly string[], type).toContain(type);
+  });
+
+  it('Word 97–2003 and .docx are both accepted', () => {
+    expect(BRIEF_DOCUMENT_TYPES).toContain('application/msword');
+    expect(BRIEF_DOCUMENT_TYPES).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
   });
 });

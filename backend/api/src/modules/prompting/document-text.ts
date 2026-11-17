@@ -4,9 +4,10 @@ import { AppError } from '../../common/errors/app-error';
 /**
  * W2 documents (ADR 0023): a file → the plain text the brief keeps.
  *
- * Two libraries do the reading and nothing here is stored: PDF through `unpdf` (pdf.js
- * without a canvas, so it runs in the API's CommonJS build with no native module) and
- * Word through `mammoth`'s raw-text mode, which drops every style and keeps every word.
+ * Three libraries do the reading and nothing here is stored: PDF through `unpdf` (pdf.js
+ * without a canvas, so it runs in the API's CommonJS build with no native module), .docx
+ * through `mammoth`'s raw-text mode, which drops every style and keeps every word, and
+ * Word 97–2003 (.doc) through `word-extractor`, which `mammoth` cannot read.
  * A text, Markdown or CSV file is UTF-8 already. Both readers are loaded on first use —
  * pdf.js is ~2 MB of parser the API does not need to load to boot.
  *
@@ -55,6 +56,11 @@ async function readText(bytes: Buffer, contentType: BriefDocumentType): Promise<
         const mammoth = await import('mammoth');
         const result = await mammoth.extractRawText({ buffer: bytes });
         return result.value;
+      }
+      case 'application/msword': {
+        const { default: WordExtractor } = await import('word-extractor');
+        const document = await new WordExtractor().extract(bytes);
+        return document.getBody();
       }
       default:
         return bytes.toString('utf8');

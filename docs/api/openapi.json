@@ -10805,6 +10805,7 @@
                           "enum": [
                             "application/pdf",
                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/msword",
                             "text/plain",
                             "text/markdown",
                             "text/csv",
@@ -11637,6 +11638,7 @@
                           "enum": [
                             "application/pdf",
                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            "application/msword",
                             "text/plain",
                             "text/markdown",
                             "text/csv",
@@ -12486,6 +12488,7 @@
                       "enum": [
                         "application/pdf",
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/msword",
                         "text/plain",
                         "text/markdown",
                         "text/csv",
@@ -13171,6 +13174,7 @@
                       "enum": [
                         "application/pdf",
                         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/msword",
                         "text/plain",
                         "text/markdown",
                         "text/csv",
@@ -15705,6 +15709,7 @@
             "enum": [
               "application/pdf",
               "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "application/msword",
               "text/plain",
               "text/markdown",
               "text/csv",
@@ -15738,6 +15743,7 @@
             "enum": [
               "application/pdf",
               "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+              "application/msword",
               "text/plain",
               "text/markdown",
               "text/csv",

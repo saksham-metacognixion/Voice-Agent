@@ -16,6 +16,7 @@ applies on screen that a direct request skips, or a server rule that is not the 
 | A paid top-up does not block the next | §13.11: no top-up in the last 10 min | only a *pending* top-up blocked |
 | A declined top-up retried every 6 h, forever | §13.11: retry daily 3× | 6-hour cooldown, no count |
 | A 12 MB phone photo refused on W2 | ADR 0023: shrink, then check | the 10 MB check ran before the shrink |
+| `.doc` refused on W2, accepted in knowledge | one file rule in both places | `mammoth` reads `.docx` only |
 | Impossible numbers accepted on W6 / D4 | W6: a real number | already fixed by QA-106 / QA-107 (7f8b859) |
 
 ## Decision
@@ -48,9 +49,12 @@ applies on screen that a direct request skips, or a server rule that is not the 
    photo through at up to 50 MB as picked; the brief checks the shrunk upload against 10 MB. The menu
    slot and "Add a source" use the same rule.
 
-## Not done: `.doc` in the brief
-The brief reads Word through `mammoth`, which reads `.docx` only. Accepting `.doc` needs a second
-reader (a new dependency). Installing one was not possible in this session, so this bug is still open.
+10. **`.doc` in the brief.** `briefDocumentType` gains `application/msword`, so every
+    `KNOWLEDGE_FILE_TYPES` entry is a brief type too (a schema test says so). `document-text.ts` reads
+    it with `word-extractor` 1.0.4 (MIT, pure JavaScript: `saxes` + `yauzl`, no native build), loaded
+    on first use like the other readers; a damaged file is `DOCUMENT_UNREADABLE`. The test file is a
+    real Word 97 document made with LibreOffice (`test/fixtures/documents/price-list.doc`), because an
+    OLE file cannot be written by hand in a test.
 
 ## Consequences
 - A client that sent SIP plans or imports without `carrier_consent` now gets 422; the only clients are

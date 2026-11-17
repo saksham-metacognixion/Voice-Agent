@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { extractDocumentText, normalise } from './document-text';
 
@@ -55,7 +57,22 @@ async function tinyDocx(paragraphs: string[]): Promise<Buffer> {
   return zip.generateAsync({ type: 'nodebuffer' });
 }
 
+/** A Word 97–2003 price list made with LibreOffice ("MS Word 97"): an OLE file cannot be written by hand here. */
+const priceListDoc = () => readFileSync(join(__dirname, '../../../test/fixtures/documents/price-list.doc'));
+
 describe('extractDocumentText', () => {
+  it('reads a Word 97–2003 (.doc) price list, accents and Arabic included', async () => {
+    const out = await extractDocumentText(priceListDoc(), 'application/msword');
+    expect(out.text.split('\n')).toEqual(['Price list', '', 'Check-up and cleaning $150', 'Emergency visit $95', 'Blanchiment des dents 300 $', 'تنظيف الأسنان 150']);
+    expect(out.truncated).toBe(false);
+  });
+
+  it('a damaged or cut-off .doc is DOCUMENT_UNREADABLE', async () => {
+    await expect(extractDocumentText(Buffer.from('not a word file at all'), 'application/msword')).rejects.toMatchObject({ code: 'DOCUMENT_UNREADABLE' });
+    const truncated = priceListDoc().subarray(0, 2048);
+    await expect(extractDocumentText(truncated, 'application/msword')).rejects.toMatchObject({ code: 'DOCUMENT_UNREADABLE' });
+  });
+
   it('reads a PDF menu into lines', async () => {
     const pdf = tinyPdf(['Margherita pizza $14', 'Caesar salad $9', 'Tiramisu $7']);
     const out = await extractDocumentText(pdf, 'application/pdf');

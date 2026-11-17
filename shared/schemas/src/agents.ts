@@ -108,6 +108,8 @@ export const BRIEF_DOCUMENT_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/web
 export const briefDocumentType = z.enum([
   'application/pdf',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  /** Word 97–2003 (.doc): the same files "What your agent knows" takes. */
+  'application/msword',
   'text/plain',
   'text/markdown',
   'text/csv',

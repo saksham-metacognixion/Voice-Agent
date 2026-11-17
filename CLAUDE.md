@@ -591,7 +591,7 @@ job settles.
 - **Business documents are a brief field, appended to the prompt in code** (ADR 0023).
   `brief.documents` (≤ 3, ≤ 15 000 characters in total, `briefDocuments` in
   `@portal/schemas`) is a menu, a price list or a services sheet read into text by
-  `POST /agents/:id/documents/extract` (`unpdf` / `mammoth` / UTF-8, stores nothing,
+  `POST /agents/:id/documents/extract` (`unpdf` / `mammoth` / `word-extractor` for `.doc` / UTF-8, stores nothing,
   `400 DOCUMENT_UNREADABLE` for a scan) and saved by the W2 autosave like any other
   field — no plan gate, no platform knowledge base. **A photo** (JPEG/PNG/WebP) is
   shrunk to ≤ 2 000 px JPEG in the browser and transcribed by
