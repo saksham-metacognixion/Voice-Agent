@@ -9,6 +9,7 @@ import { DashboardLiveProvider } from '@/src/dashboard/dashboard-live';
 import { workspacePauseNotice } from '@/src/dashboard/home-view';
 import { routes, stepPath } from '@/src/routes';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { AgentLiveIndicator } from './agent-live-indicator';
 import { BalancePill } from './balance-pill';
 import { NotificationsBell } from './notifications-bell';
 import { UnpublishedChip } from './unpublished-chip';
@@ -21,7 +22,7 @@ import { WorkspaceSwitcher } from './workspace-switcher';
  * §7.2 global shell: a fixed left nav on desktop; on anything narrower than `lg` the nav
  * becomes a bottom tab bar (§12.5) — the four screens an owner opens most, and "More"
  * for the rest in a bottom sheet. The header carries the workspace switcher, the
- * unpublished-changes chip, the balance pill, the notifications bell, theme and account
+ * agent-live indicator, the unpublished-changes chip, the balance pill, the notifications bell, theme and account
  * (§7.2). Status banners (paused workspace, unfinished setup) sit above the page content
  * so every screen shows them.
  *
@@ -62,6 +63,7 @@ export function PortalShell({ children }: { children: React.ReactNode }) {
             </Link>
             <WorkspaceSwitcher className="min-w-0 shrink" />
             <div className="ms-auto flex items-center gap-1 sm:gap-2">
+              <AgentLiveIndicator />
               <UnpublishedChip />
               <BalancePill className="lg:hidden" compact />
               <NotificationsBell />

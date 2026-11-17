@@ -156,6 +156,7 @@ Paths are relative to the repo root unless they start with a module name (`backe
 | S-02 | P1    | §7.2             | Balance pill: ≈ minutes, amber < 20 %, red ≤ 0 "Agent paused — top up" | **PASS** (16 Nov) | `balance-pill.tsx`: ≈ minutes from `GET /pricing` `rates.standard_per_min` via `creditsOutlook()`, "Agent paused — top up" at ≤ 0 for owner/admin ("out of credits" otherwise); `home-view.test.ts`; `e2e-dashboard` "shell balance pill" | ADR 0041 §3 |
 | S-03 | P1    | §7.2             | Shell "unpublished changes" chip                                       | **PASS** (16 Nov) | `unpublished-chip.tsx` over `listAgents` + `unpublishedSummary()`; one agent → its Test tab (the publish bar is on it now), several → the list; `home-view.test.ts`; `e2e-dashboard` "shell unpublished-changes chip" | ADR 0041 §1 |
 | S-04 | P1    | §7.2             | Notifications bell                                                     | **PASS** (16 Nov) | `notifications-bell.tsx` over `GET /notifications` (the D7 outbox + `in_app` rows for message captured / number active / member joined), `POST /notifications/seen` per member, SSE topic `notifications`; `d21-home.e2e.test.ts`, `notifications-feed.rules.test.ts`, `notifications-view.test.ts`; `e2e-dashboard` "shell bell …" | ADR 0041 §2 |
+| S-04b | P1    | §7.2             | Top bar "● Agent live" (wireframe only; no row in the 29 Oct audit)     | **PASS** (16 Nov) | `agent-live-indicator.tsx` over `agentLiveStatus()`: live = a live agent, workspace not paused, balance > 0; else paused; nothing for drafts only. `home-view.test.ts`, `e2e:dashboard` row. ADR 0041 addendum |
 | S-05 | P1    | §7.2             | Mobile bottom tab bar                                                  | PASS            | `portal-shell.tsx:100-158`; `e2e-dashboard-d11.mjs` at 390 px                                         | Amended by ADR 0019 (Numbers replaces Wallet)       |
 | S-06 | P1    | §7.3             | Every field has label, helper/example, inline validation               | PASS            | `frontend/ui/src/components/field.tsx`; `brief-form.tsx`                                              | Validates on change, not blur                       |
 | S-07 | P1    | §7.3             | One primary button, bottom-right / sticky bottom on mobile             | **PASS** (5 Nov)         | `WizardFooter`: Back + the one primary at the bottom, sticky below `sm`, on W1–W3, W5–W7 (ADR 0039 §2)                                                                 | —                                     |
@@ -863,3 +864,10 @@ Known, not caused by this work: the D2 recording row is a clip the export serves
 website call), so the proxy is exercised but the platform's own recording URL is not; the
 fixture's "today" calls fall on the previous Toronto day when the suite runs after midnight
 local time, which the rows read from the API so nothing fails.
+
+Later the same day: row S-04b was added. The §7.2 wireframe's "● Agent live" had no audit
+row and was not built; it is now (ADR 0041 addendum), and `e2e:dashboard` is 109 of 109.
+Two differences from the spec text remain and are not defects of this batch: the D1
+"Tasks due today / Needs review" widget belongs to the Leads module (P1b, hidden without
+leads), and the phone tab bar is Home, Calls, Agents, Numbers, More (ADR 0019) where §7.2
+says Wallet in the fourth place — S-05 is PASS on the bar existing, not on its order.

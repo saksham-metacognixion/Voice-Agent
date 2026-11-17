@@ -131,6 +131,10 @@
     "pausedBody": "Notre équipe a mis cet espace de travail en pause. Votre agent ne répond pas aux appels tant qu’il n’est pas réactivé.",
     "pausedOpenTicket": "Ouvrir l’aide",
     "pausedContact": "Joindre le soutien",
+    "agentStatus": {
+      "live": "{n, plural, one {Agent en service} other {# agents en service}}",
+      "paused": "{n, plural, one {Agent en pause} other {# agents en pause}}"
+    },
     "unpublished": {
       "label": "{n, plural, one {# modification non publiée} other {# modifications non publiées}}"
     },

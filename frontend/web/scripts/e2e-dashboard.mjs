@@ -94,6 +94,13 @@ try {
     const changed = agentRows.filter((a) => a.has_unpublished_changes);
     ok('shell chip opens the one agent\'s Test tab, or the list for several', changed.length === 1 ? href === `/app/agents/detail/?id=${changed[0].id}&tab=test` : href === '/app/agents/', href);
   }
+  const liveState = await b.evaluate(`document.querySelector('[data-testid="agent-live"]')?.getAttribute('data-state') ?? null`);
+  const liveWallet = await apiCall('GET', '/wallet');
+  const liveWs = await apiCall('GET', '/workspace');
+  const liveAgents = agentRows.filter((a) => a.status === 'live').length;
+  const answering = liveAgents > 0 && !liveWs.json?.paused && Number(liveWallet.json?.balance ?? 0) > 0;
+  const expectedLive = answering ? 'live' : liveAgents > 0 || agentRows.some((a) => a.status === 'paused') ? 'paused' : null;
+  ok('shell "Agent live" follows the agents, the workspace pause and the wallet', liveState === expectedLive, `shown=${liveState} expected=${expectedLive}`);
   ok('shell notifications bell renders', (await count('[data-testid="notifications-bell"]')) === 1);
   const feedApi = await apiCall('GET', '/notifications');
   const badge = await b.evaluate(`document.querySelector('[data-testid="notifications-unread"]')?.textContent ?? null`);

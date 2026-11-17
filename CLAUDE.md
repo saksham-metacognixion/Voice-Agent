@@ -1243,7 +1243,9 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   Help's status is `GET /health/ready`. Pricing copy on Help comes from `GET /pricing`.
 - The balance pill is amber under 20 % of the last pack and red at or below 0
   (`balanceTone()`, §7.2), 20 credits before the first pack. **The §7.2 shell is complete
-  since ADR 0041**: the pill carries "≈ N min" from `GET /pricing`'s Standard rate and
+  since ADR 0041**: `AgentLiveIndicator` is the wireframe's "● Agent live" — `agentLiveStatus()`
+  reads live only while a live agent can be answered (workspace not paused, balance > 0), paused
+  otherwise, nothing for drafts only; hidden below `sm`; the pill carries "≈ N min" from `GET /pricing`'s Standard rate and
   reads "Agent paused — top up" at ≤ 0 (owner/admin; "out of credits" for the rest);
   `UnpublishedChip` reads `listAgents` and sends one agent to its Test tab (the publish
   bar is on every tab now), several to the list; `NotificationsBell` reads

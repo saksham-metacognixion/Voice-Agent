@@ -131,6 +131,10 @@
     "pausedBody": "Our team paused this workspace. Your agent is not answering calls until it is resumed.",
     "pausedOpenTicket": "Open Help",
     "pausedContact": "Contact support",
+    "agentStatus": {
+      "live": "{n, plural, one {Agent live} other {# agents live}}",
+      "paused": "{n, plural, one {Agent paused} other {# agents paused}}"
+    },
     "unpublished": {
       "label": "{n, plural, one {# unpublished change} other {# unpublished changes}}"
     },

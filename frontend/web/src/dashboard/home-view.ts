@@ -4,7 +4,7 @@ import { agentPath, routes, settingsPath } from '../routes';
 
 /**
  * D1 Home and the §7.2 shell as pure decisions (ADR 0041): what the credits card says a
- * balance is worth, the unpublished-changes chip, the pause notices, the checklist rows
+ * balance is worth, the unpublished-changes chip, the agent-live indicator, the pause notices, the checklist rows
  * and which buttons an agent card offers a role. The components render these; nothing
  * here reads a hook, so every rule is a plain test.
  */
@@ -61,6 +61,34 @@ export function unpublishedSummary(agents: ReadonlyArray<Pick<AgentSummary, 'id'
   const changed = (agents ?? []).filter((a) => a.has_unpublished_changes);
   if (changed.length === 0) return null;
   return { count: changed.length, href: changed.length === 1 ? agentPath(changed[0]!.id, 'test') : routes.app.agents };
+}
+
+export interface AgentLiveStatus {
+  /** `live` = a caller is answered now. `paused` = an agent exists and nobody is answered. */
+  state: 'live' | 'paused';
+  /** How many agents the label speaks for. */
+  count: number;
+  /** One agent: its overview. Several: the agents list. */
+  href: string;
+}
+
+/**
+ * §7.2 "● Agent live" in the top bar. A live agent on a paused workspace, or on a wallet at
+ * or below zero, answers nobody (§13.9 declines both), so it reads paused — the pill beside
+ * it says "Agent paused — top up" and the two must agree. Drafts only, or no agent yet, is
+ * null: the "Continue setup" band covers that.
+ */
+export function agentLiveStatus(input: {
+  agents: ReadonlyArray<Pick<AgentSummary, 'id' | 'status'>> | undefined;
+  workspacePaused: boolean;
+  outOfCredits: boolean;
+}): AgentLiveStatus | null {
+  const agents = input.agents ?? [];
+  const live = agents.filter((a) => a.status === 'live');
+  const shown = live.length > 0 ? live : agents.filter((a) => a.status === 'paused');
+  if (shown.length === 0) return null;
+  const answering = live.length > 0 && !input.workspacePaused && !input.outOfCredits;
+  return { state: answering ? 'live' : 'paused', count: shown.length, href: shown.length === 1 ? agentPath(shown[0]!.id) : routes.app.agents };
 }
 
 export interface PauseNotice {

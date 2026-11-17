@@ -1,6 +1,7 @@
 import type { AgentSummary, WorkspaceChecklist } from '@portal/schemas';
 import { describe, expect, it } from 'vitest';
 import {
+  agentLiveStatus,
   agentCardActions,
   agentPauseNotice,
   canTopUp,
@@ -49,6 +50,29 @@ describe('unpublishedSummary (§7.2 chip)', () => {
   it('opens the one agent on its Test tab, several on the list', () => {
     expect(unpublishedSummary([agent('a', true), agent('b', false)])).toEqual({ count: 1, href: '/app/agents/detail/?id=a&tab=test' });
     expect(unpublishedSummary([agent('a', true), agent('b', true)])).toEqual({ count: 2, href: '/app/agents/' });
+  });
+});
+
+describe('agentLiveStatus (§7.2 "Agent live")', () => {
+  const agent = (id: string, status: 'live' | 'draft' | 'paused') => ({ id, status });
+  const open = { workspacePaused: false, outOfCredits: false };
+  it('is live while a published agent can answer, and opens that agent', () => {
+    expect(agentLiveStatus({ agents: [agent('a', 'live'), agent('b', 'draft')], ...open })).toEqual({ state: 'live', count: 1, href: '/app/agents/detail/?id=a' });
+  });
+  it('counts several live agents and opens the list', () => {
+    expect(agentLiveStatus({ agents: [agent('a', 'live'), agent('b', 'live'), agent('c', 'paused')], ...open })).toEqual({ state: 'live', count: 2, href: '/app/agents/' });
+  });
+  it('reads paused when the workspace is paused or the wallet is out, whatever the agent says', () => {
+    expect(agentLiveStatus({ agents: [agent('a', 'live')], workspacePaused: true, outOfCredits: false })?.state).toBe('paused');
+    expect(agentLiveStatus({ agents: [agent('a', 'live')], workspacePaused: false, outOfCredits: true })?.state).toBe('paused');
+  });
+  it('reads paused when every published agent is paused', () => {
+    expect(agentLiveStatus({ agents: [agent('a', 'paused'), agent('b', 'draft')], ...open })).toEqual({ state: 'paused', count: 1, href: '/app/agents/detail/?id=a' });
+  });
+  it('is nothing with drafts only, no agents, or no answer yet', () => {
+    expect(agentLiveStatus({ agents: [agent('a', 'draft')], ...open })).toBeNull();
+    expect(agentLiveStatus({ agents: [], ...open })).toBeNull();
+    expect(agentLiveStatus({ agents: undefined, ...open })).toBeNull();
   });
 });
 

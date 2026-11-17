@@ -194,3 +194,32 @@ recorded before the column existed.
   the sixty `d10seed_*` calls — a box without the old hand-made fixture runs it first.
 - Pending: SA10 writes announcements (D20); the staff console does not yet show
   `paused_ticket_id` on SA2 (it is in the audit row).
+
+## Addendum — 16 Nov 2026: the "● Agent live" indicator (§7.2)
+
+The §7.2 wireframe draws `● Agent live` in the top bar, left of the unpublished-changes
+chip. The bullets under the wireframe do not describe it and the 29 Oct audit had no row
+for it, so sections 1–3 above shipped without it. It was found by reading the wireframe
+against the shell the same day and added.
+
+- **The rule is `agentLiveStatus()`** in `src/dashboard/home-view.ts`, pure. `live` means a
+  caller is answered now: at least one agent with `status = live`, the workspace not paused,
+  the balance above zero. A live agent on a paused workspace or an empty wallet reads
+  `paused` — §13.9 declines both, and the pill beside it says "Agent paused — top up"; a
+  green "Agent live" next to that would be a false statement. No live agent but a paused
+  one reads `paused`. Drafts only, or no agent, shows nothing: the "Continue setup" band
+  already covers a workspace that is not live yet.
+- **One agent opens its overview, several open the list**, and the label counts them
+  ("2 agents live"). The spec's wireframe has one agent and says nothing about several.
+- **No request of its own.** `AgentLiveIndicator` reads the chip's `listAgents` query and
+  the pill's `getWallet`, so it moves on the same SSE frames.
+- **Hidden below `sm`.** The phone header holds the logo, the switcher, the chip's count,
+  the compact pill, the bell and the account menu; there is no room for the words, and a
+  dot without them says nothing. Home's agent card carries the status on a phone. Measured
+  at 640, 768, 1024 and 1280 px in English, French and Arabic: no header overflow.
+- The grace overdraft (§5.4) is not modelled: at a balance of 0 to −10 a call may still be
+  answered while the indicator reads paused. That matches the pill, which turns red at ≤ 0.
+
+Tests: `home-view.test.ts` (five cases), `messages.test.ts` for the three catalogues, and
+one row in `e2e:dashboard` comparing the indicator with `GET /agents`, `GET /workspace`
+and `GET /wallet` (109 of 109).
