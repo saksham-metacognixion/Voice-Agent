@@ -168,7 +168,14 @@ export type PricingResponse = z.infer<typeof pricingResponse>;
 export const pricingQuery = z.object({
   /** ISO country. Filters packs by `regions`; omitted = every public pack. */
   region: z.string().length(2).toUpperCase().optional(),
+  /**
+   * A link-only pack's id, from the link staff sent (`/app/wallet/?pack=`). That one pack
+   * is added to the answer while it is active; an id that is unknown, inactive, hidden or
+   * not sold in `region` adds nothing and is not an error.
+   */
+  pack: z.string().max(64).optional(),
 });
+export type PricingQuery = z.infer<typeof pricingQuery>;
 
 /** The four SA12 kill switches. Each disables one thing without a deploy. */
 export const killSwitchKey = z.enum([

@@ -1298,15 +1298,24 @@ describe('SA5 pricing: draft → preview → publish → rollback', () => {
     expect(await adminDb.purchase.count({ where: { tenantId: ws.workspaceId, packId: 'growth', status: 'paid' } })).toBeGreaterThan(0);
     const latest = (await adminDb.pricingConfig.aggregate({ _max: { version: true } }))._max.version!;
     const withoutGrowth = { ...originalPricing, packs: originalPricing.packs.filter((p) => p.id !== 'growth') };
-    // Dated ahead, so it is a version that "was in effect" for the rollback check without being current.
-    await adminDb.pricingConfig.create({ data: { version: latest + 1, configJson: withoutGrowth as object, effectiveAt: new Date(Date.now() + 30 * 86_400_000) } });
+    // A version that was in effect and has been replaced since: it without growth, then the
+    // catalogue again as a newer version (the newest version whose date has passed is current).
+    await adminDb.pricingConfig.create({ data: { version: latest + 1, configJson: withoutGrowth as object, effectiveAt: new Date(Date.now() - 60_000) } });
+    await adminDb.pricingConfig.create({ data: { version: latest + 2, configJson: originalPricing as object, effectiveAt: new Date() } });
+    await h.app.get(RedisCache).del(redisKeys.pricingCurrent);
     try {
       const res = await call('POST', `/admin/pricing/rollback/${latest + 1}`, staff.superAdmin.token, { reason_code: 'service_issue' });
       expect(res.status).toBe(409);
       expect(res.body.message).toMatch(/"growth" was bought/);
-      expect(await adminDb.pricingConfig.count({ where: { version: { gt: latest + 1 } } })).toBe(0);
+      expect(await adminDb.pricingConfig.count({ where: { version: { gt: latest + 2 } } })).toBe(0);
+      // A version whose date has not arrived was never in effect: cancelled, not rolled back to.
+      await adminDb.pricingConfig.update({ where: { version: latest + 1 }, data: { effectiveAt: new Date(Date.now() + 30 * 86_400_000) } });
+      const ahead = await call('POST', `/admin/pricing/rollback/${latest + 1}`, staff.superAdmin.token, { reason_code: 'service_issue' });
+      expect(ahead.status).toBe(409);
+      expect(ahead.body.message).toMatch(/was in effect/);
     } finally {
-      await adminDb.pricingConfig.delete({ where: { version: latest + 1 } });
+      await adminDb.pricingConfig.deleteMany({ where: { version: { in: [latest + 1, latest + 2] } } });
+      await h.app.get(RedisCache).del(redisKeys.pricingCurrent);
     }
   });
 
@@ -1613,7 +1622,13 @@ describe('SA7 number actions and the provisioning retry', () => {
     // Re-provision is for a failed number only.
     expect((await call('POST', `${path}/reprovision`, staff.support.token, reason)).status).toBe(409);
 
-    const released = await call('POST', `${path}/release`, staff.support.token, reason);
+    // A release cannot be undone: super admin and ops only, never the support desk.
+    const refused = await call('POST', `${path}/release`, staff.support.token, reason);
+    expect(refused.status).toBe(403);
+    expect(refused.body.code).toBe('FORBIDDEN_ROLE');
+    expect(h.retell.phoneNumbers.has(platform.phone_number)).toBe(true);
+    expect((await adminDb.phoneNumber.findUniqueOrThrow({ where: { id: row.id } })).status).toBe('active');
+    const released = await call('POST', `${path}/release`, staff.ops.token, reason);
     expect(released.status).toBe(200);
     expect(released.body.status).toBe('released');
     expect(h.retell.phoneNumbers.has(platform.phone_number)).toBe(false);
@@ -1621,7 +1636,7 @@ describe('SA7 number actions and the provisioning retry', () => {
     expect((await lastAudit('number.released'))?.afterJson).toEqual({ status: 'released' });
     const customerRow = await adminDb.auditLog.findFirst({ where: { tenantId: ws.workspaceId, action: 'number.release_requested', targetId: row.id } });
     expect(customerRow?.metaJson).toMatchObject({ by: 'staff' });
-    expect((await call('POST', `${path}/release`, staff.support.token, reason)).status).toBe(409);
+    expect((await call('POST', `${path}/release`, staff.ops.token, reason)).status).toBe(409);
   });
 
   it('re-provisions a failed number even while the failed run still holds its job id', async () => {

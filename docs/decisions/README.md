@@ -68,3 +68,4 @@ Template:
 - [0017 — Portal foundation: session, gating, theme tokens, local issuer](0017-portal-foundation.md)
 - [0046 — The 17 Nov QA batch: rules the screen had and the server did not](0046-17-nov-qa-batch.md)
 - [0047 — W2 "Speak or type": guided questions that fill the brief](0047-w2-speak-or-type.md)
+- [0048 — The 18 Nov QA batch: pricing publishes and the staff console](0048-18-nov-qa-batch-pricing.md)

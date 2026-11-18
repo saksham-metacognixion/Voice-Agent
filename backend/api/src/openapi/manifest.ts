@@ -1775,7 +1775,7 @@ export const MANIFEST: readonly EndpointSpec[] = [
     spec: 'admin §9',
     body: 'staffActionRequest',
     response: { schema: 'adminNumberResponse' },
-    staffRoles: ['super_admin', 'ops', 'support'],
+    staffRoles: ['super_admin', 'ops'],
     errors: ['NOT_FOUND', 'CONFLICT', 'NUMBER_IN_USE', 'UPSTREAM_UNAVAILABLE', 'VALIDATION_FAILED'],
   },
   {
@@ -2413,6 +2413,18 @@ export const MANIFEST: readonly EndpointSpec[] = [
     response: { schema: 'adminPricingVersion' },
     staffRoles: ['super_admin'],
     errors: ['CONFLICT', 'MARGIN_FLOOR', 'STRIPE_SYNC_FAILED', 'STAFF_LIMIT_EXCEEDED', 'VALIDATION_FAILED'],
+  },
+  {
+    method: 'POST',
+    path: '/admin/pricing/versions/:version/cancel',
+    operationId: 'adminCancelScheduledPricing',
+    summary: 'Cancel a version published with a date still ahead, before it takes effect',
+    tag: 'admin-pricing',
+    spec: 'admin §5',
+    body: 'staffActionRequest',
+    response: { schema: 'adminPricingVersion' },
+    staffRoles: ['super_admin'],
+    errors: ['NOT_FOUND', 'CONFLICT', 'STAFF_LIMIT_EXCEEDED', 'VALIDATION_FAILED'],
   },
   {
     method: 'GET',

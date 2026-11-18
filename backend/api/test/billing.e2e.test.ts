@@ -580,8 +580,13 @@ describe('GET /pricing and GET /flags', () => {
     await cache.set(redisKeys.pricingCurrent, '{"stale":true}');
     await cache.set(redisKeys.caps(ws.tenantId), '{"stale":true}');
     await config.invalidateAll();
-    expect(await cache.get(redisKeys.pricingCurrent)).toBeNull();
-    expect(await cache.get(redisKeys.caps(ws.tenantId))).toBeNull();
+    // Dropped, then read again by the caps rebuild: whatever is there is the real version, never the stale entry.
+    expect(await cache.get(redisKeys.pricingCurrent)).not.toContain('stale');
+    // `caps:{ws}` is rebuilt in place, never dropped: the inbound path lets a call through
+    // on a missing key, so a wipe here opened every line limit until the next refresh.
+    const caps = JSON.parse((await cache.get(redisKeys.caps(ws.tenantId))) ?? 'null') as Record<string, unknown> | null;
+    expect(caps).toMatchObject({ concurrency_cap: expect.any(Number), config_version: expect.any(Number) });
+    expect(caps).not.toHaveProperty('stale');
     expect(await cache.get(redisKeys.flagsWorkspace(ws.tenantId))).toBeNull();
   });
 

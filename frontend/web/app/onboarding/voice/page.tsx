@@ -6,6 +6,7 @@ import { Alert, Button, ErrorState, PageLoader } from '@portal/ui';
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { usePricingFigures } from '@/src/lib/use-pricing-figures';
 import * as React from 'react';
 import { VoiceSettings, type VoiceSettingsState } from '@/src/components/wizard/voice-settings';
 import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
@@ -56,6 +57,7 @@ function VoiceLoader() {
 function VoiceInner({ agent }: { agent: AgentDetail }) {
   const tw = useTranslations('wizard.w3');
   const t = useTranslations();
+  const figures = usePricingFigures();
   const router = useRouter();
   const advance = useAdvanceOnboarding();
   const [state, setState] = React.useState<VoiceSettingsState>({ voiceId: agent.draft?.settings.voice_id ?? null, saving: false });
@@ -78,7 +80,7 @@ function VoiceInner({ agent }: { agent: AgentDetail }) {
 
   return (
     <>
-      <WizardHeading title={tw('title')} subtitle={tw('subtitle')} />
+      <WizardHeading title={tw('title')} subtitle={figures.premiumRate !== null ? `${tw('subtitle')} ${tw('premiumCost', { rate: figures.premiumRate })}` : tw('subtitle')} />
       <VoiceSettings agent={agent} onStateChange={setState} />
       {stepError ? (
         <Alert variant="danger" title={t('wizard.stepSaveFailed')} className="mt-6" data-testid="step-save-error">

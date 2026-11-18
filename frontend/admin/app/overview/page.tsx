@@ -6,11 +6,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton, cn
 import * as React from 'react';
 import { AdminShell } from '@/src/components/shell/admin-shell';
 import { PageHeader } from '@/src/components/shell/page-header';
+import { CurrencyTabs } from '@/src/components/common/currency-tabs';
 import { LoadError } from '@/src/components/common/query-states';
 import { AttentionList, KpiCards } from '@/src/components/overview/kpi-cards';
 import { Funnel } from '@/src/components/overview/funnel';
 import { SeriesChart } from '@/src/components/overview/series-chart';
 import { formatCents, formatCredits, formatDateTime, formatNumber } from '@/src/lib/format';
+import { currenciesIn, shownCurrency } from '@/src/lib/money-series';
 import { pickParam, setParam, useUrlQuery } from '@/src/lib/use-url-query';
 
 const RANGES: AdminRange[] = ['7d', '30d', '90d'];
@@ -37,8 +39,19 @@ function Overview() {
   const kpis = useAdminKpis(api, { range }, { staleTime: 60_000 });
   const funnel = useAdminFunnel(api, { range }, { staleTime: 60_000 });
   const [metric, setMetric] = React.useState<Metric>('calls');
-  const series = React.useMemo(() => (kpis.data?.series ?? []).map((d) => ({ day: d.day, value: d[metric] })), [kpis.data, metric]);
-  const fmt = (v: number) => (metric === 'sales_cents' ? formatCents(v, kpis.data?.credit_sales.by_currency[0]?.currency ?? 'USD') : metric === 'credits_used' ? formatCredits(v) : formatNumber(v, 0));
+  // Sales are drawn one currency at a time: cents of two currencies are not one bar.
+  const [pickedCurrency, setPickedCurrency] = React.useState<string | null>(null);
+  const currencies = React.useMemo(() => currenciesIn(kpis.data?.series ?? [], (d) => d.sales_by_currency ?? []), [kpis.data]);
+  const currency = shownCurrency(pickedCurrency, currencies, kpis.data?.credit_sales.by_currency[0]?.currency);
+  const series = React.useMemo(
+    () =>
+      (kpis.data?.series ?? []).map((d) => ({
+        day: d.day,
+        value: metric === 'sales_cents' ? ((d.sales_by_currency ?? []).find((c) => c.currency === currency)?.cents ?? 0) : d[metric],
+      })),
+    [kpis.data, metric, currency],
+  );
+  const fmt = (v: number) => (metric === 'sales_cents' ? formatCents(v, currency) : metric === 'credits_used' ? formatCredits(v) : formatNumber(v, 0));
 
   return (
     <>
@@ -75,16 +88,19 @@ function Overview() {
                   <CardTitle className="text-sm">Daily activity</CardTitle>
                   <CardDescription className="text-xs">One bar per UTC day in range</CardDescription>
                 </div>
-                <div role="tablist" aria-label="Metric" className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs">
-                  {METRICS.map((m) => (
-                    <button key={m.key} type="button" role="tab" aria-selected={metric === m.key} onClick={() => setMetric(m.key)} className={cn('rounded px-2.5 py-1 font-medium transition-colors', metric === m.key ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground')}>
-                      {m.label}
-                    </button>
-                  ))}
+                <div className="flex flex-wrap items-center gap-2">
+                  {metric === 'sales_cents' ? <CurrencyTabs currencies={currencies} value={currency} onChange={setPickedCurrency} /> : null}
+                  <div role="tablist" aria-label="Metric" className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs">
+                    {METRICS.map((m) => (
+                      <button key={m.key} type="button" role="tab" aria-selected={metric === m.key} onClick={() => setMetric(m.key)} className={cn('rounded px-2.5 py-1 font-medium transition-colors', metric === m.key ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground')}>
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="pt-4">
-                {series.length ? <SeriesChart series={series} label={`${METRICS.find((m) => m.key === metric)?.label} per day`} format={fmt} /> : <p className="py-10 text-center text-sm text-muted-foreground">No days in range.</p>}
+                {series.length ? <SeriesChart series={series} label={`${METRICS.find((m) => m.key === metric)?.label}${metric === 'sales_cents' && currencies.length > 1 ? ` in ${currency}` : ''} per day`} format={fmt} /> : <p className="py-10 text-center text-sm text-muted-foreground">No days in range.</p>}
               </CardContent>
             </Card>
             <AttentionList a={kpis.data.attention} />

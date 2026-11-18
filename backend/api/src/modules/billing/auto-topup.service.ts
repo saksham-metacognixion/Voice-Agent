@@ -4,7 +4,7 @@ import { type AutoTopup, type AutoTopupRequest, type PricingConfig, autoTopup as
 import { AppError } from '../../common/errors/app-error';
 import { OpsAlertService } from '../alerts';
 import { type WorkspaceContext, WorkspaceMfaService } from '../auth';
-import { PlatformConfigService } from '../config';
+import { PlatformConfigService, purchasablePackIn } from '../config';
 import { WalletService, addMonths } from '../wallet/wallet.service';
 import { BillingService, isStripeNotFound } from './billing.service';
 import { type PaymentIntentFacts, StripeGateway } from './stripe.gateway';
@@ -153,7 +153,7 @@ export class AutoTopupService {
         throw new AppError('NO_PAYMENT_METHOD', 'Save a card first: buy a pack with "keep my card for auto top-up" ticked.');
       }
       const packId = input.pack_id ?? current.pack_id;
-      const pack = packId ? config.packs.find((p) => p.id === packId && p.active) : undefined;
+      const pack = packId ? purchasablePackIn(config, packId) : undefined;
       if (!pack) throw new AppError('PACK_UNAVAILABLE', 'Pick a pack to top up with.', [{ field: 'pack_id', message: 'Unknown or inactive pack' }]);
       const threshold = input.threshold ?? current.threshold ?? Math.round((pack.credits * config.wallet_policy.auto_topup_threshold_pct) / 100);
       const next: AutoTopup = { ...current, enabled: true, pack_id: pack.id, threshold };
@@ -224,11 +224,16 @@ export class AutoTopupService {
     if (!tenant.stripeCustomerId) return { outcome: 'skipped', reason: 'no_card' };
 
     const [{ config }, balance] = await Promise.all([this.config.currentPricing(), this.wallet.balance(workspaceId)]);
-    const pack = settings.pack_id ? config.packs.find((p) => p.id === settings.pack_id) : undefined;
+    // The saved pack must still be on sale (SA5: an inactive pack cannot be bought, and a
+    // hidden one is staff-assigned). A pack staff retired since the customer chose it is
+    // never charged for; the switch stays on and waits for another pack.
+    const pack = settings.pack_id ? purchasablePackIn(config, settings.pack_id) : undefined;
     if (!pack) return { outcome: 'skipped', reason: 'no_pack' };
 
     const quick = decideTopup({ settings, balance, pendingSince: null, lastPaidAt: null, failures: 0, lastFailureAt: null, workspacePaused: tenant.pausedAt !== null });
     if (quick.action === 'skip') return { outcome: 'skipped', reason: quick.reason };
+
+    await this.config.ensurePackRow(pack);
 
     // Under the wallet lock: the balance is re-read, the in-flight, recent-top-up and
     // retry checks happen, and the pending purchase is created — all before any other
@@ -464,7 +469,9 @@ export class AutoTopupService {
           const tenant = await adminDb.tenant.findUnique({ where: { id: purchase.tenantId }, select: { autoTopupJson: true, stripeCustomerId: true } });
           const settings = parseSettings(tenant?.autoTopupJson);
           const { config } = await this.config.currentPricing();
-          const pack = config.packs.find((p) => p.id === purchase.packId);
+          // No intent exists yet, so nothing was charged: a pack retired since the row was
+          // written is given up on, like a missing card.
+          const pack = purchase.packId ? purchasablePackIn(config, purchase.packId) : undefined;
           if (!settings?.payment_method_id || !tenant?.stripeCustomerId || !pack) {
             await this.abandon(purchase.id, purchase.tenantId, 'no_card', 'card or pack no longer available');
           } else {

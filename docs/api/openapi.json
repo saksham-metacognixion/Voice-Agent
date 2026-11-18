@@ -829,6 +829,10 @@
                 "credits": {
                   "type": "integer"
                 },
+                "currency": {
+                  "default": "USD",
+                  "type": "string"
+                },
                 "pack_id": {
                   "type": "string"
                 },
@@ -914,6 +918,29 @@
           "series": {
             "items": {
               "properties": {
+                "by_currency": {
+                  "default": [],
+                  "items": {
+                    "properties": {
+                      "currency": {
+                        "type": "string"
+                      },
+                      "refunds_cents": {
+                        "type": "integer"
+                      },
+                      "sales_cents": {
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "currency",
+                      "sales_cents",
+                      "refunds_cents"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
                 "day": {
                   "type": "string"
                 },
@@ -3359,6 +3386,25 @@
                 "day": {
                   "type": "string"
                 },
+                "sales_by_currency": {
+                  "default": [],
+                  "items": {
+                    "properties": {
+                      "cents": {
+                        "type": "integer"
+                      },
+                      "currency": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "currency",
+                      "cents"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
                 "sales_cents": {
                   "type": "integer"
                 },
@@ -5405,6 +5451,13 @@
           "current_version": {
             "type": "integer"
           },
+          "hard_blockers": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "has_draft": {
             "type": "boolean"
           },
@@ -5477,6 +5530,13 @@
                 },
                 "type": "array"
               },
+              "deactivated": {
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
               "removed": {
                 "items": {
                   "type": "string"
@@ -5490,6 +5550,26 @@
               "changed"
             ],
             "type": "object"
+          },
+          "scheduled": {
+            "default": [],
+            "items": {
+              "properties": {
+                "effective_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "version": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "version",
+                "effective_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
           "stripe": {
             "items": {
@@ -5657,6 +5737,10 @@
             "type": "string"
           },
           "is_current": {
+            "type": "boolean"
+          },
+          "is_scheduled": {
+            "default": false,
             "type": "boolean"
           },
           "packs": {
@@ -6447,6 +6531,10 @@
             "type": "string"
           },
           "is_current": {
+            "type": "boolean"
+          },
+          "is_scheduled": {
+            "default": false,
             "type": "boolean"
           },
           "packs": {
@@ -28511,8 +28599,7 @@
         "x-auth": "staff",
         "x-staff-roles": [
           "super_admin",
-          "ops",
-          "support"
+          "ops"
         ]
       }
     },
@@ -29548,6 +29635,126 @@
           "admin-pricing"
         ],
         "x-auth": "staff"
+      }
+    },
+    "/admin/pricing/versions/{version}/cancel": {
+      "post": {
+        "description": "Spec admin §5.",
+        "operationId": "adminCancelScheduledPricing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminPricingVersion"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_LIMIT_EXCEEDED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_LIMIT_EXCEEDED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CONFLICT}",
+            "x-error-codes": [
+              "CONFLICT"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Cancel a version published with a date still ahead, before it takes effect",
+        "tags": [
+          "admin-pricing"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin"
+        ]
       }
     },
     "/admin/provisioning": {
@@ -43814,6 +44021,15 @@
             "name": "region",
             "required": false,
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pack",
+            "required": false,
+            "schema": {
+              "maxLength": 64,
               "type": "string"
             }
           }

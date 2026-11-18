@@ -183,14 +183,17 @@ export class AdminNumbersService {
    * Releases the number for the customer — the customer's D4 DELETE, which a paused
    * workspace cannot reach. Platform first, row kept as `released` (calls reference it);
    * a platform failure leaves it `releasing`, and a second press finishes the job. The
-   * request is audited before the platform is asked, the outcome after.
+   * request is audited before the platform is asked, the outcome after. The route is super
+   * admin and ops only (`STAFF_ROUTE_ROLES.system`): a release cannot be undone, and
+   * support's one lever on a number is a pause against a ticket (admin §2.2).
    */
   async release(staff: StaffContext, idRaw: string, body: StaffActionRequest, request: FastifyRequest): Promise<AdminNumberResponse> {
     const row = await this.platformRow(idRaw);
     if (row.status === 'released') throw new AppError('CONFLICT', 'This number has already been released.');
     const live = await adminDb.call.count({ where: { numberId: row.id, status: 'in_progress' } });
     if (live > 0) throw new AppError('NUMBER_IN_USE', 'This number is on a call right now. Try again when it ends.');
-    await this.recordBoth(staff, row, 'number.release_requested', body, request, { status: row.status, e164: row.e164 }, undefined);
+    const ticketId = await this.limits.workspaceTicket(row.tenantId, body.ticket_id);
+    await this.recordBoth(staff, row, 'number.release_requested', body, request, { status: row.status, e164: row.e164 }, ticketId ? { ticket_id: ticketId } : undefined);
     try {
       await this.provisioning.release(row.id, row.tenantId);
     } catch (error) {

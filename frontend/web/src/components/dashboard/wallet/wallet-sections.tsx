@@ -22,7 +22,7 @@ import { LoadError } from '@/src/components/dashboard/query-states';
 import { PackageSelector } from '@/src/components/wizard/package-selector';
 import { activitySeries } from '@/src/dashboard/activity-series';
 import { useDashboardLive } from '@/src/dashboard/use-dashboard-live';
-import { LEDGER_REASONS, autoTopupBody, balanceTone, expiringSoon, ledgerLink, ledgerReasonParam, usageSummary } from '@/src/dashboard/wallet-view';
+import { LEDGER_REASONS, autoTopupBody, autoTopupPackGone, balanceTone, expiringSoon, ledgerLink, ledgerReasonParam, packLinkParam, usageSummary } from '@/src/dashboard/wallet-view';
 import { saveBlob } from '@/src/lib/download';
 import { errorMessage } from '@/src/lib/errors';
 import { formatCreditsValue, formatDate, formatDateTime, formatNumber } from '@/src/lib/format';
@@ -51,6 +51,16 @@ export function BalanceCard() {
   const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
   const flags = useGetFlags(api, { staleTime: 60_000 });
   const [buying, setBuying] = React.useState(false);
+  // `?pack=` is the link staff send for a link-only pack: it opens "Buy credits" on that pack.
+  const [params, setParams] = useUrlQuery();
+  const linkedPackId = packLinkParam(params.get('pack'));
+  React.useEffect(() => {
+    if (linkedPackId && canAdmin) setBuying(true);
+  }, [linkedPackId, canAdmin]);
+  const onBuyingChange = (open: boolean) => {
+    setBuying(open);
+    if (!open && params.has('pack')) setParams((next) => next.delete('pack'), 'replace');
+  };
   const purchasesPaused = flags.data?.kill_switches.pause_purchases === true;
   const standardRate = pricing.data?.rates.standard_per_min ?? null;
 
@@ -89,6 +99,7 @@ export function BalanceCard() {
               {wallet.data.expiring_next ? t('expiring', { credits: formatCreditsValue(wallet.data.expiring_next.credits), date: formatDate(wallet.data.expiring_next.expires_at, ws.workspace?.timezone) }) : t('nothingExpiring')}
             </p>
             {purchasesPaused ? <Alert variant="warning">{tc('dashboard.wallet.paused.banner')}</Alert> : null}
+            {linkedPackId && !canAdmin ? <Alert variant="info">{tc('dashboard.wallet.buy.linkNeedsAdmin')}</Alert> : null}
             {canAdmin ? (
               <div className="mt-auto">
                 <Button onClick={() => setBuying(true)} disabled={purchasesPaused}>
@@ -99,13 +110,13 @@ export function BalanceCard() {
           </>
         )}
       </CardContent>
-      {canAdmin ? <BuyCreditsDialog open={buying} onOpenChange={setBuying} /> : null}
+      {canAdmin ? <BuyCreditsDialog open={buying} onOpenChange={onBuyingChange} linkedPackId={linkedPackId} /> : null}
     </Card>
   );
 }
 
 /** "Buy credits" (spec p. 38): the W7 pack cards in a modal → Stripe Checkout, back to `/app/wallet`. */
-function BuyCreditsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function BuyCreditsDialog({ open, onOpenChange, linkedPackId }: { open: boolean; onOpenChange: (open: boolean) => void; linkedPackId: string | null }) {
   const t = useTranslations('dashboard.wallet.buy');
   const tc = useTranslations();
   return (
@@ -115,7 +126,7 @@ function BuyCreditsDialog({ open, onOpenChange }: { open: boolean; onOpenChange:
           <DialogTitle>{t('title')}</DialogTitle>
           <DialogDescription>{t('body')}</DialogDescription>
         </DialogHeader>
-        {open ? <PackageSelector compact /> : null}
+        {open ? <PackageSelector compact linkedPackId={linkedPackId} /> : null}
       </DialogContent>
     </Dialog>
   );
@@ -134,9 +145,16 @@ export function AutoTopupCard({ wallet }: { wallet: WalletResponse }) {
   const api = useApi();
   const ws = useWorkspace();
   const queryClient = useQueryClient();
-  const pricing = useGetPricing(api, ws.workspace?.country ? { region: ws.workspace.country } : undefined, { staleTime: PRICING_STALE_MS });
-  const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order), [pricing.data]);
   const current = wallet.auto_topup;
+  // The saved pack's id rides on the request, so a link-only pack bought from its link is still listed here.
+  const pricing = useGetPricing(
+    api,
+    ws.workspace?.country || current?.pack_id ? { ...(ws.workspace?.country ? { region: ws.workspace.country } : {}), ...(current?.pack_id ? { pack: current.pack_id } : {}) } : undefined,
+    { staleTime: PRICING_STALE_MS },
+  );
+  const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order), [pricing.data]);
+  // Staff retired the saved pack: the API buys nothing for it, so say so and ask for another.
+  const packGone = autoTopupPackGone(current, pricing.data ? packs.map((p) => p.id) : null);
   const [enabled, setEnabled] = React.useState(current?.enabled ?? false);
   const [packId, setPackId] = React.useState<string | null>(current?.pack_id ?? null);
   const [threshold, setThreshold] = React.useState(current?.threshold !== null && current?.threshold !== undefined ? String(current.threshold) : '');
@@ -149,6 +167,10 @@ export function AutoTopupCard({ wallet }: { wallet: WalletResponse }) {
     setPackId(current?.pack_id ?? null);
     setThreshold(current?.threshold !== null && current?.threshold !== undefined ? String(current.threshold) : '');
   }, [current?.enabled, current?.pack_id, current?.threshold]);
+
+  React.useEffect(() => {
+    if (packGone) setPackId((id) => (id === current?.pack_id ? null : id));
+  }, [packGone, current?.pack_id]);
 
   // Suggest a pack and §5.4's threshold the first time it is switched on.
   React.useEffect(() => {
@@ -190,7 +212,7 @@ export function AutoTopupCard({ wallet }: { wallet: WalletResponse }) {
           <CardTitle>{t('title')}</CardTitle>
           <Badge variant={current?.enabled ? 'success' : 'outline'}>{current?.enabled ? t('on') : t('off')}</Badge>
         </div>
-        <CardDescription>{current?.enabled ? t('summaryOn', { pack: packName, threshold: formatCreditsValue(current.threshold ?? 0) }) : t('body')}</CardDescription>
+        <CardDescription>{current?.enabled && !packGone ? t('summaryOn', { pack: packName, threshold: formatCreditsValue(current.threshold ?? 0) }) : t('body')}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-4">
         <Field id="topup-enabled" label={t('enabled')}>
@@ -221,6 +243,7 @@ export function AutoTopupCard({ wallet }: { wallet: WalletResponse }) {
           <span className="text-xs text-muted-foreground">{t('card')}</span>
           {current?.card_last4 ? <span className="tabular-nums">{t('cardValue', { last4: current.card_last4 })}</span> : <span className="text-muted-foreground">{t('noCard')}</span>}
         </div>
+        {packGone ? <Alert variant="warning">{t('packGone')}</Alert> : null}
         {error ? <Alert variant="danger">{error}</Alert> : null}
         <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-border pt-4">
           {!current?.card_last4 ? <PortalButton label={t('addCard')} variant="outline" /> : null}

@@ -55,6 +55,8 @@ export function can(me: StaffMeResponse | null | undefined) {
     /** Agent and number pause/resume: the support trio and `can_pause_tenant`, as the workspace's (QA-034). */
     pauseAgentOrNumber: (): Denied =>
       needsRole(role, R.mutate) ?? (limits ? needsLimit(limits, 'can_pause_tenant', 'pause or resume agents and numbers') : missing),
+    /** Releasing a number back to the carrier cannot be undone: super admin or ops, never the support desk. */
+    releaseNumber: (): Denied => needsRole(role, R.system),
     /** Opening a stored webhook body (QA-033): everyone but read-only. */
     viewWebhookPayload: (): Denied => needsRole(role, R.payloadView),
     /** SA9 refunds: the MONEY matrix at the route, `refund_max_cents` inside it (0 = cannot). */

@@ -812,12 +812,15 @@ describe('GET /admin/billing/summary', () => {
     const packs = res.body.packs as Array<Record<string, unknown>>;
     expect(packs.find((p) => p.pack_id === 'growth')).toMatchObject({ pack_name: 'Growth' });
     expect(packs.find((p) => p.pack_id === 'starter')).toMatchObject({ pack_name: 'Starter' });
-    const series = res.body.series as Array<Record<string, number | string>>;
+    const series = res.body.series as Array<{ purchases: number; by_currency: Array<{ currency: string; sales_cents: number; refunds_cents: number }> }>;
     expect(series).toHaveLength(8);
-    const sum = (key: 'sales_cents' | 'refunds_cents' | 'purchases') => series.reduce((n, d) => n + Number(d[key]), 0);
+    // A day's money is per currency (18 Nov QA): the USD days add up to the USD headline,
+    // whatever another currency sold on the same days.
+    const sum = (key: 'sales_cents' | 'refunds_cents') => series.reduce((n, d) => n + (d.by_currency.find((c) => c.currency === 'USD')?.[key] ?? 0), 0);
     expect(sum('sales_cents')).toBe(usd.amount_cents);
     expect(sum('refunds_cents')).toBe(refunds.amount_cents);
-    expect(sum('purchases')).toBe(usd.purchases);
+    const everyCurrency = (res.body.sales as Array<{ purchases: number }>).reduce((n, x) => n + x.purchases, 0);
+    expect(series.reduce((n, d) => n + d.purchases, 0)).toBe(everyCurrency);
     expect(
       (await call('GET', '/admin/billing/summary?range=1d', staff.readOnly.token)).status,
     ).toBe(422);

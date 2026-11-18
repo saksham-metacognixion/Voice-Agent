@@ -10,7 +10,8 @@ import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
-import { formatDuration } from '@/src/lib/format';
+import { formatDuration, formatNumber } from '@/src/lib/format';
+import { usePricingFigures } from '@/src/lib/use-pricing-figures';
 import { usePlanGate } from '@/src/dashboard/use-plan-gate';
 import { routes, settingsPath } from '@/src/routes';
 import { DeleteAgentDialog, useAgentActions } from './agent-actions';
@@ -24,6 +25,7 @@ import { DeleteAgentDialog, useAgentActions } from './agent-actions';
 export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; canEdit: boolean; canAdmin: boolean }) {
   const t = useTranslations('dashboard.agents.settings');
   const tc = useTranslations();
+  const figures = usePricingFigures();
   const api = useApi();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -100,8 +102,8 @@ export function SettingsTab({ agent, canEdit, canAdmin }: { agent: AgentDetail; 
           <CardContent className="flex flex-col gap-6">
             <Field label={t('tier')} description={t('tierHint')}>
               <RadioGroup value={tier} onValueChange={(v) => setTier(v as AgentTier)} disabled={!canEdit || !settings} className="sm:grid-cols-2">
-                <RadioCard value="standard" title={tc('common.standard')} description={t('standardBody', { rate: tc('common.standardRate') })} />
-                <RadioCard value="premium" title={tc('common.premium')} description={t('premiumBody', { rate: tc('common.premiumRate') })} />
+                <RadioCard value="standard" title={tc('common.standard')} description={figures.standardRate !== null ? t('standardBody', { rate: tc('common.standardRate', { rate: formatNumber(figures.standardRate) }) }) : undefined} />
+                <RadioCard value="premium" title={tc('common.premium')} description={figures.premiumRate !== null ? t('premiumBody', { rate: tc('common.premiumRate', { rate: formatNumber(figures.premiumRate) }) }) : undefined} />
               </RadioGroup>
             </Field>
             <Field label={t('maxDuration')} description={t('maxDurationHint')} addon={formatDuration(maxS)}>

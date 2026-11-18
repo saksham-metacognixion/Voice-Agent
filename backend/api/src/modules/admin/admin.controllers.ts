@@ -600,7 +600,7 @@ export class AdminNumbersController {
   /** Admin §9: release for the customer (platform first, row kept as `released`). */
   @Post(':id/release')
   @HttpCode(200)
-  @StaffRoles(...MUTATE)
+  @StaffRoles(...STAFF_ROUTE_ROLES.system)
   release(
     @StaffCtx() staff: StaffContext,
     @Param('id') id: string,
@@ -860,6 +860,19 @@ export class AdminPricingController {
       adminPricingRollbackRequest.parse(body ?? {}),
       request,
     );
+  }
+
+  /** A version published with a date still ahead, taken back before it starts. */
+  @Post('pricing/versions/:version/cancel')
+  @HttpCode(200)
+  @StaffRoles(...PRICING_PUBLISH)
+  cancelScheduled(
+    @StaffCtx() staff: StaffContext,
+    @Param('version') version: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminPricingVersion> {
+    return this.pricing.cancelScheduled(staff, versionParam(version), staffActionRequest.parse(body), request);
   }
 
   @Get('retell-costs')

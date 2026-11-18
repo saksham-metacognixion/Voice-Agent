@@ -50,6 +50,23 @@ export function ledgerLink(entry: Pick<LedgerEntryResponse, 'reason' | 'ref_id'>
   return (entry.reason === 'call' || entry.reason === 'transfer') && entry.ref_id ? callPath(entry.ref_id) : null;
 }
 
+/**
+ * The pack a link names (`/app/wallet/?pack=<id>`, the link staff send for a link-only
+ * pack), or null for anything that is not a pack id. The API decides whether the pack
+ * exists and may be bought; this only keeps junk out of the request.
+ */
+export function packLinkParam(value: string | null | undefined): string | null {
+  return value && /^[a-z][a-z0-9_-]{1,31}$/.test(value) ? value : null;
+}
+
+/**
+ * True when auto top-up is on and its saved pack is not among the packs on sale (`null` =
+ * the list has not loaded, which says nothing). The API charges nothing for such a pack.
+ */
+export function autoTopupPackGone(current: { enabled: boolean; pack_id: string | null } | null | undefined, packIdsOnSale: readonly string[] | null): boolean {
+  return Boolean(current?.enabled && current.pack_id && packIdsOnSale && !packIdsOnSale.includes(current.pack_id));
+}
+
 export interface AutoTopupDraft {
   enabled: boolean;
   packId: string | null;

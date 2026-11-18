@@ -324,7 +324,7 @@ export class WalletService {
       const [tenant, nextLot, lastPaid, sum] = await Promise.all([
         db.tenant.findUniqueOrThrow({
           where: { id: ctx.workspaceId },
-          select: { planTier: true, concurrencyCap: true, kbAllowance: true, autoTopupJson: true },
+          select: { planTier: true, autoTopupJson: true },
         }),
         db.creditLot.findFirst({
           where: { tenantId: ctx.workspaceId, creditsRemaining: { gt: 0 }, expiresAt: { gt: new Date() } },
@@ -344,12 +344,15 @@ export class WalletService {
     // lock, so a debit may have committed and published since. Fill a miss, never overwrite:
     // a plain SET here would put a stale-high balance back over a writer's fresher one.
     await this.cache.setIfAbsent(redisKeys.balance(ctx.workspaceId), balance.toFixed(2), BALANCE_TTL_S);
+    // The limits in force, not the plan's own: a staff override (SA2 "Edit overrides") is
+    // enforced from `caps:{ws}` at once, and D5's plan line must say the same numbers.
+    const caps = await this.config.capsFor(ctx.workspaceId);
 
     return {
       balance,
       plan_tier: tenant.planTier,
-      concurrency_cap: tenant.concurrencyCap,
-      kb_allowance: tenant.kbAllowance,
+      concurrency_cap: caps.concurrency_cap,
+      kb_allowance: caps.kb_allowance,
       expiring_next: nextLot
         ? { credits: nextLot.creditsRemaining.toNumber(), expires_at: nextLot.expiresAt.toISOString() }
         : null,

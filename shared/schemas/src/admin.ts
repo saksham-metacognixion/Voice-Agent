@@ -67,7 +67,10 @@ export const kpiDay = z.object({
   calls: z.number().int(),
   credits_used: z.number(),
   signups: z.number().int(),
+  /** Every currency's cents added together. Only meaningful while one currency sells; charts read `sales_by_currency`. */
   sales_cents: z.number().int(),
+  /** The day's paid sales per currency. Amounts in different currencies are never one figure. */
+  sales_by_currency: z.array(z.object({ currency: z.string(), cents: z.number().int() })).default([]),
 });
 
 export const adminKpisResponse = z.object({
@@ -853,6 +856,8 @@ export const adminPricingVersion = z.object({
   grandfather_mode: z.string().nullable(),
   /** In effect now: the newest version whose `effective_at` has passed. */
   is_current: z.boolean(),
+  /** Published with a date that has not arrived yet. It can be cancelled until then. */
+  is_scheduled: z.boolean().default(false),
   stripe_sync: stripeSyncResult,
   packs: z.number().int(),
 });
@@ -921,13 +926,20 @@ export const adminPricingPreviewResponse = z.object({
   changes: z.array(pricingChange),
   packs: z.object({
     added: z.array(z.string()),
+    /** Gone from the config altogether. Refused for a pack bought in the last 12 months. */
     removed: z.array(z.string()),
+    /** Still in the config with Active switched off: no longer sold, never a removal. */
+    deactivated: z.array(z.string()).default([]),
     changed: z.array(z.string()),
   }),
   margins: z.array(pricingMargin),
   stripe: z.array(stripePlannedAction),
-  /** Reasons publish will refuse without an override (admin §5.4). */
+  /** Every reason publish will refuse (admin §5.4): the margin ones a super admin may override, and the hard ones. */
   blockers: z.array(z.string()),
+  /** The subset of `blockers` no override lifts (removing a pack bought in the last 12 months). */
+  hard_blockers: z.array(z.string()).default([]),
+  /** Versions published with a date still ahead. A newer publish replaces each from the moment it takes effect. */
+  scheduled: z.array(z.object({ version: z.number().int(), effective_at: isoDateTime })).default([]),
   warnings: z.array(z.string()),
 });
 export type AdminPricingPreviewResponse = z.infer<typeof adminPricingPreviewResponse>;

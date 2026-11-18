@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LEDGER_REASONS, autoTopupBody, balanceTone, expiringSoon, ledgerLink, ledgerReasonParam, usageSummary } from './wallet-view';
+import { LEDGER_REASONS, autoTopupBody, autoTopupPackGone, balanceTone, expiringSoon, ledgerLink, ledgerReasonParam, packLinkParam, usageSummary } from './wallet-view';
 
 describe('balanceTone (§7.2)', () => {
   it('is amber under 20 % of the last pack and red at or below zero', () => {
@@ -66,5 +66,32 @@ describe('autoTopupBody', () => {
     expect(autoTopupBody({ enabled: true, packId: 'growth', threshold: 'abc' })).toEqual({ ok: false, field: 'threshold' });
     expect(autoTopupBody({ enabled: true, packId: 'growth', threshold: ' ' })).toEqual({ ok: false, field: 'threshold' });
     expect(autoTopupBody({ enabled: true, packId: 'growth', threshold: '50' })).toEqual({ ok: true, body: { enabled: true, pack_id: 'growth', threshold: 50 } });
+  });
+});
+
+describe('packLinkParam (the link staff send for a link-only pack)', () => {
+  it('reads a pack id from ?pack=', () => {
+    expect(packLinkParam('scale')).toBe('scale');
+    expect(packLinkParam('qa_pack-2')).toBe('qa_pack-2');
+  });
+
+  it('reads anything that is not a pack id as no link', () => {
+    for (const junk of [null, undefined, '', 'Scale', '9lives', 'a', 'pack with spaces', '../wallet', '<script>', 'x'.repeat(33)]) expect(packLinkParam(junk)).toBeNull();
+  });
+});
+
+describe('autoTopupPackGone (staff retired the saved pack)', () => {
+  const on = { enabled: true, pack_id: 'starter' };
+
+  it('is true only when auto top-up is on and its pack is not on sale', () => {
+    expect(autoTopupPackGone(on, ['growth', 'scale'])).toBe(true);
+    expect(autoTopupPackGone(on, ['starter', 'growth'])).toBe(false);
+    expect(autoTopupPackGone({ enabled: false, pack_id: 'starter' }, ['growth'])).toBe(false);
+    expect(autoTopupPackGone({ enabled: true, pack_id: null }, ['growth'])).toBe(false);
+    expect(autoTopupPackGone(null, ['growth'])).toBe(false);
+  });
+
+  it('says nothing while the pack list has not loaded', () => {
+    expect(autoTopupPackGone(on, null)).toBe(false);
   });
 });

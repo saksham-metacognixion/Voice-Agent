@@ -4,6 +4,8 @@ import type { VoiceResponse } from '@portal/schemas';
 import { AudioButton, Badge, Button, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, cn } from '@portal/ui';
 import { Check, Search } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { formatNumber } from '@/src/lib/format';
+import { usePricingFigures } from '@/src/lib/use-pricing-figures';
 import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { languageName } from '@/src/wizard/languages';
@@ -38,6 +40,7 @@ export interface VoicePickerProps {
 export function VoicePicker({ voices, loading, selectedId, filters, onFiltersChange, onSelect, language, rate, onPreview, onPreviewError, disabled }: VoicePickerProps) {
   const t = useTranslations('wizard.w3');
   const tc = useTranslations('common');
+  const figures = usePricingFigures();
   const copy = useServerCopy();
   const audioLabels = { play: tc('play'), pause: tc('pause'), unavailable: tc('sampleUnavailable'), loading: tc('loading') };
   const hasFilters = filters.gender || filters.tier || filters.accent || filters.native || filters.q;
@@ -171,7 +174,7 @@ export function VoicePicker({ voices, loading, selectedId, filters, onFiltersCha
                     <span className="flex min-w-0 flex-col">
                       <span className="flex flex-wrap items-center gap-1.5">
                         <span className="text-sm font-medium">{voice.name}</span>
-                        {voice.tier === 'premium' ? <Badge variant="premium">{tc('premium')} · {tc('premiumRate')}</Badge> : <Badge variant="outline">{tc('standard')}</Badge>}
+                        {voice.tier === 'premium' ? <Badge variant="premium">{tc('premium')}{figures.premiumRate !== null ? ` · ${tc('premiumRate', { rate: formatNumber(figures.premiumRate) })}` : ''}</Badge> : <Badge variant="outline">{tc('standard')}</Badge>}
                       </span>
                       <span className="truncate text-xs text-muted-foreground">
                         {[voice.gender ? t(`filters.${voice.gender}` as never) : null, voice.accent ? t('accent', { accent: copy.accent(voice.accent) }) : null]

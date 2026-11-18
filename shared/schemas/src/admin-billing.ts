@@ -164,6 +164,8 @@ export const adminBillingSummaryResponse = z.object({
     z.object({
       pack_id: z.string(),
       pack_name: z.string().nullable(),
+      /** One row per pack and currency: a pack sold in two currencies is two rows, never one sum. */
+      currency: z.string().default('USD'),
       purchases: z.number().int(),
       credits: z.number().int(),
       amount_cents: z.number().int(),
@@ -173,9 +175,12 @@ export const adminBillingSummaryResponse = z.object({
     z.object({
       /** YYYY-MM-DD, UTC. */
       day: z.string(),
+      /** Every currency's cents added together. Only meaningful while one currency sells; charts read `by_currency`. */
       sales_cents: z.number().int(),
       refunds_cents: z.number().int(),
       purchases: z.number().int(),
+      /** The day's sales and refunds per currency. */
+      by_currency: z.array(z.object({ currency: z.string(), sales_cents: z.number().int(), refunds_cents: z.number().int() })).default([]),
     }),
   ),
 });

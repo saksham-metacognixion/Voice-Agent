@@ -56,3 +56,15 @@ describe('can() — route roles and limits together (QA-048)', () => {
     expect(can(me('read_only')).compliance()).toMatch(/Needs/);
   });
 });
+
+describe('releasing a number (18 Nov QA)', () => {
+  it('is offered to super admin and ops, never to support, whatever its limits say', () => {
+    expect(can(me('super_admin')).releaseNumber()).toBeNull();
+    expect(can(me('ops')).releaseNumber()).toBeNull();
+    expect(can(me('support')).releaseNumber()).toBe('Needs Super admin or Ops.');
+    expect(can(me('finance')).releaseNumber()).not.toBeNull();
+    expect(can(me('read_only')).releaseNumber()).not.toBeNull();
+    // Support still pauses and re-syncs: only the irreversible action moved.
+    expect(can(me('support')).supportActions()).toBeNull();
+  });
+});

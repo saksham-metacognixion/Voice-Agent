@@ -2,6 +2,7 @@
 
 import { Button } from '@portal/ui';
 import { useTranslations } from 'next-intl';
+import { usePublicPricingFigures } from '@/src/lib/use-pricing-figures';
 import Link from 'next/link';
 import * as React from 'react';
 import { useAuth } from '@/src/auth/auth-provider';
@@ -22,6 +23,7 @@ export default function SignupPage() {
 
 function SignupInner() {
   const t = useTranslations();
+  const figures = usePublicPricingFigures();
   const auth = useAuth();
   const [busy, setBusy] = React.useState(false);
   // "Sign in" keeps the return path as well (BUG-008, QA-003).
@@ -44,7 +46,7 @@ function SignupInner() {
   return (
     <AuthLayout
       title={t('auth.signup.title')}
-      subtitle={t('auth.signup.subtitle')}
+      subtitle={figures.trialCredits !== null ? t('auth.signup.subtitle', { credits: figures.trialCredits }) : t('auth.signup.subtitleNoAmount')}
       footer={
         <>
           {t('auth.signup.haveAccount')}{' '}

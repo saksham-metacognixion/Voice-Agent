@@ -544,7 +544,7 @@ export function useAdminPauseNumber(api: ApiClient) {
   return useMutation({ mutationFn: (vars: { params: { id: string }; body: z.input<typeof staffActionRequest> }) => adminPauseNumber(api, vars.params, vars.body) });
 }
 
-/** POST /admin/numbers/:id/release — Release the number for the customer: the platform first, the row kept as released (staff: super_admin, ops, support) — admin §9. */
+/** POST /admin/numbers/:id/release — Release the number for the customer: the platform first, the row kept as released (staff: super_admin, ops) — admin §9. */
 export function adminReleaseNumber(api: ApiClient, params: { id: string }, body: z.input<typeof staffActionRequest>) {
   return api.post(`/admin/numbers/${enc(params.id)}/release`, body, adminNumberResponse);
 }
@@ -650,6 +650,15 @@ export function adminGetPricingVersion(api: ApiClient, params: { version: string
 
 export function useAdminGetPricingVersion(api: ApiClient, params: { version: string }, options: QueryHookOptions = {}) {
   return useQuery({ queryKey: ['adminGetPricingVersion', params], queryFn: () => adminGetPricingVersion(api, params), ...options });
+}
+
+/** POST /admin/pricing/versions/:version/cancel — Cancel a version published with a date still ahead, before it takes effect (staff: super_admin) — admin §5. */
+export function adminCancelScheduledPricing(api: ApiClient, params: { version: string }, body: z.input<typeof staffActionRequest>) {
+  return api.post(`/admin/pricing/versions/${enc(params.version)}/cancel`, body, adminPricingVersion);
+}
+
+export function useAdminCancelScheduledPricing(api: ApiClient) {
+  return useMutation({ mutationFn: (vars: { params: { version: string }; body: z.input<typeof staffActionRequest> }) => adminCancelScheduledPricing(api, vars.params, vars.body) });
 }
 
 /** GET /admin/provisioning — SA7 — the provisioning queue: activation, number and knowledge jobs with their step view — admin §4 SA7, §13.8. */

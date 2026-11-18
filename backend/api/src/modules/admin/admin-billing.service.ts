@@ -691,8 +691,9 @@ export class AdminBillingService {
         _sum: { amountCents: true, credits: true },
         _count: { _all: true },
       }),
+      // Per pack *and* currency: a pack that sold in USD and in CAD is two rows.
       adminDb.purchase.groupBy({
-        by: ['packId'],
+        by: ['packId', 'currency'],
         where: sold,
         _sum: { amountCents: true, credits: true },
         _count: { _all: true },
@@ -708,14 +709,15 @@ export class AdminBillingService {
       adminDb.purchase.count({
         where: { isAutoTopup: true, status: 'abandoned', updatedAt: { gte: from, lte: to } },
       }),
-      adminDb.$queryRaw<Array<{ day: string; cents: bigint; n: bigint }>>(
-        Prisma.sql`SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, coalesce(sum(amount_cents), 0)::bigint AS cents, count(*)::bigint AS n FROM purchases WHERE status IN ('paid', 'refunded') AND created_at >= ${from} AND created_at <= ${to} GROUP BY 1`,
+      adminDb.$queryRaw<Array<{ day: string; currency: string; cents: bigint; n: bigint }>>(
+        Prisma.sql`SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, upper(currency) AS currency, coalesce(sum(amount_cents), 0)::bigint AS cents, count(*)::bigint AS n FROM purchases WHERE status IN ('paid', 'refunded') AND created_at >= ${from} AND created_at <= ${to} GROUP BY 1, 2`,
       ),
-      adminDb.$queryRaw<Array<{ day: string; cents: bigint }>>(
-        Prisma.sql`SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, coalesce(sum(amount_cents), 0)::bigint AS cents FROM refunds WHERE status = 'succeeded' AND created_at >= ${from} AND created_at <= ${to} GROUP BY 1`,
+      // A refund is in its purchase's currency.
+      adminDb.$queryRaw<Array<{ day: string; currency: string; cents: bigint }>>(
+        Prisma.sql`SELECT to_char(date_trunc('day', r.created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, upper(p.currency) AS currency, coalesce(sum(r.amount_cents), 0)::bigint AS cents FROM refunds r JOIN purchases p ON p.id = r.purchase_id WHERE r.status = 'succeeded' AND r.created_at >= ${from} AND r.created_at <= ${to} GROUP BY 1, 2`,
       ),
     ]);
-    const packIds = byPack.map((g) => g.packId).filter((p): p is string => p !== null);
+    const packIds = [...new Set(byPack.map((g) => g.packId).filter((p): p is string => p !== null))];
     const packs = packIds.length
       ? await adminDb.pack.findMany({
           where: { id: { in: packIds } },
@@ -748,18 +750,25 @@ export class AdminBillingService {
       t += DAY_MS
     ) {
       const day = new Date(t).toISOString().slice(0, 10);
-      byDay.set(day, { day, sales_cents: 0, refunds_cents: 0, purchases: 0 });
+      byDay.set(day, { day, sales_cents: 0, refunds_cents: 0, purchases: 0, by_currency: [] });
     }
+    const inCurrency = (d: AdminBillingSummaryResponse['series'][number], currency: string) => {
+      let entry = d.by_currency.find((c) => c.currency === currency);
+      if (!entry) d.by_currency.push((entry = { currency, sales_cents: 0, refunds_cents: 0 }));
+      return entry;
+    };
     for (const r of salesByDay) {
       const d = byDay.get(r.day);
-      if (d) {
-        d.sales_cents = Number(r.cents);
-        d.purchases = Number(r.n);
-      }
+      if (!d) continue;
+      inCurrency(d, r.currency).sales_cents += Number(r.cents);
+      d.sales_cents += Number(r.cents);
+      d.purchases += Number(r.n);
     }
     for (const r of refundsByDay) {
       const d = byDay.get(r.day);
-      if (d) d.refunds_cents = Number(r.cents);
+      if (!d) continue;
+      inCurrency(d, r.currency).refunds_cents += Number(r.cents);
+      d.refunds_cents += Number(r.cents);
     }
 
     return {
@@ -778,11 +787,13 @@ export class AdminBillingService {
         .map((g) => ({
           pack_id: g.packId ?? 'custom',
           pack_name: g.packId ? (packName.get(g.packId) ?? null) : null,
+          currency: g.currency.toUpperCase(),
           purchases: g._count._all,
           credits: g._sum.credits ?? 0,
           amount_cents: g._sum.amountCents ?? 0,
         }))
-        .sort((a, b) => b.amount_cents - a.amount_cents),
+        // Amounts are only comparable inside one currency.
+        .sort((a, b) => a.currency.localeCompare(b.currency) || b.amount_cents - a.amount_cents),
       series: [...byDay.values()],
     };
   }

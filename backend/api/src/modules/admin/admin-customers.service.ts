@@ -28,12 +28,11 @@ import type { StaffContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService, addMonths } from '../wallet';
-import { DAY_MS, customerStatusOf, iso, num, numOrNull, record, uuidParam, idMatch } from './admin.helpers';
+import { DAY_MS, customerStatusOf, customerStatusSql, iso, num, numOrNull, record, uuidParam, idMatch } from './admin.helpers';
 import { StaffAuditService } from './staff-audit.service';
 import { StaffLimitsService } from './staff-limits.service';
 
 /** The list computes status and balance in memory, so it reads at most this many rows. */
-const LIST_SCAN_MAX = 500;
 
 const OWNER_UNCHANGED =
   "The owner's role cannot be changed here. The owner first makes someone else the owner in the portal (Settings → Team → Make owner); then this member can be changed or removed.";
@@ -72,53 +71,81 @@ export class AdminCustomersService {
 
   // ------------------------------------------------------------------ list + detail
 
+  /**
+   * SA2 customer list. Filtering, sorting, counting and paging all happen in Postgres over
+   * every workspace that matches — the list used to read the newest 500 tenants and do the
+   * rest in memory, so past 500 the total stopped there, a Status filter missed older
+   * workspaces and a sort by balance ordered only that slice. The page's own rows are then
+   * decorated by `facts()`, a handful of grouped queries for one page of ids.
+   *
+   * The status and the two computed sort keys need the ledger and the last call, read per
+   * matching workspace on `(tenant_id, created_at)`. They are joined only when the filter
+   * or the sort asks for them: the default list (newest first, no status) touches `tenants`
+   * alone.
+   */
   async list(query: AdminCustomersQuery): Promise<Page<AdminCustomerSummary>> {
-    const where: Prisma.TenantWhereInput = {};
-    if (query.plan) where.planTier = query.plan;
-    if (query.country) where.country = query.country.toUpperCase();
+    const now = new Date();
+    const where: Prisma.Sql[] = [Prisma.sql`TRUE`];
+    if (query.plan) where.push(Prisma.sql`t.plan_tier = ${query.plan}::"PlanTier"`);
+    if (query.country) where.push(Prisma.sql`t.country = ${query.country.toUpperCase()}`);
     if (query.q) {
-      const q = query.q;
-      where.OR = [
-        { name: { contains: q, mode: 'insensitive' } },
-        ...idMatch(q),
-        { stripeCustomerId: q },
-        { memberships: { some: { user: { email: { contains: q, mode: 'insensitive' } } } } },
+      const like = `%${query.q.replace(/[\\%_]/g, '\\$&')}%`;
+      const any: Prisma.Sql[] = [
+        Prisma.sql`t.name ILIKE ${like}`,
+        Prisma.sql`t.stripe_customer_id = ${query.q}`,
+        Prisma.sql`EXISTS (SELECT 1 FROM memberships m JOIN users u ON u.id = m.user_id WHERE m.tenant_id = t.id AND u.email ILIKE ${like})`,
+        ...idMatch(query.q).map(({ id }) => Prisma.sql`t.id = ${id}::uuid`),
       ];
+      where.push(Prisma.sql`(${Prisma.join(any, ' OR ')})`);
     }
-    const tenants = await adminDb.tenant.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: LIST_SCAN_MAX,
+
+    const needsFacts = query.sort === 'balance' || query.sort === 'last_activity' || (query.status !== undefined && query.status !== 'paused' && query.status !== 'onboarding');
+    const facts = needsFacts
+      ? Prisma.sql`
+          LEFT JOIN LATERAL (SELECT coalesce(sum(delta), 0) AS balance, max(created_at) AS last_at FROM credit_ledger WHERE tenant_id = t.id) l ON TRUE
+          LEFT JOIN LATERAL (SELECT max(created_at) AS last_at FROM calls WHERE tenant_id = t.id) c ON TRUE`
+      : Prisma.empty;
+    const balance = needsFacts ? Prisma.sql`l.balance` : Prisma.sql`0`;
+    const balanceSince = needsFacts ? Prisma.sql`l.last_at` : Prisma.sql`NULL::timestamp`;
+    // GREATEST skips NULLs, so this is the newer of the two, or NULL when there is neither.
+    const lastActivity = needsFacts ? Prisma.sql`GREATEST(l.last_at, c.last_at)` : Prisma.sql`NULL::timestamp`;
+    const rows = Prisma.sql`
+      SELECT t.id, t.name, t.created_at, ${balance} AS balance, ${lastActivity} AS last_activity,
+             ${customerStatusSql({ balance, balanceSince, lastActivity, now, withFacts: needsFacts })} AS status
+      FROM tenants t ${facts}
+      WHERE ${Prisma.join(where, ' AND ')}`;
+    const status = query.status ? Prisma.sql`WHERE r.status = ${query.status}` : Prisma.empty;
+    const dir = query.order === 'asc' ? Prisma.sql`ASC` : Prisma.sql`DESC`;
+    // Never active sorts as the oldest activity, as it did when the list was sorted in memory.
+    const nulls = query.order === 'asc' ? Prisma.sql`NULLS FIRST` : Prisma.sql`NULLS LAST`;
+    const key =
+      query.sort === 'name'
+        ? Prisma.sql`lower(r.name) ${dir},`
+        : query.sort === 'balance'
+          ? Prisma.sql`r.balance ${dir},`
+          : query.sort === 'last_activity'
+            ? Prisma.sql`r.last_activity ${dir} ${nulls},`
+            : Prisma.empty;
+    // An offset cursor: every sort key but `created_at` is computed, so a keyset would need the whole predicate again.
+    const offset = query.cursor ? Math.max(0, Math.floor(Number(decodeCursor(query.cursor).id)) || 0) : 0;
+    const [page, counted] = await Promise.all([
+      adminDb.$queryRaw<Array<{ id: string }>>(
+        Prisma.sql`SELECT r.id FROM (${rows}) r ${status} ORDER BY ${key} r.created_at ${dir}, r.id ${dir} LIMIT ${query.limit} OFFSET ${offset}`,
+      ),
+      adminDb.$queryRaw<Array<{ n: bigint }>>(Prisma.sql`SELECT count(*)::bigint AS n FROM (${rows}) r ${status}`),
+    ]);
+    const total = Number(counted[0]?.n ?? 0);
+    const ids = page.map((r) => r.id);
+    const [tenants, pageFacts] = await Promise.all([ids.length ? adminDb.tenant.findMany({ where: { id: { in: ids } } }) : [], this.facts(ids)]);
+    const byId = new Map(tenants.map((t) => [t.id, t]));
+    const items = ids.flatMap((id) => {
+      const tenant = byId.get(id);
+      return tenant ? [this.summary(tenant, pageFacts.get(id)!)] : [];
     });
-    const facts = await this.facts(tenants.map((t) => t.id));
-    let rows = tenants.map((t) => this.summary(t, facts.get(t.id)!));
-    if (query.status) rows = rows.filter((r) => r.status === query.status);
-    const dir = query.order === 'asc' ? 1 : -1;
-    rows.sort((a, b) => {
-      switch (query.sort) {
-        case 'name':
-          return a.name.localeCompare(b.name) * dir;
-        case 'balance':
-          return (a.balance - b.balance) * dir;
-        case 'last_activity':
-          return (
-            ((a.last_activity_at ?? '').localeCompare(b.last_activity_at ?? '') ||
-              a.created_at.localeCompare(b.created_at)) * dir
-          );
-        default:
-          return a.created_at.localeCompare(b.created_at) * dir;
-      }
-    });
-    // An offset cursor: the page is computed in memory, so a keyset would buy nothing.
-    const offset = query.cursor ? Number(decodeCursor(query.cursor).id) || 0 : 0;
-    const items = rows.slice(offset, offset + query.limit);
     return {
       items,
-      next_cursor:
-        offset + query.limit < rows.length
-          ? encodeCursor({ id: String(offset + query.limit) })
-          : null,
-      total: rows.length,
+      next_cursor: offset + query.limit < total ? encodeCursor({ id: String(offset + query.limit) }) : null,
+      total,
     };
   }
 

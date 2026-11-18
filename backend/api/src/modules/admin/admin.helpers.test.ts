@@ -5,7 +5,7 @@ import { AGENT_STACK_V2_TIERS } from '../../../../db/prisma/seed-data/agent-stac
 import { PRICING_V1 } from '../../../../db/prisma/seed-data/pricing-v1';
 import { RETELL_COSTS_V1 } from '../../../../db/prisma/seed-data/retell-costs-v1';
 import { agentStackTiers } from '../retell';
-import { diffConfig, marginBlockers, marginsFor, tierCostPerMin } from './admin-pricing.service';
+import { diffConfig, marginBlockers, marginsFor, packChanges, removedPackIds, tierCostPerMin } from './admin-pricing.service';
 import { AT_RISK_AFTER_MS, CHURNED_AFTER_MS, customerStatusOf, idMatch, median, phoneQuery } from './admin.helpers';
 
 import { pricingConfig, retellCostInputs } from '@portal/schemas';
@@ -133,6 +133,40 @@ describe('diffConfig (SA5 preview)', () => {
     );
     expect(paths.length).toBe(2);
     expect(diffConfig(base, base)).toEqual([]);
+  });
+});
+
+describe('diffConfig covers the outbound rules (18 Nov QA)', () => {
+  it('lists a change to the prior-contact days, a dial cap or a calling window', () => {
+    const next: PricingConfig = { ...base, outbound: { ...base.outbound, prior_contact_days: base.outbound.prior_contact_days - 30 } };
+    expect(diffConfig(base, next)).toEqual([
+      { path: 'outbound.prior_contact_days', before: base.outbound.prior_contact_days, after: base.outbound.prior_contact_days - 30 },
+    ]);
+  });
+});
+
+describe('packChanges: removing a pack is not deactivating it (18 Nov QA)', () => {
+  it('switching Active off is a deactivation, never a removal', () => {
+    const next: PricingConfig = { ...base, packs: base.packs.map((p) => (p.id === 'starter' ? { ...p, active: false } : p)) };
+    expect(removedPackIds(base, next)).toEqual([]);
+    expect(packChanges(base, next, diffConfig(base, next))).toEqual({ added: [], removed: [], deactivated: ['starter'], changed: [] });
+  });
+
+  it('a pack that leaves the config is removed, whether or not it was active', () => {
+    const inactive: PricingConfig = { ...base, packs: base.packs.map((p) => (p.id === 'starter' ? { ...p, active: false } : p)) };
+    const next: PricingConfig = { ...base, packs: base.packs.filter((p) => p.id !== 'starter') };
+    expect(removedPackIds(base, next)).toEqual(['starter']);
+    expect(removedPackIds(inactive, next)).toEqual(['starter']);
+    expect(packChanges(base, next, diffConfig(base, next)).removed).toEqual(['starter']);
+  });
+
+  it('a new pack is added, a re-priced one is changed, a switched-back-on one is changed', () => {
+    const off: PricingConfig = { ...base, packs: base.packs.map((p) => (p.id === 'starter' ? { ...p, active: false } : p)) };
+    const next: PricingConfig = {
+      ...base,
+      packs: [...base.packs.map((p) => (p.id === 'growth' ? { ...p, price_cents: p.price_cents + 100 } : p)), { ...base.packs[0]!, id: 'qa_pack', name: 'QA' }],
+    };
+    expect(packChanges(off, next, diffConfig(off, next))).toEqual({ added: ['qa_pack'], removed: [], deactivated: [], changed: expect.arrayContaining(['starter', 'growth']) });
   });
 });
 

@@ -175,7 +175,13 @@ left as balance ÷ the 7-day burn, the agent card's Test / Publish / Edit by rol
 `team_invited` / `all_done` on the checklist, and the pause ticket on the workspace and the agent (16 Nov), 0047 W2 "Speak or type" — eight guided
 questions (`GUIDED_QUESTION_FIELDS`) answered by voice (the browser's own speech recognition, never in Firefox) or by
 typing, `POST /agents/:id/brief/from-answers` through `PromptProvider.briefFromAnswers` and the `modelBriefPatch` gate,
-`applyBriefAnswers` into the existing W2 form, autosave and Generate untouched (17 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+`applyBriefAnswers` into the existing W2 form, autosave and Generate untouched (17 Nov), 0048 the 18 Nov QA batch on
+pricing and the console — number release is super admin / ops, the `packs` catalogue written by the publish and healed
+before a purchase, `caps:*` rebuilt in place, `purchasablePackIn` as the one "may be charged" rule, removal vs
+deactivation and two blocker lists, `outbound` in the diff, the newest version whose date has passed is current plus
+`POST /admin/pricing/versions/:version/cancel`, the SA2 list in SQL, sales per currency, the link-only pack's
+`/app/wallet/?pack=` link, `GET /wallet` answering the caps in force, and rates / trial size in copy read from
+`GET /pricing` (18 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -1385,8 +1391,10 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   always against the version in effect **now** — a rollback planned against its target's
   own rows copied Price ids the abandoned version had archived. `apply_now` caps are refused
   with a future `effective_at` (they would move every tenant's caps today). Blockers: a pack bought in
-  the last 12 months cannot be removed; a tier under the margin floor (`retell_cost_inputs`)
-  is `422 MARGIN_FLOOR` unless a super admin overrides with a note. Rollback inserts a new
+  the last 12 months cannot be removed (*removed* = gone from the config; switching Active off is a
+  deactivation and publishes); a tier under the margin floor (`retell_cost_inputs`)
+  is `422 MARGIN_FLOOR` unless a super admin overrides with a note. The two kinds are separate lists
+  (`hardBlockers` / `marginBlockers`, `hard_blockers` on the preview) and are never told apart by their text (ADR 0048). Rollback inserts a new
   version with the old config; history is never rewritten. **Rollback takes publish's
   checks** (`blockersFor` + `assertPublishable`, one function for preview, publish and
   rollback, QA-040) and a rollback whose sync failed resumes its unpublished version
@@ -1537,8 +1545,16 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   engine + default voice + model + dearest telephony + KB) for **every active priced pack**;
   a missing input or no inputs at all is a margin blocker (super admin override with a note),
   never a guessed line.
-- Publishing invalidates `pricing:current`, `stack:current`, `flags:*` and `caps:{ws}`; the portal
-  re-reads within 60 s.
+- Publishing drops `pricing:current`, `stack:current` and `flags:*` and **rebuilds every `caps:{ws}` in
+  place** (`rebuildCachedCaps`, ADR 0048): the inbound path lets a call through on a missing caps key, so
+  that key is overwritten, never deleted. The portal re-reads within 60 s.
+- **The version in effect is the newest *version* whose `effective_at` has passed**, not the latest date
+  (ADR 0048): a version scheduled for later never comes back over a newer publish. A scheduled version is
+  cancelled (`effective_at` back to NULL, `pricing.schedule_cancelled`) only while its date is ahead.
+- **A pack a customer may be charged for is `purchasablePackIn()`** (`modules/config`: active, not
+  `hidden`) — checkout, the auto top-up setting, every auto top-up charge. `purchases.pack_id` references
+  `packs`: the publish writes the catalogue (`writePackCatalogue`) and `ensurePackRow` runs before a
+  purchase row is written. Never hard-code a rate or the trial size in copy: `pricingFigures()` in the portal.
   Kill switch keys: `reject_inbound`, `pause_web_tests`, `pause_purchases`, `pause_generation`.
 - **Platform settings are rows, with the env var as fallback** (admin §9 `GET|PUT /admin/settings`, `PUT
   /admin/concurrency/allowance`): `platform_settings` (staff-only, RLS) holds `concurrency_platform_limit`,
@@ -1795,14 +1811,15 @@ throws and never waits past its budget (ADR 0010 §6).
   super admin, ops, finance = `STAFF_ROUTE_ROLES.commercial`);
   `/admin/impersonations` (+ `DELETE :id`); `/admin/users` (+ `POST :id/verify-email|reset-mfa|lock|unlock|force-logout`);
   `/admin/agents` and `/admin/numbers` (+ `POST :id/pause|resume`; numbers also `POST :id/release|resync|reprovision`
-  through `NumberProvisioningService` and the `provision-number` job — release platform first, resync is `bind`'s
+  through `NumberProvisioningService` and the `provision-number` job — release is super admin / ops only
+  (`STAFF_ROUTE_ROLES.system`, ADR 0048: it cannot be undone), platform first, resync is `bind`'s
   read-compare-update and answers `updated`, reprovision only from `failed`); `/admin/calls` (+ `POST :id/refund` —
   both legs, once per call: `AdminCallsService.refundCall` is the SA4 `refund_call` macro's path and key — and
   `POST :id/flag`, `calls.flagged_at|flagged_by|flag_note`, `?flagged=true`); `/admin/reconciliations`
   (+ `POST run {date?}`, one ended UTC day through the schedule's own `CallReconciliationService.run`);
   `/admin/jobs` (+ `POST :id/retry|discard`); `/admin/webhook-events` (+ `POST :id/replay`);
   `/admin/flags` (+ `PUT|DELETE :key`), `PUT /admin/kill-switches/:key`; `/admin/pricing/draft`
-  (GET/PUT/DELETE), `/preview`, `POST /publish`, `/versions` (+ `:version`), `POST /rollback/:version`,
+  (GET/PUT/DELETE), `/preview`, `POST /publish`, `/versions` (+ `:version`, `POST :version/cancel` for a scheduled one), `POST /rollback/:version`,
   `/admin/retell-costs` (GET/PUT). Customer side: `GET /impersonation`, `POST /impersonation/end`.
   Staff roles per route are in the manifest (`staffRoles`) and `x-staff-roles`.
 - D13 QA rules (28 Sep, ADR 0022): a feature flag resolves `default_on || bucket < rollout_pct`,

@@ -5,8 +5,10 @@ import type { AdminBillingSummaryResponse, AdminRange } from '@portal/schemas';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton, cn } from '@portal/ui';
 import * as React from 'react';
 import { DataTable, type DataColumn } from '@/src/components/common/data-table';
+import { CurrencyTabs } from '@/src/components/common/currency-tabs';
 import { LoadError } from '@/src/components/common/query-states';
 import { SeriesChart } from '@/src/components/overview/series-chart';
+import { currenciesIn, shownCurrency } from '@/src/lib/money-series';
 import { formatCents, formatCredits, formatDateTime, formatNumber } from '@/src/lib/format';
 
 type Metric = 'sales_cents' | 'refunds_cents' | 'purchases';
@@ -22,8 +24,18 @@ export function RevenueTab({ range }: { range: AdminRange }) {
   const summary = useAdminBillingSummary(api, { range }, { staleTime: 60_000 });
   const [metric, setMetric] = React.useState<Metric>('sales_cents');
   const s = summary.data;
-  const currency = s?.sales[0]?.currency ?? s?.refunds[0]?.currency ?? 'USD';
-  const series = React.useMemo(() => (s?.series ?? []).map((d) => ({ day: d.day, value: d[metric] })), [s, metric]);
+  // Money is drawn one currency at a time; a count of purchases has no currency.
+  const [pickedCurrency, setPickedCurrency] = React.useState<string | null>(null);
+  const chartCurrencies = React.useMemo(() => currenciesIn(s?.series ?? [], (d) => d.by_currency ?? []), [s]);
+  const currency = shownCurrency(pickedCurrency, chartCurrencies, s?.sales[0]?.currency ?? s?.refunds[0]?.currency);
+  const series = React.useMemo(
+    () =>
+      (s?.series ?? []).map((d) => ({
+        day: d.day,
+        value: metric === 'purchases' ? d.purchases : ((d.by_currency ?? []).find((c) => c.currency === currency)?.[metric] ?? 0),
+      })),
+    [s, metric, currency],
+  );
   const fmt = (v: number) => (metric === 'purchases' ? formatNumber(v, 0) : formatCents(v, currency));
 
   if (summary.isPending) return <Skeleton className="h-96" aria-busy />;
@@ -37,9 +49,10 @@ export function RevenueTab({ range }: { range: AdminRange }) {
 
   const packColumns: Array<DataColumn<AdminBillingSummaryResponse['packs'][number]>> = [
     { key: 'pack', header: 'Pack', cell: (p) => p.pack_name ?? p.pack_id },
+    { key: 'currency', header: 'Currency', cell: (p) => p.currency },
     { key: 'purchases', header: 'Purchases', align: 'right', cell: (p) => formatNumber(p.purchases, 0) },
     { key: 'credits', header: 'Credits', align: 'right', cell: (p) => formatCredits(p.credits) },
-    { key: 'amount', header: 'Sales', align: 'right', cell: (p) => formatCents(p.amount_cents, currency) },
+    { key: 'amount', header: 'Sales', align: 'right', cell: (p) => formatCents(p.amount_cents, p.currency) },
   ];
 
   return (
@@ -76,21 +89,24 @@ export function RevenueTab({ range }: { range: AdminRange }) {
             <CardTitle className="text-sm">Per day</CardTitle>
             <CardDescription className="text-xs">One bar per UTC day in range</CardDescription>
           </div>
-          <div role="tablist" aria-label="Metric" className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs">
-            {METRICS.map((m) => (
-              <button key={m.key} type="button" role="tab" aria-selected={metric === m.key} onClick={() => setMetric(m.key)} className={cn('rounded px-2.5 py-1 font-medium transition-colors', metric === m.key ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground')}>
-                {m.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-2">
+            {metric === 'purchases' ? null : <CurrencyTabs currencies={chartCurrencies} value={currency} onChange={setPickedCurrency} />}
+            <div role="tablist" aria-label="Metric" className="inline-flex rounded-md border border-border bg-muted p-0.5 text-xs">
+              {METRICS.map((m) => (
+                <button key={m.key} type="button" role="tab" aria-selected={metric === m.key} onClick={() => setMetric(m.key)} className={cn('rounded px-2.5 py-1 font-medium transition-colors', metric === m.key ? 'bg-card text-foreground shadow-card' : 'text-muted-foreground hover:text-foreground')}>
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-4">{series.length ? <SeriesChart series={series} label={`${METRICS.find((m) => m.key === metric)?.label} per day`} format={fmt} /> : <p className="py-10 text-center text-sm text-muted-foreground">No days in range.</p>}</CardContent>
+        <CardContent className="pt-4">{series.length ? <SeriesChart series={series} label={`${METRICS.find((m) => m.key === metric)?.label}${metric !== 'purchases' && chartCurrencies.length > 1 ? ` in ${currency}` : ''} per day`} format={fmt} /> : <p className="py-10 text-center text-sm text-muted-foreground">No days in range.</p>}</CardContent>
       </Card>
       <Card>
         <CardHeader className="pb-0">
           <CardTitle className="text-sm">Packs sold</CardTitle>
         </CardHeader>
-        <CardContent className="pt-4">{s.packs.length ? <DataTable rows={s.packs} columns={packColumns} rowKey={(p) => p.pack_id} label="Packs sold" dense /> : <p className="text-sm text-muted-foreground">No paid purchases in range.</p>}</CardContent>
+        <CardContent className="pt-4">{s.packs.length ? <DataTable rows={s.packs} columns={packColumns} rowKey={(p) => `${p.pack_id}-${p.currency}`} label="Packs sold" dense /> : <p className="text-sm text-muted-foreground">No paid purchases in range.</p>}</CardContent>
       </Card>
     </div>
   );

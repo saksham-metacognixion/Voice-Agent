@@ -29,7 +29,8 @@ export class ConfigController {
     // Parsed here, not by the global pipe: nestjs-zod only fires on a ZodDto metatype, and
     // this parameter is a plain inferred type. Without it `?region=ca` reaches the filter
     // in lower case and silently drops every region-restricted pack.
-    return this.config.pricingResponse(pricingQuery.parse(query).region);
+    const { region, pack } = pricingQuery.parse(query);
+    return this.config.pricingResponse(region, pack);
   }
 
   @Get('flags')

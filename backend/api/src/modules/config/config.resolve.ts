@@ -62,6 +62,16 @@ export function packForTier(config: PricingConfig, tier: PlanTier): PricingPack 
     .sort((a, b) => b.credits - a.credits)[0];
 }
 
+/**
+ * The pack a customer may be charged for, or undefined: on sale (`active`) and not
+ * `hidden`, which is staff-assigned only (SA5 Packs). One rule for checkout, the
+ * first-purchase review and every auto top-up charge; a `link_only` pack is sold to
+ * whoever holds its link.
+ */
+export function purchasablePackIn(config: PricingConfig, packId: string): PricingPack | undefined {
+  return config.packs.find((p) => p.id === packId && p.active && p.visibility !== 'hidden');
+}
+
 /** The per-tier half of a workspace's caps — whatever the tier's pack would have said. */
 export type TierCaps = Pick<PricingPack, 'max_agents' | 'max_numbers' | 'feature_gates'>;
 

@@ -31,12 +31,17 @@ type Pack = PricingResponse['packs'][number];
  * `/app/wallet` instead of W7, and there is no activation to remember. `compact` lays the
  * packs out two across for a dialog.
  */
-export function PackageSelector({ agentId, compact = false }: { agentId?: string; compact?: boolean }) {
+export function PackageSelector({ agentId, compact = false, linkedPackId }: { agentId?: string; compact?: boolean; linkedPackId?: string | null }) {
   const t = useTranslations();
   const tp = useTranslations('wizard.w7.packs');
   const api = useApi();
   const ws = useWorkspace();
-  const pricing = useGetPricing(api, ws.workspace?.country ? { region: ws.workspace.country } : undefined, { staleTime: PRICING_STALE_MS });
+  // A link-only pack is listed for whoever holds its link: the id rides on the request and the API adds that one pack.
+  const pricing = useGetPricing(
+    api,
+    ws.workspace?.country || linkedPackId ? { ...(ws.workspace?.country ? { region: ws.workspace.country } : {}), ...(linkedPackId ? { pack: linkedPackId } : {}) } : undefined,
+    { staleTime: PRICING_STALE_MS },
+  );
   const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.price_cents - b.price_cents), [pricing.data]);
   const [packId, setPackId] = React.useState<string | null>(null);
   const [autoTopup, setAutoTopup] = React.useState<boolean | null>(null);
@@ -57,11 +62,12 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
   const pct = topupPct ?? defaultTopupPercent(policy?.auto_topup_threshold_pct);
   const threshold = selected && policy ? topupThreshold(selected.credits, pct) : null;
 
-  // Preselect the pack the config badges (the "most popular" one), else the first.
+  const linkedPack = linkedPackId ? (packs.find((p) => p.id === linkedPackId) ?? null) : null;
+  // Preselect the pack the link names, else the one the config badges ("most popular"), else the first.
   React.useEffect(() => {
     if (packId || packs.length === 0) return;
-    setPackId((packs.find((p) => p.badge) ?? packs[0]!).id);
-  }, [packs, packId]);
+    setPackId((linkedPack ?? packs.find((p) => p.badge) ?? packs[0]!).id);
+  }, [packs, packId, linkedPack]);
 
   async function pay() {
     if (!selected || redirecting || !canBuy) return;
@@ -98,6 +104,7 @@ export function PackageSelector({ agentId, compact = false }: { agentId?: string
   return (
     <div className="flex flex-col gap-6">
       {!canBuy ? <Alert variant="warning" title={tp('roleTitle')}>{tp('roleBody')}</Alert> : null}
+      {linkedPackId && pricing.isSuccess && !linkedPack ? <Alert variant="warning">{tp('linkUnavailable')}</Alert> : null}
 
       {pricing.isPending ? (
         <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2'}>

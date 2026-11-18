@@ -6,6 +6,7 @@ import { Alert, Button, Combobox, EmptyState, ErrorState, Field, type ComboboxGr
 import { ArrowRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { usePricingFigures } from '@/src/lib/use-pricing-figures';
 import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -46,6 +47,7 @@ export default function TemplatePage() {
 
 function TemplateInner() {
   const t = useTranslations();
+  const figures = usePricingFigures();
   const copy = useServerCopy();
   const api = useApi();
   const router = useRouter();
@@ -189,7 +191,7 @@ function TemplateInner() {
             />
           </Field>
           {selected && templates.data?.find((x) => x.id === selected)?.default_tier === 'premium' ? (
-            <p className="mt-3 text-xs text-muted-foreground">{t('wizard.w1.premiumHint')}</p>
+            <p className="mt-3 text-xs text-muted-foreground">{figures.premiumRate !== null ? t('wizard.w1.premiumHint', { rate: figures.premiumRate }) : t('wizard.w1.premiumHintNoRate')}</p>
           ) : null}
         </div>
         {error ? <Alert variant="danger">{error}</Alert> : null}

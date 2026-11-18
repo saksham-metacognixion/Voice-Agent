@@ -1,6 +1,6 @@
 'use client';
 
-import { useAdminGetPricingVersion, useAdminPricingVersions, useAdminRollbackPricing, useApi } from '@portal/api-client';
+import { useAdminCancelScheduledPricing, useAdminGetPricingVersion, useAdminPricingVersions, useAdminRollbackPricing, useApi } from '@portal/api-client';
 import { PRICING_NOTE_MAX, type AdminPricingVersion } from '@portal/schemas';
 import { Badge, Checkbox, Skeleton, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,12 +26,14 @@ export function PricingVersions() {
   const [open, setOpen] = React.useState<number | null>(null);
   const [rolling, setRolling] = React.useState<AdminPricingVersion | null>(null);
   const [override, setOverride] = React.useState(false);
+  const cancel = useAdminCancelScheduledPricing(api);
+  const [cancelling, setCancelling] = React.useState<AdminPricingVersion | null>(null);
 
   if (versions.isPending) return <Skeleton className="h-64" aria-busy />;
   if (versions.isError) return <LoadError error={versions.error} onRetry={() => void versions.refetch()} />;
 
   const columns: Array<DataColumn<AdminPricingVersion>> = [
-    { key: 'version', header: 'Version', cell: (r) => <span className="flex items-center gap-2 font-medium">v{r.version}{r.is_current ? <Badge variant="success">current</Badge> : null}</span> },
+    { key: 'version', header: 'Version', cell: (r) => <span className="flex items-center gap-2 font-medium">v{r.version}{r.is_current ? <Badge variant="success">current</Badge> : null}{r.is_scheduled ? <Badge variant="warning">scheduled</Badge> : null}</span> },
     { key: 'effective', header: 'Effective', cell: (r) => <span className="whitespace-nowrap">{formatDateTime(r.effective_at)}</span> },
     { key: 'published', header: 'Published', cell: (r) => <span className="whitespace-nowrap text-muted-foreground">{formatDateTime(r.published_at)}{r.published_by_email ? ` · ${r.published_by_email}` : ''}</span> },
     { key: 'summary', header: 'Summary', cell: (r) => (r.change_summary ? <span className="block max-w-72 truncate" title={r.change_summary}>{r.change_summary}</span> : <span className="text-muted-foreground">–</span>) },
@@ -53,7 +55,12 @@ export function PricingVersions() {
       align: 'right',
       cell: (r) => (
         <CellActions>
-          {!r.is_current && r.effective_at ? (
+          {r.is_scheduled ? (
+            <PermissionButton size="sm" variant="danger-outline" denied={denied} onClick={() => setCancelling(r)}>
+              Cancel v{r.version}
+            </PermissionButton>
+          ) : null}
+          {!r.is_current && r.effective_at && !r.is_scheduled ? (
             <PermissionButton size="sm" variant="outline" denied={denied} onClick={() => setRolling(r)}>
               Roll back to v{r.version}
             </PermissionButton>
@@ -77,7 +84,7 @@ export function PricingVersions() {
         }}
         title={`Roll back to v${rolling?.version ?? ''}`}
         description="Publishes that version's config as a new version, effective now, with a Stripe sync. Publish's checks apply: a pack bought in the last 12 months cannot be removed, and the margin floor needs an override with a note."
-        consequences={['Existing customers keep their current rates until their next purchase.', 'The current draft is discarded.']}
+        consequences={['Per-minute rates, agent and number limits and plan features change for every customer at once.', 'Each customer keeps their calls-at-once and knowledge limits until their next purchase.', 'The current draft is discarded.']}
         confirmLabel="Roll back"
         destructive
         typeToConfirm="ROLLBACK"
@@ -94,6 +101,21 @@ export function PricingVersions() {
           <Checkbox checked={override} onCheckedChange={(v) => setOverride(v === true)} /> Override the margin floor if it blocks (super admin; the note says why)
         </label>
       </StaffActionDialog>
+      <StaffActionDialog
+        open={Boolean(cancelling)}
+        onOpenChange={(o) => (o ? undefined : setCancelling(null))}
+        title={`Cancel scheduled v${cancelling?.version ?? ''}`}
+        description={cancelling?.effective_at ? `It was due to take effect ${formatDateTime(cancelling.effective_at)}.` : undefined}
+        consequences={['The version never takes effect. Customers keep the pricing they have now.', 'It stays in this list, marked as cancelled, with no effective date.']}
+        confirmLabel="Cancel this version"
+        destructive
+        onConfirm={async (body) => {
+          if (!cancelling) return;
+          await cancel.mutateAsync({ params: { version: String(cancelling.version) }, body });
+          await Promise.all([queryClient.invalidateQueries({ queryKey: ['adminPricingVersions'] }), queryClient.invalidateQueries({ queryKey: ['adminPricingPreview'] })]);
+          toast.success(`v${cancelling.version} cancelled`);
+        }}
+      />
     </>
   );
 }
@@ -111,7 +133,7 @@ function VersionSheet({ version, onClose }: { version: number | null; onClose: (
       ) : !d ? null : (
         <>
           <FactGrid columns={2}>
-            <Fact label="Current">{d.is_current ? 'Yes' : 'No'}</Fact>
+            <Fact label="Current">{d.is_current ? 'Yes' : d.is_scheduled ? 'No, scheduled' : 'No'}</Fact>
             <Fact label="Effective">{formatDateTime(d.effective_at)}</Fact>
             <Fact label="Published">{formatDateTime(d.published_at)}</Fact>
             <Fact label="By">{d.published_by_email ?? '–'}</Fact>

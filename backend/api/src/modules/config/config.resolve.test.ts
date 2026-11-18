@@ -1,7 +1,7 @@
 import { pricingConfig } from '@portal/schemas';
 import { describe, expect, it } from 'vitest';
 import fixture from '../../../test/fixtures/pricing/config-v1.json';
-import { killSwitchActive, packForTier, resolveCaps, resolveFlags, rolloutBucket, tierCapsFor } from './config.resolve';
+import { killSwitchActive, packForTier, purchasablePackIn, resolveCaps, resolveFlags, rolloutBucket, tierCapsFor } from './config.resolve';
 
 const config = pricingConfig.parse(fixture);
 const ws = '11111111-1111-4111-8111-111111111111';
@@ -158,5 +158,23 @@ describe('resolveFlags', () => {
     expect(killSwitchActive({ key: 'x', on: true, expiresAt: '2026-09-15T12:00:01Z' }, now)).toBe(true);
     expect(killSwitchActive({ key: 'x', on: true, expiresAt: '2026-09-15T11:59:59Z' }, now)).toBe(false);
     expect(killSwitchActive({ key: 'x', on: false, expiresAt: null }, now)).toBe(false);
+  });
+});
+
+describe('purchasablePackIn (checkout, the first-purchase review and auto top-up share it)', () => {
+  const withPack = (patch: Record<string, unknown>) => ({ ...config, packs: config.packs.map((p) => (p.id === 'starter' ? { ...p, ...patch } : p)) });
+
+  it('finds a pack that is on sale', () => {
+    expect(purchasablePackIn(config, 'starter')?.id).toBe('starter');
+    expect(purchasablePackIn(config, 'no_such_pack')).toBeUndefined();
+  });
+
+  it('refuses a pack staff switched off: auto top-up must not go on buying it', () => {
+    expect(purchasablePackIn(withPack({ active: false }), 'starter')).toBeUndefined();
+  });
+
+  it('refuses a hidden pack (staff-assigned) and sells a link-only one to whoever names it', () => {
+    expect(purchasablePackIn(withPack({ visibility: 'hidden' }), 'starter')).toBeUndefined();
+    expect(purchasablePackIn(withPack({ visibility: 'link_only' }), 'starter')?.id).toBe('starter');
   });
 });

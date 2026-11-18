@@ -156,17 +156,7 @@ export class AdminPricingService {
     ]);
     const draft = draftRow ? pricingConfig.parse(draftRow.configJson) : current.config;
     const changes = diffConfig(current.config, draft);
-    const currentIds = new Set(current.config.packs.filter((p) => p.active).map((p) => p.id));
-    const draftIds = new Set(draft.packs.filter((p) => p.active).map((p) => p.id));
-    const added = [...draftIds].filter((id) => !currentIds.has(id));
-    const removed = [...currentIds].filter((id) => !draftIds.has(id));
-    const changed = [
-      ...new Set(
-        changes
-          .map((c) => /^packs\.([^.]+)\./.exec(c.path)?.[1])
-          .filter((id): id is string => Boolean(id) && currentIds.has(id!) && draftIds.has(id!)),
-      ),
-    ];
+    const packs = packChanges(current.config, draft, changes);
     const previousRows = await this.prices.rowsFor(current.version);
     const stripe = planPriceSync(draft, current.config, previousRows).map((a) => ({
       pack_id: a.packId,
@@ -175,7 +165,8 @@ export class AdminPricingService {
       detail: a.detail,
     }));
 
-    const { margins, blockers } = await this.blockersFor(draft, current.config, costs?.costs ?? null);
+    const { margins, marginBlockers: overridable, hardBlockers } = await this.blockersFor(draft, current.config, costs?.costs ?? null);
+    const scheduled = await this.scheduledVersions();
     const warnings: string[] = [];
     const analysis = costs ? analysisNote(costs.costs, (await this.stack.current()).tiers) : null;
     if (analysis) warnings.push(analysis);
@@ -186,12 +177,24 @@ export class AdminPricingService {
       next_version: (latest._max.version ?? 0) + 1,
       has_draft: Boolean(draftRow),
       changes,
-      packs: { added, removed, changed },
+      packs,
       margins,
       stripe,
-      blockers,
+      blockers: [...hardBlockers, ...overridable],
+      hard_blockers: hardBlockers,
+      scheduled,
       warnings,
     };
+  }
+
+  /** Versions published with an `effective_at` still ahead, soonest first. */
+  private async scheduledVersions(): Promise<Array<{ version: number; effective_at: string }>> {
+    const rows = await adminDb.pricingConfig.findMany({
+      where: { effectiveAt: { gt: new Date() } },
+      orderBy: { effectiveAt: 'asc' },
+      select: { version: true, effectiveAt: true },
+    });
+    return rows.map((r) => ({ version: r.version, effective_at: r.effectiveAt!.toISOString() }));
   }
 
   /**
@@ -200,17 +203,22 @@ export class AdminPricingService {
    * last 12 months that `next` would remove (never overridable). One function for the
    * preview, the publish and the rollback (QA-040) — a rollback is a publish of an old
    * config, and removing a pack someone bought is no safer for being one.
+   *
+   * The two kinds come back apart and are never told apart again by their text: a pack id
+   * with "margin" in it used to turn the hard blocker into an overridable one.
+   *
+   * Removing is the pack leaving the config. Switching Active off keeps it there, unsold,
+   * and is what the blocker tells staff to do — so it is never one itself.
    */
   private async blockersFor(
     next: PricingConfig,
     current: PricingConfig,
     costs: RetellCostInputs | null,
-  ): Promise<{ margins: ReturnType<typeof marginsFor>; blockers: string[] }> {
+  ): Promise<{ margins: ReturnType<typeof marginsFor>; marginBlockers: string[]; hardBlockers: string[] }> {
     const tiers = (await this.stack.current()).tiers;
     const margins = marginsFor(next, costs, tiers);
-    const blockers = marginBlockers(margins, costs, tiers);
-    const nextIds = new Set(next.packs.filter((p) => p.active).map((p) => p.id));
-    const removed = current.packs.filter((p) => p.active && !nextIds.has(p.id)).map((p) => p.id);
+    const hardBlockers: string[] = [];
+    const removed = removedPackIds(current, next);
     if (removed.length) {
       const bought = await adminDb.purchase.groupBy({
         by: ['packId'],
@@ -222,21 +230,22 @@ export class AdminPricingService {
         _count: { _all: true },
       });
       for (const b of bought)
-        blockers.push(
-          `Pack "${b.packId}" was bought ${b._count._all} time(s) in the last 12 months and cannot be removed — deactivate it instead.`,
+        hardBlockers.push(
+          `Pack "${b.packId}" was bought ${b._count._all} time(s) in the last 12 months and cannot be removed. Keep it in the config and switch Active off instead.`,
         );
     }
-    return { margins, blockers };
+    return { margins, marginBlockers: marginBlockers(margins, costs, tiers), hardBlockers };
   }
 
   /** Refuses on the hard blockers; the margin floor only with `override_margin` and a note. */
-  private assertPublishable(blockers: string[], body: { override_margin: boolean; note?: string }): void {
-    const hardBlockers = blockers.filter((b) => !b.includes('margin'));
-    if (hardBlockers.length) throw new AppError('CONFLICT', hardBlockers.join(' '));
-    const marginIssues = blockers.filter((b) => b.includes('margin'));
-    if (marginIssues.length && !body.override_margin)
-      throw new AppError('MARGIN_FLOOR', marginIssues.join(' '));
-    if (marginIssues.length && body.override_margin && !body.note)
+  private assertPublishable(
+    blockers: { marginBlockers: string[]; hardBlockers: string[] },
+    body: { override_margin: boolean; note?: string },
+  ): void {
+    if (blockers.hardBlockers.length) throw new AppError('CONFLICT', blockers.hardBlockers.join(' '));
+    if (blockers.marginBlockers.length && !body.override_margin)
+      throw new AppError('MARGIN_FLOOR', blockers.marginBlockers.join(' '));
+    if (blockers.marginBlockers.length && body.override_margin && !body.note)
       throw new AppError('VALIDATION_FAILED', 'Overriding the margin floor needs a note.', [
         { field: 'note', message: 'Required with override_margin' },
       ]);
@@ -255,7 +264,10 @@ export class AdminPricingService {
       throw new AppError('CONFLICT', 'There is no pricing draft to publish. Save one first.');
     const config = pricingConfig.parse(draftRow.configJson);
     const preview = await this.preview();
-    this.assertPublishable(preview.blockers, body);
+    this.assertPublishable(
+      { hardBlockers: preview.hard_blockers, marginBlockers: preview.blockers.filter((b) => !preview.hard_blockers.includes(b)) },
+      body,
+    );
     if (body.effective_at && new Date(body.effective_at).getTime() < Date.now() - 60_000)
       throw new AppError('VALIDATION_FAILED', 'effective_at is in the past.', [
         { field: 'effective_at', message: 'Must be now or later' },
@@ -320,6 +332,7 @@ export class AdminPricingService {
         },
       });
       if (body.grandfather_mode === 'apply_now') await applyTierCapsNow(tx, config);
+      await this.config.writePackCatalogue(config, tx);
       await tx.pricingDraft.deleteMany({});
       await this.audit.record(
         {
@@ -337,6 +350,7 @@ export class AdminPricingService {
             stripe: sync.status,
             override_margin: body.override_margin,
             changes: preview.changes.length,
+            changed_paths: preview.changes.map((c) => c.path).slice(0, 100),
           },
           request,
         },
@@ -434,7 +448,7 @@ export class AdminPricingService {
   ): Promise<AdminPricingVersion> {
     await this.limits.assertCan(staff, 'can_publish_pricing');
     const target = await adminDb.pricingConfig.findUnique({ where: { version } });
-    if (!target || !target.effectiveAt)
+    if (!target || !target.effectiveAt || target.effectiveAt.getTime() > Date.now())
       throw new AppError('CONFLICT', 'Only a version that was in effect can be rolled back to.');
     const current = await this.config.currentPricing();
     if (current.version === version)
@@ -442,8 +456,7 @@ export class AdminPricingService {
     const config = pricingConfig.parse(target.configJson);
     // Publish's checks (QA-040): rolling back to a version without a pack bought since is
     // removing that pack, and an old price may now sit under the margin floor.
-    const { blockers } = await this.blockersFor(config, current.config, (await this.costInputs())?.costs ?? null);
-    this.assertPublishable(blockers, body);
+    this.assertPublishable(await this.blockersFor(config, current.config, (await this.costInputs())?.costs ?? null), body);
 
     // A rollback whose Stripe sync failed left its version unpublished; the retry resumes
     // that version instead of stacking another orphan (QA-040).
@@ -486,6 +499,7 @@ export class AdminPricingService {
           grandfatherMode: 'keep_until_next_purchase',
         },
       });
+      await this.config.writePackCatalogue(config, tx);
       await tx.pricingDraft.deleteMany({});
       await this.audit.record(
         {
@@ -506,6 +520,53 @@ export class AdminPricingService {
     await this.prices.archiveSuperseded(next);
     this.log.warn(`pricing rolled back to v${version} as v${next} by ${staff.email}`);
     return this.version(next);
+  }
+
+  /**
+   * Cancels a version published with a date that has not arrived: `effective_at` goes back
+   * to NULL, the state of a version that was never put in effect, so it is never served.
+   * Nothing a customer saw changes — the version had not started — which is why this is
+   * not a rewrite of history; a version whose date has passed is undone by a rollback.
+   * Its Stripe Prices stay as they are (publishing the same config again resumes this row
+   * and reuses them).
+   */
+  async cancelScheduled(
+    staff: StaffContext,
+    version: number,
+    body: StaffActionRequest,
+    request: FastifyRequest,
+  ): Promise<AdminPricingVersion> {
+    await this.limits.assertCan(staff, 'can_publish_pricing');
+    const row = await adminDb.pricingConfig.findUnique({ where: { version }, select: { version: true, effectiveAt: true, changeSummary: true } });
+    if (!row) throw AppError.notFound('Pricing version');
+    if (!row.effectiveAt || row.effectiveAt.getTime() <= Date.now())
+      throw new AppError('CONFLICT', `Only a scheduled version can be cancelled; v${version} ${row.effectiveAt ? 'has already taken effect. Roll back instead.' : 'is not scheduled.'}`);
+    const scheduledFor = row.effectiveAt;
+    await adminDb.$transaction(async (tx) => {
+      // Conditional on the date still being ahead: a cancel that loses the race with the
+      // clock must not pull a version out from under the customers it now serves.
+      const cancelled = await tx.pricingConfig.updateMany({
+        where: { version, effectiveAt: { gt: new Date() } },
+        data: { effectiveAt: null, changeSummary: `Cancelled before taking effect. ${row.changeSummary ?? ''}`.trim().slice(0, 500) },
+      });
+      if (cancelled.count === 0) throw new AppError('CONFLICT', `v${version} took effect while you were looking. Roll back instead.`);
+      await this.audit.record(
+        {
+          staff,
+          action: 'pricing.schedule_cancelled',
+          targetType: 'pricing_config',
+          targetId: String(version),
+          reasonCode: body.reason_code,
+          note: body.note ?? null,
+          before: { version, effective_at: scheduledFor.toISOString() },
+          after: { version, effective_at: null },
+          request,
+        },
+        tx,
+      );
+    });
+    this.log.warn(`pricing v${version} (scheduled for ${scheduledFor.toISOString()}) cancelled by ${staff.email}`);
+    return this.version(version);
   }
 
   // ------------------------------------------------------------------ Retell cost inputs (admin §5.4, Appendix A)
@@ -615,7 +676,36 @@ export function diffConfig(
   walk('wallet_policy', before.wallet_policy, after.wallet_policy);
   walk('trial', before.trial, after.trial);
   walk('currency_default', before.currency_default, after.currency_default);
+  // Calling windows, daily dial caps and the prior-contact days (ADR 0031) are published
+  // with pricing and felt by customers like a rate; they are previewed and audited like one.
+  walk('outbound', before.outbound, after.outbound);
   return changes;
+}
+
+/** Packs whose id is in `current` and not in `next` at all. Switching Active off is not this. */
+export function removedPackIds(current: PricingConfig, next: PricingConfig): string[] {
+  const nextIds = new Set(next.packs.map((p) => p.id));
+  return current.packs.filter((p) => !nextIds.has(p.id)).map((p) => p.id);
+}
+
+/**
+ * The preview's pack lists: `added` and `removed` are ids entering and leaving the config,
+ * `deactivated` is Active switched off on a pack that stays, `changed` is every other
+ * pack with a difference.
+ */
+export function packChanges(
+  current: PricingConfig,
+  next: PricingConfig,
+  changes: AdminPricingPreviewResponse['changes'],
+): AdminPricingPreviewResponse['packs'] {
+  const before = new Map(current.packs.map((p) => [p.id, p]));
+  const after = new Map(next.packs.map((p) => [p.id, p]));
+  const added = [...after.keys()].filter((id) => !before.has(id));
+  const removed = removedPackIds(current, next);
+  const deactivated = [...after.values()].filter((p) => !p.active && before.get(p.id)?.active === true).map((p) => p.id);
+  const touched = new Set(changes.map((c) => /^packs\.([^.]+)(?:\.|$)/.exec(c.path)?.[1]).filter((id): id is string => Boolean(id)));
+  const changed = [...touched].filter((id) => before.has(id) && after.has(id) && !deactivated.includes(id));
+  return { added, removed, deactivated, changed };
 }
 
 /**
@@ -741,6 +831,7 @@ function summarise(preview: AdminPricingPreviewResponse): string {
   const parts: string[] = [];
   if (preview.packs.added.length) parts.push(`added ${preview.packs.added.join(', ')}`);
   if (preview.packs.removed.length) parts.push(`removed ${preview.packs.removed.join(', ')}`);
+  if (preview.packs.deactivated.length) parts.push(`deactivated ${preview.packs.deactivated.join(', ')}`);
   if (preview.packs.changed.length) parts.push(`changed ${preview.packs.changed.join(', ')}`);
   const other = preview.changes.filter((c) => !c.path.startsWith('packs.')).map((c) => c.path);
   if (other.length) parts.push(other.join(', '));
@@ -772,6 +863,7 @@ function toVersion(
     change_summary: r.changeSummary,
     grandfather_mode: r.grandfatherMode,
     is_current: r.version === currentVersion,
+    is_scheduled: r.effectiveAt !== null && r.effectiveAt.getTime() > Date.now(),
     // Version 1 (the seed) predates the sync and carries no record: shown as skipped, never as pending.
     stripe_sync: sync.success
       ? sync.data

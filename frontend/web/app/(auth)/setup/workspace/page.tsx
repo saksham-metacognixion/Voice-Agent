@@ -6,6 +6,7 @@ import { createWorkspaceRequest, e164 } from '@portal/schemas';
 import { Alert, Button, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@portal/ui';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import { usePricingFigures } from '@/src/lib/use-pricing-figures';
 import * as React from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -41,6 +42,7 @@ export default function SetupWorkspacePage() {
 
 function SetupInner() {
   const t = useTranslations();
+  const figures = usePricingFigures();
   const api = useApi();
   const router = useRouter();
   const ws = useWorkspace();
@@ -169,7 +171,7 @@ function SetupInner() {
         <Button type="submit" size="lg" loading={form.formState.isSubmitting} className="w-full">
           {form.formState.isSubmitting ? t('auth.setup.creating') : t('auth.setup.cta')}
         </Button>
-        <p className="text-center text-xs text-muted-foreground">{t('auth.setup.trialNote')}</p>
+        <p className="text-center text-xs text-muted-foreground">{figures.trialCredits !== null ? t('auth.setup.trialNote', { credits: figures.trialCredits }) : t('auth.setup.trialNoteNoAmount')}</p>
       </form>
     </AuthLayout>
   );

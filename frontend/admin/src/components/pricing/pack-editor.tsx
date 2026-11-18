@@ -4,6 +4,8 @@ import { featureGate, packVisibility, planTier, type PricingPack } from '@portal
 import { Button, Checkbox, Field, Input, Label, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, Textarea, cn } from '@portal/ui';
 import { Trash2 } from 'lucide-react';
 import { NumField } from './num-field';
+import { Copyable } from '@/src/components/common/copyable';
+import { config } from '@/src/config';
 import { humanize } from '@/src/lib/format';
 
 /** One §5.2 pack as a form card (SA5 Packs table). `errors` are keyed by the field name. */
@@ -100,6 +102,11 @@ export function PackEditor({ pack, index, errors, disabled, onChange, onRemove }
             </SelectContent>
           </Select>
         </Field>
+        {pack.visibility === 'link_only' && pack.id ? (
+          <Field label="Purchase link" description="Send it to the customer. It opens their Wallet with this pack, once the pack is published and active; an owner or admin can buy it." className="sm:col-span-2 lg:col-span-4">
+            <Copyable value={packLink(pack.id)} full />
+          </Field>
+        ) : null}
         <Field id={id('regions')} label="Regions" optional description="ISO codes, comma-separated. Empty = everywhere." error={errors.regions} className="lg:col-span-2">
           <Input id={id('regions')} value={pack.regions.join(', ')} onChange={(e) => set('regions', e.target.value.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean))} disabled={disabled} placeholder="US, CA" />
         </Field>
@@ -122,4 +129,9 @@ export function PackEditor({ pack, index, errors, disabled, onChange, onRemove }
       </Field>
     </div>
   );
+}
+
+/** The portal address that offers a link-only pack: Wallet reads `?pack=` and asks `GET /pricing` for it. */
+export function packLink(packId: string): string {
+  return `${config.portalUrl}/app/wallet/?pack=${encodeURIComponent(packId)}`;
 }

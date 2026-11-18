@@ -27,8 +27,8 @@
     "add": "Ajouter",
     "premium": "Premium",
     "standard": "Standard",
-    "premiumRate": "1,5× crédits",
-    "standardRate": "1× crédits",
+    "premiumRate": "{rate}× crédits",
+    "standardRate": "{rate}× crédits",
     "theme": {
       "light": "Clair",
       "dark": "Sombre",
@@ -181,7 +181,8 @@
     },
     "signup": {
       "title": "Créez votre compte",
-      "subtitle": "Gratuit pour commencer — 20 crédits d’essai, aucune carte requise.",
+      "subtitle": "Gratuit pour commencer : {credits, plural, one {# crédit d’essai} other {# crédits d’essai}}, aucune carte requise.",
+      "subtitleNoAmount": "Gratuit pour commencer, aucune carte requise.",
       "cta": "Créer un compte",
       "haveAccount": "Vous avez déjà un compte?",
       "signIn": "Se connecter",
@@ -265,7 +266,8 @@
       "website": "Site web",
       "cta": "Créer l’espace de travail",
       "creating": "Création…",
-      "trialNote": "Vous commencez avec 20 crédits gratuits pour des appels test dans le navigateur.",
+      "trialNote": "Vous commencez avec {credits, plural, one {# crédit gratuit} other {# crédits gratuits}} pour des appels test dans le navigateur.",
+      "trialNoteNoAmount": "Vous commencez avec des crédits gratuits pour des appels test dans le navigateur.",
       "comingSoon": "{country} (bientôt)",
       "launchNote": "Nous sommes d’abord offerts aux États-Unis et au Canada. D’autres pays suivront bientôt."
     },
@@ -484,7 +486,8 @@
       "empty": "Aucun modèle n’est offert pour le moment.",
       "existing": "Vous avez déjà commencé un agent à partir du modèle {template}. Continuez avec celui-ci, ou choisissez un autre modèle pour recommencer.",
       "startOver": "Recommencer avec ce modèle",
-      "premiumHint": "Utilise la gamme de voix Premium (1,5 crédit la minute).",
+      "premiumHint": "Utilise la gamme de voix Premium ({rate, plural, one {# crédit} other {# crédits}} la minute).",
+      "premiumHintNoRate": "Utilise la gamme de voix Premium.",
       "conflictTitle": "Vérifiez le modèle",
       "conflictBody": "Le modèle {template} est conçu pour ces secteurs : {industries}. Vous avez choisi {industry}. Vous pouvez continuer — l’agent utilisera quand même ce que vous écrivez sur votre entreprise — mais un modèle plus proche donne un meilleur premier script.",
       "conflictSuggest": "Pour {industry}, essayez : {templates}.",
@@ -980,7 +983,8 @@
     },
     "w3": {
       "title": "Choisir une voix et des langues",
-      "subtitle": "Toutes les voix peuvent dire votre message d’accueil. Les voix Premium sont plus naturelles et coûtent 1,5 crédit la minute.",
+      "subtitle": "Toutes les voix peuvent dire votre message d’accueil. Les voix Premium sont plus naturelles.",
+      "premiumCost": "Elles coûtent {rate, plural, one {# crédit} other {# crédits}} la minute.",
       "primaryLanguage": "Langue principale",
       "primaryHint": "Celle que parlent la plupart des appelants.",
       "alsoSpeaks": "Parle aussi",
@@ -1624,6 +1628,7 @@
         "none": "Aucun forfait n’est offert en ce moment. Veuillez réessayer plus tard.",
         "roleTitle": "Demandez au propriétaire de l’espace de travail",
         "roleBody": "Seul un propriétaire ou un administrateur peut acheter des crédits et mettre l’agent en service.",
+        "linkUnavailable": "Le forfait de votre lien n’est pas offert. Vous pouvez acheter l’un de ceux-ci.",
         "credits": "{credits} crédits",
         "bonus": "+{credits} en prime",
         "concurrency": "{n, plural, one {# appel simultané} other {# appels simultanés}}",
@@ -2892,7 +2897,8 @@
       },
       "buy": {
         "title": "Acheter des crédits",
-        "body": "Les crédits sont ajoutés dès que le paiement est confirmé."
+        "body": "Les crédits sont ajoutés dès que le paiement est confirmé.",
+        "linkNeedsAdmin": "Ce lien propose un forfait de crédits. Demandez à un propriétaire ou à un administrateur de cet espace de travail de l’ouvrir."
       },
       "checkout": {
         "confirming": "Confirmation de votre paiement…",
@@ -2913,6 +2919,7 @@
         "thresholdHint": "En crédits, au moins 10.",
         "thresholdError": "Entrez au moins 10 crédits.",
         "packError": "Choisissez le forfait à acheter.",
+        "packGone": "Le forfait que la recharge automatique devait acheter n’est plus vendu. Rien n’est acheté tant que vous n’en choisissez pas un autre et que vous n’enregistrez pas.",
         "card": "Carte",
         "cardValue": "•••• {last4}",
         "noCard": "Aucune carte enregistrée pour l’instant. Une carte est enregistrée quand vous achetez un forfait avec la recharge automatique activée.",

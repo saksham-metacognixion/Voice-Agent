@@ -105,6 +105,9 @@ export class BillingService {
     }
 
     const credits = pack.credits + pack.bonus_credits;
+    // `purchases.pack_id` references the catalogue row; a pack published before the
+    // publish wrote those rows gets its row here.
+    await this.config.ensurePackRow(pack);
 
     // §6.2 (ADR 0036): with a card already on file, a purchase that leaves money at risk
     // (a balance over the threshold, auto top-up on) needs a second factor *before* it

@@ -10,7 +10,7 @@ import * as React from 'react';
 import { PermissionButton } from '@/src/components/common/permission-button';
 import { LoadError } from '@/src/components/common/query-states';
 import { errorMessage } from '@/src/lib/errors';
-import { formatNumber, formatPercent, humanize, localInputToIso } from '@/src/lib/format';
+import { formatDateTime, formatNumber, formatPercent, humanize, localInputToIso } from '@/src/lib/format';
 import { REASON_CODES, REASON_LABELS } from '@/src/lib/reason-codes';
 import { prettyJson } from '@/src/lib/json';
 import { useStaff } from '@/src/staff/staff-provider';
@@ -25,6 +25,7 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
   if (preview.isPending) return <Skeleton className="h-96" aria-busy />;
   if (preview.isError) return <LoadError error={preview.error} onRetry={() => void preview.refetch()} />;
   const p = preview.data;
+  const scheduled = p.scheduled ?? [];
   if (!p.has_draft) return <EmptyState title="No draft to preview" description="Save changes on the Draft tab first." />;
 
   return (
@@ -34,7 +35,7 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
           Publishing creates <Badge variant="primary">v{p.next_version}</Badge> from <Badge variant="outline">v{p.current_version}</Badge>
         </span>
         <span className="ml-auto">
-          <PermissionButton denied={denied} onClick={() => setPublishing(true)} disabled={p.blockers.some((b) => !isMarginBlocker(b))}>
+          <PermissionButton denied={denied} onClick={() => setPublishing(true)} disabled={hardBlockers(p).length > 0}>
             Publish v{p.next_version}
           </PermissionButton>
         </span>
@@ -47,6 +48,18 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
               <li key={b}>{b}</li>
             ))}
           </ul>
+        </Alert>
+      ) : null}
+      {scheduled.length ? (
+        <Alert variant="warning" title={scheduled.length === 1 ? 'A version is already scheduled' : 'Versions are already scheduled'}>
+          <ul className="list-disc pl-5">
+            {scheduled.map((v) => (
+              <li key={v.version}>
+                v{v.version} takes effect {formatDateTime(v.effective_at)}.
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1">This publish is newer, so it replaces {scheduled.length === 1 ? 'that version' : 'them'} from the moment it takes effect. To stop a scheduled version from running at all, cancel it on the Versions tab.</p>
         </Alert>
       ) : null}
       {p.warnings.length ? (
@@ -91,6 +104,7 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
           <div className="mt-3 flex flex-wrap gap-4 text-xs">
             <PackList label="Packs added" items={p.packs.added} variant="success" />
             <PackList label="Packs removed" items={p.packs.removed} variant="danger" />
+            <PackList label="Packs deactivated" items={p.packs.deactivated ?? []} variant="warning" />
             <PackList label="Packs changed" items={p.packs.changed} variant="info" />
           </div>
         </CardContent>
@@ -158,8 +172,14 @@ export function PricingPreview({ onPublished }: { onPublished: () => void }) {
   );
 }
 
-function isMarginBlocker(b: string): boolean {
-  return /margin/i.test(b);
+/** The blockers no override lifts. The API names them; nothing here reads a blocker's wording. */
+function hardBlockers(p: AdminPricingPreviewResponse): string[] {
+  return p.hard_blockers ?? [];
+}
+
+/** True when something blocks that a super admin may override: the margin floor. */
+function hasMarginBlocker(p: AdminPricingPreviewResponse): boolean {
+  return p.blockers.length > hardBlockers(p).length;
 }
 
 function short(v: unknown): string {
@@ -167,7 +187,7 @@ function short(v: unknown): string {
   return s.length > 80 ? `${s.slice(0, 77)}…` : s;
 }
 
-function PackList({ label, items, variant }: { label: string; items: string[]; variant: 'success' | 'danger' | 'info' }) {
+function PackList({ label, items, variant }: { label: string; items: string[]; variant: 'success' | 'danger' | 'warning' | 'info' }) {
   if (!items.length) return null;
   return (
     <span className="flex flex-wrap items-center gap-1">
@@ -196,7 +216,7 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
   const [typed, setTyped] = React.useState('');
   const [error, setError] = React.useState<string | null>(null);
   const [stripeFailed, setStripeFailed] = React.useState<string | null>(null);
-  const marginBlocked = preview.blockers.some(isMarginBlocker);
+  const marginBlocked = hasMarginBlocker(preview);
   const noteRequired = reason === 'other' || (marginBlocked && override);
   const ok = typed.trim().toUpperCase() === 'PUBLISH' && Boolean(reason) && (!noteRequired || note.trim().length > 0) && (!marginBlocked || override);
 
@@ -243,10 +263,11 @@ function PublishDialog({ preview, onClose, onPublished }: { preview: AdminPricin
         </Field>
         <Field label="Existing customers">
           <RadioGroup value={mode} onValueChange={(v) => setMode(v as typeof mode)} className="grid gap-2 sm:grid-cols-2">
-            <RadioCard value="keep_until_next_purchase" title="Keep until next purchase" description="Current rates and caps stay until they buy again." />
-            <RadioCard value="apply_now" title="Apply now" description="New rates and caps at the effective time." />
+            <RadioCard value="keep_until_next_purchase" title="Keep limits until next purchase" description="Each customer keeps their calls-at-once and knowledge limits until they buy again." />
+            <RadioCard value="apply_now" title="Apply limits now" description="Calls-at-once and knowledge limits change for every customer at the effective time." />
           </RadioGroup>
         </Field>
+        <p className="text-xs text-muted-foreground">Either way, per-minute rates, agent and number limits and plan features change for every customer at the effective time.</p>
         <Field id="pub-summary" label="Change summary" optional>
           <Textarea id="pub-summary" value={summary} onChange={(e) => setSummary(e.target.value)} rows={2} maxLength={500} className="min-h-16" placeholder="What changed and why, shown on the Versions tab." />
         </Field>

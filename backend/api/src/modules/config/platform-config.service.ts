@@ -20,7 +20,7 @@ import {
 import { AppError } from '../../common/errors/app-error';
 import { RedisCache, redisKeys } from '../redis';
 import { type ResolvedSettings, resolveSettings } from './platform-settings';
-import { type FeatureFlagRow, type KillSwitchRow, isKillSwitchKey, killSwitchActive, resolveCaps, resolveFlags } from './config.resolve';
+import { type FeatureFlagRow, type KillSwitchRow, isKillSwitchKey, killSwitchActive, purchasablePackIn, resolveCaps, resolveFlags } from './config.resolve';
 
 /** The current pricing_configs row, parsed. */
 export interface CurrentPricing {
@@ -52,6 +52,9 @@ export const CAPS_TTL_S = 300;
  */
 export const REJECT_INBOUND_TTL_S = 3_600;
 
+/** `caps:{<workspace id>}` (redisKeys.caps) read back to its workspace. */
+const CAPS_KEY = /^caps:\{([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\}$/i;
+
 /**
  * Configuration as data (spec §13.12, admin §5): pricing, flags, kill switches and the
  * per-workspace caps derived from them, read through Redis with Postgres as the truth.
@@ -82,9 +85,12 @@ export class PlatformConfigService {
   }
 
   private async loadCurrentPricing(): Promise<CurrentPricing> {
+    // The newest *version* whose date has passed, not the latest date: a version scheduled
+    // for later and then overtaken by a newer publish must not come back and undo it when
+    // its date arrives. Version numbers are publish order.
     const row = await adminDb.pricingConfig.findFirst({
       where: { effectiveAt: { lte: new Date() } },
-      orderBy: [{ effectiveAt: 'desc' }, { version: 'desc' }],
+      orderBy: { version: 'desc' },
     });
     if (!row) {
       throw new Error('No pricing config is in effect. Run `pnpm db:seed` to publish version 1.');
@@ -96,12 +102,13 @@ export class PlatformConfigService {
     };
   }
 
-  /** GET /pricing: the customer-visible subset, filtered to packs sold in `region`. */
-  async pricingResponse(region?: string): Promise<PricingResponse> {
+  /** GET /pricing: the customer-visible subset, filtered to packs sold in `region`, plus the link-only pack asked for by id. */
+  async pricingResponse(region?: string, linkedPackId?: string): Promise<PricingResponse> {
     const current = await this.currentPricing();
     const { config } = current;
+    // A link-only pack is listed only for whoever holds its link (SA5 Packs: Visibility).
     const packs = config.packs
-      .filter((p) => p.active && p.visibility === 'public')
+      .filter((p) => p.active && (p.visibility === 'public' || (p.visibility === 'link_only' && p.id === linkedPackId)))
       .filter((p) => !region || p.regions.length === 0 || p.regions.includes(region))
       .sort((a, b) => a.sort_order - b.sort_order || a.price_cents - b.price_cents);
     return pricingResponse.parse({
@@ -158,8 +165,31 @@ export class PlatformConfigService {
   /** An active pack a customer may buy, or undefined. Hidden packs are staff-assignable only. */
   async purchasablePack(packId: string): Promise<{ pack: PricingPack; configVersion: number } | undefined> {
     const current = await this.currentPricing();
-    const pack = current.config.packs.find((p) => p.id === packId && p.active && p.visibility !== 'hidden');
+    const pack = purchasablePackIn(current.config, packId);
     return pack ? { pack, configVersion: current.version } : undefined;
+  }
+
+  /**
+   * `purchases.pack_id` references the `packs` catalogue, which only the seed used to
+   * fill: a pack added in SA5 was listed, and every purchase of it died on the foreign
+   * key. A publish writes the whole config's packs here (in its own transaction), so a
+   * published pack can be bought with no release (admin §1 rule 2). Rows of packs a later
+   * version dropped are kept — purchases still name them.
+   */
+  async writePackCatalogue(config: PricingConfig, tx: Prisma.TransactionClient | typeof adminDb = adminDb): Promise<void> {
+    for (const pack of config.packs) {
+      const row = packCatalogueRow(pack);
+      await tx.pack.upsert({ where: { id: pack.id }, create: { id: pack.id, ...row }, update: row });
+    }
+  }
+
+  /**
+   * The catalogue row for one pack, created if it is missing and otherwise left alone.
+   * Called before a purchase row is written, so an environment whose pack was published
+   * before `writePackCatalogue` existed heals on the first purchase, not at the next publish.
+   */
+  async ensurePackRow(pack: PricingPack): Promise<void> {
+    await adminDb.pack.upsert({ where: { id: pack.id }, create: { id: pack.id, ...packCatalogueRow(pack) }, update: {} });
   }
 
   /**
@@ -177,6 +207,7 @@ export class PlatformConfigService {
     const version = await adminDb.$transaction(async (tx) => {
       const latest = await tx.pricingConfig.aggregate({ _max: { version: true } });
       const next = (latest._max.version ?? 0) + 1;
+      await this.writePackCatalogue(config, tx);
       await tx.pricingConfig.create({
         data: {
           version: next,
@@ -323,14 +354,50 @@ export class PlatformConfigService {
    * agent stack is published from the same SA6 screens as pricing, and a §9.4 guardrail
    * edit that stayed cached for a minute while the pricing beside it went live would be
    * the kind of inconsistency nobody thinks to look for.
+   *
+   * `caps:*` is rebuilt in place, never dropped: the §13.9 inbound path reads `caps:{ws}`
+   * raw and lets a call through when it is missing (`caps_unknown`), so a wipe here opened
+   * every workspace's line limit until its next call or the five-minute refresh.
    */
   async invalidateAll(): Promise<void> {
     await Promise.all([
       this.cache.del(redisKeys.pricingCurrent),
       this.cache.del(redisKeys.agentStackCurrent),
       this.cache.delPattern(redisKeys.flagsPattern),
-      this.cache.delPattern(redisKeys.capsPattern),
     ]);
+    await this.rebuildCachedCaps();
+  }
+
+  /**
+   * Rewrites every `caps:{ws}` that exists from the pricing now in effect. A key is
+   * overwritten, so there is no moment without one; a key this walk does not reach (Redis
+   * silent, or past the scan's limit) keeps the previous version's caps until the
+   * `runtime-cache-refresh` schedule or its TTL — stale for minutes, never absent.
+   */
+  private async rebuildCachedCaps(): Promise<void> {
+    const scan = await this.cache.scanKeys(redisKeys.capsPattern);
+    if (!scan || scan.keys.length === 0) return;
+    const ids = [...new Set(scan.keys.map((k) => CAPS_KEY.exec(k)?.[1]).filter((id): id is string => Boolean(id)))];
+    try {
+      const current = await this.currentPricing();
+      for (let i = 0; i < ids.length; i += 500) {
+        const chunk = ids.slice(i, i + 500);
+        const [tenants, overrides] = await Promise.all([
+          adminDb.tenant.findMany({ where: { id: { in: chunk } }, select: { id: true, planTier: true, concurrencyCap: true, kbAllowance: true } }),
+          adminDb.tenantOverride.findMany({ where: { tenantId: { in: chunk } } }),
+        ]);
+        const overrideOf = new Map(overrides.map((o) => [o.tenantId, o]));
+        await Promise.all(
+          tenants.map((tenant) =>
+            this.cache.setJson(redisKeys.caps(tenant.id), resolveCaps(current.config, current.version, tenant, overrideOf.get(tenant.id) ?? null), CAPS_TTL_S),
+          ),
+        );
+      }
+    } catch (error) {
+      // The old caps stay where they are; the schedule rebuilds them within five minutes.
+      this.log.error(`caps rebuild after a publish failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!scan.complete) this.log.warn('caps rebuild after a publish stopped at the scan limit; the rest follow the runtime-cache refresh');
   }
 
   // ------------------------------------------------------------------ platform settings (admin §9)
@@ -374,4 +441,18 @@ export class PlatformConfigService {
     await this.cache.del(redisKeys.flagsWorkspace(workspaceId));
     return caps;
   }
+}
+
+/** The `packs` columns a config pack maps to. */
+function packCatalogueRow(pack: PricingPack) {
+  return {
+    name: pack.name,
+    priceCents: pack.price_cents,
+    currency: pack.currency,
+    credits: pack.credits,
+    planTier: pack.plan_tier,
+    concurrencyCap: pack.concurrency_cap,
+    kbAllowance: pack.kb_allowance,
+    active: pack.active,
+  };
 }

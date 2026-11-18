@@ -91,6 +91,25 @@ export function customerStatusOf(input: {
   return 'active';
 }
 
+/**
+ * `customerStatusOf` as a SQL expression, for the SA2 list's Status filter: the same
+ * branches in the same order, over the caller's own balance / last-movement / last-activity
+ * expressions. Without the facts joined (`withFacts: false`) only the two statuses read
+ * from the tenant row can be told apart, which is all a `paused` or `onboarding` filter
+ * needs; everything else answers `other`. `test/qa-18nov-pricing.e2e.test.ts` holds the two together.
+ */
+export function customerStatusSql(input: { balance: Prisma.Sql; balanceSince: Prisma.Sql; lastActivity: Prisma.Sql; now: Date; withFacts: boolean }): Prisma.Sql {
+  const head = Prisma.sql`CASE WHEN t.paused_at IS NOT NULL THEN 'paused' WHEN t.onboarding_completed_at IS NULL THEN 'onboarding'`;
+  if (!input.withFacts) return Prisma.sql`${head} ELSE 'other' END`;
+  const atRiskBefore = new Date(input.now.getTime() - AT_RISK_AFTER_MS);
+  const churnedBefore = new Date(input.now.getTime() - CHURNED_AFTER_MS);
+  return Prisma.sql`${head}
+    WHEN ${input.balance} <= 0 AND ${input.balanceSince} IS NOT NULL AND ${input.balanceSince} < ${atRiskBefore} THEN 'at_risk'
+    WHEN ${input.lastActivity} IS NOT NULL AND ${input.lastActivity} < ${churnedBefore} THEN 'churned'
+    WHEN ${input.lastActivity} IS NULL AND t.onboarding_completed_at < ${churnedBefore} THEN 'churned'
+    ELSE 'active' END`;
+}
+
 /** The median of a sample (two middle values averaged when even), null when empty. Sorts a copy. */
 export function median(values: readonly number[]): number | null {
   if (!values.length) return null;

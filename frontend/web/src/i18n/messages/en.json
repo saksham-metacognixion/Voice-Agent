@@ -27,8 +27,8 @@
     "add": "Add",
     "premium": "Premium",
     "standard": "Standard",
-    "premiumRate": "1.5× credits",
-    "standardRate": "1× credits",
+    "premiumRate": "{rate}× credits",
+    "standardRate": "{rate}× credits",
     "theme": {
       "light": "Light",
       "dark": "Dark",
@@ -181,7 +181,8 @@
     },
     "signup": {
       "title": "Create your account",
-      "subtitle": "Free to start — 20 trial credits, no card needed.",
+      "subtitle": "Free to start: {credits, plural, one {# trial credit} other {# trial credits}}, no card needed.",
+      "subtitleNoAmount": "Free to start, no card needed.",
       "cta": "Create account",
       "haveAccount": "Already have an account?",
       "signIn": "Sign in",
@@ -265,7 +266,8 @@
       "website": "Website",
       "cta": "Create workspace",
       "creating": "Creating…",
-      "trialNote": "You start with 20 free credits for browser test calls.",
+      "trialNote": "You start with {credits, plural, one {# free credit} other {# free credits}} for browser test calls.",
+      "trialNoteNoAmount": "You start with free credits for browser test calls.",
       "comingSoon": "{country} (coming soon)",
       "launchNote": "We are live in the United States and Canada first. Other countries are coming soon."
     },
@@ -484,7 +486,8 @@
       "empty": "No templates are available right now.",
       "existing": "You already started an agent from the {template} template. Continue with it, or pick another template to start over.",
       "startOver": "Start over with this template",
-      "premiumHint": "Uses the Premium voice stack (1.5 credits per minute).",
+      "premiumHint": "Uses the Premium voice stack ({rate, plural, one {# credit} other {# credits}} per minute).",
+      "premiumHintNoRate": "Uses the Premium voice stack.",
       "conflictTitle": "Check the template",
       "conflictBody": "The {template} template is written for {industries}, and you chose {industry}. You can continue — the agent will still use what you write about your business — but a closer template gives a better first script.",
       "conflictSuggest": "For {industry}, try: {templates}.",
@@ -980,7 +983,8 @@
     },
     "w3": {
       "title": "Choose a voice and languages",
-      "subtitle": "Every voice can say your greeting. Premium voices sound more natural and cost 1.5 credits a minute.",
+      "subtitle": "Every voice can say your greeting. Premium voices sound more natural.",
+      "premiumCost": "They cost {rate, plural, one {# credit} other {# credits}} a minute.",
       "primaryLanguage": "Main language",
       "primaryHint": "What most callers speak.",
       "alsoSpeaks": "Also speaks",
@@ -1624,6 +1628,7 @@
         "none": "No packs are on sale right now. Please try again later.",
         "roleTitle": "Ask the workspace owner",
         "roleBody": "Only an owner or admin can buy credits and put the agent live.",
+        "linkUnavailable": "The pack from your link is not available. You can buy one of these instead.",
         "credits": "{credits} credits",
         "bonus": "+{credits} bonus",
         "concurrency": "{n, plural, one {# call at a time} other {# calls at a time}}",
@@ -2892,7 +2897,8 @@
       },
       "buy": {
         "title": "Buy credits",
-        "body": "Credits are added as soon as the payment clears."
+        "body": "Credits are added as soon as the payment clears.",
+        "linkNeedsAdmin": "This link offers a credit pack. Ask an owner or admin of this workspace to open it."
       },
       "checkout": {
         "confirming": "Confirming your payment…",
@@ -2913,6 +2919,7 @@
         "thresholdHint": "In credits, at least 10.",
         "thresholdError": "Enter at least 10 credits.",
         "packError": "Choose the pack to buy.",
+        "packGone": "The pack auto top-up was set to buy is no longer sold. Nothing is bought until you choose another pack and save.",
         "card": "Card",
         "cardValue": "•••• {last4}",
         "noCard": "No saved card yet. A card is saved when you buy a pack with auto top-up switched on.",

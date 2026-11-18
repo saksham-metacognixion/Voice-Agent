@@ -325,8 +325,8 @@ export class AdminKpisService {
       adminDb.$queryRaw<Array<{ day: string; n: bigint }>>(
         Prisma.sql`SELECT to_char(date_trunc('day', created_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, count(*)::bigint AS n FROM tenants WHERE created_at >= ${from} AND created_at <= ${to} GROUP BY 1`,
       ),
-      adminDb.$queryRaw<Array<{ day: string; n: bigint }>>(
-        Prisma.sql`SELECT to_char(date_trunc('day', updated_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, coalesce(sum(amount_cents), 0)::bigint AS n FROM purchases WHERE status = 'paid' AND updated_at >= ${from} AND updated_at <= ${to} GROUP BY 1`,
+      adminDb.$queryRaw<Array<{ day: string; currency: string; n: bigint }>>(
+        Prisma.sql`SELECT to_char(date_trunc('day', updated_at AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day, upper(currency) AS currency, coalesce(sum(amount_cents), 0)::bigint AS n FROM purchases WHERE status = 'paid' AND updated_at >= ${from} AND updated_at <= ${to} GROUP BY 1, 2`,
       ),
     ]);
     const byDay = new Map<string, AdminKpisResponse['series'][number]>();
@@ -336,13 +336,18 @@ export class AdminKpisService {
       t += DAY_MS
     ) {
       const day = new Date(t).toISOString().slice(0, 10);
-      byDay.set(day, { day, calls: 0, credits_used: 0, signups: 0, sales_cents: 0 });
+      byDay.set(day, { day, calls: 0, credits_used: 0, signups: 0, sales_cents: 0, sales_by_currency: [] });
     }
     for (const r of calls) if (byDay.has(r.day)) byDay.get(r.day)!.calls = Number(r.n);
     for (const r of credits)
       if (byDay.has(r.day)) byDay.get(r.day)!.credits_used = Math.round(num(r.n) * 100) / 100;
     for (const r of signups) if (byDay.has(r.day)) byDay.get(r.day)!.signups = Number(r.n);
-    for (const r of sales) if (byDay.has(r.day)) byDay.get(r.day)!.sales_cents = Number(r.n);
+    for (const r of sales) {
+      const d = byDay.get(r.day);
+      if (!d) continue;
+      d.sales_by_currency.push({ currency: r.currency, cents: Number(r.n) });
+      d.sales_cents += Number(r.n);
+    }
     return [...byDay.values()];
   }
 

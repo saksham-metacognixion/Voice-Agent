@@ -145,7 +145,7 @@ function NumberPlatformActions({ n }: { n: AdminNumberResponse }) {
         </PermissionButton>
       ) : null}
       {n.status !== 'released' ? (
-        <PermissionButton size="sm" variant="danger-outline" denied={denied} onClick={() => setAction('release')}>
+        <PermissionButton size="sm" variant="danger-outline" denied={can.releaseNumber()} onClick={() => setAction('release')}>
           Release
         </PermissionButton>
       ) : null}
