@@ -67,6 +67,13 @@ cp -f "$(dirname "$0")/../caddy/Caddyfile" caddy/Caddyfile
 
 # 3. Pull, migrate, then restart what changed. `--wait` blocks until healthchecks pass or fails the deploy.
 echo "» deploying $IMAGE:$TAG to $ENV_NAME"
+# Every deploy pulls a new `sha-…` tag, and a tagged image is not "dangling": the plain
+# `docker image prune` below never removed one, so the old backends piled up until a pull
+# died on "no space left on device" (staging, 18 Nov). `-a` removes every image no container
+# uses. Before the pull, that is everything but the images running now, which is what makes
+# room for the new one; a deploy that fails after this still has its running containers.
+docker image prune -af >/dev/null || true
+echo "» disk after pruning unused images: $(df -h --output=avail,pcent / | tail -1 | xargs)"
 docker compose pull --quiet
 
 # Migrations from the image being deployed, before anything restarts (ADR 0034): new code in
@@ -92,7 +99,8 @@ else
 fi
 
 docker compose up -d --remove-orphans --wait --wait-timeout 180
-docker image prune -f >/dev/null
+# The image just replaced is unused now. A rollback pulls its tag again.
+docker image prune -af >/dev/null || true
 
 # 4. Say what is running.
 docker compose ps
