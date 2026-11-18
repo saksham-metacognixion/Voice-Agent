@@ -2,14 +2,17 @@ import { Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import type { MessageStream } from '@anthropic-ai/sdk/lib/MessageStream';
 import {
+  type BriefPatch,
   type GeneratedPatch,
   type GeneratedPrompt,
   generatedPatch,
   generatedPrompt,
+  modelBriefPatch,
 } from '@portal/schemas';
 import type { z } from 'zod';
-import { GENERATED_PATCH_JSON_SCHEMA, GENERATED_PROMPT_JSON_SCHEMA } from './output-schema';
+import { BRIEF_FROM_ANSWERS_JSON_SCHEMA, GENERATED_PATCH_JSON_SCHEMA, GENERATED_PROMPT_JSON_SCHEMA } from './output-schema';
 import {
+  type BriefAnswersRequest,
   type ImageTranscriptionRequest,
   type PromptProvider,
   ProviderError,
@@ -121,6 +124,14 @@ export class AnthropicPromptProvider implements PromptProvider {
   }
 
   /**
+   * ADR 0047. Same call as the other two; the validator repairs per field before `briefPatch` decides.
+   * The output restates the customer's answers, so an error never quotes it.
+   */
+  briefFromAnswers(request: BriefAnswersRequest): Promise<ProviderResult<BriefPatch>> {
+    return this.call<BriefPatch>(request, BRIEF_FROM_ANSWERS_JSON_SCHEMA, modelBriefPatch({ answered: request.answered, country: request.country }), { quoteOutput: false });
+  }
+
+  /**
    * ADR 0023 — a photo of a document, transcribed. Plain text out, no schema: the
    * answer *is* the document, and a JSON wrapper around 10 000 characters of menu buys
    * nothing. Same model, same effort and thinking knobs, same one retry on a transient
@@ -223,6 +234,7 @@ export class AnthropicPromptProvider implements PromptProvider {
     request: ProviderRequest,
     schema: object,
     validator: z.ZodTypeAny,
+    options: { quoteOutput?: boolean } = {},
   ): Promise<ProviderResult<T>> {
     const started = Date.now();
     const timeout = request.timeoutMs ?? this.timeoutMs;
@@ -285,7 +297,7 @@ export class AnthropicPromptProvider implements PromptProvider {
         }
 
         return {
-          value: validate<T>(validator, textOf(message)),
+          value: validate<T>(validator, textOf(message), options.quoteOutput ?? true),
           latencyMs: Date.now() - started,
           firstTokenMs: timing.firstTokenMs,
           thinkingMs: timing.thinkingMs ?? 0,
@@ -390,14 +402,16 @@ function textOf(message: Anthropic.Message): string {
  * did not parse" and "the JSON was missing `greeting`" send an engineer to different
  * places.
  */
-function validate<T>(validator: z.ZodTypeAny, raw: string): T {
+function validate<T>(validator: z.ZodTypeAny, raw: string, quoteOutput: boolean): T {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
     throw new ProviderError(
       'malformed',
-      `The model returned text that is not JSON: ${raw.slice(0, 200)}`,
+      quoteOutput
+        ? `The model returned text that is not JSON: ${raw.slice(0, 200)}`
+        : `The model returned text that is not JSON (${raw.length} characters).`,
     );
   }
 

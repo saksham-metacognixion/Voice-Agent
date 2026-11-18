@@ -17,6 +17,8 @@ export interface GeneratePanelProps {
   slow?: boolean;
   ready: boolean;
   saving: boolean;
+  /** Something else is about to change the brief (the guided answers are being read): Generate waits. */
+  blocked?: boolean;
   onGenerate: (mode: 'generate' | 'regenerate') => Promise<void> | void;
   /** Opens the script editor under the brief (W2 only; absent = no button). */
   onEditScript?: () => void;
@@ -28,7 +30,7 @@ export interface GeneratePanelProps {
  * the script". Continue lives in the page's footer (§7.3: one primary button, bottom
  * right), so once a script exists nothing here is primary.
  */
-export function GeneratePanel({ agent, generation, slow, ready, saving, onGenerate, onEditScript, error }: GeneratePanelProps) {
+export function GeneratePanel({ agent, generation, slow, ready, saving, blocked = false, onGenerate, onEditScript, error }: GeneratePanelProps) {
   const t = useTranslations('wizard.w2');
   const copy = useServerCopy();
   const active = generation.stage === 'queued' || generation.stage === 'started' || generation.stage === 'writing';
@@ -82,7 +84,7 @@ export function GeneratePanel({ agent, generation, slow, ready, saving, onGenera
                     <FileText aria-hidden /> {t('editScript')}
                   </Button>
                 ) : null}
-                <Button variant="outline" onClick={() => setConfirmOpen(true)} disabled={!ready || saving} data-testid="regenerate">
+                <Button variant="outline" onClick={() => setConfirmOpen(true)} disabled={!ready || saving || blocked} data-testid="regenerate">
                   <RefreshCw aria-hidden /> {t('regenerate')}
                 </Button>
                 <p className="text-xs text-muted-foreground">{t('editAfter')}</p>
@@ -102,7 +104,7 @@ export function GeneratePanel({ agent, generation, slow, ready, saving, onGenera
               </>
             ) : (
               <>
-                <Button size="lg" onClick={() => void onGenerate('generate')} disabled={!ready || saving} loading={saving} data-testid="generate">
+                <Button size="lg" onClick={() => void onGenerate('generate')} disabled={!ready || saving || blocked} loading={saving} data-testid="generate">
                   <Sparkles aria-hidden /> {t('generate')}
                 </Button>
                 {/* §8 W2 "generate button shows credits note": a generation is never metered. */}

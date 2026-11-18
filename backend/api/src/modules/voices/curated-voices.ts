@@ -1,6 +1,8 @@
 /**
  * Voices we add to the platform's catalogue ourselves (ADR 0027), because it has none
- * for a locale we sell: today, Gulf Arabic for Saudi and Emirati agents.
+ * for a locale we sell: Gulf Arabic for Saudi and Emirati agents, and since 17 Nov the
+ * four Québécois French voices Pramod chose for fr-CA agents (ADR 0030 shipped the
+ * locale with no voice that sounds Canadian).
  *
  * They come from the provider's public voice library and are added once per platform
  * workspace by `pnpm --filter @portal/api voices:import`. The platform then lists each
@@ -71,6 +73,48 @@ export const CURATED_VOICES: readonly CuratedVoice[] = [
     providerVoiceId: 'rUaPbzcZIu8df8iNL9WZ',
     publicUserId: '34968b08a675f304fb6de8542274ba70112d281ad45e6e2d20aaf4e2269ae94b',
   },
+  // Québécois French (17 Nov 2026). "Canadian French" is the accent `ACCENT_LANGUAGES`
+  // reads as fr-CA alone, so these rank native for a fr-CA agent and fr-FR ones do not.
+  {
+    key: 'quebec-alexandre',
+    platformName: 'Alexandre - Quebec French',
+    name: 'Alexandre Boutin',
+    gender: 'male',
+    accent: 'Canadian French',
+    provider: 'elevenlabs',
+    providerVoiceId: 'IPgYtHTNLjC7Bq7IPHrm',
+    publicUserId: 'a1254f9da709d4a8ae8b568746606d2ef3418390a67380e88423da83da5a874e',
+  },
+  {
+    key: 'quebec-adam',
+    platformName: 'Adam - Quebec French',
+    name: 'Adam',
+    gender: 'male',
+    accent: 'Canadian French',
+    provider: 'elevenlabs',
+    providerVoiceId: '93nuHbke4dTER9x2pDwE',
+    publicUserId: 'a1254f9da709d4a8ae8b568746606d2ef3418390a67380e88423da83da5a874e',
+  },
+  {
+    key: 'quebec-mathieu',
+    platformName: 'Mathieu - Quebec French',
+    name: 'Mathieu',
+    gender: 'male',
+    accent: 'Canadian French',
+    provider: 'elevenlabs',
+    providerVoiceId: 'ea8mX8XjQt6IYaKiIshC',
+    publicUserId: 'ee7f23e4d0936d2b89d5bfaada36e9739b08fd13cc39c8449304208f08ffbb49',
+  },
+  {
+    key: 'quebec-jeanne',
+    platformName: 'Jeanne - Quebec French',
+    name: 'Jeanne Mance',
+    gender: 'female',
+    accent: 'Canadian French',
+    provider: 'elevenlabs',
+    providerVoiceId: 'K7gx0ylJdff0yjM2uVQS',
+    publicUserId: 'a1254f9da709d4a8ae8b568746606d2ef3418390a67380e88423da83da5a874e',
+  },
 ];
 
 const BY_PLATFORM_NAME = new Map(CURATED_VOICES.map((voice) => [voice.platformName, voice]));
@@ -78,6 +122,17 @@ const BY_PLATFORM_NAME = new Map(CURATED_VOICES.map((voice) => [voice.platformNa
 /** The curated voice a platform row is, recognised by the name the import gave it. */
 export function curatedVoiceFor(platformName: string | null | undefined): CuratedVoice | null {
   return (platformName && BY_PLATFORM_NAME.get(platformName)) || null;
+}
+
+/**
+ * Platform names of the curated voices whose W3 name contains the search text. The rows
+ * are stored under the platform name, so a search for "Boutin" or "Mance" — words only
+ * the display name has — would otherwise find nothing.
+ */
+export function curatedPlatformNamesMatching(search: string): string[] {
+  const wanted = search.trim().toLowerCase();
+  if (!wanted) return [];
+  return CURATED_VOICES.filter((voice) => voice.name.toLowerCase().includes(wanted)).map((voice) => voice.platformName);
 }
 
 /** What a voice's clip of ours is filed under: the curated key, else the platform id. */

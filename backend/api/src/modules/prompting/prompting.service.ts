@@ -3,11 +3,15 @@ import { withWorkspace } from '@portal/db';
 import {
   type AcceptedJob,
   type BriefDocumentImageType,
+  type BriefFromAnswersRequest,
+  type BriefFromAnswersResponse,
+  type BriefPatch,
   type ExtractDocumentRequest,
   type ExtractDocumentResponse,
   type FeedbackRequest,
   type GenerateRequest,
   BRIEF_DOCUMENT_MAX_FILE_BYTES,
+  answeredQuestions,
   briefReadyForGeneration,
   isImageDocumentType,
 } from '@portal/schemas';
@@ -16,6 +20,8 @@ import { AgentEvents, parseBrief } from '../agents';
 import type { WorkspaceContext } from '../auth';
 import { PlatformConfigService } from '../config';
 import { EventsService } from '../events';
+import { RedisCache, redisKeys } from '../redis';
+import { BRIEF_ANSWERS_SYSTEM_PROMPT, buildBriefAnswersPrompt } from './brief-answers';
 import { extractDocumentText, finishText } from './document-text';
 import { PROMPT_PROVIDER, type PromptProvider, type ProviderResult, isProviderError } from './providers';
 import {
@@ -53,6 +59,7 @@ export class PromptingService {
     private readonly queues: JobQueues,
     private readonly config: PlatformConfigService,
     private readonly events: EventsService,
+    private readonly cache: RedisCache,
     @Inject(PROMPT_PROVIDER) private readonly provider: PromptProvider,
   ) {}
 
@@ -347,6 +354,69 @@ export class PromptingService {
     return { name: input.name, content_type: input.content_type, ...extracted };
   }
 
+  /**
+   * POST /agents/:id/brief/from-answers — the W2 guided answers as a brief patch (ADR 0047).
+   *
+   * Synchronous like the photo path: one short structured call, a few seconds. The lookup
+   * closes before the provider is asked, and nothing is written: the portal lays the patch
+   * over the form and the autosave stores what the customer keeps.
+   */
+  async briefFromAnswers(
+    ctx: WorkspaceContext,
+    agentId: string,
+    input: BriefFromAnswersRequest,
+  ): Promise<BriefFromAnswersResponse> {
+    await this.assertGenerationAllowed();
+    if (!this.provider.configured) {
+      this.log.error('guided answers were sent but the prompt provider has no credentials');
+      throw new AppError('NOT_CONFIGURED', ANSWERS_UNAVAILABLE);
+    }
+
+    const context = await withWorkspace(ctx, async (db) => {
+      await this.assertWorkspaceActive(db, ctx);
+      const agent = await db.agent.findFirst({
+        where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null },
+        select: { templateId: true, industry: true },
+      });
+      if (!agent) throw AppError.notFound('Agent');
+      const tenant = await db.tenant.findUniqueOrThrow({
+        where: { id: ctx.workspaceId },
+        select: { name: true, country: true },
+      });
+      return { ...tenant, category: agent.industry ?? agent.templateId };
+    });
+
+    // Read here, counted only once the answers were read: an outage must not use up the hour (the test-call window's rule).
+    const window = redisKeys.briefAnswersWindow(ctx.workspaceId);
+    const used = Number(await this.cache.get(window));
+    if (Number.isFinite(used) && used >= BRIEF_ANSWERS_PER_HOUR) {
+      throw new AppError('RATE_LIMITED', 'You have sent your answers many times this hour. Fill in the form below, or try again later.');
+    }
+
+    const answered = answeredQuestions(input.answers);
+    let result: ProviderResult<BriefPatch>;
+    try {
+      result = await this.provider.briefFromAnswers({
+        system: BRIEF_ANSWERS_SYSTEM_PROMPT,
+        user: buildBriefAnswersPrompt({ answers: input.answers, businessName: context.name, country: context.country, category: context.category }),
+        answered,
+        country: context.country,
+        timeoutMs: BRIEF_ANSWERS_TIMEOUT_MS,
+      });
+    } catch (error) {
+      if (!isProviderError(error)) throw error;
+      // The provider's words stay in the log; the customer's answers are in neither.
+      this.log.warn(`brief from answers failed (${error.kind}): ${error.message.slice(0, 300)}`);
+      if (error.kind === 'not_configured') throw new AppError('NOT_CONFIGURED', ANSWERS_UNAVAILABLE);
+      throw new AppError('UPSTREAM_UNAVAILABLE', 'We could not read your answers just now. They are still here: try again in a moment, or fill in the form below.');
+    }
+    await this.cache.increment(window, BRIEF_ANSWERS_WINDOW_S);
+    this.log.log(
+      `brief from ${answered.length} answers in ${result.latencyMs} ms: ${Object.keys(result.value).join(', ') || 'no fields'}`,
+    );
+    return { brief: result.value };
+  }
+
   /** SA12 `pause_generation` (§13.12). A kill switch is an operator's word, not a bug. */
   private async assertGenerationAllowed(): Promise<void> {
     if (await this.config.killSwitch('pause_generation')) {
@@ -385,6 +455,12 @@ export class PromptingService {
     }
   }
 }
+
+const BRIEF_ANSWERS_PER_HOUR = 30;
+const BRIEF_ANSWERS_WINDOW_S = 3_600;
+/** The browser is waiting on this one. A request takes 2.5 to 6.5 s (ADR 0047), so this leaves room for the provider's one retry. */
+const BRIEF_ANSWERS_TIMEOUT_MS = 20_000;
+const ANSWERS_UNAVAILABLE = 'Turning answers into a brief is unavailable right now. We have been notified. You can fill in the form below instead.';
 
 function unreadable(): AppError {
   return new AppError('DOCUMENT_UNREADABLE', 'We could not find any text in that photo. Try a sharper, straight-on picture, or upload the document as PDF or text.', [

@@ -765,6 +765,185 @@ describe('POST /agents/:id/documents/extract — photos', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// ADR 0047 — W2 "Speak or type": the guided answers become a brief patch.
+// ---------------------------------------------------------------------------
+
+describe('POST /agents/:id/brief/from-answers', () => {
+  const ANSWERS = {
+    business: 'We are a family dental clinic in Laval with two dentists.',
+    role: 'Book check-ups and take messages for the team.',
+    hours: 'Monday to Friday 9 to 5',
+    handoff: 'An emergency: transfer to 514 555 0123',
+  };
+  const url = (agentId: string) => `/agents/${agentId}/brief/from-answers`;
+  const stored = async (agentId: string) => {
+    const agent = await adminDb.agent.findUniqueOrThrow({ where: { id: agentId } });
+    const versions = await adminDb.agentVersion.findMany({ where: { agentId }, orderBy: { versionNo: 'asc' } });
+    return { draftVersion: agent.draftVersion, versions: versions.length, brief: versions.at(-1)!.briefJson as Record<string, unknown> };
+  };
+
+  it('answers a validated brief patch through the provider and stores nothing', async () => {
+    const agentId = await readyAgent();
+    const before = await stored(agentId);
+    const jobsBefore = await adminDb.job.count({ where: { tenantId: ws.workspaceId } });
+
+    const res = await req('POST', url(agentId), { answers: ANSWERS });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      brief: {
+        about_business: ANSWERS.business,
+        goal: ANSWERS.role,
+        business_hours: { days: Object.fromEntries(['mon', 'tue', 'wed', 'thu', 'fri'].map((d) => [d, [{ open: '09:00', close: '17:00' }]])), closed_dates: [] },
+        // A national number is read with the workspace country (CA).
+        handoff_rules: [{ condition: ANSWERS.handoff, action: 'transfer', transfer_number: '+15145550123' }],
+      },
+    });
+
+    const call = provider.calls.at(-1)!;
+    expect(call.kind).toBe('brief');
+    expect(call.kind === 'brief' && call.request.answered).toEqual(['business', 'role', 'hours', 'handoff']);
+    expect(call.kind === 'brief' && call.request.user).toContain(ANSWERS.role);
+    expect(await stored(agentId)).toEqual(before);
+    expect(await adminDb.job.count({ where: { tenantId: ws.workspaceId } })).toBe(jobsBefore);
+  });
+
+  it('returns only fields of answered questions, and the draft PATCH keeps every other field', async () => {
+    const agentId = await readyAgent({ ...READY_BRIEF, pricing: 'Cleanings from $150.' });
+    const res = await req('POST', url(agentId), { answers: { role: 'Take orders and answer questions about pick-up times.', pricing: '   ' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().brief).toEqual({ goal: 'Take orders and answer questions about pick-up times.' });
+
+    // What the portal's autosave then sends: the patch, merged field by field.
+    const saved = await req('PATCH', `/agents/${agentId}/draft`, { brief: res.json().brief });
+    expect(saved.statusCode).toBe(200);
+    expect((await stored(agentId)).brief).toMatchObject({
+      about_business: READY_BRIEF.about_business,
+      goal: 'Take orders and answer questions about pick-up times.',
+      services: READY_BRIEF.services,
+      agent_name: READY_BRIEF.agent_name,
+      pricing: 'Cleanings from $150.',
+    });
+  });
+
+  it('repairs what the model returns field by field: nothing invalid or unasked reaches the customer', async () => {
+    const agentId = await readyAgent();
+    provider.push({
+      kind: 'ok_brief',
+      value: {
+        about_business: 'A bakery in Laval.',
+        agent_name: 'Mallory',
+        ai_disclosure: 'never_volunteer',
+        pricing: 'Not asked about.',
+        business_hours: [{ day: 'sat', open: '07:00', close: '15:00' }, { day: 'sun', open: 'early', close: 'late' }],
+        handoff_rules: [{ condition: 'asks for the baker', action: 'transfer', transfer_number: 'the kitchen' }],
+      },
+    });
+    const res = await req('POST', url(agentId), { answers: { business: 'x', hours: 'x', handoff: 'x' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().brief).toEqual({
+      about_business: 'A bakery in Laval.',
+      business_hours: { days: { sat: [{ open: '07:00', close: '15:00' }] }, closed_dates: [] },
+      handoff_rules: [{ condition: 'asks for the baker', action: 'take_message' }],
+    });
+  });
+
+  it('an answer with nothing usable is an empty patch, not an error', async () => {
+    const agentId = await readyAgent();
+    provider.push({ kind: 'ok_brief', value: {} });
+    const res = await req('POST', url(agentId), { answers: { hours: 'I am not sure yet' } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ brief: {} });
+  });
+
+  it('a malformed or refused answer and an outage are 503 UPSTREAM_UNAVAILABLE, without the provider’s words', async () => {
+    const agentId = await readyAgent();
+    for (const behaviour of [
+      { kind: 'raw', text: 'Sure! Here is the brief you asked for.' },
+      { kind: 'raw', text: '"just a string"' },
+      { kind: 'fail', error: 'refused' },
+      { kind: 'fail', error: 'timeout' },
+    ] as const) {
+      provider.push(behaviour);
+      const res = await req('POST', url(agentId), { answers: ANSWERS });
+      expect(res.statusCode).toBe(503);
+      expect(res.json().code).toBe('UPSTREAM_UNAVAILABLE');
+      expect(res.json().message).not.toMatch(/scripted|anthropic|claude|model|json/i);
+    }
+  });
+
+  it('refuses no answers, blank answers, an unknown question and an over-long answer at validation, before the provider', async () => {
+    const agentId = await readyAgent();
+    for (const body of [undefined, {}, { answers: {} }, { answers: { business: '   ' } }, { answers: { shoe_size: '42' } }, { answers: { business: 'x'.repeat(1_501) } }]) {
+      const res = await req('POST', url(agentId), body ?? {});
+      expect(res.statusCode).toBe(422);
+      expect(res.json().code).toBe('VALIDATION_FAILED');
+    }
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it('is refused under pause_generation and for a paused workspace, before any provider call', async () => {
+    const config = app.get(PlatformConfigService);
+    const agentId = await readyAgent();
+    await config.setKillSwitch('pause_generation', { on: true, reason: 'e2e' });
+    try {
+      const res = await req('POST', url(agentId), { answers: ANSWERS });
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe('GENERATION_PAUSED');
+    } finally {
+      await config.setKillSwitch('pause_generation', { on: false });
+    }
+
+    await adminDb.tenant.update({ where: { id: ws.workspaceId }, data: { pausedAt: new Date() } });
+    try {
+      const res = await req('POST', url(agentId), { answers: ANSWERS });
+      expect(res.json().code).toBe('WORKSPACE_PAUSED');
+    } finally {
+      await adminDb.tenant.update({ where: { id: ws.workspaceId }, data: { pausedAt: null } });
+    }
+    expect(provider.calls).toHaveLength(0);
+  });
+
+  it('is editor+ and workspace-scoped: a viewer is 403, another workspace’s agent is 404, an unknown agent is 404', async () => {
+    const agentId = await readyAgent();
+    const viewer = await addMember(ws.workspaceId, 'answers-viewer', 'viewer');
+    expect((await req('POST', url(agentId), { answers: ANSWERS }, await headers(viewer.sub))).statusCode).toBe(403);
+    expect((await req('POST', url(agentId), { answers: ANSWERS }, await headers(other.sub, other.workspaceId))).statusCode).toBe(404);
+    expect((await req('POST', url('not-a-uuid'), { answers: ANSWERS })).statusCode).toBe(404);
+    expect(provider.calls).toHaveLength(0);
+
+    const editor = await addMember(ws.workspaceId, 'answers-editor', 'editor');
+    expect((await req('POST', url(agentId), { answers: ANSWERS }, await headers(editor.sub))).statusCode).toBe(200);
+  });
+
+  it('allows 30 an hour per workspace, then answers 429 without asking the provider', async () => {
+    const limited = await createWorkspace('answers-limit');
+    const auth = await headers(limited.sub, limited.workspaceId);
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' }, auth)).json().id as string;
+    for (let i = 0; i < 30; i += 1) {
+      expect((await req('POST', url(agentId), { answers: { pricing: 'From $80.' } }, auth)).statusCode).toBe(200);
+    }
+    const res = await req('POST', url(agentId), { answers: { pricing: 'From $80.' } }, auth);
+    expect(res.statusCode).toBe(429);
+    expect(res.json().code).toBe('RATE_LIMITED');
+    expect(provider.calls).toHaveLength(30);
+  });
+
+  it('does not count a request the provider failed, and gives the call its own short budget', async () => {
+    const outage = await createWorkspace('answers-outage');
+    const auth = await headers(outage.sub, outage.workspaceId);
+    const agentId = (await req('POST', '/agents', { template_id: 'receptionist' }, auth)).json().id as string;
+    provider.push({ kind: 'fail', error: 'unavailable' }, { kind: 'fail', error: 'timeout' });
+    expect((await req('POST', url(agentId), { answers: { pricing: 'From $80.' } }, auth)).statusCode).toBe(503);
+    expect((await req('POST', url(agentId), { answers: { pricing: 'From $80.' } }, auth)).statusCode).toBe(503);
+    for (let i = 0; i < 30; i += 1) {
+      expect((await req('POST', url(agentId), { answers: { pricing: 'From $80.' } }, auth)).statusCode).toBe(200);
+    }
+    expect((await req('POST', url(agentId), { answers: { pricing: 'From $80.' } }, auth)).statusCode).toBe(429);
+    expect(provider.calls.at(-1)?.request.timeoutMs).toBe(20_000);
+  });
+});
+
 describe('the worker never generates from a brief it could not read (ADR 0023, 29 Sep)', () => {
   it('a stored document the running schema rejects costs that document, not the brief', async () => {
     const agentId = await readyAgent();

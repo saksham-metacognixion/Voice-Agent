@@ -156,3 +156,84 @@ export const GENERATED_PATCH_JSON_SCHEMA = {
     },
   },
 } as const;
+
+/**
+ * ADR 0047 — the W2 guided answers as brief fields. **Every field is required and an
+ * empty string or an empty list means "the answers say nothing"**: `modelBriefPatch`
+ * drops whatever is empty, malformed or outside the answered questions, so an empty
+ * value never reaches the brief. Optional properties are what the structured-output
+ * grammar pays for — with thirteen of them the endpoint answered 400 "Schema is too
+ * complex" after two minutes (17 Nov, when address, agent name and FAQs were added);
+ * the scripted provider cannot find that, a real call did. Limits live in zod, as above.
+ */
+const BRIEF_FROM_ANSWERS_PROPERTIES = {
+  about_business: { type: 'string', description: 'What the business does, who it serves and where, in the owner\'s voice. One to four sentences, under 1000 characters.' },
+  address: { type: 'string', description: 'The street address or location of the business, as the owner gave it. Under 200 characters. An empty string when none was given.' },
+  goal: { type: 'string', description: 'What the phone agent should do on a call and what a good call achieves. Under 800 characters.' },
+  agent_name: { type: 'string', description: 'The name the owner wants the agent to use for itself, 2 to 30 characters. An empty string when the owner gave none.' },
+  /**
+   * A list, not the brief's `{days: {mon..sun}}` record: the decoder writes object keys
+   * in schema order, so a week that starts on Saturday lost every day before it (seen
+   * against the real model, 17 Nov). `modelBriefPatch` folds the list into the record.
+   */
+  business_hours: {
+    type: 'array',
+    description:
+      'Weekly opening hours, one item per opening per day. Times are 24-hour HH:MM. Leave a closed day out; an empty list when no hours were given. A close at or before the open runs past midnight; 00:00 to 00:00 is open all day.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['day', 'open', 'close'],
+      properties: {
+        day: { type: 'string', enum: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] },
+        open: { type: 'string' },
+        close: { type: 'string' },
+      },
+    },
+  },
+  services: { type: 'array', items: { type: 'string' }, description: 'Short names of the services or products, one per item, each under 60 characters, at most 30.' },
+  services_notes: { type: 'string', description: 'Only what the names cannot carry about the services. Under 500 characters. An empty string when there is nothing.' },
+  pricing: { type: 'string', description: 'Prices and packages exactly as given. Under 500 characters.' },
+  never_do: { type: 'string', description: 'What the agent must never say, promise or do, as plain sentences. Under 500 characters. Do not repeat a ticked preset.' },
+  never_do_presets: {
+    type: 'array',
+    items: { type: 'string', enum: ['no_prices', 'no_medical_advice', 'no_time_promises'] },
+    description: 'Tick only what the owner said: never quote prices, never give medical advice, never promise a time.',
+  },
+  handoff_rules: {
+    type: 'array',
+    description: 'When the agent hands the caller to a person. At most 5.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['condition', 'action', 'transfer_number', 'message'],
+      properties: {
+        condition: { type: 'string', description: 'Completes "When the caller…", for example "says it is an emergency". Under 200 characters.' },
+        action: { type: 'string', enum: ['transfer', 'take_message', 'read_message'] },
+        transfer_number: { type: 'string', description: 'With action transfer: the phone number the owner gave, digits as given, with its country code when one was given. An empty string otherwise.' },
+        message: { type: 'string', description: 'With action read_message: the exact words the owner asked to be read, under 500 characters. An empty string otherwise.' },
+      },
+    },
+  },
+  anything_else: { type: 'string', description: 'Other instructions or facts that fit no field above. Under 800 characters.' },
+  faqs: {
+    type: 'array',
+    description: 'Questions callers often ask, each with the answer the owner gave. At most 20. An empty list when the owner gave none.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['question', 'answer'],
+      properties: {
+        question: { type: 'string', description: 'As a caller would ask it. Under 300 characters.' },
+        answer: { type: 'string', description: 'The owner\'s answer, facts as given. Under 1000 characters.' },
+      },
+    },
+  },
+} as const;
+
+export const BRIEF_FROM_ANSWERS_JSON_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: Object.keys(BRIEF_FROM_ANSWERS_PROPERTIES) as Array<keyof typeof BRIEF_FROM_ANSWERS_PROPERTIES>,
+  properties: BRIEF_FROM_ANSWERS_PROPERTIES,
+} as const;

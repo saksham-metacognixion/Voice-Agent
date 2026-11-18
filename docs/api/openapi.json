@@ -14004,6 +14004,321 @@
         ],
         "type": "object"
       },
+      "briefFromAnswersRequest": {
+        "properties": {
+          "answers": {
+            "additionalProperties": {
+              "maxLength": 1500,
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "answers"
+        ],
+        "type": "object"
+      },
+      "briefFromAnswersResponse": {
+        "properties": {
+          "brief": {
+            "properties": {
+              "about_business": {
+                "maxLength": 1000,
+                "nullable": true,
+                "type": "string"
+              },
+              "address": {
+                "maxLength": 200,
+                "nullable": true,
+                "type": "string"
+              },
+              "agent_name": {
+                "maxLength": 30,
+                "minLength": 2,
+                "nullable": true,
+                "type": "string"
+              },
+              "ai_disclosure": {
+                "default": "if_asked",
+                "enum": [
+                  "always",
+                  "if_asked",
+                  "never_volunteer"
+                ],
+                "type": "string"
+              },
+              "anything_else": {
+                "maxLength": 800,
+                "nullable": true,
+                "type": "string"
+              },
+              "business_hours": {
+                "nullable": true,
+                "properties": {
+                  "closed_dates": {
+                    "default": [],
+                    "items": {
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "date_overrides": {
+                    "items": {
+                      "properties": {
+                        "date": {
+                          "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                          "type": "string"
+                        },
+                        "intervals": {
+                          "default": [],
+                          "items": {
+                            "properties": {
+                              "close": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              },
+                              "open": {
+                                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "open",
+                              "close"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "date"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "days": {
+                    "additionalProperties": {
+                      "items": {
+                        "properties": {
+                          "close": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          },
+                          "open": {
+                            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "open",
+                          "close"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "default": {},
+                    "type": "object"
+                  },
+                  "timezone": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "documents": {
+                "default": [],
+                "items": {
+                  "properties": {
+                    "content_type": {
+                      "enum": [
+                        "application/pdf",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/msword",
+                        "text/plain",
+                        "text/markdown",
+                        "text/csv",
+                        "image/jpeg",
+                        "image/png",
+                        "image/webp"
+                      ],
+                      "type": "string"
+                    },
+                    "name": {
+                      "maxLength": 120,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "text": {
+                      "maxLength": 15000,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "content_type",
+                    "text"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              "faqs": {
+                "default": [],
+                "items": {
+                  "properties": {
+                    "answer": {
+                      "maxLength": 1000,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "question": {
+                      "maxLength": 300,
+                      "minLength": 1,
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "question",
+                    "answer"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              "goal": {
+                "maxLength": 800,
+                "nullable": true,
+                "type": "string"
+              },
+              "handoff_rules": {
+                "default": [],
+                "items": {
+                  "properties": {
+                    "action": {
+                      "enum": [
+                        "transfer",
+                        "take_message",
+                        "read_message"
+                      ],
+                      "type": "string"
+                    },
+                    "condition": {
+                      "maxLength": 200,
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "message": {
+                      "maxLength": 500,
+                      "type": "string"
+                    },
+                    "transfer_number": {
+                      "pattern": "^\\+[1-9]\\d{6,14}$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "condition",
+                    "action"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 5,
+                "type": "array"
+              },
+              "never_do": {
+                "maxLength": 500,
+                "nullable": true,
+                "type": "string"
+              },
+              "never_do_presets": {
+                "default": [],
+                "items": {
+                  "enum": [
+                    "no_prices",
+                    "no_medical_advice",
+                    "no_time_promises"
+                  ],
+                  "type": "string"
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              "personality": {
+                "nullable": true,
+                "properties": {
+                  "brevity": {
+                    "default": 0.5,
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "energy": {
+                    "default": 0.5,
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "formality": {
+                    "default": 0.5,
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 1,
+                    "minimum": 0,
+                    "type": "number"
+                  },
+                  "notes": {
+                    "maxLength": 300,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              },
+              "pricing": {
+                "maxLength": 500,
+                "nullable": true,
+                "type": "string"
+              },
+              "services": {
+                "default": [],
+                "items": {
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 30,
+                "type": "array"
+              },
+              "services_notes": {
+                "maxLength": 500,
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "brief"
+        ],
+        "type": "object"
+      },
       "buyNumberRequest": {
         "properties": {
           "agent_id": {
@@ -34599,6 +34914,172 @@
           "activation"
         ],
         "x-auth": "workspace"
+      }
+    },
+    "/agents/{id}/brief/from-answers": {
+      "post": {
+        "description": "Spec ADR 0047.",
+        "operationId": "briefFromAnswers",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/WorkspaceId"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/briefFromAnswersRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/briefFromAnswersResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {WORKSPACE_REQUIRED}",
+            "x-error-codes": [
+              "WORKSPACE_REQUIRED"
+            ]
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {EMAIL_UNVERIFIED, FORBIDDEN_ROLE, NOT_A_MEMBER, WORKSPACE_PAUSED}",
+            "x-error-codes": [
+              "EMAIL_UNVERIFIED",
+              "FORBIDDEN_ROLE",
+              "NOT_A_MEMBER",
+              "WORKSPACE_PAUSED"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {GENERATION_PAUSED}",
+            "x-error-codes": [
+              "GENERATION_PAUSED"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {RATE_LIMITED}",
+            "x-error-codes": [
+              "RATE_LIMITED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_CONFIGURED, UPSTREAM_UNAVAILABLE}",
+            "x-error-codes": [
+              "NOT_CONFIGURED",
+              "UPSTREAM_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "W2 — the guided answers (spoken or typed) turned into a validated brief patch by the generation model; nothing is stored, the portal applies it to the form",
+        "tags": [
+          "prompting"
+        ],
+        "x-auth": "workspace",
+        "x-email-verified": true,
+        "x-roles": [
+          "owner",
+          "admin",
+          "editor"
+        ]
       }
     },
     "/agents/{id}/documents/extract": {

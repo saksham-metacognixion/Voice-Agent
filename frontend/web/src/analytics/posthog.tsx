@@ -61,6 +61,8 @@ export type AnalyticsEvent =
   | 'generation_completed'
   | 'generation_failed'
   | 'script_editor_opened'
+  | 'guided_brief_started'
+  | 'guided_brief_applied'
   | 'voice_selected'
   | 'voice_auto_selected'
   | 'faq_moved_to_knowledge'

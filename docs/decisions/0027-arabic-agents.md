@@ -97,3 +97,36 @@ these numbers are an upper bound.
   (option C) is the route, and open decision 4 (launch countries) still stands.
 - `lint`'s `language_mismatch` does not know Arabic and stays silent for it; the script's
   instructions may be English around Arabic lines, which is what the proof prompt was.
+
+## Addendum, 17 Nov 2026 — four Québécois French voices
+
+Pramod chose four ElevenLabs library voices for fr-CA agents and asked for them on W3
+with clear names and working previews, confirmed on a test call. They take the curated
+path of §4 unchanged: entries `quebec-alexandre`, `quebec-adam`, `quebec-mathieu` and
+`quebec-jeanne` in `curated-voices.ts` (platform names `<Name> - Quebec French`, accent
+`Canadian French`, which `ACCENT_LANGUAGES` reads as `fr-CA` alone, so they rank native
+for a fr-CA agent while a France-accent voice ranks as the same language in another
+accent), `voices:import` on the shared dev/staging workspace on 17 Nov, and the worker's
+boot refresh picked them up (`voice-cache: 358 of 358 voices refreshed`). Three are owned
+by one library member and Mathieu by another; the owner ids were read from the provider's
+shared-voices API, since the library page does not show them.
+
+W3 shows them as Alexandre Boutin, Adam, Mathieu and Jeanne Mance (`name`); the
+platform names stay `<First name> - Quebec French`, because the name is how a row is
+recognised and the import had already written it. The task sheet's id for Jeanne Mance
+ends in a hyphen (`K7gx0ylJdff0yjM2uVQS-`); the provider's ids are twenty characters and
+the import resolved `K7gx0ylJdff0yjM2uVQS`, which is what the registry holds.
+
+Consequences:
+
+- They are ElevenLabs voices, so the existing rule prices them **Premium** at 1.5
+  credits/min. Pramod confirmed that on 17 Nov; no pricing rule was added or changed.
+- The four clips of ours were recorded on 17 Nov with `samples:voices curated:quebec-…`
+  (fr-CA line, `frontend/web/public/samples/voices/`, filed as `curated:quebec-<name>`),
+  so W3 plays them on every environment after the next portal deploy. The recorder had
+  been producing no recording since ADR 0035: its throwaway agent did not ask for one,
+  and off is now the platform keeping none. `sample-recorder.ts` sets `recording: true`.
+  The recording box needs ffmpeg/ffprobe on `PATH` and `CHROME_PATH` on Linux.
+- Production has its own platform workspace: run `voices:import` there at cutover. Its
+  `custom_voice_…` ids will differ; nothing stores them outside that environment's
+  `voices` table, and the clips are keyed by `curated:<key>`, not by id.

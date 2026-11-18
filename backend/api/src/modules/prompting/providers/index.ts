@@ -5,11 +5,11 @@ import type { PromptProvider } from './prompt-provider';
 import { ScriptedPromptProvider } from './scripted.provider';
 
 export { PROMPT_PROVIDER, ProviderError, isProviderError } from './prompt-provider';
-export type { PromptProvider, ProviderRequest, ProviderResult, ProviderErrorKind, ImageTranscriptionRequest } from './prompt-provider';
+export type { PromptProvider, ProviderRequest, ProviderResult, ProviderErrorKind, ImageTranscriptionRequest, BriefAnswersRequest } from './prompt-provider';
 export { AnthropicPromptProvider, toProviderError } from './anthropic.provider';
 export { ScriptedPromptProvider } from './scripted.provider';
 export type { ScriptedBehaviour } from './scripted.provider';
-export { GENERATED_PROMPT_JSON_SCHEMA, GENERATED_PATCH_JSON_SCHEMA } from './output-schema';
+export { GENERATED_PROMPT_JSON_SCHEMA, GENERATED_PATCH_JSON_SCHEMA, BRIEF_FROM_ANSWERS_JSON_SCHEMA } from './output-schema';
 
 /**
  * Which provider this process runs, from the environment alone (ADR 0009: "the provider

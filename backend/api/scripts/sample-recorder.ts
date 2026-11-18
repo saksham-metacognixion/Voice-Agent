@@ -193,6 +193,8 @@ export async function startRecorder(
         maxCallDurationMs: 90_000,
         denoisingMode: line.stack.denoising_mode,
         sttMode: line.stack.stt_mode,
+        // The clip is cut from the call recording, and off is the platform keeping none (ADR 0035).
+        recording: true,
       } satisfies AgentSpec);
       agentId = agent.agent_id;
       const call = await gw.createWebCall({ agentId, agentVersion: 0, metadata: line.metadata });

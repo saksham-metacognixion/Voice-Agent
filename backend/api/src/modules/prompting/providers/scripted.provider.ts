@@ -1,11 +1,16 @@
 import { Logger } from '@nestjs/common';
 import {
+  type BriefPatch,
   type GeneratedPatch,
   type GeneratedPrompt,
+  type Weekday,
   generatedPatch,
   generatedPrompt,
+  modelBriefPatch,
 } from '@portal/schemas';
+import { answersFromPrompt } from '../brief-answers';
 import {
+  type BriefAnswersRequest,
   type ImageTranscriptionRequest,
   type PromptProvider,
   ProviderError,
@@ -35,6 +40,7 @@ import {
 export type ScriptedBehaviour =
   | { kind: 'ok'; value?: Partial<GeneratedPrompt> }
   | { kind: 'ok_patch'; value?: Partial<GeneratedPatch> }
+  | { kind: 'ok_brief'; value: Record<string, unknown> }
   | { kind: 'raw'; text: string }
   | { kind: 'fail'; error: ProviderErrorKind; message?: string }
   | { kind: 'delay'; ms: number };
@@ -47,7 +53,11 @@ export class ScriptedPromptProvider implements PromptProvider {
   private readonly log = new Logger(ScriptedPromptProvider.name);
   private readonly script: ScriptedBehaviour[] = [];
   /** Every request that reached the provider — the duplicate-job assertions read this. */
-  readonly calls: Array<{ kind: 'generate' | 'patch'; request: ProviderRequest } | { kind: 'transcribe'; request: ImageTranscriptionRequest }> = [];
+  readonly calls: Array<
+    | { kind: 'generate' | 'patch'; request: ProviderRequest }
+    | { kind: 'transcribe'; request: ImageTranscriptionRequest }
+    | { kind: 'brief'; request: BriefAnswersRequest }
+  > = [];
 
   /** Queues one answer. Consumed in order; when the queue is empty the default is used. */
   push(...behaviours: ScriptedBehaviour[]): this {
@@ -102,6 +112,21 @@ export class ScriptedPromptProvider implements PromptProvider {
         ? next.text
         : `${request.name.toUpperCase()}\nScripted item one $10\nScripted item two $12`;
     return { value, latencyMs: Date.now() - started, attempts: 1, model: this.model };
+  }
+
+  /**
+   * ADR 0047. The default is the answers themselves, laid into their fields by fixed rules
+   * (no model, no key, the same output for the same answers); `ok_brief` replaces it and
+   * `raw` is whatever a model might have said. All three pass the real gate.
+   */
+  async briefFromAnswers(request: BriefAnswersRequest): Promise<ProviderResult<BriefPatch>> {
+    this.calls.push({ kind: 'brief', request });
+    const started = Date.now();
+    const next = this.script.shift();
+    await this.applyFailures(next);
+    const raw = next?.kind === 'raw' ? next.text : JSON.stringify(next?.kind === 'ok_brief' ? next.value : defaultBrief(request));
+    request.onFirstToken?.();
+    return this.finish<BriefPatch>(modelBriefPatch({ answered: request.answered, country: request.country }), raw, started);
   }
 
   private async applyFailures(next: ScriptedBehaviour | undefined): Promise<void> {
@@ -201,6 +226,62 @@ function defaultPrompt(request: ProviderRequest): GeneratedPrompt {
     ],
     warnings: [],
   };
+}
+
+/**
+ * Each answer goes into its question's field as it was given; lists are split on commas
+ * and "and". An address is what follows "located at" / "our address is", an agent name
+ * what follows "call it" / "named", and an FAQ is a sentence ending in "?" with the
+ * sentence after it.
+ */
+function defaultBrief(request: ProviderRequest): Record<string, unknown> {
+  const answers = answersFromPrompt(request.user);
+  const text = (id: keyof typeof answers) => answers[id]?.replace(/\s+/g, ' ').trim() || undefined;
+  const handoff = text('handoff');
+  const number = handoff?.match(/\+?\d[\d\s().-]{6,}\d/)?.[0];
+  const restrictions = text('restrictions');
+  const extra = text('extra');
+  const faqs = [...(extra ?? '').matchAll(/([^.?!]+\?)\s*([^.?!]+[.!]?)/g)].map((match) => ({ question: match[1]!.trim(), answer: match[2]!.trim() }));
+  const rest = faqs.length > 0 ? extra!.replace(/([^.?!]+\?)\s*([^.?!]+[.!]?)/g, ' ').replace(/\s+/g, ' ').trim() : extra;
+  return {
+    about_business: text('business'),
+    address: text('business')?.match(/(?:located at|address is|find us at|we are at)\s+([^.]+)/i)?.[1]?.trim(),
+    goal: text('role'),
+    agent_name: text('role')?.match(/(?:call (?:it|her|him|the agent)|named|name is|name it)\s+([\p{L}][\p{L}'’-]*)/iu)?.[1],
+    business_hours: scriptedHours(text('hours')),
+    services: text('services')
+      ?.split(/,|;|\band\b/i)
+      .map((item) => item.trim().replace(/\.$/, ''))
+      .filter(Boolean),
+    pricing: text('pricing'),
+    never_do: restrictions,
+    never_do_presets: restrictions && /price/i.test(restrictions) ? ['no_prices'] : [],
+    handoff_rules: handoff ? [{ condition: handoff, action: number ? 'transfer' : 'take_message', transfer_number: number }] : [],
+    anything_else: rest || undefined,
+    faqs,
+  };
+}
+
+const WEEKDAYS: Weekday[] = ['mon', 'tue', 'wed', 'thu', 'fri'];
+const ALL_DAYS: Weekday[] = [...WEEKDAYS, 'sat', 'sun'];
+
+/** The first "9 to 5" / "8:30am-6pm" in the answer, on weekdays, or on all seven for "every day". */
+function scriptedHours(answer: string | undefined): Array<{ day: Weekday; open: string; close: string }> | undefined {
+  const match = answer?.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:to|until|-|–)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
+  if (!answer || !match) return undefined;
+  const hour = (raw: string, meridiem: string | undefined) => {
+    const h = Number(raw) % 24;
+    if (meridiem?.toLowerCase() === 'pm' && h < 12) return h + 12;
+    if (meridiem?.toLowerCase() === 'am' && h === 12) return 0;
+    return h;
+  };
+  const openHour = hour(match[1]!, match[3]);
+  let closeHour = hour(match[4]!, match[6]);
+  if (!match[6] && closeHour <= openHour && closeHour < 12) closeHour += 12;
+  const at = (h: number, minutes: string | undefined) => `${String(h).padStart(2, '0')}:${minutes ?? '00'}`;
+  const interval = { open: at(openHour, match[2]), close: at(closeHour, match[5]) };
+  const days = /every day|daily|seven days|7 days/i.test(answer) ? ALL_DAYS : WEEKDAYS;
+  return days.map((day) => ({ day, ...interval }));
 }
 
 function defaultPatch(request: ProviderRequest): GeneratedPatch {

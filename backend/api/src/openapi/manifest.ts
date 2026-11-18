@@ -610,6 +610,19 @@ export const MANIFEST: readonly EndpointSpec[] = [
   },
   {
     method: 'POST',
+    path: '/agents/:id/brief/from-answers',
+    operationId: 'briefFromAnswers',
+    summary:
+      'W2 — the guided answers (spoken or typed) turned into a validated brief patch by the generation model; nothing is stored, the portal applies it to the form',
+    tag: 'prompting',
+    spec: 'ADR 0047',
+    body: 'briefFromAnswersRequest',
+    response: { schema: 'briefFromAnswersResponse' },
+    roles: ['owner', 'admin', 'editor'],
+    errors: ['NOT_FOUND', 'VALIDATION_FAILED', 'EMAIL_UNVERIFIED', 'WORKSPACE_PAUSED', 'GENERATION_PAUSED', 'RATE_LIMITED', 'UPSTREAM_UNAVAILABLE', 'NOT_CONFIGURED'],
+  },
+  {
+    method: 'POST',
     path: '/agents/:id/generate',
     operationId: 'generateAgent',
     summary: '§13.3 brief → prompt, as a job (202)',

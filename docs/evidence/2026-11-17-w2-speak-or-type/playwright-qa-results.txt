@@ -1,0 +1,67 @@
+Playwright QA, 17 Nov 2026. Stack: portal export on :3005, API on :4001 (claude-sonnet-5), dev worker, local issuer.
+Script: playwright-qa.mjs in this folder (Playwright 1.49.1, installed outside the repo).
+WebKit could not be launched on this machine (missing system libraries), so Safari's engine was not driven.
+
+== Google Chrome 156, its own recogniser
+INFO chrome-speech: Google Chrome 156.0.8078.47, its own recogniser, audio = synthesized speech fed to the microphone
+PASS chrome-speech: Speak is offered
+PASS chrome-speech: Chrome's own recogniser starts and the panel shows listening
+INFO chrome-speech: with synthesized speech as the microphone → error:no_speech
+PASS chrome-speech: the recogniser's own "no speech" ends in the explained message, microphone released — error:no_speech
+PASS chrome-speech: the answer box takes typing after a failed recording
+
+== Chromium 131 (Playwright build)
+INFO chromium: 131.0.6778.33
+INFO chromium: recogniser on window = true, Speak button shown = true, note = "Your browser asks to use your microphone when you start speaking. It turns what you say into text that you can correct."
+PASS chromium: Speak is shown exactly when the browser has a recogniser
+PASS chromium: question 1 of 8 is shown
+PASS chromium: question 2 of 8 is shown
+PASS chromium: question 3 of 8 is shown
+PASS chromium: question 4 of 8 is shown
+PASS chromium: question 5 of 8 is shown
+PASS chromium: question 6 of 8 is shown
+PASS chromium: question 7 of 8 is shown
+PASS chromium: question 8 of 8 is shown
+PASS chromium: the review lists eight rows, prices skipped
+PASS chromium: answers fill the W2 form — {"about":"We are Bright Smile Dental, a family dental practice in Toronto with three dentists.","goal":"Book check-ups and cleanings, and take a message when someone needs the dentist."}
+PASS chromium: address comes from the business answer — 12 King Street West, Toronto
+PASS chromium: agent name comes from the role answer — Maya
+PASS chromium: an FAQ comes from the last answer — Do you take walk-ins? / Yes, before noon.
+PASS chromium: hours and services are filled — true,true,true,true,true,false,false 09:00-17:00
+PASS chromium: the still-empty line names the skipped prices and none of the filled fields — Still empty: Pricing. Add them in the form below if your agent needs them.
+PASS chromium: nothing is generated on its own
+PASS chromium: a filled field stays editable
+PASS chromium: Generate writes a script from the confirmed brief
+PASS chromium: Start speaking ends in listening, an explained error, or a wait the customer can stop and type out of — engine never answered; Stop returned to idle and typing worked = true
+INFO chromium: Start speaking without a usable microphone or speech service → null
+PASS chromium: Arabic panel is right to left with no English words — هل تفضّل الإجابة عن بضعة أسئلة؟
+PASS chromium: French panel carries no English words — Vous préférez répondre à quelques questions?
+PASS chromium: no uncaught page errors
+
+== Firefox 132 (real)
+INFO firefox: 132.0
+INFO firefox: recogniser on window = false, Speak button shown = false, note = "Speaking your answers works in Chrome, Edge and Safari. In this browser you can type them."
+PASS firefox: no Speak button, Type is offered
+PASS firefox: the note says speaking works in other browsers — Speaking your answers works in Chrome, Edge and Safari. In this browser you can type them.
+PASS firefox: question 1 of 8 is shown
+PASS firefox: question 2 of 8 is shown
+PASS firefox: question 3 of 8 is shown
+PASS firefox: question 4 of 8 is shown
+PASS firefox: question 5 of 8 is shown
+PASS firefox: question 6 of 8 is shown
+PASS firefox: question 7 of 8 is shown
+PASS firefox: question 8 of 8 is shown
+PASS firefox: the review lists eight rows, prices skipped
+PASS firefox: no microphone control anywhere in the questions
+PASS firefox: answers fill the W2 form — {"about":"We are Bright Smile Dental, a family dental practice in Toronto with three dentists.","goal":"Book check-ups and cleanings, and take a message when someone needs the dentist."}
+PASS firefox: address comes from the business answer — 12 King Street West, Toronto
+PASS firefox: agent name comes from the role answer — Maya
+PASS firefox: an FAQ comes from the last answer — Do you take walk-ins? / Yes, before noon.
+PASS firefox: hours and services are filled — true,true,true,true,true,false,false 09:00-17:00
+PASS firefox: the still-empty line names the skipped prices and none of the filled fields — Still empty: Pricing. Add them in the form below if your agent needs them.
+PASS firefox: nothing is generated on its own
+PASS firefox: a filled field stays editable
+PASS firefox: Generate writes a script from the confirmed brief
+PASS firefox: Arabic panel is right to left with no English words — هل تفضّل الإجابة عن بضعة أسئلة؟
+PASS firefox: French panel carries no English words — Vous préférez répondre à quelques questions?
+PASS firefox: no uncaught page errors

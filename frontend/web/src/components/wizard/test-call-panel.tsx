@@ -11,7 +11,7 @@ import { track } from '@/src/analytics/posthog';
 import { errorMessage } from '@/src/lib/errors';
 import { CallMyPhone } from './call-my-phone';
 import { LeaveCallPrompt } from './leave-call-prompt';
-import { detectBrowser } from '@/src/wizard/browser-help';
+import { MicDeniedHelp } from './mic-denied-help';
 import { formatCredits } from '@/src/wizard/plan-gates';
 import { canTransfer, needsPhoneTransfer } from '@/src/wizard/test-scenarios';
 import { resolveTestVersion, testableVersions } from '@/src/wizard/test-versions';
@@ -288,32 +288,6 @@ function FailureAlert({ failure }: { failure: TestCallFailure }) {
     return <Alert variant="danger" title={title}>{errorMessage(failure.error, t)}</Alert>;
   }
   return <Alert variant="danger" title={tt('connectionTitle')}>{tt('connection')}</Alert>;
-}
-
-/**
- * §8 W5 "mic denied → inline instructions per browser": the steps for the browser in
- * use (Chrome, Edge, Safari, Firefox), from its user agent; anything else gets the
- * generic line. Steps are the catalogue's, so they read in the portal's language.
- */
-function MicDeniedHelp() {
-  const tt = useTranslations('wizard.w5.call.errors');
-  const browser = React.useSyncExternalStore(
-    () => () => undefined,
-    () => detectBrowser(navigator.userAgent),
-    () => 'other' as const,
-  );
-  const steps = tt.raw(`micHelp.${browser}`) as string[];
-  return (
-    <Alert variant="danger" title={tt('micDeniedTitle')}>
-      <p>{tt('micDenied')}</p>
-      <p className="mt-2 text-xs font-medium">{tt(`micHelpTitle.${browser}`)}</p>
-      <ol className="mt-1 list-decimal space-y-0.5 ps-5 text-sm" data-testid="mic-help">
-        {steps.map((s) => (
-          <li key={s}>{s}</li>
-        ))}
-      </ol>
-    </Alert>
-  );
 }
 
 function clock(totalS: number): string {

@@ -6,7 +6,7 @@ import { isDevEnv } from '../../common/env';
 import type { WorkspaceContext } from '../auth';
 import { RedisCache } from '../redis';
 import { RetellGateway } from '../retell';
-import { CURATED_VOICES, curatedVoiceFor, sampleKeyOf } from './curated-voices';
+import { CURATED_VOICES, curatedPlatformNamesMatching, curatedVoiceFor, sampleKeyOf } from './curated-voices';
 import { isMultilingualFrom, languageRank, nativeLanguages } from './voice-languages';
 import { ourVoiceSample } from './voice-samples';
 
@@ -75,7 +75,15 @@ export class VoicesService {
         where: {
           ...(query.gender ? { gender: query.gender } : {}),
           ...(query.tier ? { tier: query.tier } : {}),
-          ...(query.q ? { name: { contains: query.q, mode: 'insensitive' } } : {}),
+          ...(query.q
+            ? {
+                OR: [
+                  { name: { contains: query.q, mode: 'insensitive' as const } },
+                  // A curated voice is shown under its own name, not the stored platform one.
+                  { name: { in: curatedPlatformNamesMatching(query.q) } },
+                ],
+              }
+            : {}),
         },
         orderBy: [{ provider: 'asc' }, { name: 'asc' }],
       }),
@@ -292,7 +300,7 @@ interface ProviderVoice {
  *   *Languages.* The catalogue gives one language, a list, or nothing at all; "nothing"
  *   for a multilingual voice means every language, which is what `is_multilingual` says.
  */
-function toRow(voice: ProviderVoice) {
+export function toRow(voice: ProviderVoice) {
   if (!voice.voice_id || !voice.voice_name) return null;
   const provider = voice.provider ?? 'unknown';
   // A voice we added ourselves arrives with no gender or accent (ADR 0027); the curated

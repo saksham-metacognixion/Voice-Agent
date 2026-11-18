@@ -172,7 +172,10 @@ outbox (`GET /notifications`, `in_app` rows for message captured / number active
 per membership), the pill's ≈ minutes and "Agent paused — top up", `GET /announcements/active` from the
 `config` module with the audience applied in code, `messages_taken` + `sentiment` on `GET /stats`, days
 left as balance ÷ the 7-day burn, the agent card's Test / Publish / Edit by role, `forwarding_tested` /
-`team_invited` / `all_done` on the checklist, and the pause ticket on the workspace and the agent (16 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+`team_invited` / `all_done` on the checklist, and the pause ticket on the workspace and the agent (16 Nov), 0047 W2 "Speak or type" — eight guided
+questions (`GUIDED_QUESTION_FIELDS`) answered by voice (the browser's own speech recognition, never in Firefox) or by
+typing, `POST /agents/:id/brief/from-answers` through `PromptProvider.briefFromAnswers` and the `modelBriefPatch` gate,
+`applyBriefAnswers` into the existing W2 form, autosave and Generate untouched (17 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -619,6 +622,33 @@ job settles.
   gate `FaqRouting` offers to move them to one `text` knowledge source and empties the
   list. The W1 industry is one of `INDUSTRY_GROUPS` (`@portal/schemas`, 48 slugs, the
   template tags among them); `agents.industry` stays a string.
+- **W2 "Speak or type" fills the brief, it never generates** (ADR 0047). Eight questions
+  (`guidedQuestionId`, `GUIDED_QUESTION_FIELDS` in `shared/schemas/src/brief-answers.ts`), the
+  same on both paths; the address is read from the business answer, the agent's name from the
+  role answer and FAQs from the last one (17 Nov addendum); an answer is text whichever way it was given. `POST
+  /agents/:id/brief/from-answers` is synchronous and stateless like `documents/extract`
+  (lookup closes, then `PromptProvider.briefFromAnswers`; `pause_generation`, paused
+  workspace, 30/h per workspace counted only when the provider answered, its own 20 s budget,
+  every provider failure a `503` in our words, answers never logged). **The gate is `modelBriefPatch`** = `repairModelBrief` (only the answered
+  questions' fields, each repaired or dropped alone, never an empty value, so a patch cannot
+  clear a field; a transfer with no dialable number becomes `take_message`) then the
+  existing `briefPatch`. **Every field of `BRIEF_FROM_ANSWERS_JSON_SCHEMA` is required and empty
+  means "nothing said"**: optional properties made the structured-output endpoint answer `400
+  Schema is too complex` after two minutes, which only a real call finds. After applying, the
+  panel names the fields still empty (`emptyBriefFields`). The model is asked for hours as a list `[{day, open, close}]`: a
+  structured decoder writes object keys in schema order, and a `{mon..sun}` record lost
+  every day before the first one said. A number said without its country code is read as a
+  national number of the workspace country (`spokenNumber`; ADR 0044's rule is for typed
+  entries, and a `+` number is never re-read). The portal lays the patch over the form with
+  `applyBriefAnswers` (text replaces, lists are added to — a second send replaces what the first added, `GuidedAdditions` — hours are set per day and keep zone and closed dates)
+  through `form.setValue`, so the ordinary autosave stores it; Undo restores the values
+  from before. Speech is `src/wizard/speech-capture.ts`: nothing asked before "Start
+  speaking", cancelled on unmount / `pagehide` / close / switching to Type / a generation
+  starting, stopped when the tab hides, never offered in Firefox (`speechSupported`).
+  Answers in progress live in `sessionStorage` per agent. The scripted provider lays each
+  answer into its field by fixed rules, with no key. Exit check:
+  `pnpm --filter @portal/web e2e:guided-brief` (the `e2e:wizard` stack; `GUIDED_SCRIPTED=1`
+  for exact fields against a scripted API).
 - **A hand-off rule carries its own payload** (`handoffRule` in `@portal/schemas`, W2 #9):
   `transfer` needs `transfer_number`, `read_message` needs `message` (non-blank, ≤ 500
   chars) — refused by the schema, so the draft PATCH answers 422 and the autosave holds
@@ -664,11 +694,13 @@ job settles.
   voice's** gender (`voices.gender`) and "say a phone number one digit at a time, as words"
   are `languageBlock()` (`modules/prompting/dialects.ts`), appended by `runtimePrompt` after
   the documents and before the §9.4 block — never stored, like the documents;
-  `dialectSection()` puts the dialect in the generation and feedback turns. Gulf voices are
+  `dialectSection()` puts the dialect in the generation and feedback turns. Gulf voices, and
+  since 17 Nov the four Québécois French voices for fr-CA agents (ADR 0027 addendum), are
   `CURATED_VOICES` (`modules/voices/curated-voices.ts`), added per platform workspace by
   `pnpm --filter @portal/api voices:import` and **recognised by their platform name** (the
   platform lists them as `custom_voice_<workspace>` with no gender or accent); their clips
-  are filed under `curated:<key>`. `captured-phones.ts` reads Eastern Arabic numerals and
+  are filed under `curated:<key>`. They are ElevenLabs voices, so the tier rule makes them
+  Premium. `captured-phones.ts` reads Eastern Arabic numerals and
   Arabic digit words. Saudi is ready; **UAE is not sold** until Emirati phone numbers
   transcribe (`pnpm --filter @portal/api proof:arabic`, ADR 0027 Consequences).
 - **`language: "multi"` means Retell's fixed ten, not the customer's languages**, and fr-CA
@@ -1665,6 +1697,7 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `fwdtest:{e164}`             | the "Test forwarding" ringing for a number, `SET NX` 90 s — the lease and the inbound path's cue (D17, ADR 0029)        |
 | `ratelimit:fwd-test:{number}` | forwarding tests this hour, per number (D17)                                                                           |
 | `ratelimit:data-export:{ws}` | D6 "Export all data" zips this hour, 5 max (ADR 0032)                                                                    |
+| `ratelimit:brief-answers:{ws}` | W2 guided answers sent to the generation model this hour, 30 max (ADR 0047)                                          |
 | `ratelimit:verify-email:{user}` / `…:{hour}` | A2 "Resend": the 60 s cooldown (value = when it started) / sends in one clock hour, 5 max (ADR 0036) |
 | `ratelimit:widget:{key}` / `ratelimit:widget-ip:{key}:{ip}` | website widget calls per widget per hour / per visitor address per 10 min (D17)          |
 
@@ -1785,6 +1818,11 @@ throws and never waits past its budget (ADR 0010 §6).
   `BAD_REQUEST`, `DOCUMENT_UNREADABLE`, `VALIDATION_FAILED`, and for a photo
   `GENERATION_PAUSED`, `UPSTREAM_UNAVAILABLE`, `NOT_CONFIGURED`). Stateless — the text
   goes into the brief.
+- ADR 0047 route: `POST /agents/:id/brief/from-answers` (owner/admin/editor, verified email, tag
+  `prompting`, `briefFromAnswersRequest` → `briefFromAnswersResponse` = `{brief: briefPatch}`, 200;
+  `NOT_FOUND`, `VALIDATION_FAILED`, `EMAIL_UNVERIFIED`, `WORKSPACE_PAUSED`, `GENERATION_PAUSED`,
+  `RATE_LIMITED`, `UPSTREAM_UNAVAILABLE`, `NOT_CONFIGURED`). Stateless — an answer with nothing
+  usable is `{brief: {}}`, not an error.
 - D16 routes: `POST /numbers/:id/sip/verify` (owner/admin, `sipVerifyRequest` → the number, with
   `sip.verification`; `NOT_SIP_NUMBER`, `SIP_VERIFY_IN_PROGRESS`, `RATE_LIMITED`),
   `GET /agents/:id/knowledge/stats?days=7|30|90` (any role). `callDetail` gained `transfer` and

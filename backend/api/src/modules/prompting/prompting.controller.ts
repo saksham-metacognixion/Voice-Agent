@@ -1,7 +1,9 @@
 import { Body, Controller, HttpCode, Param, Post } from '@nestjs/common';
 import {
   type AcceptedJob,
+  type BriefFromAnswersResponse,
   type ExtractDocumentResponse,
+  briefFromAnswersRequest,
   extractDocumentRequest,
   feedbackRequest,
   generateRequest,
@@ -52,6 +54,23 @@ export class PromptingController {
     @Body() body: unknown,
   ): Promise<ExtractDocumentResponse> {
     return this.prompting.extractDocument(ctx, agentId(id), extractDocumentRequest.parse(body));
+  }
+
+  /**
+   * ADR 0047 — the W2 guided answers (spoken or typed) in, a validated brief patch out.
+   * Synchronous and stateless like the document route; verified email because it is a
+   * model call, like Generate.
+   */
+  @Post(':id/brief/from-answers')
+  @HttpCode(200)
+  @Roles('owner', 'admin', 'editor')
+  @RequireEmailVerified()
+  briefFromAnswers(
+    @Ctx() ctx: WorkspaceContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ): Promise<BriefFromAnswersResponse> {
+    return this.prompting.briefFromAnswers(ctx, agentId(id), briefFromAnswersRequest.parse(body));
   }
 
   /** §13.5 — plain-language improvement, `source=feedback`. */

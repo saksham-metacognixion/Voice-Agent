@@ -1,4 +1,4 @@
-import type { GeneratedPatch, GeneratedPrompt } from '@portal/schemas';
+import type { BriefPatch, GeneratedPatch, GeneratedPrompt, GuidedQuestionId } from '@portal/schemas';
 
 /**
  * The provider seam ADR 0009 asks for: `PromptingService → PromptProvider → AnthropicProvider`.
@@ -29,6 +29,18 @@ export interface PromptProvider {
    * other two: nothing here is ever in the call path.
    */
   transcribeImage(request: ImageTranscriptionRequest): Promise<ProviderResult<string>>;
+  /**
+   * ADR 0047 — the W2 guided answers, spoken or typed, as a brief patch. The answer passes
+   * `modelBriefPatch` (repair, then `briefPatch`) before it is returned. Build time only.
+   */
+  briefFromAnswers(request: BriefAnswersRequest): Promise<ProviderResult<BriefPatch>>;
+}
+
+export interface BriefAnswersRequest extends ProviderRequest {
+  /** The questions that were answered; only their fields may come back. */
+  answered: readonly GuidedQuestionId[];
+  /** The workspace country, to read a phone number said without its country code. */
+  country?: string | null;
 }
 
 export interface ImageTranscriptionRequest {

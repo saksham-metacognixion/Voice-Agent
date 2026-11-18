@@ -849,7 +849,134 @@
         "keepsFeedback": "Feedback you gave on test calls is kept.",
         "replacesEdits": "Edits made to the script by hand are replaced."
       },
-      "stepSaveToast": "Your script is saved, but your progress could not be recorded. Press Continue to try again."
+      "stepSaveToast": "Your script is saved, but your progress could not be recorded. Press Continue to try again.",
+      "guided": {
+        "title": "Rather answer a few questions?",
+        "body": "{total} short questions about your business. Speak or type your answers and we fill in the form below, ready for you to check.",
+        "speak": "Speak my answers",
+        "type": "Type my answers",
+        "resume": "Your earlier answers are saved. Carry on where you stopped.",
+        "micNote": "Your browser asks to use your microphone when you start speaking. It turns what you say into text that you can correct.",
+        "typeOnly": "Speaking your answers works in Chrome, Edge and Safari. In this browser you can type them.",
+        "progress": "Question {n} of {total}",
+        "mode": {
+          "label": "How you answer",
+          "speak": "Speak",
+          "type": "Type"
+        },
+        "close": "Close the questions",
+        "answer": "Your answer",
+        "answerPlaceholder": "Type your answer here",
+        "heard": "What we heard",
+        "heardHint": "Correct anything we got wrong before you go on.",
+        "heardPlaceholder": "Your words appear here as you speak",
+        "skip": "Skip this question",
+        "previous": "Previous question",
+        "toReview": "Check my answers",
+        "backToReview": "Back to my answers",
+        "questions": {
+          "business": {
+            "label": "Your business",
+            "title": "What is your business called, and what does it do?",
+            "hint": "The name, the kind of business, who you serve and your address."
+          },
+          "role": {
+            "label": "The agent’s job",
+            "title": "What should your agent do on a call?",
+            "hint": "Its main jobs, like booking appointments, answering questions or taking messages. Add a name for it if you have one."
+          },
+          "hours": {
+            "label": "Opening hours",
+            "title": "When are you open?",
+            "hint": "Your opening days and times. Say if they change from day to day."
+          },
+          "services": {
+            "label": "What you offer",
+            "title": "What do you offer?",
+            "hint": "The services or products callers ask about."
+          },
+          "pricing": {
+            "label": "Prices",
+            "title": "What should callers know about your prices?",
+            "hint": "Prices, packages and anything that changes what a caller pays."
+          },
+          "restrictions": {
+            "label": "Never say or do",
+            "title": "Is there anything your agent must never say, promise or do?",
+            "hint": "For example quoting prices, giving medical advice or promising a time."
+          },
+          "handoff": {
+            "label": "Passing to a person",
+            "title": "When should your agent pass a caller to a person?",
+            "hint": "The situations, and who to reach. Give a phone number with its area code if calls should be transferred."
+          },
+          "extra": {
+            "label": "Anything else",
+            "title": "Is there anything else your agent should know?",
+            "hint": "Parking, directions, busy seasons, and questions callers often ask with your answers."
+          }
+        },
+        "speech": {
+          "start": "Start speaking",
+          "more": "Add more by speaking",
+          "stop": "Stop",
+          "again": "Record again",
+          "idle": "Press Start speaking, then answer out loud.",
+          "idleAnswered": "Check the text below. You can edit it, add more by speaking, or record it again.",
+          "starting": "Allow the microphone when your browser asks.",
+          "listening": "Listening. Press Stop when you have finished.",
+          "processing": "Finishing what you said…",
+          "typeInstead": "Type this answer",
+          "errors": {
+            "denied": "You can also type this answer.",
+            "no_speech": {
+              "title": "We did not hear anything",
+              "body": "Check that your microphone is on and not muted, then try again."
+            },
+            "no_microphone": {
+              "title": "No microphone found",
+              "body": "Connect a microphone or headset, then try again. You can also type this answer."
+            },
+            "network": {
+              "title": "Your speech could not be turned into text",
+              "body": "Your browser needs an internet connection for this. Try again, or type this answer."
+            },
+            "unavailable": {
+              "title": "Speaking is not available in this browser",
+              "body": "Speech recognition is switched off in your browser. Type your answers instead."
+            },
+            "failed": {
+              "title": "The recording stopped",
+              "body": "Something went wrong while listening. Try again, or type this answer."
+            },
+            "deniedRetry": "Reload the page and press Start speaking again. Your answers are kept."
+          }
+        },
+        "review": {
+          "title": "Check your answers",
+          "body": "Edit anything that is not right. A skipped question leaves that part of your brief as it is.",
+          "skipped": "Skipped",
+          "edit": "Edit",
+          "editLabel": "Edit: {question}",
+          "submit": "Fill in my brief",
+          "sending": "Reading your answers…",
+          "none": "Answer at least one question to fill in your brief.",
+          "emptyTitle": "Nothing to add yet",
+          "emptyBody": "We could not find anything new to add from those answers. Add a little more detail, or fill in the form below.",
+          "failedTitle": "We could not read your answers",
+          "unavailable": "Your answers are still here. Try again in a moment, or fill in the form below.",
+          "rateLimited": "You have sent your answers many times this hour. Fill in the form below, or try again later.",
+          "back": "Back to the questions"
+        },
+        "done": {
+          "title": "Your brief is filled in",
+          "body": "We updated: {fields}. Check each one below and edit anything that is off before you generate.",
+          "stillEmpty": "Still empty: {fields}. Add them in the form below if your agent needs them.",
+          "undo": "Undo",
+          "again": "Answer the questions again",
+          "undone": "Your brief is back to how it was."
+        }
+      }
     },
     "w3": {
       "title": "Choose a voice and languages",

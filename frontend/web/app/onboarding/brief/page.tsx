@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useApi, useGetAgent } from '@portal/api-client';
-import { brief as briefSchema, briefReadyForGeneration, type AgentSummary, type Brief } from '@portal/schemas';
+import { applyBriefAnswers, emptyBriefFields, brief as briefSchema, briefReadyForGeneration, type AgentSummary, type Brief, type BriefPatch, type GuidedAdditions, type GuidedBriefField } from '@portal/schemas';
 import { Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, PageLoader, toast } from '@portal/ui';
 import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ import { PromptTab } from '@/src/components/dashboard/agent/prompt-tab';
 import { BriefCard } from '@/src/components/wizard/brief-card';
 import { BriefFields, SaveIndicator, storableBrief } from '@/src/components/wizard/brief-form';
 import { GeneratePanel } from '@/src/components/wizard/generate-panel';
+import { GuidedBrief, type GuidedApplyResult } from '@/src/components/wizard/guided-brief';
 import { AgentContextBanner, useBriefPlaceholders } from '@/src/components/wizard/template-context';
 import { useWizardExit } from '@/src/components/wizard/wizard-exit';
 import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shell';
@@ -35,6 +36,10 @@ import { useGeneration } from '@/src/wizard/use-generation';
  * be read and edited like a document on the first screen, without leaving the wizard.
  * A save there is the same `PUT …/versions/:v/prompt` (a new immutable version); Continue
  * waits while the editor holds unsaved edits.
+ *
+ * "Speak or type" (ADR 0047) sits above the form: eight guided questions whose answers
+ * are laid over these same fields (`applyBriefAnswers`), saved by the same autosave, and
+ * checked by the customer before Generate. It never generates anything itself.
  *
  * Back, Continue and "Save and exit" are the shell's (§7.3): Continue sits in the footer
  * and is enabled only after a successful Generate; "Save and exit" flushes the autosave
@@ -97,6 +102,37 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
     return () => sub.unsubscribe();
   }, [form, autosave]);
 
+  // The guided answers write into the form like typing does, so the watch above autosaves them.
+  const beforeGuided = React.useRef<{ values: Brief; fields: GuidedBriefField[]; added: GuidedAdditions | null } | null>(null);
+  // What the last apply added to the lists, so sending the answers again replaces it instead of adding beside it.
+  const guidedAdded = React.useRef<GuidedAdditions | null>(null);
+  const [guidedSending, setGuidedSending] = React.useState(false);
+  const setFields = React.useCallback(
+    (source: Brief, fields: GuidedBriefField[]) => {
+      for (const field of fields) form.setValue(field, source[field] as never, { shouldDirty: true, shouldValidate: true });
+    },
+    [form],
+  );
+  const applyGuided = React.useCallback(
+    (patch: BriefPatch): GuidedApplyResult => {
+      const current = structuredClone(form.getValues());
+      const { brief: next, changed, added } = applyBriefAnswers(current, patch, guidedAdded.current ?? undefined);
+      if (changed.length === 0) return { changed, empty: [] };
+      beforeGuided.current = { values: current, fields: changed, added: guidedAdded.current };
+      guidedAdded.current = added;
+      setFields(next, changed);
+      return { changed, empty: emptyBriefFields(next) };
+    },
+    [form, setFields],
+  );
+  const undoGuided = React.useCallback(() => {
+    const before = beforeGuided.current;
+    if (!before) return;
+    beforeGuided.current = null;
+    guidedAdded.current = before.added;
+    setFields(before.values, before.fields);
+  }, [setFields]);
+
   const ready = briefReadyForGeneration.safeParse(values).success;
   const readyTracked = React.useRef(false);
   React.useEffect(() => {
@@ -107,6 +143,7 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
   }, [ready, agentId]);
 
   async function generate(mode: 'generate' | 'regenerate') {
+    if (guidedSending) return;
     setGenError(null);
     const valid = await form.trigger();
     if (!valid) {
@@ -174,6 +211,7 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
         }
         aside={<SaveIndicator state={autosave.state} error={autosave.error} onRetry={autosave.retry} />}
       />
+      <GuidedBrief agentId={agentId} disabled={busy} onApply={applyGuided} onUndo={undoGuided} onSendingChange={setGuidedSending} className="mb-8" />
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
         <BriefFields form={form} busy={busy} fieldErrors={autosave.fieldErrors} placeholders={placeholders} agentId={agentId} />
         <aside className="flex flex-col gap-4 lg:sticky lg:top-24 lg:self-start">
@@ -183,6 +221,7 @@ function BriefForm({ agentId, initial, context }: { agentId: string; initial: Br
             slow={generation.slow}
             ready={ready}
             saving={autosave.state === 'saving'}
+            blocked={guidedSending}
             onGenerate={generate}
             onEditScript={hasScript ? openScript : undefined}
             error={genError}

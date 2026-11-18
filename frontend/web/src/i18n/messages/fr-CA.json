@@ -849,7 +849,134 @@
         "keepsFeedback": "Les commentaires donnés lors des appels de test sont conservés.",
         "replacesEdits": "Les modifications faites à la main dans le script sont remplacées."
       },
-      "stepSaveToast": "Votre script est enregistré, mais votre progression n’a pas pu l’être. Appuyez sur Continuer pour réessayer."
+      "stepSaveToast": "Votre script est enregistré, mais votre progression n’a pas pu l’être. Appuyez sur Continuer pour réessayer.",
+      "guided": {
+        "title": "Vous préférez répondre à quelques questions?",
+        "body": "{total} courtes questions sur votre entreprise. Dites ou tapez vos réponses et nous remplissons le formulaire ci-dessous, que vous pourrez ensuite vérifier.",
+        "speak": "Dire mes réponses",
+        "type": "Taper mes réponses",
+        "resume": "Vos réponses précédentes sont enregistrées. Reprenez là où vous vous êtes arrêté.",
+        "micNote": "Votre navigateur vous demandera l’accès à votre microphone quand vous commencerez à parler. Il transforme vos paroles en texte, que vous pouvez corriger.",
+        "typeOnly": "Les réponses à voix haute fonctionnent dans Chrome, Edge et Safari. Dans ce navigateur, vous pouvez les taper.",
+        "progress": "Question {n} sur {total}",
+        "mode": {
+          "label": "Façon de répondre",
+          "speak": "Parler",
+          "type": "Taper"
+        },
+        "close": "Fermer les questions",
+        "answer": "Votre réponse",
+        "answerPlaceholder": "Tapez votre réponse ici",
+        "heard": "Ce que nous avons entendu",
+        "heardHint": "Corrigez ce que nous avons mal compris avant de continuer.",
+        "heardPlaceholder": "Vos paroles s’affichent ici pendant que vous parlez",
+        "skip": "Passer cette question",
+        "previous": "Question précédente",
+        "toReview": "Vérifier mes réponses",
+        "backToReview": "Revenir à mes réponses",
+        "questions": {
+          "business": {
+            "label": "Votre entreprise",
+            "title": "Comment s’appelle votre entreprise et que fait-elle?",
+            "hint": "Le nom, le type d’entreprise, votre clientèle et votre adresse."
+          },
+          "role": {
+            "label": "Le rôle de l’agent",
+            "title": "Que doit faire votre agent pendant un appel?",
+            "hint": "Ses tâches principales, comme prendre des rendez-vous, répondre aux questions ou prendre des messages. Donnez-lui un nom si vous en avez un."
+          },
+          "hours": {
+            "label": "Heures d’ouverture",
+            "title": "Quand êtes-vous ouvert?",
+            "hint": "Vos jours et vos heures d’ouverture. Précisez s’ils changent d’un jour à l’autre."
+          },
+          "services": {
+            "label": "Ce que vous offrez",
+            "title": "Qu’offrez-vous?",
+            "hint": "Les services ou les produits au sujet desquels on vous appelle."
+          },
+          "pricing": {
+            "label": "Prix",
+            "title": "Que doivent savoir les appelants au sujet de vos prix?",
+            "hint": "Les prix, les forfaits et tout ce qui change le montant à payer."
+          },
+          "restrictions": {
+            "label": "À ne jamais dire ni faire",
+            "title": "Y a-t-il quelque chose que votre agent ne doit jamais dire, promettre ou faire?",
+            "hint": "Par exemple donner des prix, donner un avis médical ou promettre une heure."
+          },
+          "handoff": {
+            "label": "Passer le relais",
+            "title": "Quand votre agent doit-il passer l’appel à une personne?",
+            "hint": "Les situations et la personne à joindre. Donnez un numéro de téléphone avec son indicatif régional si les appels doivent être transférés."
+          },
+          "extra": {
+            "label": "Autre chose",
+            "title": "Y a-t-il autre chose que votre agent devrait savoir?",
+            "hint": "Le stationnement, le chemin pour se rendre, les périodes occupées, et les questions fréquentes des appelants avec vos réponses."
+          }
+        },
+        "speech": {
+          "start": "Commencer à parler",
+          "more": "Ajouter en parlant",
+          "stop": "Arrêter",
+          "again": "Recommencer l’enregistrement",
+          "idle": "Appuyez sur Commencer à parler, puis répondez à voix haute.",
+          "idleAnswered": "Vérifiez le texte ci-dessous. Vous pouvez le modifier, en ajouter en parlant ou recommencer l’enregistrement.",
+          "starting": "Autorisez le microphone lorsque votre navigateur le demande.",
+          "listening": "À l’écoute. Appuyez sur Arrêter quand vous avez terminé.",
+          "processing": "Nous terminons ce que vous avez dit…",
+          "typeInstead": "Taper cette réponse",
+          "errors": {
+            "denied": "Vous pouvez aussi taper cette réponse.",
+            "no_speech": {
+              "title": "Nous n’avons rien entendu",
+              "body": "Vérifiez que votre microphone est allumé et que le son n’est pas coupé, puis réessayez."
+            },
+            "no_microphone": {
+              "title": "Aucun microphone détecté",
+              "body": "Branchez un microphone ou un casque d’écoute, puis réessayez. Vous pouvez aussi taper cette réponse."
+            },
+            "network": {
+              "title": "Vos paroles n’ont pas pu être transformées en texte",
+              "body": "Votre navigateur a besoin d’une connexion Internet pour le faire. Réessayez ou tapez cette réponse."
+            },
+            "unavailable": {
+              "title": "Les réponses à voix haute ne sont pas offertes dans ce navigateur",
+              "body": "La reconnaissance vocale est désactivée dans votre navigateur. Tapez plutôt vos réponses."
+            },
+            "failed": {
+              "title": "L’enregistrement s’est arrêté",
+              "body": "Un problème est survenu pendant l’écoute. Réessayez ou tapez cette réponse."
+            },
+            "deniedRetry": "Rechargez la page et appuyez de nouveau sur Commencer à parler. Vos réponses sont conservées."
+          }
+        },
+        "review": {
+          "title": "Vérifiez vos réponses",
+          "body": "Modifiez ce qui n’est pas exact. Une question passée laisse cette partie de votre fiche telle quelle.",
+          "skipped": "Passée",
+          "edit": "Modifier",
+          "editLabel": "Modifier : {question}",
+          "submit": "Remplir ma fiche",
+          "sending": "Lecture de vos réponses…",
+          "none": "Répondez à au moins une question pour remplir votre fiche.",
+          "emptyTitle": "Rien à ajouter pour l’instant",
+          "emptyBody": "Nous n’avons rien trouvé de nouveau à ajouter dans ces réponses. Donnez un peu plus de détails ou remplissez le formulaire ci-dessous.",
+          "failedTitle": "Nous n’avons pas pu lire vos réponses",
+          "unavailable": "Vos réponses sont toujours là. Réessayez dans un instant ou remplissez le formulaire ci-dessous.",
+          "rateLimited": "Vous avez envoyé vos réponses plusieurs fois au cours de la dernière heure. Remplissez le formulaire ci-dessous ou réessayez plus tard.",
+          "back": "Retour aux questions"
+        },
+        "done": {
+          "title": "Votre fiche est remplie",
+          "body": "Nous avons mis à jour : {fields}. Vérifiez chaque champ ci-dessous et corrigez ce qui ne convient pas avant de générer.",
+          "stillEmpty": "Encore vides : {fields}. Ajoutez-les dans le formulaire ci-dessous si votre agent en a besoin.",
+          "undo": "Annuler",
+          "again": "Répondre de nouveau aux questions",
+          "undone": "Votre fiche est revenue à son état précédent."
+        }
+      }
     },
     "w3": {
       "title": "Choisir une voix et des langues",

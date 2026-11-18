@@ -1,0 +1,125 @@
+PASS reached W2 with a new agent — /onboarding/brief/
+PASS chooser sits at the top of W2, above the form
+PASS chooser offers Speak and Type
+PASS chooser says when the microphone is asked for
+PASS no microphone or recogniser is touched before the customer starts
+PASS Type opens question 1 of 8 — Question 1 of 8
+PASS the answer box takes the focus and is named by the question
+PASS an empty answer can be skipped
+PASS a typed answer turns Skip into Next
+PASS Next moves to question 2
+PASS Back shows question 1 with its answer intact
+PASS forward again, question 2 kept its answer
+PASS asked the eight topics in order, one at a time — ["What should your agent do on a call?","When are you open?","What do you offer?","What should callers know about your prices?","Is there anything your agent must never say, promise or do?","When should your agent pass a caller to a person?","Is there anything else your agent should know?"]
+PASS after question 8 comes the review
+PASS review lists all eight questions, the skipped one marked — "Prices | Skipped | Edit"
+PASS Edit opens that question with its answer
+PASS an edited answer returns to the review, changed
+PASS answers in progress survive a reload
+PASS resuming opens the first unanswered question — Question 5 of 8
+PASS a failed request is explained and the answers stay — review / Try again / We could not read your answers
+
+We could not reach the server. Check your connection and try again.
+PASS the answers fill the W2 form
+PASS answers land in the W2 fields — {"address":"12 King Street West, Toronto","agent":"Maya","faqQ":"Do you take walk-ins?","faqA":"Yes, before noon.","stillEmpty":"Still empty: Pricing. Add them in the form below if your agent needs them.","about":"We are Bright Smile Dental, a family dental practice in Toronto with three dentists.",
+PASS a hand-off number is stored in E.164 — +14165550134
+PASS address, agent name and an FAQ are filled from the answers — ["12 King Street West, Toronto","Maya","Do you take walk-ins?","Yes, before noon."]
+PASS the result names the fields still empty: the skipped prices, not the filled ones — Still empty: Pricing. Add them in the form below if your agent needs them.
+PASS fields no question asked about are untouched — {"presets":"true","rule0":"The caller says it is urgent or an emergency"}
+PASS the result names the fields that changed and nothing is generated
+PASS the result takes the focus
+PASS the existing autosave stores it
+PASS the filled brief, and a hand edit to it, are there after a reload
+PASS Undo restores what the form held — Book check-ups and cleanings, and take a message when someone needs the dentist. → Book check-ups and cleanings, and take a message when someone needs the dentist. Offer the next free slot first.
+PASS Speak opens the same questions — Question 5 of 8
+PASS choosing Speak does not open the microphone
+PASS Speak is on the prices question (skipped before) — Question 5 of 8
+PASS Start asks the browser and shows listening
+PASS the question stays on screen while recording
+PASS Next and Back wait while the microphone is on
+PASS words in flight are shown as they are recognised
+PASS a recognised phrase becomes text in the answer
+PASS Stop ends the recording and releases the microphone — start>stop
+PASS recognised text can be corrected by hand
+PASS speaking again adds to the corrected text
+PASS Record again clears the answer and listens
+PASS switching to Type stops the microphone and keeps the words — start>stop | start>stop | start>abort
+PASS closing the questions stops the microphone — start>stop | start>stop | start>abort | start>abort
+PASS leaving the page stops the microphone — start>stop | start>stop | start>abort | start>abort | start>abort
+PASS a denied microphone shows the steps for this browser and a way to type — idle / Question 7 of 8
+
+Speak
+Type
+When should your agent pass a caller to a person?
+
+The situations, and who to reach. Give a phone number with its area code if calls should be transferred.
+
+Start speaking
+
+Press Start speaking, then answer out loud.
+
+Microphone blocked
+
+Allow microphone access for this site in your browser's address bar, then try again.
+
+In Chrome
+
+Click the icon at the left of the add
+PASS "audio-capture" is explained (no_microphone) — No microphone found
+
+Connect a microphone or headset, then try again. You can also type this answer.
+Type this answer
+PASS "no-speech" is explained (no_speech) — We did not hear anything
+
+Check that your microphone is on and not muted, then try again.
+PASS "network" is explained (network) — Your speech could not be turned into text
+
+Your browser needs an internet connection for this. Try again, or type this answer.
+Type this answer
+PASS "service-not-allowed" is explained (unavailable) — Speaking is not available in this browser
+
+Speech recognition is switched off in your browser. Type your answers instead.
+Type this answer
+PASS a new try clears the error and listens
+PASS Speak ends at the same review as Type
+PASS a spoken answer fills its field in the same form — Cleanings are 150 dollars and whitening is 300.
+PASS Generate is still the customer’s button
+PASS Generate runs from the confirmed brief
+PASS the questions are locked while a script is written
+PASS generation completes
+PASS Continue opens once the script exists
+PASS Firefox: no Speak button, Type is the one action
+PASS Firefox: the note says where speaking works
+PASS Firefox: the questions open with no Speak switch and no microphone button
+PASS Firefox with a flagged recogniser is still Type only
+PASS ar: page language and direction — ar rtl
+PASS ar: chooser is translated — هل تفضّل الإجابة عن بضعة أسئلة؟
+
+8 أسئلة قصيرة عن نشاطك التجاري. قل إجاباتك أو ا
+PASS ar: no English left in any phase, error or placeholder
+PASS ar: an answer in that language is kept as typed
+PASS ar: the review reads right to left (label at the right, Edit at the left) — {"labelRight":1247,"editLeft":193,"editRight":247}
+PASS ar: an Arabic answer in the box is right-aligned text
+PASS ar: the result is translated — تم ملء الموجز
+
+حدّثنا: عن نشاطك التجاري. راجع كل حقل أدناه وعدّل ما يلزم قبل الإنشاء.
+تراجع
+أجب عن الأسئلة من جديد
+PASS ar: no sideways scroll at 390 px in any phase
+PASS ar: controls are finger-sized at 390 px — []
+PASS fr-CA: page language and direction — fr-CA ltr
+PASS fr-CA: chooser is translated — Vous préférez répondre à quelques questions?
+
+8 courtes questions sur votre entr
+PASS fr-CA: no English left in any phase, error or placeholder
+PASS fr-CA: an answer in that language is kept as typed
+PASS fr-CA: the result is translated — Votre fiche est remplie
+
+Nous avons mis à jour : À propos de votre entreprise. Vérifiez chaque champ ci-dessous et corri
+PASS fr-CA: no sideways scroll at 390 px in any phase
+PASS fr-CA: controls are finger-sized at 390 px — []
+PASS en: no sideways scroll at 390 px
+PASS dark theme: the panel is on a dark surface with light text
+PASS native recogniser: Start ends in listening or a handled error, never a dead control — {"status":"listening","failure":null}
+PASS native recogniser: Stop returns to idle
+PASS no console errors on the way

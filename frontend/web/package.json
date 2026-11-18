@@ -14,7 +14,8 @@
     "e2e:dashboard": "node scripts/e2e-dashboard.mjs",
     "e2e:dashboard-d11": "node scripts/e2e-dashboard-d11.mjs",
     "e2e:auth-d20": "node scripts/e2e-auth-d20.mjs",
-    "e2e:restaurant": "node scripts/e2e-restaurant.mjs"
+    "e2e:restaurant": "node scripts/e2e-restaurant.mjs",
+    "e2e:guided-brief": "node scripts/e2e-guided-brief.mjs"
   },
   "dependencies": {
     "@auth0/auth0-spa-js": "^2.27.0",
