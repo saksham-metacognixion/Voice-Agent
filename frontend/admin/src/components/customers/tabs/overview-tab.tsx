@@ -102,7 +102,10 @@ export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
               <Fact label="Balance">{formatCredits(c.balance)} credits</Fact>
               <Fact label="Last pack">{c.last_pack_credits === null ? '–' : `${formatCredits(c.last_pack_credits)} credits`}</Fact>
               <Fact label="Paid purchases">{c.purchases_paid}</Fact>
-              <Fact label="Lifetime sales">{formatCents(c.lifetime_sales_cents, c.currency)}</Fact>
+              <Fact label="Lifetime sales" wrap>
+                {/* Each currency on its own: a purchase keeps the currency it was charged in. */}
+                {c.lifetime_sales.length ? c.lifetime_sales.map((s) => formatCents(s.amount_cents, s.currency)).join(' · ') : formatCents(0, c.currency)}
+              </Fact>
               <Fact label="Currency" wrap>
                 {c.currency}
                 <span className="font-normal text-muted-foreground">{c.currency_locked ? ' · locked by a purchase' : ' · customer can change'}</span>

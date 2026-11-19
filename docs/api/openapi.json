@@ -1992,6 +1992,29 @@
             "nullable": true,
             "type": "number"
           },
+          "lifetime_sales": {
+            "default": [],
+            "items": {
+              "properties": {
+                "amount_cents": {
+                  "type": "integer"
+                },
+                "currency": {
+                  "enum": [
+                    "USD",
+                    "CAD"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "currency",
+                "amount_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
           "lifetime_sales_cents": {
             "type": "integer"
           },

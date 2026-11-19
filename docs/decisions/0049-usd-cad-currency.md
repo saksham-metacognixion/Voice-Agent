@@ -230,3 +230,7 @@ Ten defects found in review of this change before it was committed. The rules th
 - Both are pinned by `modules/billing/stripe-checkout-session.test.ts` (5 cases).
 - **An auto top-up has no Stripe invoice.** It is an off-session PaymentIntent, so the wallet's Invoices
   list shows Checkout purchases only; the top-up is in Credit history. Unchanged, noted for QA.
+- **Sales in the console are per currency charged.** `adminCustomerDetail.lifetime_sales` is one row per
+  currency; `lifetime_sales_cents` counts the workspace's current currency only. The single sum was
+  printed in the workspace's currency, so sales made before a staff currency change were shown, and
+  would have been added, in the wrong one.

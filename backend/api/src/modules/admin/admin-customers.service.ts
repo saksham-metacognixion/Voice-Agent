@@ -22,7 +22,7 @@ import type {
   RemovedResponse,
   StaffActionRequest,
 } from '@portal/schemas';
-import { workspaceCurrency } from '@portal/schemas';
+import { type CurrencyCode, storedCurrency, workspaceCurrency } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, decodeCursor, encodeCursor, toPage } from '../../common/pagination';
 import type { StaffContext } from '../auth';
@@ -160,7 +160,8 @@ export class AdminCustomersService {
       adminDb.membership.count({ where: { tenantId: id } }),
       adminDb.call.count({ where: { tenantId: id, createdAt: { gte: d30 } } }),
       adminDb.purchase.count({ where: { tenantId: id, status: 'paid' } }),
-      adminDb.purchase.aggregate({
+      adminDb.purchase.groupBy({
+        by: ['currency'],
         where: { tenantId: id, status: 'paid' },
         _sum: { amountCents: true },
       }),
@@ -171,6 +172,13 @@ export class AdminCustomersService {
       adminDb.purchase.count({ where: { tenantId: id, status: { in: ['paid', 'refunded'] } } }),
     ]);
     const autoTopup = record(tenant.autoTopupJson);
+    const currency = workspaceCurrency(tenant.currency);
+    // Per currency charged: a purchase keeps its currency when staff change the workspace's.
+    const salesByCurrency = new Map<CurrencyCode, number>();
+    for (const row of sales) {
+      const code = storedCurrency(row.currency);
+      if (code) salesByCurrency.set(code, (salesByCurrency.get(code) ?? 0) + (row._sum.amountCents ?? 0));
+    }
     return {
       ...this.summary(tenant, facts),
       timezone: tenant.timezone,
@@ -178,14 +186,15 @@ export class AdminCustomersService {
       concurrency_cap: tenant.concurrencyCap,
       kb_allowance: tenant.kbAllowance,
       stripe_customer_id: tenant.stripeCustomerId,
-      currency: workspaceCurrency(tenant.currency),
+      currency,
       currency_locked: everPaid > 0,
       paused_at: iso(tenant.pausedAt),
       auto_topup_enabled: autoTopup.enabled === true,
       members,
       calls_30d: calls30d,
       purchases_paid: purchases,
-      lifetime_sales_cents: sales._sum.amountCents ?? 0,
+      lifetime_sales_cents: salesByCurrency.get(currency) ?? 0,
+      lifetime_sales: [...salesByCurrency].map(([code, amount_cents]) => ({ currency: code, amount_cents })).sort((a, b) => a.currency.localeCompare(b.currency)),
       overrides: tenant.overrides
         ? {
             concurrency_cap: tenant.overrides.concurrencyCap,

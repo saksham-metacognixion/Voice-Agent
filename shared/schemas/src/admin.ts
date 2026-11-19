@@ -223,7 +223,13 @@ export const adminCustomerDetail = adminCustomerSummary.extend({
   members: z.number().int(),
   calls_30d: z.number().int(),
   purchases_paid: z.number().int(),
+  /** Paid purchases in the workspace's current currency only. Other currencies are in `lifetime_sales`. */
   lifetime_sales_cents: z.number().int(),
+  /**
+   * Paid purchases per currency they were charged in (ADR 0049). A workspace staff moved to
+   * another currency has sales in both, and two currencies are never added together.
+   */
+  lifetime_sales: z.array(z.object({ currency: currencyCode, amount_cents: z.number().int() })).default([]),
   overrides: adminOverrides.nullable(),
   open_alerts: z.number().int(),
   /** Open impersonation sessions on this workspace, any staff member. */

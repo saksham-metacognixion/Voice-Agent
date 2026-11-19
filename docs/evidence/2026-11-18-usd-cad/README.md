@@ -203,3 +203,36 @@ uploaded and deployed as version 10 through the Management API, that one Action 
 
 Still owed on the tenant: the deploy application lacks `read:log_streams`, so the full tenant deploy
 (and with it the `portal-audit` log stream of ADR 0036 §9) has not been applied from the repo.
+
+### Calls and number rental on staging (19 Nov, build 4668519)
+
+| Check | Result |
+| --- | --- |
+| Browser test call in the CAD business | 27 seconds, 0.45 credits (1 credit a minute), ledger row "Call" |
+| Go-live asking for 416, first attempt (build 82aeb3c) | Failed: no 416 at the first carrier, the second answered `400 Unsupported country for phone number` and the walk stopped (ADR 0013, addendum of 19 Nov) |
+| "Try again" after the fix | Live in 13 seconds on +1 437 747 2596; the live page says 416 was not available and 437 was chosen |
+| First month of number rental | −15 credits at go-live, 328.12 → 313.12, ledger row "Number rental" |
+| Inbound phone call and transferred call | Not run: they need a person to dial the number and a phone to transfer to |
+
+The number was released from the portal the same day (Danger zone, the number typed to confirm; the row
+reads Released and the rental stopped). The inbound phone call and the transferred call were not run:
+nobody in Canada or the US was available to dial it. They are covered by the staging browser call and
+by the automated suites only.
+
+### Steps not run earlier, done on staging (19 Nov, build 4668519)
+
+| Check | Result |
+| --- | --- |
+| Owner switches currency before any purchase ("QA Currency Switch 1119", Canada) | Pass. CAD → USD in Settings, saved, survives a reload, Buy credits shows $49 / 149 / 399 / 999 with no note; back to CAD, CA$70 / 213 / 572 / 1,431 with the note |
+| Arabic and French: wallet, Buy credits, Settings currency | Pass. Right to left in Arabic, no untranslated text, no sideways scroll; French prices read `70 $`, `1 431 $` |
+| Staff change currency (console), USD → CAD → USD on a paid business | Pass both ways. Disabled until a reason is chosen; auto top-up goes Off |
+| `PRICE_CHANGED` on screen | Pass. Rounding set to Always up for 34 seconds: Pay at CA$70 answered `409 PRICE_CHANGED`, the screen said the price had changed, the button became CA$71, the next press opened Stripe at CA$71.00. Rounding saved back to Nearest; prices confirmed at 70 / 213 / 572 / 1,431 |
+
+Found in this pass and fixed: the console's "Lifetime sales" added every paid purchase and printed
+the total in the workspace's current currency, so two US$49 purchases read "CA$98.00" once staff
+moved the business to CAD. It is now one figure per currency charged (`lifetime_sales` on
+`GET /admin/customers/:id`; `lifetime_sales_cents` is the workspace's current currency only).
+
+Not reachable from the screens with the accounts available, automated tests only: the USD refund cap
+and the first-purchase review limit converted for a CAD purchase (the only staff sign-in is a super
+admin, who has no cap, and no pack crosses the limit in either currency).

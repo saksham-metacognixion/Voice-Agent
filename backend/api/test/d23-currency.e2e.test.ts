@@ -260,6 +260,11 @@ describe('workspace currency', () => {
 
     // What was already charged keeps its currency.
     expect((await purchasesOf(ws.workspaceId)).map((p) => [p.currency, p.amountCents])).toEqual([['CAD', CAD_AT_RATE.starter]]);
+    // The console shows what was sold in the currency it was sold in, not in the workspace's new one.
+    const detail = (await call('GET', `/admin/customers/${ws.workspaceId}`, staff.finance.token)).body;
+    expect(detail.currency).toBe('USD');
+    expect(detail.lifetime_sales).toEqual([{ currency: 'CAD', amount_cents: CAD_AT_RATE.starter }]);
+    expect(detail.lifetime_sales_cents).toBe(0);
     // Saying the same thing again changes nothing and audits nothing.
     expect((await call('PUT', path, staff.finance.token, { ...reason, currency: 'USD' })).status).toBe(200);
     expect(await adminDb.staffAuditLog.count({ where: { action: 'customer.currency_changed', targetId: ws.workspaceId } })).toBe(1);
