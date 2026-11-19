@@ -366,6 +366,8 @@ export class FakeRetellGateway {
 
   createPhoneNumber(input: { numberToken: string; agentId: string; country: 'US' | 'CA'; areaCode?: number; tollFree?: boolean; provider?: 'twilio' | 'telnyx'; nickname: string; allowedInboundCountries?: string[] }) {
     return this.record('createPhoneNumber', [input], () => {
+      // The platform on staging, 19 Nov: its second carrier does not sell Canadian numbers.
+      if (input.provider === 'telnyx' && input.country === 'CA') throw notFoundLike(400, 'Unsupported country for phone number.');
       const area = input.areaCode ?? (input.country === 'CA' ? 450 : 620);
       const e164 = nanpNumber(String(area));
       const number: FakePhoneNumber = {

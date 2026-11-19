@@ -769,8 +769,11 @@ job settles.
   `404 No phone numbers of this area code.` on staging). `purchaseAttempts()`
   (`modules/numbers/purchase-attempts.ts`) is the order: the code at Twilio (the platform's
   default carrier), then Telnyx, then the code's Canadian overlay (647 → 416, 437, 942) at
-  both, then any local number at both. Only that 404 (`isNoNumberStock`) moves on; a 404
-  buys nothing, so the walk cannot buy twice. Toll-free is never widened to local. The row
+  both, then any local number at both. That 404 (`isNoNumberStock`) moves on, and so does a
+  carrier that does not sell in the country (`isCarrierUnsupported`: `400 Unsupported country
+  for phone number.`, Telnyx for Canada, 19 Nov), which is not asked again in that walk; before
+  that fix a Canadian code with no Twilio stock ended the go-live on Telnyx's 400. Neither
+  answer buys anything, so the walk cannot buy twice. Toll-free is never widened to local. The row
   records the carrier (`retell_telnyx` / `retell_twilio`) and the code actually bought;
   `requested_area_code`, written once at creation, keeps the one asked for, and W7's live
   page and D4 say so when they differ (`areaCodeSubstitute`, QA-076). All exhausted is

@@ -121,6 +121,15 @@ export function isNoNumberStock(error: unknown): boolean {
 }
 
 /**
+ * A carrier that does not sell numbers in the country at all: `400 Unsupported country for
+ * phone number.` (staging, 19 Nov, the second carrier asked for a Canadian number). It is
+ * that carrier's answer, not the request's: the walk drops the carrier and carries on.
+ */
+export function isCarrierUnsupported(error: unknown): boolean {
+  return retellErrorStatus(error) === 400 && /unsupported country/i.test(describe(error));
+}
+
+/**
  * Every carrier, every code of the region and any local number all answered "no stock".
  * Permanent for this attempt; the sentence tells the customer what they can change.
  */

@@ -357,7 +357,7 @@ describe('retries and failure', () => {
     const ws = await paidWorkspace(app, 'act-telnyx', 'growth');
     const headers = await auth(ws.sub, ws.workspaceId);
     const agentId = await publishedAgent(call, headers);
-    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', area_code: '647' });
+    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'US', area_code: '415' });
     // The platform's answer on staging, 30 Sep.
     const noStock = 'No phone numbers of this area code.';
     retell.failNext('createPhoneNumber', 1, Retell.APIError.generate(404, { message: noStock }, noStock, new Headers()));
@@ -367,11 +367,35 @@ describe('retries and failure', () => {
     expect((await waitForJob(jobId, 30_000)).status).toBe('succeeded');
     const asked = retell.calls.slice(before).filter((c) => c.method === 'createPhoneNumber').map((c) => c.args[0] as { areaCode?: number; provider?: string });
     expect(asked.map((a) => [a.provider, a.areaCode])).toEqual([
-      ['twilio', 647],
-      ['telnyx', 647],
+      ['twilio', 415],
+      ['telnyx', 415],
     ]);
     const row = await adminDb.phoneNumber.findFirstOrThrow({ where: { agentId } });
-    expect(row).toMatchObject({ status: 'active', type: 'retell_telnyx', areaCode: '647', error: null });
+    expect(row).toMatchObject({ status: 'active', type: 'retell_telnyx', areaCode: '415', error: null });
+  }, 60_000);
+
+  it('a carrier that does not sell in the country is dropped, and the region\'s next code is bought from the first one', async () => {
+    const ws = await paidWorkspace(app, 'act-ca-carrier', 'growth');
+    const headers = await auth(ws.sub, ws.workspaceId);
+    const agentId = await publishedAgent(call, headers);
+    await call('PUT', `/agents/${agentId}/phone-plan`, headers, { option: 'new', country: 'CA', area_code: '416' });
+    // Staging, 19 Nov: no 416 at the first carrier, then the second answered
+    // `400 Unsupported country for phone number.` (the stand-in does, for Canada) and the go-live stopped.
+    const noStock = 'No phone numbers of this area code.';
+    retell.failNext('createPhoneNumber', 1, Retell.APIError.generate(404, { message: noStock }, noStock, new Headers()));
+
+    const before = retell.calls.length;
+    const jobId = (await call('POST', `/agents/${agentId}/activate`, headers, {})).body.job_id as string;
+    expect((await waitForJob(jobId, 30_000)).status).toBe('succeeded');
+    const asked = retell.calls.slice(before).filter((c) => c.method === 'createPhoneNumber').map((c) => c.args[0] as { areaCode?: number; provider?: string });
+    // The second carrier is asked once and never again.
+    expect(asked.map((a) => [a.provider, a.areaCode])).toEqual([
+      ['twilio', 416],
+      ['telnyx', 416],
+      ['twilio', 647],
+    ]);
+    const row = await adminDb.phoneNumber.findFirstOrThrow({ where: { agentId } });
+    expect(row).toMatchObject({ status: 'active', type: 'retell_twilio', areaCode: '647', requestedAreaCode: '416', error: null });
   }, 60_000);
 
   it('a region out of stock everywhere falls back to any local number', async () => {

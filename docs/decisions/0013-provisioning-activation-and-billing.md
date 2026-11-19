@@ -253,3 +253,17 @@ with a saved `pm_card_visa`, a paid Growth purchase (500 credits).
   the agent's platform objects; the workspace stays (ledger history, §17). The first full run's
   teardown failed on a bodiless DELETE sent with `content-type: application/json` (Fastify
   400) and was cleaned up by hand; the script no longer sends the header without a body.
+
+## Addendum, 19 Nov 2026: a carrier that does not sell in the country
+
+Staging, a Canadian go-live asking for 416: the first carrier answered `404 No phone numbers of this
+area code.`, the second `400 Unsupported country for phone number.`, and because only the 404 moved
+the walk on, the activation failed there (`rejected`, attempt 1) without trying 647, 437, 942 or any
+Canadian number at the first carrier. The same failure is on record for 10 Nov. The October
+purchases worked because the first carrier had stock in the code asked for.
+
+`isCarrierUnsupported()` (`provisioning-error.ts`) recognises that 400. `NumberProvisioningService.purchase`
+drops the carrier for the rest of the walk and carries on; if no carrier sells in the country and
+none reported "no stock", the platform's refusal is thrown as it came. `FakeRetellGateway` answers
+the same 400 for a Canadian number at the second carrier, so the e2e walk meets it
+(`test/d6-activation.e2e.test.ts`, "a carrier that does not sell in the country …").

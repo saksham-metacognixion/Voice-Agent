@@ -146,3 +146,60 @@ and invoices not matched to their purchase (ADR 0049, addendum of 19 Nov).
 | Real browser test call in a CAD business | The agent was built, the call connected and the agent spoke. Not billed locally: the public tunnel that delivers the voice platform's webhooks to this machine was down and no tunnel client is installed, so no `calls` row was written. To repeat on staging |
 | Auto top-up in CAD from the screen | Not done. Saving it answers `MFA_REQUIRED` (correct), but "Verify with two-factor now" came back from the dev sign-in tenant without asking for a code and without the verified claim. A sign-in question, outside this change |
 | Transfer and number rental in real use | Not done locally: both need a bought phone number. Staging |
+
+## 6. Staging run, 19 Nov 2026 (commit 82aeb3c, Stripe test account, staging's own webhook endpoint)
+
+Two test businesses under the developer's login: "QA Pay CAD 1119" (Canada) and "QA Pay USD 1119"
+(United States). Card 4242 4242 4242 4242.
+
+| Check | CAD | USD |
+| --- | --- | --- |
+| Deploy: migration ran, `/health/ready` 200, rate fetched (1.4326, 18 Nov) | Pass | Pass |
+| Workspace currency at creation | CAD | USD |
+| Prices on Buy credits | CA$70 / 213 / 572 / 1,431, with the Bank of Canada note | $49 / 149 / 399 / 999, no note |
+| Starter paid on Stripe's page: amount shown = button, no other currency offered | CA$70.00 | US$49.00 |
+| Credits after payment | 20 → 170 | 20 → 170 |
+| Invoice listed in the wallet | CA$70, Paid | $49, Paid |
+| Currency locked after the purchase | Pass | Pass |
+| Auto top-up switched on at checkout, card saved | Pass | Pass |
+| Console partial refund | CA$66.00, 141.43 credits back, 170 → 28.57, purchase stays Paid | US$46.00, 140.82 credits back, 170 → 29.18, purchase stays Paid |
+| Auto top-up charged by the schedule once the balance was under 30 | CA$70.00, +150 once, 28.57 → 178.57 | US$49.00, +150 once, 29.18 → 179.18 |
+| Growth: Stripe page amount (opened, not paid) | CA$213.00 | US$149.00 |
+| Scale and Pro: Stripe page amount | Blocked, see below | Blocked, see below |
+| Owner switches auto top-up off without two-factor | Pass | Pass |
+
+Console on staging: Pricing, Currencies shows the rate, the four packs in both currencies and the
+history; Refresh now stays disabled until a reason is chosen and wrote `fx.refresh_requested` and
+`fx.refreshed`; System, Settings lists the exchange-rate and rounding fields at their defaults; Billing
+lists each purchase and refund in its own currency.
+
+**Blocked on staging by a sign-in defect, not by this change.** The customer Post-Login Action on
+the Auth0 tenant is older than `infra/auth0/actions/customer-post-login.js`
+(`pnpm --filter @portal/api verify:auth0`: "the tenant's copy differs, deploy it"). The access token
+carries no `https://portal/mfa` claim, so "Verify with two-factor now" changes nothing, and an owner
+is refused `MFA_REQUIRED` on every change while auto top-up is on and on any checkout that would
+take a balance with a card on file over the limit. That stopped: saving the auto top-up threshold
+from the wallet, and opening Scale and Pro checkouts. Fix: `pnpm auth0:deploy customer`, then repeat
+those three checks.
+
+Not run on staging: a Standard and a Premium call, a transferred call and a number rental. They need
+a bought phone number on the voice platform account. `PRICE_CHANGED` on screen was checked on
+localhost only (it needs a platform setting changed, which would move every staging CAD price).
+
+### After the sign-in Action was updated (19 Nov, later the same day)
+
+The tenant ran version 9 of `customer-post-login` (30 Sep), from before ADR 0036; the repo's file was
+uploaded and deployed as version 10 through the Management API, that one Action only, because
+`pnpm auth0:deploy customer` stops on a missing `read:log_streams` scope. `verify:auth0` now reports
+"matches this repo". "Verify with two-factor now" asks for a code and the access token carries
+`https://portal/mfa`.
+
+| Check | CAD | USD |
+| --- | --- | --- |
+| Staging: auto top-up switched on from the wallet, threshold saved, then changed while on | Pass | Pass |
+| Staging: Scale on Stripe's page (opened, not paid) | CA$572.00 | US$399.00 |
+| Staging: Pro on Stripe's page (opened, not paid) | CA$1,431.00 | US$999.00 |
+| Localhost: auto top-up saved in CAD from the wallet after the staff currency change | Pass | n/a |
+
+Still owed on the tenant: the deploy application lacks `read:log_streams`, so the full tenant deploy
+(and with it the `portal-audit` log stream of ADR 0036 §9) has not been applied from the repo.

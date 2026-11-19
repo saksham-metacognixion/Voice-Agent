@@ -8,8 +8,8 @@ import { NotificationsFeedService } from '../notifications';
 import { RuntimeCacheService } from '../runtime-cache';
 import { RENTAL_REF_TYPE, WalletService, addMonths } from '../wallet/wallet.service';
 import { decideRental, firstMonthRentalDue } from './rental-rules';
-import { ProvisioningError, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
-import { nanpAreaCode, purchaseAttempts } from './purchase-attempts';
+import { ProvisioningError, isCarrierUnsupported, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
+import { type NumberCarrier, nanpAreaCode, purchaseAttempts } from './purchase-attempts';
 
 /**
  * The tag every number wears on the platform; the retry's lookup key after a lost write.
@@ -134,14 +134,20 @@ export class NumberProvisioningService {
 
   /**
    * One purchase, walked down `purchaseAttempts()`: the requested code from each carrier,
-   * then its region's other codes, then any local number. Only "no stock" moves on — any
-   * other answer is thrown as it came, for `classifyError`. A 404 buys nothing, so the walk
-   * cannot buy twice; a lost answer is still found by the nickname lookup on the retry.
+   * then its region's other codes, then any local number. "No stock" moves on, and so does a
+   * carrier that does not sell in the country, which is not asked again (19 Nov: the second
+   * carrier's 400 for Canada ended the go-live before the first carrier's other codes were
+   * tried). Any other answer is thrown as it came, for `classifyError`. Neither answer buys
+   * anything, so the walk cannot buy twice; a lost answer is still found by the nickname
+   * lookup on the retry.
    */
   private async purchase(row: NumberRow, country: 'US' | 'CA', retellAgentId: string, nickname: string): Promise<PhoneNumberFacts> {
     const requested = row.areaCode ? Number(row.areaCode) : null;
     let last: unknown;
+    let refused: unknown;
+    const notSelling = new Set<NumberCarrier>();
     for (const attempt of purchaseAttempts({ country, areaCode: requested, tollFree: row.tollFree })) {
+      if (notSelling.has(attempt.provider)) continue;
       try {
         return await this.retell.createPhoneNumber({
           numberToken: row.inboundToken,
@@ -154,11 +160,19 @@ export class NumberProvisioningService {
           allowedInboundCountries: row.allowedCountries.length ? row.allowedCountries : undefined,
         });
       } catch (error) {
+        if (isCarrierUnsupported(error)) {
+          notSelling.add(attempt.provider);
+          refused = error;
+          this.log.warn(`number ${row.id}: ${attempt.provider} does not sell numbers in ${country}`);
+          continue;
+        }
         if (!isNoNumberStock(error)) throw error;
         last = error;
         this.log.warn(`number ${row.id}: no stock at ${attempt.provider} for ${country} ${attempt.areaCode ?? 'any'}${row.tollFree ? ' toll-free' : ''}`);
       }
     }
+    // No carrier sells there at all: the platform's refusal, as it came.
+    if (last === undefined && refused !== undefined) throw refused;
     throw noNumbersAvailable({ country, areaCode: row.areaCode, tollFree: row.tollFree }, last);
   }
 

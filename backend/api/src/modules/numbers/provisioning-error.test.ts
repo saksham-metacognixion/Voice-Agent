@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import Retell from 'retell-sdk';
 import { AppError } from '../../common/errors/app-error';
-import { ProvisioningError, classifyError, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
+import { ProvisioningError, classifyError, isCarrierUnsupported, isNoNumberStock, noNumbersAvailable } from './provisioning-error';
 
 /* The retry policy of §13.8 in one place: what is worth a second attempt, and what is not. */
 
@@ -73,6 +73,17 @@ describe('no number stock', () => {
     expect(isNoNumberStock(retell(404, 'Not found'))).toBe(false);
     expect(isNoNumberStock(retell(400, 'No phone numbers of this area code.'))).toBe(false);
     expect(isNoNumberStock(new Error('No phone numbers of this area code.'))).toBe(false);
+  });
+
+  it('recognises a carrier that does not sell in the country, and nothing else', () => {
+    // The platform's answer on staging, 19 Nov, for a Canadian number at the second carrier.
+    const unsupported = retell(400, 'Unsupported country for phone number.');
+    expect(isCarrierUnsupported(unsupported)).toBe(true);
+    expect(isNoNumberStock(unsupported)).toBe(false);
+    expect(isCarrierUnsupported(noStock())).toBe(false);
+    expect(isCarrierUnsupported(retell(400, 'Invalid area code.'))).toBe(false);
+    expect(isCarrierUnsupported(retell(404, 'Unsupported country for phone number.'))).toBe(false);
+    expect(isCarrierUnsupported(new Error('Unsupported country for phone number.'))).toBe(false);
   });
 
   it('once everything is out of stock: permanent, says what to do, never names the platform', () => {
