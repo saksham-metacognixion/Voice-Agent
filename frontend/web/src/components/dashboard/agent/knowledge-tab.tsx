@@ -1,6 +1,6 @@
 'use client';
 
-import { useApi, useGetFlags, useGetPricing } from '@portal/api-client';
+import { useApi, useGetFlags } from '@portal/api-client';
 import { knowledgeRolesFor, type AgentDetail } from '@portal/schemas';
 import { Alert, Skeleton } from '@portal/ui';
 import { useTranslations } from 'next-intl';
@@ -8,7 +8,7 @@ import { KnowledgeUsage } from '@/src/components/dashboard/agent/knowledge-usage
 import { KnowledgeSources } from '@/src/components/wizard/knowledge-sources';
 import { MenuUpload } from '@/src/components/wizard/menu-upload';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * D3 Knowledge (spec p. 36): W4's sources on this agent. Gated by the `knowledge_base`
@@ -20,7 +20,7 @@ export function KnowledgeTab({ agent, canEdit }: { agent: AgentDetail; canEdit: 
   const tk = useTranslations('wizard.w4');
   const api = useApi();
   const flags = useGetFlags(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const locked = flags.data ? !flags.data.gates.knowledge_base : false;
   const unlock = cheapestPackWith(pricing.data, 'knowledge_base');
 

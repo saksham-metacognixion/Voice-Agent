@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { TOPUP_FAILURE_COOLDOWN_MS, TOPUP_IN_FLIGHT_MS, TOPUP_MAX_RETRIES, TOPUP_MIN_INTERVAL_MS, decideTopup } from './auto-topup.service';
+import { TOPUP_FAILURE_COOLDOWN_MS, TOPUP_IN_FLIGHT_MS, TOPUP_MAX_RETRIES, TOPUP_MIN_INTERVAL_MS, decideTopup, topupCurrency } from './auto-topup.service';
 
 /* §5.4 — when does a low balance turn into a charge, and when must it not. */
 
 const NOW = new Date('2026-09-21T12:00:00Z');
-const settings = { enabled: true, pack_id: 'starter', threshold: 15, payment_method_id: 'pm_123', card_last4: '4242' };
+const settings = { enabled: true, pack_id: 'starter', threshold: 15, payment_method_id: 'pm_123', card_last4: '4242', currency: null as 'USD' | 'CAD' | null };
 const base = { settings, balance: 4, pendingSince: null, lastPaidAt: null, failures: 0, lastFailureAt: null, workspacePaused: false, now: NOW };
 const ago = (ms: number) => new Date(NOW.getTime() - ms);
 const HOUR = 60 * 60_000;
@@ -68,5 +68,37 @@ describe('decideTopup', () => {
 
   it('a balance in the grace overdraft still charges', () => {
     expect(decideTopup({ ...base, balance: -3 }).action).toBe('charge');
+  });
+});
+
+/* ADR 0049 — a saved switch is charged only in the currency it was saved on in. */
+describe('decideTopup and the workspace currency', () => {
+  const cad = { ...settings, currency: 'CAD' as const };
+  const usd = { ...settings, currency: 'USD' as const };
+
+  it('charges a USD switch in a USD workspace and a CAD switch in a CAD workspace', () => {
+    expect(decideTopup({ ...base, settings: usd, workspaceCurrency: 'USD' })).toEqual({ action: 'charge', reason: 'below_threshold' });
+    expect(decideTopup({ ...base, settings: cad, workspaceCurrency: 'CAD' })).toEqual({ action: 'charge', reason: 'below_threshold' });
+  });
+
+  it('never charges when the workspace currency is not the one the switch was saved in', () => {
+    expect(decideTopup({ ...base, settings: usd, workspaceCurrency: 'CAD' })).toEqual({ action: 'skip', reason: 'currency_mismatch' });
+    expect(decideTopup({ ...base, settings: cad, workspaceCurrency: 'USD' })).toEqual({ action: 'skip', reason: 'currency_mismatch' });
+  });
+
+  it('reads settings saved before currencies existed as USD', () => {
+    expect(topupCurrency(settings)).toBe('USD');
+    expect(decideTopup({ ...base, workspaceCurrency: 'USD' })).toEqual({ action: 'charge', reason: 'below_threshold' });
+    expect(decideTopup({ ...base, workspaceCurrency: 'CAD' })).toEqual({ action: 'skip', reason: 'currency_mismatch' });
+  });
+
+  it('stays opt-in: a currency match never charges a switch that is off or has no card', () => {
+    expect(decideTopup({ ...base, settings: { ...cad, enabled: false }, workspaceCurrency: 'CAD' })).toEqual({ action: 'skip', reason: 'disabled' });
+    expect(decideTopup({ ...base, settings: null, workspaceCurrency: 'CAD' })).toEqual({ action: 'skip', reason: 'disabled' });
+    expect(decideTopup({ ...base, settings: { ...cad, payment_method_id: null }, workspaceCurrency: 'CAD' })).toEqual({ action: 'skip', reason: 'no_card' });
+  });
+
+  it('a mismatch is decided before the balance, so it is reported even above the threshold', () => {
+    expect(decideTopup({ ...base, balance: 500, settings: usd, workspaceCurrency: 'CAD' })).toEqual({ action: 'skip', reason: 'currency_mismatch' });
   });
 });

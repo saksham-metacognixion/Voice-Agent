@@ -718,6 +718,16 @@
           "amount_cents": {
             "type": "integer"
           },
+          "base_amount_cents": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "base_currency": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -729,6 +739,16 @@
             "type": "string"
           },
           "failure_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate_date": {
+            "default": null,
             "nullable": true,
             "type": "string"
           },
@@ -1860,6 +1880,51 @@
         ],
         "type": "object"
       },
+      "adminCustomerCurrencyRequest": {
+        "properties": {
+          "currency": {
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason_code": {
+            "enum": [
+              "goodwill",
+              "service_issue",
+              "billing_error",
+              "promo",
+              "partner_deal",
+              "fraud_suspected",
+              "abuse_policy",
+              "customer_request",
+              "chargeback",
+              "expiry_extension",
+              "testing_internal",
+              "support_investigation",
+              "legal_request",
+              "other"
+            ],
+            "type": "string"
+          },
+          "ticket_id": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason_code",
+          "currency"
+        ],
+        "type": "object"
+      },
       "adminCustomerDetail": {
         "properties": {
           "agents_live": {
@@ -1886,6 +1951,18 @@
           "created_at": {
             "format": "date-time",
             "type": "string"
+          },
+          "currency": {
+            "default": "USD",
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
+          },
+          "currency_locked": {
+            "default": false,
+            "type": "boolean"
           },
           "custom_deal": {
             "type": "boolean"
@@ -2494,6 +2571,16 @@
           "auto_topup_enabled": {
             "type": "boolean"
           },
+          "base_amount_cents": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "base_currency": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
           "card_last4": {
             "nullable": true,
             "type": "string"
@@ -2514,6 +2601,16 @@
             "type": "string"
           },
           "failure_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate_date": {
+            "default": null,
             "nullable": true,
             "type": "string"
           },
@@ -2798,6 +2895,538 @@
           "activation_rate",
           "median_minutes_to_live",
           "stuck_by_step"
+        ],
+        "type": "object"
+      },
+      "adminFxRefreshResponse": {
+        "properties": {
+          "error": {
+            "nullable": true,
+            "type": "string"
+          },
+          "fx": {
+            "properties": {
+              "base_currency": {
+                "enum": [
+                  "USD",
+                  "CAD"
+                ],
+                "type": "string"
+              },
+              "history": {
+                "items": {
+                  "properties": {
+                    "base_currency": {
+                      "enum": [
+                        "USD",
+                        "CAD"
+                      ],
+                      "type": "string"
+                    },
+                    "confirmed_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "fetched_at": {
+                      "format": "date-time",
+                      "type": "string"
+                    },
+                    "id": {
+                      "format": "uuid",
+                      "type": "string"
+                    },
+                    "observed_on": {
+                      "type": "string"
+                    },
+                    "quote_currency": {
+                      "enum": [
+                        "USD",
+                        "CAD"
+                      ],
+                      "type": "string"
+                    },
+                    "rate": {
+                      "pattern": "^\\d{1,6}(\\.\\d{1,8})?$",
+                      "type": "string"
+                    },
+                    "series": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "base_currency",
+                    "quote_currency",
+                    "rate",
+                    "observed_on",
+                    "source",
+                    "series",
+                    "fetched_at",
+                    "confirmed_at"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "in_force": {
+                "nullable": true,
+                "properties": {
+                  "age_days": {
+                    "type": "integer"
+                  },
+                  "base_currency": {
+                    "enum": [
+                      "USD",
+                      "CAD"
+                    ],
+                    "type": "string"
+                  },
+                  "confirmed_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "fetched_at": {
+                    "format": "date-time",
+                    "type": "string"
+                  },
+                  "id": {
+                    "format": "uuid",
+                    "type": "string"
+                  },
+                  "observed_on": {
+                    "type": "string"
+                  },
+                  "quote_currency": {
+                    "enum": [
+                      "USD",
+                      "CAD"
+                    ],
+                    "type": "string"
+                  },
+                  "rate": {
+                    "pattern": "^\\d{1,6}(\\.\\d{1,8})?$",
+                    "type": "string"
+                  },
+                  "series": {
+                    "type": "string"
+                  },
+                  "source": {
+                    "type": "string"
+                  },
+                  "stale": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "id",
+                  "base_currency",
+                  "quote_currency",
+                  "rate",
+                  "observed_on",
+                  "source",
+                  "series",
+                  "fetched_at",
+                  "confirmed_at",
+                  "age_days",
+                  "stale"
+                ],
+                "type": "object"
+              },
+              "last_refresh_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "next_refresh_due_at": {
+                "format": "date-time",
+                "nullable": true,
+                "type": "string"
+              },
+              "packs": {
+                "items": {
+                  "properties": {
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "base_currency": {
+                      "enum": [
+                        "USD",
+                        "CAD"
+                      ],
+                      "type": "string"
+                    },
+                    "base_price_cents": {
+                      "type": "integer"
+                    },
+                    "credits": {
+                      "type": "integer"
+                    },
+                    "derived_price_cents": {
+                      "nullable": true,
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "pack_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "pack_id",
+                    "name",
+                    "active",
+                    "credits",
+                    "base_price_cents",
+                    "base_currency",
+                    "derived_price_cents"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "pricing_version": {
+                "type": "integer"
+              },
+              "quote_currency": {
+                "enum": [
+                  "USD",
+                  "CAD"
+                ],
+                "type": "string"
+              },
+              "settings": {
+                "properties": {
+                  "fx_refresh_interval_hours": {
+                    "type": "integer"
+                  },
+                  "fx_source": {
+                    "enum": [
+                      "bank_of_canada"
+                    ],
+                    "type": "string"
+                  },
+                  "fx_stale_after_days": {
+                    "type": "integer"
+                  },
+                  "rounding": {
+                    "properties": {
+                      "mode": {
+                        "enum": [
+                          "nearest",
+                          "up",
+                          "down"
+                        ],
+                        "type": "string"
+                      },
+                      "step_cents": {
+                        "exclusiveMaximum": false,
+                        "exclusiveMinimum": false,
+                        "maximum": 10000,
+                        "minimum": 1,
+                        "type": "integer"
+                      }
+                    },
+                    "required": [
+                      "step_cents",
+                      "mode"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "fx_source",
+                  "fx_refresh_interval_hours",
+                  "fx_stale_after_days",
+                  "rounding"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "base_currency",
+              "quote_currency",
+              "in_force",
+              "last_refresh_at",
+              "next_refresh_due_at",
+              "settings",
+              "pricing_version",
+              "packs",
+              "history"
+            ],
+            "type": "object"
+          },
+          "outcome": {
+            "enum": [
+              "stored",
+              "unchanged",
+              "failed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "error",
+          "fx"
+        ],
+        "type": "object"
+      },
+      "adminFxResponse": {
+        "properties": {
+          "base_currency": {
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
+          },
+          "history": {
+            "items": {
+              "properties": {
+                "base_currency": {
+                  "enum": [
+                    "USD",
+                    "CAD"
+                  ],
+                  "type": "string"
+                },
+                "confirmed_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "fetched_at": {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                "id": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "observed_on": {
+                  "type": "string"
+                },
+                "quote_currency": {
+                  "enum": [
+                    "USD",
+                    "CAD"
+                  ],
+                  "type": "string"
+                },
+                "rate": {
+                  "pattern": "^\\d{1,6}(\\.\\d{1,8})?$",
+                  "type": "string"
+                },
+                "series": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "base_currency",
+                "quote_currency",
+                "rate",
+                "observed_on",
+                "source",
+                "series",
+                "fetched_at",
+                "confirmed_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "in_force": {
+            "nullable": true,
+            "properties": {
+              "age_days": {
+                "type": "integer"
+              },
+              "base_currency": {
+                "enum": [
+                  "USD",
+                  "CAD"
+                ],
+                "type": "string"
+              },
+              "confirmed_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "fetched_at": {
+                "format": "date-time",
+                "type": "string"
+              },
+              "id": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "observed_on": {
+                "type": "string"
+              },
+              "quote_currency": {
+                "enum": [
+                  "USD",
+                  "CAD"
+                ],
+                "type": "string"
+              },
+              "rate": {
+                "pattern": "^\\d{1,6}(\\.\\d{1,8})?$",
+                "type": "string"
+              },
+              "series": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "stale": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "base_currency",
+              "quote_currency",
+              "rate",
+              "observed_on",
+              "source",
+              "series",
+              "fetched_at",
+              "confirmed_at",
+              "age_days",
+              "stale"
+            ],
+            "type": "object"
+          },
+          "last_refresh_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "next_refresh_due_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "packs": {
+            "items": {
+              "properties": {
+                "active": {
+                  "type": "boolean"
+                },
+                "base_currency": {
+                  "enum": [
+                    "USD",
+                    "CAD"
+                  ],
+                  "type": "string"
+                },
+                "base_price_cents": {
+                  "type": "integer"
+                },
+                "credits": {
+                  "type": "integer"
+                },
+                "derived_price_cents": {
+                  "nullable": true,
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "pack_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pack_id",
+                "name",
+                "active",
+                "credits",
+                "base_price_cents",
+                "base_currency",
+                "derived_price_cents"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "pricing_version": {
+            "type": "integer"
+          },
+          "quote_currency": {
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
+          },
+          "settings": {
+            "properties": {
+              "fx_refresh_interval_hours": {
+                "type": "integer"
+              },
+              "fx_source": {
+                "enum": [
+                  "bank_of_canada"
+                ],
+                "type": "string"
+              },
+              "fx_stale_after_days": {
+                "type": "integer"
+              },
+              "rounding": {
+                "properties": {
+                  "mode": {
+                    "enum": [
+                      "nearest",
+                      "up",
+                      "down"
+                    ],
+                    "type": "string"
+                  },
+                  "step_cents": {
+                    "exclusiveMaximum": false,
+                    "exclusiveMinimum": false,
+                    "maximum": 10000,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "step_cents",
+                  "mode"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "fx_source",
+              "fx_refresh_interval_hours",
+              "fx_stale_after_days",
+              "rounding"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "base_currency",
+          "quote_currency",
+          "in_force",
+          "last_refresh_at",
+          "next_refresh_due_at",
+          "settings",
+          "pricing_version",
+          "packs",
+          "history"
         ],
         "type": "object"
       },
@@ -6803,6 +7432,16 @@
           "amount_cents": {
             "type": "integer"
           },
+          "base_amount_cents": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "base_currency": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -6814,6 +7453,16 @@
             "type": "string"
           },
           "failure_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate_date": {
+            "default": null,
             "nullable": true,
             "type": "string"
           },
@@ -7109,6 +7758,16 @@
           "amount_cents": {
             "type": "integer"
           },
+          "base_amount_cents": {
+            "default": null,
+            "nullable": true,
+            "type": "integer"
+          },
+          "base_currency": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -7120,6 +7779,16 @@
             "type": "string"
           },
           "failure_reason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate": {
+            "default": null,
+            "nullable": true,
+            "type": "string"
+          },
+          "fx_rate_date": {
+            "default": null,
             "nullable": true,
             "type": "string"
           },
@@ -7727,6 +8396,21 @@
         "properties": {
           "settings": {
             "properties": {
+              "cad_rounding_mode": {
+                "enum": [
+                  "nearest",
+                  "up",
+                  "down"
+                ],
+                "type": "string"
+              },
+              "cad_rounding_step_cents": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 10000,
+                "minimum": 1,
+                "type": "integer"
+              },
               "concurrency_alert_pct": {
                 "exclusiveMaximum": false,
                 "exclusiveMinimum": false,
@@ -7742,6 +8426,33 @@
                 "nullable": true,
                 "type": "integer"
               },
+              "fx_max_move_pct": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 50,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "fx_refresh_interval_hours": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 168,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "fx_source": {
+                "enum": [
+                  "bank_of_canada"
+                ],
+                "type": "string"
+              },
+              "fx_stale_after_days": {
+                "exclusiveMaximum": false,
+                "exclusiveMinimum": false,
+                "maximum": 30,
+                "minimum": 1,
+                "type": "integer"
+              },
               "reconcile_drift_threshold_pct": {
                 "exclusiveMaximum": false,
                 "exclusiveMinimum": false,
@@ -7753,7 +8464,13 @@
             "required": [
               "concurrency_platform_limit",
               "concurrency_alert_pct",
-              "reconcile_drift_threshold_pct"
+              "reconcile_drift_threshold_pct",
+              "fx_source",
+              "fx_refresh_interval_hours",
+              "fx_stale_after_days",
+              "fx_max_move_pct",
+              "cad_rounding_step_cents",
+              "cad_rounding_mode"
             ],
             "type": "object"
           },
@@ -7788,6 +8505,21 @@
       },
       "adminSettingsUpdateRequest": {
         "properties": {
+          "cad_rounding_mode": {
+            "enum": [
+              "nearest",
+              "up",
+              "down"
+            ],
+            "type": "string"
+          },
+          "cad_rounding_step_cents": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          },
           "concurrency_alert_pct": {
             "exclusiveMaximum": false,
             "exclusiveMinimum": false,
@@ -7801,6 +8533,33 @@
             "maximum": 100000,
             "minimum": 1,
             "nullable": true,
+            "type": "integer"
+          },
+          "fx_max_move_pct": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fx_refresh_interval_hours": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 168,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "fx_source": {
+            "enum": [
+              "bank_of_canada"
+            ],
+            "type": "string"
+          },
+          "fx_stale_after_days": {
+            "exclusiveMaximum": false,
+            "exclusiveMinimum": false,
+            "maximum": 30,
+            "minimum": 1,
             "type": "integer"
           },
           "note": {
@@ -7839,11 +8598,17 @@
               "enum": [
                 "concurrency_platform_limit",
                 "concurrency_alert_pct",
-                "reconcile_drift_threshold_pct"
+                "reconcile_drift_threshold_pct",
+                "fx_source",
+                "fx_refresh_interval_hours",
+                "fx_stale_after_days",
+                "fx_max_move_pct",
+                "cad_rounding_step_cents",
+                "cad_rounding_mode"
               ],
               "type": "string"
             },
-            "maxItems": 3,
+            "maxItems": 9,
             "type": "array"
           },
           "ticket_id": {
@@ -14046,6 +14811,15 @@
             "nullable": true,
             "type": "string"
           },
+          "currency": {
+            "default": null,
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "nullable": true,
+            "type": "string"
+          },
           "enabled": {
             "type": "boolean"
           },
@@ -15460,6 +16234,18 @@
               "enabled"
             ],
             "type": "object"
+          },
+          "expected_amount_cents": {
+            "exclusiveMinimum": true,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expected_currency": {
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
           },
           "pack_id": {
             "minLength": 1,
@@ -19518,6 +20304,14 @@
       },
       "pricingResponse": {
         "properties": {
+          "base_currency": {
+            "default": "USD",
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
+          },
           "currency": {
             "enum": [
               "USD",
@@ -19525,8 +20319,35 @@
             ],
             "type": "string"
           },
+          "currency_unavailable": {
+            "default": false,
+            "type": "boolean"
+          },
           "effective_at": {
             "type": "string"
+          },
+          "fx": {
+            "default": null,
+            "nullable": true,
+            "properties": {
+              "observed_on": {
+                "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                "type": "string"
+              },
+              "rate": {
+                "pattern": "^\\d{1,6}(\\.\\d{1,8})?$",
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "rate",
+              "observed_on",
+              "source"
+            ],
+            "type": "object"
           },
           "packs": {
             "items": {
@@ -21455,6 +22276,13 @@
             },
             "type": "object"
           },
+          "currency": {
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
+          },
           "name": {
             "maxLength": 80,
             "minLength": 2,
@@ -21653,6 +22481,15 @@
             "properties": {
               "card_last4": {
                 "default": null,
+                "nullable": true,
+                "type": "string"
+              },
+              "currency": {
+                "default": null,
+                "enum": [
+                  "USD",
+                  "CAD"
+                ],
                 "nullable": true,
                 "type": "string"
               },
@@ -22008,6 +22845,16 @@
             "format": "date-time",
             "type": "string"
           },
+          "currency": {
+            "enum": [
+              "USD",
+              "CAD"
+            ],
+            "type": "string"
+          },
+          "currency_locked": {
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
@@ -22121,6 +22968,8 @@
           "plan_tier",
           "concurrency_cap",
           "kb_allowance",
+          "currency",
+          "currency_locked",
           "business_hours",
           "recording_default",
           "retention_days",
@@ -24917,6 +25766,127 @@
           "ops",
           "finance",
           "support"
+        ]
+      }
+    },
+    "/admin/customers/{id}/currency": {
+      "put": {
+        "description": "Spec §5.5; ADR 0049.",
+        "operationId": "adminSetCustomerCurrency",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/adminCustomerCurrencyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminCustomerDetail"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {NOT_FOUND}",
+            "x-error-codes": [
+              "NOT_FOUND"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CURRENCY_UNAVAILABLE}",
+            "x-error-codes": [
+              "CURRENCY_UNAVAILABLE"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Change the workspace currency (USD or CAD); the only change possible after the first purchase. Switches auto top-up off",
+        "tags": [
+          "admin-customers"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "ops",
+          "finance"
         ]
       }
     },
@@ -29203,6 +30173,146 @@
           }
         ],
         "summary": "Save the pricing draft",
+        "tags": [
+          "admin-pricing"
+        ],
+        "x-auth": "staff",
+        "x-staff-roles": [
+          "super_admin",
+          "finance"
+        ]
+      }
+    },
+    "/admin/pricing/fx": {
+      "get": {
+        "description": "Spec §5.5; ADR 0049.",
+        "operationId": "adminPricingFx",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminFxResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "USD base and derived CAD price per pack, the exchange rate in force, the last successful refresh and the conversion settings",
+        "tags": [
+          "admin-pricing"
+        ],
+        "x-auth": "staff"
+      }
+    },
+    "/admin/pricing/fx/refresh": {
+      "post": {
+        "description": "Spec §5.5; ADR 0049.",
+        "operationId": "adminRefreshFx",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/staffActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/adminFxRefreshResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {INVALID_TOKEN, UNAUTHENTICATED}",
+            "x-error-codes": [
+              "INVALID_TOKEN",
+              "UNAUTHENTICATED"
+            ]
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {FORBIDDEN_ROLE, MFA_REQUIRED, STAFF_ONLY}",
+            "x-error-codes": [
+              "FORBIDDEN_ROLE",
+              "MFA_REQUIRED",
+              "STAFF_ONLY"
+            ]
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
+            "x-error-codes": [
+              "VALIDATION_FAILED"
+            ]
+          }
+        },
+        "security": [
+          {
+            "staffAuth": []
+          }
+        ],
+        "summary": "Ask the exchange-rate source now; a failure keeps the rate in force and is reported in the answer",
         "tags": [
           "admin-pricing"
         ],
@@ -44032,6 +45142,12 @@
               "maxLength": 64,
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {}
           }
         ],
         "responses": {
@@ -45350,8 +46466,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {PURCHASES_PAUSED}",
+            "description": "Error envelope; `code` ∈ {PRICE_CHANGED, PURCHASES_PAUSED}",
             "x-error-codes": [
+              "PRICE_CHANGED",
               "PURCHASES_PAUSED"
             ]
           },
@@ -45376,8 +46493,9 @@
                 }
               }
             },
-            "description": "Error envelope; `code` ∈ {UPSTREAM_UNAVAILABLE}",
+            "description": "Error envelope; `code` ∈ {CURRENCY_UNAVAILABLE, UPSTREAM_UNAVAILABLE}",
             "x-error-codes": [
+              "CURRENCY_UNAVAILABLE",
               "UPSTREAM_UNAVAILABLE"
             ]
           }
@@ -46623,6 +47741,19 @@
               "WORKSPACE_PAUSED"
             ]
           },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CURRENCY_LOCKED}",
+            "x-error-codes": [
+              "CURRENCY_LOCKED"
+            ]
+          },
           "422": {
             "content": {
               "application/json": {
@@ -46634,6 +47765,19 @@
             "description": "Error envelope; `code` ∈ {VALIDATION_FAILED}",
             "x-error-codes": [
               "VALIDATION_FAILED"
+            ]
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/errorResponse"
+                }
+              }
+            },
+            "description": "Error envelope; `code` ∈ {CURRENCY_UNAVAILABLE}",
+            "x-error-codes": [
+              "CURRENCY_UNAVAILABLE"
             ]
           }
         },

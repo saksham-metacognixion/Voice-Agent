@@ -1,16 +1,16 @@
 'use client';
 
-import { useApi, useGetPhonePlan, useGetPricing, useListCalls, useListVoices } from '@portal/api-client';
+import { useApi, useGetPhonePlan, useListCalls, useListVoices } from '@portal/api-client';
 import type { AgentDetail } from '@portal/schemas';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, Skeleton } from '@portal/ui';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import * as React from 'react';
 import { formatPhone } from '@/src/lib/format';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
 import { routes } from '@/src/routes';
 import { summaryRows, type SummaryEdit } from '@/src/wizard/activation-summary';
 import { languageName } from '@/src/wizard/languages';
+import { usePricing } from '@/src/lib/use-pricing';
 
 const EDIT_HREF: Record<SummaryEdit, string> = { brief: routes.onboarding.brief, voice: routes.onboarding.voice, phone: routes.onboarding.phone };
 
@@ -24,7 +24,7 @@ export function ActivationSummary({ agent }: { agent: AgentDetail }) {
   const t = useTranslations('wizard.w7.summary');
   const api = useApi();
   const plan = useGetPhonePlan(api, { id: agent.id }, { staleTime: 0 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const voices = useListVoices(api, undefined, { staleTime: 10 * 60_000 });
   const tests = useListCalls(api, { is_test: 'true', limit: 1 }, { staleTime: 15_000 });
   const voiceId = agent.draft?.settings.voice_id ?? null;

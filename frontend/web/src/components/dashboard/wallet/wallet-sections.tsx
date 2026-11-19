@@ -1,7 +1,7 @@
 'use client';
 
 import {
-  createPortalSession, exportLedger, isApiError, updateAutoTopup, useApi, useGetFlags, useGetPricing, useGetStats, useGetWallet, useListCreditLots, useListInvoices, useListLedger,
+  createPortalSession, exportLedger, isApiError, updateAutoTopup, useApi, useGetFlags, useGetStats, useGetWallet, useListCreditLots, useListInvoices, useListLedger,
 } from '@portal/api-client';
 import type { InvoiceResponse, LedgerEntryResponse, LedgerReason, WalletResponse } from '@portal/schemas';
 import {
@@ -31,7 +31,7 @@ import { useUrlQuery } from '@/src/lib/use-url-query';
 import { formatMoney } from '@/src/wizard/plan-gates';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
+import { usePricing } from '@/src/lib/use-pricing';
 
 // ------------------------------------------------------------------ Balance
 
@@ -48,7 +48,7 @@ export function BalanceCard() {
   const { canAdmin } = useRole();
   const stream = useDashboardLive();
   const wallet = useGetWallet(api, { staleTime: 15_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const flags = useGetFlags(api, { staleTime: 60_000 });
   const [buying, setBuying] = React.useState(false);
   // `?pack=` is the link staff send for a link-only pack: it opens "Buy credits" on that pack.
@@ -147,11 +147,7 @@ export function AutoTopupCard({ wallet }: { wallet: WalletResponse }) {
   const queryClient = useQueryClient();
   const current = wallet.auto_topup;
   // The saved pack's id rides on the request, so a link-only pack bought from its link is still listed here.
-  const pricing = useGetPricing(
-    api,
-    ws.workspace?.country || current?.pack_id ? { ...(ws.workspace?.country ? { region: ws.workspace.country } : {}), ...(current?.pack_id ? { pack: current.pack_id } : {}) } : undefined,
-    { staleTime: PRICING_STALE_MS },
-  );
+  const pricing = usePricing({ ...(ws.workspace?.country ? { region: ws.workspace.country } : {}), ...(current?.pack_id ? { pack: current.pack_id } : {}) });
   const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order), [pricing.data]);
   // Staff retired the saved pack: the API buys nothing for it, so say so and ask for another.
   const packGone = autoTopupPackGone(current, pricing.data ? packs.map((p) => p.id) : null);
@@ -220,7 +216,13 @@ export function AutoTopupCard({ wallet }: { wallet: WalletResponse }) {
         </Field>
         {enabled ? (
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="topup-pack" label={t('pack')} error={fieldError === 'pack' ? t('packError') : undefined}>
+            <Field
+              id="topup-pack"
+              label={t('pack')}
+              // A converted price follows the daily rate, so say which day's price a top-up takes.
+              description={pricing.data?.fx ? t('fxHint', { currency: pricing.data.currency }) : undefined}
+              error={fieldError === 'pack' ? t('packError') : undefined}
+            >
               <Select value={packId ?? ''} onValueChange={setPackId} disabled={busy || packs.length === 0}>
                 <SelectTrigger id="topup-pack">
                   <SelectValue placeholder={t('packPlaceholder')} />
@@ -317,7 +319,7 @@ export function ExpiringCard() {
   const api = useApi();
   const ws = useWorkspace();
   const lots = useListCreditLots(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const months = pricing.data?.wallet_policy.credit_expiry_months;
   const soon = React.useMemo(() => (lots.data ? expiringSoon(lots.data, new Date()) : []), [lots.data]);
   return (

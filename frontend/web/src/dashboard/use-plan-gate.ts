@@ -1,9 +1,9 @@
 'use client';
 
-import { useApi, useGetFlags, useGetPricing } from '@portal/api-client';
+import { useApi, useGetFlags } from '@portal/api-client';
 import type { FeatureGate } from '@portal/schemas';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * One plan gate (admin §5 "Feature gates") as a screen reads it: whether it is locked for
@@ -15,7 +15,7 @@ import { cheapestPackWith } from '@/src/wizard/plan-gates';
 export function usePlanGate(gate: FeatureGate): { locked: boolean; pending: boolean; packName: string | null } {
   const api = useApi();
   const flags = useGetFlags(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   return {
     locked: flags.data ? flags.data.gates[gate] !== true : false,
     pending: flags.isPending,

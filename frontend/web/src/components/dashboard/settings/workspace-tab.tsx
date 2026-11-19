@@ -1,7 +1,7 @@
 'use client';
 
 import { updateWorkspace, useApi } from '@portal/api-client';
-import { hoursProblems, updateWorkspaceRequest, type BusinessHours, type UpdateWorkspaceRequest, type WorkspaceResponse } from '@portal/schemas';
+import { hoursProblems, updateWorkspaceRequest, type BusinessHours, type CurrencyCode, type UpdateWorkspaceRequest, type WorkspaceResponse } from '@portal/schemas';
 import { Alert, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, ThemeSegment, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTranslations } from 'next-intl';
@@ -9,6 +9,7 @@ import { LanguageSegment } from '@/src/components/shell/language-switcher';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
 import { HoursOverridesEditor, HoursStatusLine } from '@/src/components/dashboard/hours-overrides';
+import { CurrencyOptions } from '@/src/components/wizard/currency-field';
 import { HoursEditor } from '@/src/components/wizard/hours-editor';
 import { countryName as nameOfCountry, timezoneLabel, timezones } from '@/src/lib/countries';
 import { errorMessage } from '@/src/lib/errors';
@@ -34,6 +35,7 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
   const [name, setName] = React.useState(workspace.name);
   const [timezone, setTimezone] = React.useState(workspace.timezone);
   const [website, setWebsite] = React.useState(workspace.website ?? '');
+  const [currency, setCurrency] = React.useState<CurrencyCode>(workspace.currency);
   const [hasHours, setHasHours] = React.useState(Boolean(workspace.business_hours));
   const [hours, setHours] = React.useState<BusinessHours | undefined>(workspace.business_hours ?? DEFAULT_HOURS);
   const [errors, setErrors] = React.useState<Record<string, string>>({});
@@ -48,6 +50,7 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
     setName(workspace.name);
     setTimezone(workspace.timezone);
     setWebsite(workspace.website ?? '');
+    setCurrency(workspace.currency);
     setHasHours(Boolean(workspace.business_hours));
     setHours(workspace.business_hours ?? DEFAULT_HOURS);
   }, [workspace]);
@@ -56,6 +59,7 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
   if (name.trim() !== workspace.name) patch.name = name.trim();
   if (timezone !== workspace.timezone) patch.timezone = timezone;
   if ((website.trim() || null) !== workspace.website) patch.website = website.trim() || null;
+  if (currency !== workspace.currency) patch.currency = currency;
   const nextHours = hasHours ? (hours ?? null) : null;
   if (JSON.stringify(nextHours) !== JSON.stringify(workspace.business_hours)) patch.business_hours = nextHours;
   const dirty = Object.keys(patch).length > 0;
@@ -80,6 +84,8 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
       const updated = await updateWorkspace(api, parsed.data);
       queryClient.setQueryData(['getWorkspace'], updated);
       await queryClient.invalidateQueries({ queryKey: ['listMyWorkspaces'] });
+      // Prices are quoted in the workspace currency (ADR 0049).
+      if (parsed.data.currency) await queryClient.invalidateQueries({ queryKey: ['getPricing'] });
       track('workspace_settings_saved', { fields: Object.keys(parsed.data).length });
       toast.success(t('saved'));
     } catch (e) {
@@ -107,6 +113,16 @@ export function WorkspaceTab({ workspace }: { workspace: WorkspaceResponse }) {
           </Field>
           <Field id="ws-country" label={t('ws.country')} description={t('ws.countryHint')}>
             <Input id="ws-country" value={countryName} disabled readOnly />
+          </Field>
+          <Field id="ws-currency" label={t('ws.currency')} description={t(workspace.currency_locked ? 'ws.currencyLockedHint' : 'ws.currencyHint')}>
+            <Select value={currency} onValueChange={(v) => setCurrency(v as CurrencyCode)} disabled={disabled || workspace.currency_locked}>
+              <SelectTrigger id="ws-currency">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <CurrencyOptions />
+              </SelectContent>
+            </Select>
           </Field>
           <Field id="ws-timezone" label={t('ws.timezone')} description={t('ws.timezoneHint')}>
             <Select value={timezone} onValueChange={setTimezone} disabled={disabled}>

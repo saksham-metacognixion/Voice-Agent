@@ -53,7 +53,15 @@
     "language": "Language",
     "changeLanguage": "Change language",
     "listSeparator": ", ",
-    "photo": "Photo"
+    "photo": "Photo",
+    "currency": {
+      "label": "Currency",
+      "USD": "US dollars (USD)",
+      "CAD": "Canadian dollars (CAD)",
+      "line": "Currency: {currency}",
+      "fixedLine": "Currency: {currency}. Your first purchase fixed it. Contact support to change it.",
+      "changeHint": "You can change this until your first purchase."
+    }
   },
   "nav": {
     "home": "Home",
@@ -442,7 +450,10 @@
     },
     "NUMBER_LIMIT": "Every phone number your plan includes is already in use. Upgrade your plan to add another.",
     "NUMBER_ON_CALL": "This number is on a call right now. You can release it once the call ends.",
-    "FORWARDING_NUMBER_INVALID": "Your existing line was saved without its country code, so we will not call it. Correct it under Your existing line, then test again."
+    "FORWARDING_NUMBER_INVALID": "Your existing line was saved without its country code, so we will not call it. Correct it under Your existing line, then test again.",
+    "PRICE_CHANGED": "The price has changed since this page loaded. Check the new price and confirm again.",
+    "CURRENCY_LOCKED": "Your currency was fixed by your first purchase. Contact support to change it.",
+    "CURRENCY_UNAVAILABLE": "Prices in that currency are not available right now. Try again in a little while."
   },
   "validation": {
     "required": "Required",
@@ -1649,7 +1660,14 @@
         "topupWhen": "Top up when the balance falls to",
         "topupPct": "{pct}% of the pack ({credits} credits)",
         "minutes": "≈ {n, plural, one {# minute} other {# minutes}} with a Standard voice",
-        "minutesPremium": "{n, number} with Premium"
+        "minutesPremium": "{n, number} with Premium",
+        "currencyUnavailableTitle": "{currency}: prices are not available right now",
+        "currencyUnavailableBody": "We could not get today’s exchange rate, so nothing can be paid in this currency yet. The prices below are in US dollars for reference. Try again in a little while.",
+        "fxNote": "{currency} prices are our {base} prices converted at the Bank of Canada rate for {date} ({rate}). They can change when the rate does. You pay the amount on the button.",
+        "fxNoteNoSource": "{currency} prices are our {base} prices converted at the exchange rate for {date} ({rate}). They can change when the rate does. You pay the amount on the button.",
+        "fxTopupNote": "Automatic top-ups are charged in {currency} at the price on that day.",
+        "priceChangedTitle": "The price has changed",
+        "priceChangedBody": "It is now {price}. Nothing was charged. Check the new price, then pay."
       },
       "progress": {
         "connecting": "Connecting…",
@@ -2927,7 +2945,8 @@
         "save": "Save auto top-up",
         "saved": "Auto top-up saved.",
         "summaryOn": "Buys {pack} when the balance falls below {threshold} credits.",
-        "summaryOff": "Off. Your agent stops answering when the credits run out."
+        "summaryOff": "Off. Your agent stops answering when the credits run out.",
+        "fxHint": "Charged in {currency} at the price on the day of the top-up."
       },
       "expiring": {
         "title": "Expiring soon",
@@ -3053,7 +3072,10 @@
         "hoursTitle": "Default business hours",
         "hoursBody": "Numbers set to “during business hours” answer on this schedule.",
         "hoursClear": "No business hours",
-        "save": "Save workspace"
+        "save": "Save workspace",
+        "currency": "Currency",
+        "currencyHint": "What your packs and top-ups are charged in. You can change it until your first purchase.",
+        "currencyLockedHint": "Fixed by your first purchase. Contact support to change it."
       },
       "team": {
         "title": "Members",

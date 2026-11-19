@@ -32,6 +32,7 @@
     "dev:seed-workspace": "dotenv -e ../../.env -- tsx scripts/dev-seed-workspace.ts",
     "agents:republish": "tsx scripts/republish-live-agents.ts",
     "numbers:needing-fix": "dotenv -e ../../.env -- tsx scripts/numbers-needing-fix.ts",
+    "invoices:link": "dotenv -e ../../.env -- tsx scripts/link-invoices.ts",
     "openapi:generate": "tsx scripts/openapi.ts",
     "openapi:check": "tsx scripts/openapi.ts --check",
     "e2e:d10-seed": "dotenv -e ../../.env -- tsx scripts/e2e-d10-seed.ts"

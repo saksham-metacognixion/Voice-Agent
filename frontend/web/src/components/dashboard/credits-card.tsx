@@ -1,6 +1,6 @@
 'use client';
 
-import { useApi, useGetPricing, useGetStats, useGetWallet } from '@portal/api-client';
+import { useApi, useGetStats, useGetWallet } from '@portal/api-client';
 import { Button, Card, CardContent, CardHeader, CardTitle, Progress, Skeleton } from '@portal/ui';
 import { Coins } from 'lucide-react';
 import Link from 'next/link';
@@ -8,10 +8,10 @@ import { useTranslations } from 'next-intl';
 import { Fact, LoadError } from '@/src/components/dashboard/query-states';
 import { canTopUp, creditsOutlook } from '@/src/dashboard/home-view';
 import { formatCreditsValue, formatDate, formatNumber } from '@/src/lib/format';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
 import { routes } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * D1 credits card (spec p. 33): the balance from `GET /wallet`, what it is worth in
@@ -29,7 +29,7 @@ export function CreditsCard() {
   const wallet = useGetWallet(api, { staleTime: 15_000 });
   const today = useGetStats(api, { range: 'today' }, { staleTime: 30_000 });
   const week = useGetStats(api, { range: '7d' }, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const topUp = canTopUp(role);
 
   return (

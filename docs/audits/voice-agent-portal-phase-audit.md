@@ -600,7 +600,7 @@ Grouped by theme; IDs point to §4.
 | #      | Decision                                    | State                                                               | Evidence                        |
 | ------ | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------- |
 | 1      | Name and domain                             | Resolved: oraly.ai                                                  | ADR 0015                        |
-| 2      | Credit unit, USD vs CAD, merchant of record | Unit resolved (1.5× premium); **currency and MoR open**, USD seeded | `pricing-v1.ts:26`; ADR 0033 §6 |
+| 2      | Credit unit, USD vs CAD, merchant of record | Unit resolved (1.5× premium); **both currencies built on six proposed rules awaiting the spec owner (18 Nov, ADR 0049)**; MoR, GST/HST and a CAD payout account open | ADR 0049; addendum 18 Nov |
 | 3      | Standard-tier LLM                           | **Decided 4 Nov: GPT-4.1 mini**; seeded as `agent_stack_configs` v2 (Premium stays GPT-4.1 mini, ADR 0038) | ADR 0037; ADR 0038; P0-05 |
 | 4      | Launch countries                            | De facto US + CA; formally open                                     | `purchasableCountry`            |
 | 5      | Trial size, card at sign-up                 | Implemented as proposed (20, no card); formally open                | `pricing-v1.ts:102-113`         |
@@ -871,3 +871,63 @@ Two differences from the spec text remain and are not defects of this batch: the
 "Tasks due today / Needs review" widget belongs to the Leads module (P1b, hidden without
 leads), and the phone tab bar is Home, Calls, Agents, Numbers, More (ADR 0019) where §7.2
 says Wallet in the fourth place — S-05 is PASS on the bar existing, not on its order.
+
+## Addendum — 18 Nov 2026: USD and CAD (ADR 0049, spec §5, §5.5 #2)
+
+Scope: the payment and pricing corrections against §5. Audited first, then built. Not committed,
+pushed or deployed: every status below is from a developer box with the Stripe test account.
+
+### What was already there, and kept
+
+| Item | Where | State before | Change |
+| --- | --- | --- | --- |
+| Four packs, credits, rates, rental, trial, expiry, grace, thresholds (§5.1–§5.4) | `pricing-v1.ts`, `metering.ts`, `wallet.service.ts` | Correct | None. Pinned by `section5-rules.test.ts` |
+| Alexandre, Adam, Mathieu, Jeanne are Premium | `curated-voices.ts`, tier rule | Correct | None |
+| Amount and currency checked before credits are granted | `amountMismatch`, `fulfilPaymentIntent` | Correct, currency-aware | None; now reached by CAD |
+| One credit grant per purchase under webhook replay | wallet lock + purchase status | Correct | None |
+| `currency` on `purchases`, `packs`, `invoices`; reports per currency | schema, ADR 0048 | Present, always `USD` | Now written with the workspace currency |
+| Refund against the original PaymentIntent | `refundPaymentIntent` | Correct: Stripe refunds in the charge currency | None |
+| Stripe price sync | `stripe-price-sync.service.ts` | USD Prices | Unchanged; CAD charges are inline |
+
+### What was missing, and is now built
+
+| ID | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| CUR-01 | `tenants.currency`, CA → CAD, else USD | PASS (local) | `d23-currency.e2e` "a new Canadian workspace…"; browser pass |
+| CUR-02 | Owner/admin change it until the first purchase; locked after | PASS (local) | `d23-currency.e2e` workspace currency (6 cases); trigger `guard_tenant_currency` |
+| CUR-03 | Staff change with a reason code, audited | PASS (local) | `d23-currency.e2e` "after the lock only staff change it" |
+| CUR-04 | Bank of Canada `FXUSDCAD`, daily, history kept, last valid rate on failure, ops alert | PASS (local) | `exchange-rates.service.test.ts` (35), `bank-of-canada.client.test.ts` (23); the dev worker stored the live rate on boot |
+| CUR-05 | CAD = round(USD × rate), configurable rounding, no floats | PASS (local) | `currency.test.ts` (46); rounding changed from the console in `d23-currency.e2e` |
+| CUR-06 | `GET /pricing` in the workspace currency | PASS (local) | `d23-currency.e2e` GET /pricing (5 cases) |
+| CUR-07 | Real CAD charge; amount sent to Stripe equals the displayed price | PASS (local, Stripe test) | Money run: 8 sessions read back from Stripe; one CA$213 payment in a browser |
+| CUR-08 | Currency, amount and rate on the purchase row at checkout start | PASS (local) | `d23-currency.e2e` checkout cases; `checkout-price.test.ts` |
+| CUR-09 | `PRICE_CHANGED`: no charge, no credits, latest price returned | PASS (API, local); the on-screen alert not clicked through | `d23-currency.e2e` PRICE_CHANGED (5 cases) |
+| CUR-10 | Auto top-up in the workspace currency, opt-in, credited once | PASS (local, Stripe test) | `d23-currency.e2e` auto top-up (7 cases); money run USD and CAD |
+| CUR-11 | Refund in the original currency; USD cap converted at the purchase's rate | PASS (local, Stripe test) | `d23-currency.e2e` refunds (5 cases); money run USD and CAD |
+| CUR-12 | Console: USD base, derived CAD, rate in force, last refresh, configuration | PARTIAL | API `GET /admin/pricing/fx` tested; the tab is built, typechecked and linted, not clicked through in a browser |
+| CUR-13 | en, ar, fr-CA strings; RTL kept | PASS (local) | `messages.test.ts`; browser pass in ar and fr-CA |
+| CUR-14 | Staging money run in USD and CAD | **NOT DONE** | Needs a deploy. Steps in `docs/evidence/2026-11-18-usd-cad/README.md` §4 |
+
+### Open, by decision and not by omission
+
+- Six rules are proposals awaiting the spec owner (ADR 0049, "Pending the spec owner"): the Bank of
+  Canada rate, the daily refresh, whole-dollar rounding, the amount fixed at checkout, the workspace
+  default and lock, and USD limits converted at the purchase's rate.
+- Not built, pending an answer: GST/HST on CAD purchases, the 30-credit extra knowledge base in
+  Phase 1, the live merchant entity and Stripe access, a CAD payout bank account.
+- Shipped as they are (Full Scope 12): the plan tier does not lapse after 12 months, promo codes and
+  the Volume pack are not sold, the `premium_voices` gate is not enforced. B-row statuses in §4.6 for
+  these are unchanged.
+
+### Gaps found and left
+
+- Customer 360 "Lifetime sales" is one sum shown in the workspace currency; wrong for a workspace
+  whose currency staff changed after purchases in the other one.
+- No USD pack was paid through Stripe's hosted page in this pass (a CAD one was; USD sessions were
+  read back from Stripe unpaid, and the USD top-up and refund were real).
+- The money run's call, transfer and rental rows are wallet debits at the published rates, not real
+  calls or a real number.
+- The console's Currencies tab, currency dialog and the new settings fields were not clicked through.
+
+**Release:** live release stays blocked on the merchant-account items and the six confirmations.
+

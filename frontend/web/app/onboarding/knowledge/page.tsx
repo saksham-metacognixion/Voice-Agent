@@ -1,6 +1,6 @@
 'use client';
 
-import { useApi, useGetFlags, useGetPricing } from '@portal/api-client';
+import { useApi, useGetFlags } from '@portal/api-client';
 import { knowledgeRolesFor, type AgentDetail } from '@portal/schemas';
 import { Alert, Button, Skeleton } from '@portal/ui';
 import { ArrowRight } from 'lucide-react';
@@ -17,7 +17,7 @@ import { WizardFooter, WizardHeading } from '@/src/components/wizard/wizard-shel
 import { LiveGuard } from '@/src/guards/guards';
 import { agentPath, routes } from '@/src/routes';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * W4 — What your agent knows, **after payment** (ADR 0024). Sources need the
@@ -44,7 +44,7 @@ function KnowledgeInner({ agent }: { agent: AgentDetail }) {
   const api = useApi();
   const router = useRouter();
   const flags = useGetFlags(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const [leaving, setLeaving] = React.useState(false);
 
   // An unreadable /flags is not a reason to lock the form: the API enforces the gate and

@@ -63,6 +63,9 @@ const CHECKS = [
   // D7: recurring operations. All have defaults; RESEND_API_KEY is what turns the low-balance,
   // rental and digest emails from log lines into deliveries.
   { key: 'RECONCILE_DRIFT_THRESHOLD_PCT', phase: 'D7', required: false },
+  { key: 'FX_REFRESH_INTERVAL_HOURS', phase: 'ADR 0049', required: false },
+  { key: 'CAD_ROUNDING_STEP_CENTS', phase: 'ADR 0049', required: false },
+  { key: 'CAD_ROUNDING_MODE', phase: 'ADR 0049', required: false },
   { key: 'CONCURRENCY_ALERT_PCT', phase: 'D7', required: false },
   { key: 'CONCURRENCY_PLATFORM_LIMIT', phase: 'D7', required: false },
   { key: 'DIGEST_LOCAL_HOUR', phase: 'D7', required: false },

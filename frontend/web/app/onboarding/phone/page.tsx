@@ -1,6 +1,6 @@
 'use client';
 
-import { putPhonePlan, useApi, useGetFlags, useGetPhonePlan, useGetPricing } from '@portal/api-client';
+import { putPhonePlan, useApi, useGetFlags, useGetPhonePlan } from '@portal/api-client';
 import {
   ANSWER_MODES,
   forwardMode as forwardModeSchema,
@@ -42,7 +42,7 @@ import { cheapestPackWith } from '@/src/wizard/plan-gates';
 import { prefillTransferTargets } from '@/src/wizard/transfer-prefill';
 import { useAdvanceOnboarding } from '@/src/wizard/use-onboarding-agent';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * W6 — How callers reach your agent (§8 W6, §11). The choice is saved as the agent's
@@ -127,7 +127,7 @@ function PhoneInner({ agent, saved }: { agent: AgentDetail; saved: PhonePlanResp
   const advance = useAdvanceOnboarding();
   const ws = useWorkspace();
   const flags = useGetFlags(api, { staleTime: 60_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
 
   const [form, setForm] = React.useState<FormState>(() => initialState(saved, ws.workspace?.country));
   // No saved plan: the transfer targets start from the brief's hand-off rules (§8 W6 "from your brief").

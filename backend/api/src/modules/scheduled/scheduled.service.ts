@@ -3,6 +3,7 @@ import { adminDb } from '@portal/db';
 import { AgentEvents } from '../agents';
 import { OpsAlertService } from '../alerts';
 import { AutoTopupService, BillingService } from '../billing';
+import { ExchangeRatesService } from '../config';
 import { CallReconciliationService, ConcurrencyMonitorService, CallRetentionService, type PurgeTick } from '../calls';
 import { EventsService } from '../events';
 import { JobRecordsService, LOST_JOB_REASON, type LostJob, type ScheduleSpec, scheduleLockTtlS } from '../jobs';
@@ -62,6 +63,7 @@ export class ScheduledJobsService {
     private readonly ops: OpsAlertService,
     private readonly callRecoveryService: CallRecoveryService,
     private readonly retention: CallRetentionService,
+    private readonly fx: ExchangeRatesService,
   ) {}
 
   /** Consecutive skips per schedule, this process. A tick that runs resets its entry. */
@@ -242,6 +244,17 @@ export class ScheduledJobsService {
    */
   voiceCache(): Promise<{ fetched: number; written: number; skipped: boolean }> {
     return this.voices.refreshCache();
+  }
+
+  /**
+   * ADR 0049 `fx-refresh`, hourly: asks the exchange-rate source when the configured
+   * interval has passed since the last successful refresh, and alerts when the rate in
+   * force has gone stale. A failure keeps the stored rate; it never throws for the source's sake.
+   */
+  async fxRefresh(): Promise<{ outcome: string; rate: string | null; observed_on: string | null; error: string | null }> {
+    const result = await this.fx.refreshIfDue();
+    const rate = result.outcome === 'stored' || result.outcome === 'unchanged' ? result.rate : await this.fx.current();
+    return { outcome: result.outcome, rate: rate?.rate ?? null, observed_on: rate?.observedOn ?? null, error: result.outcome === 'failed' ? result.error : null };
   }
 }
 

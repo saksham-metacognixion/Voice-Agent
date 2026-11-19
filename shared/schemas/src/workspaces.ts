@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { businessHours, businessHoursInput, isTimeZone } from './business-hours.js';
 import { e164, isoDateTime, paginationQuery, uuid } from './common.js';
+import { currencyCode } from './currency.js';
 import { memberRole, planTier } from './enums.js';
 import { workspaceMfa } from './security.js';
 
@@ -73,6 +74,12 @@ export const updateWorkspaceRequest = z.object({
     .nullable()
     .optional()
     .transform((value) => (value === '' ? null : value)),
+  /**
+   * The currency this workspace is charged in (ADR 0049). Owner or admin, and only until
+   * the first successful purchase: after it the answer is `409 CURRENCY_LOCKED` and the
+   * change is staff's, with a reason code.
+   */
+  currency: currencyCode.optional(),
   // No `onboarding_step`: the wizard pointer moves forward only, through
   // POST /workspace/onboarding-step. Sent here it is stripped, never written (QA-058).
 });
@@ -100,6 +107,10 @@ export const workspaceResponse = z.object({
   plan_tier: planTier,
   concurrency_cap: z.number().int(),
   kb_allowance: z.number().int(),
+  /** The currency packs, top-ups and refunds are in (ADR 0049): CAD for a Canadian business at creation, USD for any other. */
+  currency: currencyCode,
+  /** True once a purchase has been paid: the customer can no longer change `currency`. */
+  currency_locked: z.boolean(),
   business_hours: businessHours.nullable(),
   recording_default: z.boolean(),
   retention_days: z.number().int(),

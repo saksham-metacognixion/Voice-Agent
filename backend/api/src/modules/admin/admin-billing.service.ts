@@ -18,6 +18,7 @@ import type {
   ReasonCode,
   StaffActionRequest,
 } from '@portal/schemas';
+import { BASE_CURRENCY, limitInCurrency, storedCurrency } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, toPage } from '../../common/pagination';
 import type { StaffContext } from '../auth';
@@ -28,6 +29,7 @@ import {
   TOPUP_IN_FLIGHT_MS,
   type TopupAttemptOutcome,
 } from '../billing';
+import { ExchangeRatesService } from '../config';
 import { RuntimeCacheService } from '../runtime-cache';
 import { REFUND_REF_TYPE, WalletService } from '../wallet';
 import { toPurchase } from './admin-customers.service';
@@ -75,6 +77,7 @@ export class AdminBillingService {
     private readonly runtimeCache: RuntimeCacheService,
     private readonly audit: StaffAuditService,
     private readonly limits: StaffLimitsService,
+    private readonly fx: ExchangeRatesService,
   ) {}
 
   // ------------------------------------------------------------------ purchases
@@ -266,7 +269,9 @@ export class AdminBillingService {
     const inFlightCents = purchase.refunds
       .filter((r) => r.status === 'pending' && r.id !== refundId)
       .reduce((sum, r) => sum + r.amountCents, 0);
-    await this.limits.assertRefund(staff, amountCents, refundedCents + inFlightCents);
+    // The cap is in USD; a CAD purchase is judged at the rate it was bought at (ADR 0049).
+    // Worked out only if the role has a cap: a missing rate must not refuse an uncapped role.
+    await this.limits.assertRefund(staff, amountCents, refundedCents + inFlightCents, () => this.refundCapIn(purchase));
     const creditsReversed = existing
       ? num(existing.creditsReversed)
       : roundCredits((purchase.credits * amountCents) / purchase.amountCents);
@@ -623,6 +628,23 @@ export class AdminBillingService {
   }
 
   /** SA9 "Disable auto top-up": the same settings write as `PUT /wallet/auto-topup {enabled:false}`, by staff. The customer can switch it back on. */
+  /**
+   * ADR 0049: how a role's USD refund cap reads for one purchase. A USD purchase takes it
+   * as stored. A CAD purchase converts it with the rate that purchase was priced with,
+   * kept on its row — not today's — and only a CAD row from before rates were recorded
+   * falls back to the rate in force. No rate at all refuses the refund rather than
+   * guessing a ceiling.
+   */
+  private async refundCapIn(purchase: { currency: string; fxRate: { toFixed(): string } | null }): Promise<{ currency: string; convert: (baseCents: number) => number }> {
+    const currency = storedCurrency(purchase.currency);
+    if (currency === null || currency === BASE_CURRENCY) return { currency: currency ?? purchase.currency.trim().toUpperCase(), convert: (cents) => cents };
+    const rate = purchase.fxRate ? purchase.fxRate.toFixed() : ((await this.fx.current())?.rate ?? null);
+    if (rate === null || limitInCurrency(0, currency, rate) === null) {
+      throw new AppError('CURRENCY_UNAVAILABLE', `The refund cap cannot be worked out in ${currency} without an exchange rate.`);
+    }
+    return { currency, convert: (cents) => limitInCurrency(cents, currency, rate)! };
+  }
+
   async disableAutoTopup(
     staff: StaffContext,
     idRaw: string,

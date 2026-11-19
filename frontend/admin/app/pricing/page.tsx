@@ -4,6 +4,7 @@ import { Tabs, TabsList, TabsTrigger } from '@portal/ui';
 import { AdminShell } from '@/src/components/shell/admin-shell';
 import { PageHeader } from '@/src/components/shell/page-header';
 import { CostsTab } from '@/src/components/pricing/costs';
+import { CurrenciesTab } from '@/src/components/pricing/currencies';
 import { DraftEditor } from '@/src/components/pricing/draft-editor';
 import { PricingPreview } from '@/src/components/pricing/preview';
 import { PricingVersions } from '@/src/components/pricing/versions';
@@ -24,19 +25,21 @@ function Pricing() {
   const go = (t: string) => setQuery((n) => setParam(n, 'tab', t === 'draft' ? null : t));
   return (
     <>
-      <PageHeader title="Pricing" crumbs={[{ label: 'Pricing' }]} description="Packs, rates, recurring charges and wallet policy: versioned, previewed, then published with a Stripe sync." />
+      <PageHeader title="Pricing" crumbs={[{ label: 'Pricing' }]} description="Packs, rates, recurring charges and wallet policy: versioned, previewed, then published with a Stripe sync. Published in USD; CAD is derived." />
       <Tabs value={tab} onValueChange={go}>
         <TabsList>
           <TabsTrigger value="draft">Draft</TabsTrigger>
           <TabsTrigger value="preview">Preview</TabsTrigger>
           <TabsTrigger value="versions">Versions</TabsTrigger>
           <TabsTrigger value="costs">Costs</TabsTrigger>
+          <TabsTrigger value="currencies">Currencies</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === 'draft' ? <DraftEditor /> : null}
       {tab === 'preview' ? <PricingPreview onPublished={() => go('versions')} /> : null}
       {tab === 'versions' ? <PricingVersions /> : null}
       {tab === 'costs' ? <CostsTab /> : null}
+      {tab === 'currencies' ? <CurrenciesTab /> : null}
     </>
   );
 }

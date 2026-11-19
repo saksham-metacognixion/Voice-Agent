@@ -422,6 +422,9 @@ model Tenant {
   planTier              PlanTier  @default(trial) @map("plan_tier")
   concurrencyCap        Int       @default(2) @map("concurrency_cap")
   kbAllowance           Int       @default(0) @map("kb_allowance")
+  /// ADR 0049: the currency packs, top-ups and refunds are in. CAD for a Canadian business at
+  /// creation, USD otherwise; the customer's until the first paid purchase (`guard_tenant_currency`).
+  currency              String    @default("USD") @db.Char(3)
   businessHoursJson     Json?     @map("business_hours_json")
   stripeCustomerId      String?   @unique @map("stripe_customer_id")
   /// {enabled, pack_id, threshold, payment_method_id} — spec §5.4.
@@ -1074,6 +1077,13 @@ model Purchase {
   packId              String?        @map("pack_id")
   amountCents         Int            @map("amount_cents")
   currency            String         @default("USD") @db.Char(3)
+  /// ADR 0049: the published price this purchase was converted from, and the rate that did
+  /// it. `fxRate` NULL = charged at the published price, no conversion.
+  baseAmountCents     Int?           @map("base_amount_cents")
+  baseCurrency        String?        @map("base_currency") @db.Char(3)
+  fxRate              Decimal?       @map("fx_rate") @db.Decimal(14, 8)
+  fxRateDate          DateTime?      @map("fx_rate_date") @db.Date
+  fxRateId            String?        @map("fx_rate_id") @db.Uuid
   credits             Int
   stripeSessionId     String?        @unique @map("stripe_session_id")
   /// D6: unique — one purchase per PaymentIntent is what makes a replayed
@@ -1090,6 +1100,7 @@ model Purchase {
 
   tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   pack     Pack?       @relation(fields: [packId], references: [id])
+  fx       ExchangeRate? @relation(fields: [fxRateId], references: [id], onDelete: Restrict)
   lots     CreditLot[]
   refunds  Refund[]
   invoices Invoice[]
@@ -1262,6 +1273,27 @@ model PlatformSetting {
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
   @@map("platform_settings")
+}
+
+/// ADR 0049: the daily USD/CAD rate, kept as history. One row per (source, pair, business
+/// day); a refresh that meets the same day again only moves `confirmedAt`. Staff-only (RLS,
+/// no app policy), never updated in its rate or deleted.
+model ExchangeRate {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  baseCurrency  String   @map("base_currency") @db.Char(3)
+  quoteCurrency String   @map("quote_currency") @db.Char(3)
+  rate          Decimal  @db.Decimal(14, 8)
+  observedOn    DateTime @map("observed_on") @db.Date
+  source        String
+  series        String
+  fetchedAt     DateTime @default(now()) @map("fetched_at")
+  confirmedAt   DateTime @default(now()) @map("confirmed_at")
+
+  purchases Purchase[]
+
+  @@unique([source, baseCurrency, quoteCurrency, observedOn], map: "exchange_rates_source_pair_day_key")
+  @@index([baseCurrency, quoteCurrency, observedOn(sort: Desc)], map: "exchange_rates_pair_day_idx")
+  @@map("exchange_rates")
 }
 
 model ReconciliationRun {

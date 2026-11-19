@@ -5,16 +5,20 @@ import {
   type CheckoutConfirmResponse,
   type CheckoutRequest,
   type CheckoutResponse,
+  type CurrencyCode,
   FIRST_PURCHASE_REVIEW_TRIGGER,
   type PricingConfig,
   type PricingPack,
+  limitInCurrency,
   planTier as planTierEnum,
   purchaseNeedsReview,
+  storedCurrency,
+  workspaceCurrency,
 } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { OpsAlertService } from '../alerts';
 import { type WorkspaceContext, WorkspaceMfaService, assertTermsAccepted } from '../auth';
-import { PlatformConfigService } from '../config';
+import { ExchangeRatesService, PlatformConfigService, type PriceQuote, decimalText } from '../config';
 import { WalletService, addMonths } from '../wallet/wallet.service';
 import { type CheckoutSessionFacts, StripeGateway } from './stripe.gateway';
 
@@ -54,6 +58,7 @@ export class BillingService {
     @Inject(forwardRef(() => WalletService)) private readonly wallet: WalletService,
     private readonly mfa: WorkspaceMfaService,
     private readonly alerts: OpsAlertService,
+    private readonly fx: ExchangeRatesService,
   ) {}
 
   /** §13.8: the activation module starts the go-live job from here when W7's session carried `agent_id`. */
@@ -92,7 +97,7 @@ export class BillingService {
     const tenant = await withWorkspace(ctx, (db) =>
       db.tenant.findUniqueOrThrow({
         where: { id: ctx.workspaceId },
-        select: { country: true, stripeCustomerId: true, pausedAt: true },
+        select: { country: true, stripeCustomerId: true, pausedAt: true, currency: true },
       }),
     );
     if (tenant.pausedAt) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to resume it.');
@@ -103,6 +108,13 @@ export class BillingService {
       const agent = await withWorkspace(ctx, (db) => db.agent.findFirst({ where: { id: body.agent_id, tenantId: ctx.workspaceId }, select: { id: true } }));
       if (!agent) throw AppError.notFound('Agent');
     }
+
+    // ADR 0049: the pack priced in the workspace currency with the rate in force. From here
+    // on `quote` is the money; the pack is only the goods. The amount is fixed on the
+    // purchase row below and nothing later re-prices it.
+    const currency: CurrencyCode = workspaceCurrency(tenant.currency);
+    const quote = await this.fx.quote(pack, currency);
+    assertPriceShown(body, quote);
 
     const credits = pack.credits + pack.bonus_credits;
     // `purchases.pack_id` references the catalogue row; a pack published before the
@@ -127,13 +139,21 @@ export class BillingService {
     // session exists until then, so nothing can be charged, replayed or webhooked past it.
     const { policy } = await this.config.walletPolicy();
     const hasPaidBefore = (await adminDb.purchase.count({ where: { tenantId: ctx.workspaceId, status: { in: ['paid', 'refunded'] } } })) > 0;
-    const needsReview = purchaseNeedsReview({ hasPaidBefore, amountCents: pack.price_cents, limitCents: policy.max_first_purchase_cents_without_review });
+    // The same decision `fulfil` makes from the row this quote is written to: a purchase
+    // let through here must never be one `fulfil` then refuses to credit.
+    const needsReview = firstPurchaseOverLimit({
+      hasPaidBefore,
+      amountCents: quote.amountCents,
+      currency: quote.currency,
+      fxRate: quote.fx?.rate ?? null,
+      baseLimitCents: policy.max_first_purchase_cents_without_review,
+    });
 
     let purchase: { id: string };
     let fromApproval = false;
     if (needsReview) {
-      const approved = await this.takeApproval(ctx.workspaceId, pack);
-      if (!approved) return this.requestReview(ctx, pack, credits);
+      const approved = await this.takeApproval(ctx.workspaceId, pack, quote);
+      if (!approved) return this.requestReview(ctx, pack, credits, quote);
       purchase = approved;
       fromApproval = true;
     } else {
@@ -143,8 +163,7 @@ export class BillingService {
           data: {
             tenantId: ctx.workspaceId,
             packId: pack.id,
-            amountCents: pack.price_cents,
-            currency: pack.currency,
+            ...purchaseMoney(quote),
             credits,
             status: 'pending',
             promoCode: body.promo_code,
@@ -157,11 +176,15 @@ export class BillingService {
     const buyer = await adminDb.user.findUnique({ where: { id: ctx.userId }, select: { email: true } });
 
     // 2. The Stripe Price from the SA5 sync when it exists; inline price data until then.
-    const priceMap = await adminDb.stripePriceMap.findFirst({
-      where: { packId: pack.id, currency: pack.currency, configVersion, active: true },
-      select: { stripePriceId: true },
-    });
-    if (!priceMap) this.log.warn(`no stripe_price_map row for ${pack.id}/${pack.currency}/v${configVersion}; using inline price_data`);
+    //    A converted price (ADR 0049) is always inline: its amount follows the daily rate,
+    //    and a Stripe Price is immutable, so the synced Prices are the published ones only.
+    const priceMap = quote.fx
+      ? null
+      : await adminDb.stripePriceMap.findFirst({
+          where: { packId: pack.id, currency: quote.currency, configVersion, active: true },
+          select: { stripePriceId: true },
+        });
+    if (!priceMap && !quote.fx) this.log.warn(`no stripe_price_map row for ${pack.id}/${quote.currency}/v${configVersion}; using inline price_data`);
 
     // 3. Stripe, with no transaction open. If Stripe refuses, the purchase must not stay
     //    `pending`: with no session there will never be a `checkout.session.expired` to
@@ -173,6 +196,8 @@ export class BillingService {
         purchaseId: purchase.id,
         workspaceId: ctx.workspaceId,
         pack,
+        amountCents: quote.amountCents,
+        currency: quote.currency,
         configVersion,
         stripePriceId: priceMap?.stripePriceId,
         customerId: tenant.stripeCustomerId,
@@ -199,7 +224,7 @@ export class BillingService {
           targetType: 'purchase',
           targetId: purchase.id,
           ip: ctx.ip ?? null,
-          metaJson: { pack_id: pack.id, amount_cents: pack.price_cents, currency: pack.currency, credits, reviewed: fromApproval } as Prisma.InputJsonValue,
+          metaJson: { pack_id: pack.id, amount_cents: quote.amountCents, currency: quote.currency, ...fxMeta(quote), credits, reviewed: fromApproval } as Prisma.InputJsonValue,
         },
       });
     });
@@ -208,18 +233,34 @@ export class BillingService {
   }
 
   /**
-   * The approved first purchase for exactly this pack at exactly this price, moved to
-   * `pending` by a conditional update so two tabs cannot both take it. Null when there is
-   * none — a pack whose price changed after approval needs a review of its own.
+   * The approved first purchase for exactly this pack at exactly this published price in
+   * this currency, moved to `pending` by a conditional update so two tabs cannot both take
+   * it. Null when there is none — a pack whose published price changed after approval
+   * needs a review of its own. A CAD amount moves with the daily rate while the published
+   * price stays put, so the match is on the base price and the row takes today's amount
+   * and rate as it is taken (ADR 0049): what is charged is what was just shown.
+   *
+   * A row with no base price was written by an image from before the column existed (the
+   * window between a deploy's migration and its restart, or a rollback). That image sold
+   * at the published price only, so the row's own amount is its base price; without this
+   * branch a staff approval of such a row is never found and the customer is sent to a
+   * second review.
    */
-  private async takeApproval(workspaceId: string, pack: PricingPack): Promise<{ id: string } | null> {
+  private async takeApproval(workspaceId: string, pack: PricingPack, quote: PriceQuote): Promise<{ id: string } | null> {
     const approved = await adminDb.purchase.findFirst({
-      where: { tenantId: workspaceId, status: 'approved', packId: pack.id, amountCents: pack.price_cents, currency: pack.currency, review: { status: 'approved' } },
+      where: {
+        tenantId: workspaceId,
+        status: 'approved',
+        packId: pack.id,
+        currency: quote.currency,
+        review: { status: 'approved' },
+        OR: [{ baseAmountCents: quote.baseAmountCents }, ...(quote.fx ? [] : [{ baseAmountCents: null, amountCents: quote.amountCents }])],
+      },
       select: { id: true },
       orderBy: { createdAt: 'desc' },
     });
     if (!approved) return null;
-    const taken = await adminDb.purchase.updateMany({ where: { id: approved.id, status: 'approved' }, data: { status: 'pending', stripeSessionId: null } });
+    const taken = await adminDb.purchase.updateMany({ where: { id: approved.id, status: 'approved' }, data: { status: 'pending', stripeSessionId: null, ...purchaseMoney(quote) } });
     return taken.count === 1 ? approved : null;
   }
 
@@ -230,7 +271,7 @@ export class BillingService {
    * retry, a different pack — answers with the one already waiting. Ops is told after the
    * commit; the customer is emailed by staff's decision.
    */
-  private async requestReview(ctx: WorkspaceContext, pack: PricingPack, credits: number): Promise<CheckoutResponse> {
+  private async requestReview(ctx: WorkspaceContext, pack: PricingPack, credits: number, quote: PriceQuote): Promise<CheckoutResponse> {
     const open = () =>
       adminDb.fraudReview.findFirst({ where: { tenantId: ctx.workspaceId, trigger: FIRST_PURCHASE_REVIEW_TRIGGER, status: 'open' }, select: { id: true, purchaseId: true } });
     const existing = await open();
@@ -240,11 +281,11 @@ export class BillingService {
     try {
       created = await adminDb.$transaction(async (tx) => {
         const purchase = await tx.purchase.create({
-          data: { tenantId: ctx.workspaceId, packId: pack.id, amountCents: pack.price_cents, currency: pack.currency, credits, status: 'in_review' },
+          data: { tenantId: ctx.workspaceId, packId: pack.id, ...purchaseMoney(quote), credits, status: 'in_review' },
           select: { id: true },
         });
         const review = await tx.fraudReview.create({
-          data: { tenantId: ctx.workspaceId, trigger: FIRST_PURCHASE_REVIEW_TRIGGER, status: 'open', purchaseId: purchase.id, amountCents: pack.price_cents, currency: pack.currency },
+          data: { tenantId: ctx.workspaceId, trigger: FIRST_PURCHASE_REVIEW_TRIGGER, status: 'open', purchaseId: purchase.id, amountCents: quote.amountCents, currency: quote.currency },
           select: { id: true },
         });
         await tx.auditLog.create({
@@ -255,7 +296,7 @@ export class BillingService {
             targetType: 'purchase',
             targetId: purchase.id,
             ip: ctx.ip ?? null,
-            metaJson: { pack_id: pack.id, amount_cents: pack.price_cents, currency: pack.currency, credits, review_id: review.id } as Prisma.InputJsonValue,
+            metaJson: { pack_id: pack.id, amount_cents: quote.amountCents, currency: quote.currency, ...fxMeta(quote), credits, review_id: review.id } as Prisma.InputJsonValue,
           },
         });
         return { reviewId: review.id, purchaseId: purchase.id };
@@ -272,9 +313,9 @@ export class BillingService {
       kind: 'purchase_review_requested',
       severity: 'warning',
       title: 'A first purchase is waiting for review',
-      fields: { workspace_id: ctx.workspaceId, purchase_id: created.purchaseId, review_id: created.reviewId, pack_id: pack.id, amount_cents: pack.price_cents, currency: pack.currency },
+      fields: { workspace_id: ctx.workspaceId, purchase_id: created.purchaseId, review_id: created.reviewId, pack_id: pack.id, amount_cents: quote.amountCents, currency: quote.currency },
     });
-    this.log.warn(`purchase ${created.purchaseId} (${pack.price_cents} ${pack.currency}, first for ${ctx.workspaceId}) is waiting for review ${created.reviewId}`);
+    this.log.warn(`purchase ${created.purchaseId} (${quote.amountCents} ${quote.currency}, first for ${ctx.workspaceId}) is waiting for review ${created.reviewId}`);
     return { checkout_url: null, purchase_id: created.purchaseId, status: 'in_review' };
   }
 
@@ -458,6 +499,7 @@ export class BillingService {
       });
 
       await this.applyPlanTier(tx, workspaceId, pricing.config, session.customer);
+      await this.settleWorkspaceCurrency(tx, purchase);
       // §6.2 purchase audit (ADR 0036 §9). Inside the crediting transaction: a replay
       // stops at `already_paid` above, so a purchase completes once in the log too.
       await tx.auditLog.create({
@@ -467,7 +509,14 @@ export class BillingService {
           action: 'purchase.completed',
           targetType: 'purchase',
           targetId: purchaseId,
-          metaJson: { via: 'checkout', pack_id: purchase.packId, amount_cents: purchase.amountCents, currency: purchase.currency, credits: purchase.credits } as Prisma.InputJsonValue,
+          metaJson: {
+            via: 'checkout',
+            pack_id: purchase.packId,
+            amount_cents: purchase.amountCents,
+            currency: purchase.currency,
+            ...(purchase.fxRate ? { base_amount_cents: purchase.baseAmountCents, base_currency: purchase.baseCurrency, fx_rate: decimalText(purchase.fxRate) } : {}),
+            credits: purchase.credits,
+          } as Prisma.InputJsonValue,
         },
       });
       return { outcome: 'credited' as const, purchaseId, credits: purchase.credits, balance: write.balance_after };
@@ -523,12 +572,19 @@ export class BillingService {
    */
   private async unreviewedFirstPurchase(
     tx: Prisma.TransactionClient,
-    purchase: { id: string; tenantId: string; amountCents: number; isAutoTopup: boolean },
-    limitCents: number,
+    purchase: { id: string; tenantId: string; amountCents: number; currency: string; fxRate: Prisma.Decimal | null; isAutoTopup: boolean },
+    baseLimitCents: number,
   ): Promise<boolean> {
     if (purchase.isAutoTopup) return false;
     const hasPaidBefore = (await tx.purchase.count({ where: { tenantId: purchase.tenantId, id: { not: purchase.id }, status: { in: ['paid', 'refunded'] } } })) > 0;
-    if (!purchaseNeedsReview({ hasPaidBefore, amountCents: purchase.amountCents, limitCents })) return false;
+    const overLimit = firstPurchaseOverLimit({
+      hasPaidBefore,
+      amountCents: purchase.amountCents,
+      currency: purchase.currency,
+      fxRate: purchase.fxRate ? decimalText(purchase.fxRate) : null,
+      baseLimitCents,
+    });
+    if (!overLimit) return false;
     const review = await tx.fraudReview.findUnique({ where: { purchaseId: purchase.id }, select: { status: true } });
     return review?.status !== 'approved';
   }
@@ -596,6 +652,39 @@ export class BillingService {
     if (Object.keys(data).length) await tx.tenant.update({ where: { id: workspaceId }, data });
   }
 
+  /**
+   * ADR 0049: the first paid purchase is what locks the workspace currency, so it locks to
+   * the currency that purchase was actually charged in. They only differ when the currency
+   * was changed while a Checkout tab was still open; the money decides. With an earlier
+   * paid purchase the workspace keeps its currency (a staff change) and this one is
+   * credited as it was charged.
+   */
+  private async settleWorkspaceCurrency(tx: Prisma.TransactionClient, purchase: { id: string; tenantId: string; currency: string }): Promise<void> {
+    const charged = storedCurrency(purchase.currency);
+    if (!charged) return;
+    // Row lock: PATCH /workspace takes the same one before it counts paid purchases, so
+    // whichever of the two commits first, the other sees it.
+    const rows = await tx.$queryRaw<Array<{ currency: string }>>`SELECT currency FROM tenants WHERE id = ${purchase.tenantId}::uuid FOR UPDATE`;
+    const tenant = rows[0] ? { currency: rows[0].currency.trim() } : null;
+    if (!tenant || tenant.currency === charged) return;
+    const earlier = await tx.purchase.count({ where: { tenantId: purchase.tenantId, id: { not: purchase.id }, status: { in: ['paid', 'refunded'] } } });
+    if (earlier > 0) {
+      this.log.warn(`purchase ${purchase.id} was charged in ${charged} but workspace ${purchase.tenantId} is ${tenant.currency}; credited as charged`);
+      return;
+    }
+    await tx.tenant.update({ where: { id: purchase.tenantId }, data: { currency: charged } });
+    await tx.auditLog.create({
+      data: {
+        tenantId: purchase.tenantId,
+        actorUserId: null,
+        action: 'workspace.currency_set_by_purchase',
+        targetType: 'workspace',
+        targetId: purchase.tenantId,
+        metaJson: { from: tenant.currency, to: charged, purchase_id: purchase.id } as Prisma.InputJsonValue,
+      },
+    });
+  }
+
   /** Saves the card Stripe kept for off-session use, when the customer opted in (§5.4). */
   private async recordAutoTopup(workspaceId: string, session: CheckoutSessionFacts, config: PricingConfig): Promise<void> {
     if (session.metadata.auto_topup !== 'true' || !session.payment_intent) return;
@@ -613,6 +702,8 @@ export class BillingService {
           : null,
       payment_method_id: saved.payment_method_id,
       card_last4: saved.card_last4,
+      // The currency the customer just paid in is the one they agreed to be topped up in.
+      currency: storedCurrency(session.currency),
     };
     await adminDb.tenant.update({ where: { id: workspaceId }, data: { autoTopupJson: value } });
   }
@@ -634,6 +725,7 @@ export class BillingService {
  * Returns the reason they disagree, or null when they match.
  */
 export function amountMismatch(session: CheckoutSessionFacts, purchase: { amountCents: number; currency: string }): string | null {
+  // Not `storedCurrency`: a currency we do not sell in must still be compared, and refused.
   const currency = purchase.currency.trim().toUpperCase();
   if (session.amount_total === null) {
     // Only a zero-amount session omits it, and we never create one. Nothing to compare.
@@ -646,6 +738,70 @@ export function amountMismatch(session: CheckoutSessionFacts, purchase: { amount
     return `Stripe collected ${session.currency.toUpperCase()} but purchase is in ${currency}`;
   }
   return null;
+}
+
+/**
+ * The §17 first-purchase rule for one purchase (ADR 0036 §3, ADR 0049), asked twice with
+ * the same facts: by checkout of the quote it is about to write, and by `fulfil` of the
+ * row that quote became. One function, so the two cannot disagree — a purchase checkout
+ * lets through unreviewed is one `fulfil` credits.
+ *
+ * The limit is a base-currency figure, converted with the purchase's own rate: the one its
+ * amount was fixed with, never the rate in force, which moves between checkout and
+ * payment. A purchase outside the base currency with no rate of its own (a pack published
+ * in that currency) cannot be compared with the limit, and "cannot judge" is reviewed like
+ * any amount over it.
+ */
+export function firstPurchaseOverLimit(input: { hasPaidBefore: boolean; amountCents: number; currency: string; fxRate: string | null; baseLimitCents: number }): boolean {
+  if (input.hasPaidBefore) return false;
+  const currency = storedCurrency(input.currency);
+  const limitCents = currency ? limitInCurrency(input.baseLimitCents, currency, input.fxRate) : null;
+  return limitCents === null || purchaseNeedsReview({ hasPaidBefore: false, amountCents: input.amountCents, limitCents });
+}
+
+/** The money columns of a purchase row, from the quote it was priced with. Written once, when checkout begins. */
+export function purchaseMoney(quote: PriceQuote): {
+  amountCents: number;
+  currency: string;
+  baseAmountCents: number;
+  baseCurrency: string;
+  fxRate: Prisma.Decimal | null;
+  fxRateDate: Date | null;
+  fxRateId: string | null;
+} {
+  return {
+    amountCents: quote.amountCents,
+    currency: quote.currency,
+    baseAmountCents: quote.baseAmountCents,
+    baseCurrency: quote.baseCurrency,
+    fxRate: quote.fx ? new Prisma.Decimal(quote.fx.rate) : null,
+    fxRateDate: quote.fx ? new Date(`${quote.fx.observedOn}T00:00:00Z`) : null,
+    fxRateId: quote.fx?.id ?? null,
+  };
+}
+
+/** The conversion facts an audit row carries; empty for a purchase at its published price. */
+function fxMeta(quote: PriceQuote): Record<string, unknown> {
+  return quote.fx ? { base_amount_cents: quote.baseAmountCents, base_currency: quote.baseCurrency, fx_rate: quote.fx.rate, fx_rate_date: quote.fx.observedOn } : {};
+}
+
+/**
+ * ADR 0049: the customer confirms a price, and that price is what is charged or nothing
+ * is. The request says what the screen showed; when it is not the price in force now — a
+ * new exchange rate, a pricing publish, a currency changed in another tab — the answer is
+ * `PRICE_CHANGED` with the price to show, before any purchase row or Stripe session
+ * exists. A converted price can move daily, so the request must say what was shown.
+ */
+export function assertPriceShown(shown: { expected_amount_cents?: number; expected_currency?: string }, quote: Pick<PriceQuote, 'amountCents' | 'currency' | 'fx'>): void {
+  const stated = shown.expected_amount_cents !== undefined || shown.expected_currency !== undefined;
+  if (!stated && !quote.fx) return;
+  const same =
+    shown.expected_amount_cents === quote.amountCents && (shown.expected_currency === undefined || shown.expected_currency === quote.currency);
+  if (same) return;
+  throw new AppError('PRICE_CHANGED', 'The price has changed since this page loaded. Check the new price, then confirm again.', [
+    { field: 'expected_amount_cents', message: String(quote.amountCents) },
+    { field: 'expected_currency', message: quote.currency },
+  ]);
 }
 
 /** Stripe's own "this object does not exist" (404 `resource_missing`), as opposed to not reaching Stripe at all. */

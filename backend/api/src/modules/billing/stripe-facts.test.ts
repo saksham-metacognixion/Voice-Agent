@@ -119,18 +119,6 @@ describe('StripeGateway.invoiceFacts', () => {
   });
 });
 
-describe('StripeGateway.isCurrency', () => {
-  it.each([
-    ['USD', true],
-    ['CAD', true],
-    ['usd', false],
-    ['EUR', false],
-    [null, false],
-  ])('%s → %s', (value, expected) => {
-    expect(StripeGateway.isCurrency(value)).toBe(expected);
-  });
-});
-
 describe('amountMismatch (ADR 0010 §5)', () => {
   const session = (amount_total: number | null, currency: string | null) => ({ amount_total, currency }) as CheckoutSessionFacts;
   const purchase = { amountCents: 14_900, currency: 'USD' };

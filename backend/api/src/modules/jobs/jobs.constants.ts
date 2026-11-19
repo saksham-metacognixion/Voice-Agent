@@ -86,6 +86,8 @@ export const SCHEDULED_JOBS = {
   /** §17 retention: purges transcripts, recordings and the platform's copy past `tenants.retention_days` (CallRetentionService, ADR 0035). */
   dataRetention: 'data-retention',
   kbSync: 'kb-sync',
+  /** ADR 0049: the USD/CAD exchange rate. Hourly tick; the configured interval decides whether a tick asks the source (ExchangeRatesService.refreshIfDue). */
+  fxRefresh: 'fx-refresh',
 } as const;
 export type ScheduledJobName = (typeof SCHEDULED_JOBS)[keyof typeof SCHEDULED_JOBS];
 
@@ -132,6 +134,9 @@ export const SCHEDULES: readonly ScheduleSpec[] = [
   { name: SCHEDULED_JOBS.dailyDigest, pattern: '10 * * * *', status: 'live', lockTtlS: 50 * 60 },
   { name: SCHEDULED_JOBS.dataRetention, pattern: '40 * * * *', status: 'live', lockTtlS: 50 * 60 },
   { name: SCHEDULED_JOBS.kbSync, pattern: '0 1 * * *', status: 'skeleton' },
+  // Hourly on purpose: the refresh interval is a platform setting (24 h by default), and a
+  // failed refresh is retried on the next tick instead of a day later.
+  { name: SCHEDULED_JOBS.fxRefresh, pattern: '20 * * * *', status: 'live', lockTtlS: 10 * 60 },
 ];
 
 /** The lock TTL for one tick of a schedule (see ScheduleSpec.lockTtlS). */

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { agentStatus, agentTier, memberRole, planTier, reasonCode, staffRole } from './enums.js';
 import { isoDateTime, paginationQuery, uuid } from './common.js';
 import { pricingConfig } from './pricing.js';
+import { currencyCode, currencyRounding, fxRateText, fxSource, roundingMode } from './currency.js';
 import { phoneNumberStatus } from './numbers.js';
 import { callSummary } from './calls.js';
 import { jobStatus } from './agents.js';
@@ -214,6 +215,9 @@ export const adminCustomerDetail = adminCustomerSummary.extend({
   concurrency_cap: z.number().int(),
   kb_allowance: z.number().int(),
   stripe_customer_id: z.string().nullable(),
+  /** ADR 0049: the currency the workspace is charged in, and whether a paid purchase has locked it for the customer. */
+  currency: currencyCode.default('USD'),
+  currency_locked: z.boolean().default(false),
   paused_at: isoDateTime.nullable(),
   auto_topup_enabled: z.boolean(),
   members: z.number().int(),
@@ -275,6 +279,11 @@ export const adminPurchaseResponse = z.object({
   pack_id: z.string().nullable(),
   amount_cents: z.number().int(),
   currency: z.string(),
+  /** ADR 0049: the published price the amount was converted from and the rate used; all null when it was charged at the published price. */
+  base_amount_cents: z.number().int().nullable().default(null),
+  base_currency: z.string().nullable().default(null),
+  fx_rate: z.string().nullable().default(null),
+  fx_rate_date: z.string().nullable().default(null),
   credits: z.number().int(),
   status: purchaseStatus,
   is_auto_topup: z.boolean(),
@@ -515,6 +524,17 @@ export const platformSettings = z.object({
   concurrency_alert_pct: z.number().int().min(1).max(100),
   /** Nightly reconciliation alerts above this drift. */
   reconcile_drift_threshold_pct: z.number().min(0).max(100),
+  /** ADR 0049: where the USD/CAD rate is read from. One source today; a setting so a second needs no schema change. */
+  fx_source: fxSource,
+  /** Hours between successful exchange-rate refreshes. 24 = once a day. */
+  fx_refresh_interval_hours: z.number().int().min(1).max(168),
+  /** The newest stored rate is "stale" (ops alerted, still used) once its business day is this many days old. */
+  fx_stale_after_days: z.number().int().min(1).max(30),
+  /** A new rate further than this many percent from the last stored one is refused and ops alerted: a misprint must not reprice every pack. */
+  fx_max_move_pct: z.number().int().min(1).max(50),
+  /** A converted CAD price is rounded to a multiple of this many cents. 100 = a whole dollar. */
+  cad_rounding_step_cents: currencyRounding.shape.step_cents,
+  cad_rounding_mode: roundingMode,
 });
 export type PlatformSettings = z.infer<typeof platformSettings>;
 export const platformSettingKey = platformSettings.keyof();
@@ -531,7 +551,7 @@ export type AdminSettingsResponse = z.infer<typeof adminSettingsResponse>;
 
 /** PUT /admin/settings — the keys sent are set; `reset` puts keys back on their env var / default. */
 export const adminSettingsUpdateRequest = z
-  .object({ ...staffActionFields, ...platformSettings.partial().shape, reset: z.array(platformSettingKey).max(3).optional() })
+  .object({ ...staffActionFields, ...platformSettings.partial().shape, reset: z.array(platformSettingKey).max(Object.keys(platformSettings.shape).length).optional() })
   .refine(noteWithOther, noteWithOtherIssue)
   .refine(
     (v) => Object.keys(platformSettings.shape).some((k) => v[k as PlatformSettingKey] !== undefined) || Boolean(v.reset?.length),
@@ -544,6 +564,70 @@ export const adminConcurrencyAllowanceRequest = z
   .object({ ...staffActionFields, allowance: platformSettings.shape.concurrency_platform_limit })
   .refine(noteWithOther, noteWithOtherIssue);
 export type AdminConcurrencyAllowanceRequest = z.infer<typeof adminConcurrencyAllowanceRequest>;
+
+// ---------------------------------------------------------------------------- currencies and the exchange rate (ADR 0049)
+
+/** PUT /admin/customers/:id/currency — a staff change of the workspace currency, with a reason like every customer-affecting write. */
+export const adminCustomerCurrencyRequest = z
+  .object({ ...staffActionFields, currency: currencyCode })
+  .refine(noteWithOther, noteWithOtherIssue);
+export type AdminCustomerCurrencyRequest = z.infer<typeof adminCustomerCurrencyRequest>;
+
+/** One stored rate: units of `quote_currency` per one `base_currency`, for one business day. */
+export const exchangeRateResponse = z.object({
+  id: uuid,
+  base_currency: currencyCode,
+  quote_currency: currencyCode,
+  rate: fxRateText,
+  observed_on: z.string(),
+  source: z.string(),
+  series: z.string(),
+  /** When this row was first stored, and the last successful refresh that still found it the newest. */
+  fetched_at: isoDateTime,
+  confirmed_at: isoDateTime,
+});
+export type ExchangeRateResponse = z.infer<typeof exchangeRateResponse>;
+
+/** GET /admin/pricing/fx — what SA5 shows beside the packs: base and derived prices, the rate in force and how it is configured. */
+export const adminFxResponse = z.object({
+  base_currency: currencyCode,
+  quote_currency: currencyCode,
+  /** The rate prices are converted with now; null until the first successful refresh. */
+  in_force: exchangeRateResponse.extend({ age_days: z.number().int(), stale: z.boolean() }).nullable(),
+  /** The last refresh that reached the source and read a rate, whether or not the rate was new. */
+  last_refresh_at: isoDateTime.nullable(),
+  next_refresh_due_at: isoDateTime.nullable(),
+  settings: z.object({
+    fx_source: fxSource,
+    fx_refresh_interval_hours: z.number().int(),
+    fx_stale_after_days: z.number().int(),
+    rounding: currencyRounding,
+  }),
+  pricing_version: z.number().int(),
+  packs: z.array(
+    z.object({
+      pack_id: z.string(),
+      name: z.string(),
+      active: z.boolean(),
+      credits: z.number().int(),
+      base_price_cents: z.number().int(),
+      base_currency: currencyCode,
+      /** The price in `quote_currency` at the rate in force; null while there is no rate, or for a pack not published in the base currency. */
+      derived_price_cents: z.number().int().nullable(),
+    }),
+  ),
+  /** Newest first, the last 30 business days stored. */
+  history: z.array(exchangeRateResponse),
+});
+export type AdminFxResponse = z.infer<typeof adminFxResponse>;
+
+/** POST /admin/pricing/fx/refresh — ask the source now. `failed` keeps the rate in force and says why. */
+export const adminFxRefreshResponse = z.object({
+  outcome: z.enum(['stored', 'unchanged', 'failed']),
+  error: z.string().nullable(),
+  fx: adminFxResponse,
+});
+export type AdminFxRefreshResponse = z.infer<typeof adminFxRefreshResponse>;
 
 // ---------------------------------------------------------------------------- reconciliation (SA12, §14.2)
 

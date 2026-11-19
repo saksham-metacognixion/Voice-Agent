@@ -1,6 +1,7 @@
 import type { PlatformSettingKey, PlatformSettings } from '@portal/schemas';
 import { concurrencyAlertPct, platformConcurrencyLimit } from '../calls/concurrency-monitor';
 import { driftThresholdPct } from '../calls/reconcile';
+import { fxSettingsFromEnv } from './fx-settings';
 
 export type SettingSource = 'console' | 'env' | 'default';
 
@@ -13,6 +14,12 @@ const ENV_NAME: Record<PlatformSettingKey, string> = {
   concurrency_platform_limit: 'CONCURRENCY_PLATFORM_LIMIT',
   concurrency_alert_pct: 'CONCURRENCY_ALERT_PCT',
   reconcile_drift_threshold_pct: 'RECONCILE_DRIFT_THRESHOLD_PCT',
+  fx_source: 'FX_SOURCE',
+  fx_refresh_interval_hours: 'FX_REFRESH_INTERVAL_HOURS',
+  fx_stale_after_days: 'FX_STALE_AFTER_DAYS',
+  fx_max_move_pct: 'FX_MAX_MOVE_PCT',
+  cad_rounding_step_cents: 'CAD_ROUNDING_STEP_CENTS',
+  cad_rounding_mode: 'CAD_ROUNDING_MODE',
 };
 
 /**
@@ -31,11 +38,18 @@ export function resolveSettings(rows: ReadonlyMap<string, unknown>, env: NodeJS.
     source[key] = env[ENV_NAME[key]] ? 'env' : 'default';
     return fromEnv;
   };
+  const fx = fxSettingsFromEnv(env);
   return {
     settings: {
       concurrency_platform_limit: pick('concurrency_platform_limit', platformConcurrencyLimit(env)),
       concurrency_alert_pct: pick('concurrency_alert_pct', concurrencyAlertPct(env)),
       reconcile_drift_threshold_pct: pick('reconcile_drift_threshold_pct', driftThresholdPct(env)),
+      fx_source: pick('fx_source', fx.fx_source),
+      fx_refresh_interval_hours: pick('fx_refresh_interval_hours', fx.fx_refresh_interval_hours),
+      fx_stale_after_days: pick('fx_stale_after_days', fx.fx_stale_after_days),
+      fx_max_move_pct: pick('fx_max_move_pct', fx.fx_max_move_pct),
+      cad_rounding_step_cents: pick('cad_rounding_step_cents', fx.cad_rounding_step_cents),
+      cad_rounding_mode: pick('cad_rounding_mode', fx.cad_rounding_mode),
     },
     source,
   };

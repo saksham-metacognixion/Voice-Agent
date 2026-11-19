@@ -152,6 +152,7 @@ export type AnalyticsEvent =
   | 'auto_topup_saved'
   | 'payment_portal_opened'
   | 'workspace_settings_saved'
+  | 'workspace_currency_changed'
   | 'member_invited'
   | 'member_role_changed'
   | 'member_removed'

@@ -38,7 +38,10 @@ describe('queue and job names', () => {
       'number-release',
       'daily-digest',
       'data-retention',
+      'fx-refresh',
     ]);
+    // ADR 0049: hourly, so the refresh interval is a setting and a failure retries within the hour.
+    expect(SCHEDULES.find((s) => s.name === 'fx-refresh')?.pattern).toMatch(/^\d+ \* \* \* \*$/);
     // D7: the digest is hourly and timezone-aware, never one UTC midnight run.
     expect(SCHEDULES.find((s) => s.name === 'daily-digest')?.pattern).toMatch(/^\d+ \* \* \* \*$/);
   });

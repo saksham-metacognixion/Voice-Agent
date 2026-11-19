@@ -1,6 +1,6 @@
 'use client';
 
-import { buyNumber, importNumber, isApiError, useApi, useGetFlags, useGetPricing, useGetWallet, useListNumbers } from '@portal/api-client';
+import { buyNumber, importNumber, isApiError, useApi, useGetFlags, useGetWallet, useListNumbers } from '@portal/api-client';
 import { buyNumberRequest, importNumberRequest, type Carrier, type PurchasableCountry } from '@portal/schemas';
 import { Alert, Button, Checkbox, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, Field, Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Switch, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,8 +19,8 @@ import { routes } from '@/src/routes';
 import { isAreaCodeNotInCountry } from '@/src/wizard/area-code';
 import { cheapestPackWith } from '@/src/wizard/plan-gates';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
 import { useAgentsForNumbers } from './number-bits';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * D4 "+ Add number" (spec p. 36): the W6 options outside the wizard. A and B are
@@ -40,7 +40,7 @@ export function AddNumberDialog({ open, onOpenChange, agentId: preselect = null 
   const queryClient = useQueryClient();
   const agents = useAgentsForNumbers();
   const flags = useGetFlags(api, { staleTime: 60_000, enabled: open });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS, enabled: open });
+  const pricing = usePricing({}, { enabled: open });
   const wallet = useGetWallet(api, { staleTime: 15_000, enabled: open });
   const numbers = useListNumbers(api, { staleTime: 10_000, enabled: open });
 

@@ -7,6 +7,7 @@ import { WorkerModule } from './worker.module';
 import { resolveAppEnv, assertPortalUrl } from './common/env';
 import { JobQueues, QUEUES, SchedulerRegistrar, WorkerHeartbeat, WorkerRuntime } from './modules/jobs';
 import { RuntimeCacheService } from './modules/runtime-cache';
+import { ExchangeRatesService } from './modules/config';
 import { VoicesService } from './modules/voices';
 
 /**
@@ -58,6 +59,18 @@ async function bootstrap() {
   if (voicesStale) {
     const queued = await app.get(JobQueues).enqueueVoiceCacheNow();
     Logger.log(`voice catalogue empty, stale or missing a curated voice: voice-cache ${queued}`, 'Worker');
+  }
+
+  // ADR 0049: with no exchange rate stored (a first deploy) nothing can be priced in CAD.
+  // The hourly tick is the backstop; this asks now.
+  const noRate = await app
+    .get(ExchangeRatesService)
+    .current()
+    .then((rate) => rate === null)
+    .catch(() => false);
+  if (noRate) {
+    const queued = await app.get(JobQueues).enqueueFxRefreshNow();
+    Logger.log(`no exchange rate stored: fx-refresh ${queued}`, 'Worker');
   }
 
   Logger.log(`Worker started (${resolveAppEnv()})`, 'Worker');

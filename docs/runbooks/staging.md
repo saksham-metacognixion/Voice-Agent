@@ -392,6 +392,18 @@ aws secretsmanager get-secret-value --region ca-central-1 \
 
 `pnpm doctor` on the instance (with the `.env`) reports anything still unset.
 
+### After a deploy that carries ADR 0049 (USD and CAD)
+
+The migration adds `exchange_rates` and `tenants.currency`; the table starts empty. The worker asks
+the Bank of Canada for a rate when it boots with none stored, and every hour after.
+
+1. Console, Pricing, Currencies: a rate is in force and "Last successful refresh" is recent. If not,
+   "Refresh now" (finance or a super admin, with a reason) and read the ops alert channel.
+2. Until a rate is stored, CAD workspaces see USD prices marked unavailable and cannot pay; USD is
+   unaffected. Do not work around it: there is no fallback rate on purpose.
+3. The outbound request is a plain HTTPS GET to `www.bankofcanada.ca`; the instance needs egress to it.
+4. The money run in both currencies: `docs/evidence/2026-11-18-usd-cad/README.md` §4.
+
 ## Observability
 
 - Every schedule tick logs `<name>: tick started` and `<name>: done in <ms> → {…}` or

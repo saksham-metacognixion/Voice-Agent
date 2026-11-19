@@ -193,6 +193,14 @@ describe('D6/D7 tenant-scoped resources are isolated the same way', () => {
     // platform_settings (admin §9): global, staff-only.
     await expect(withNoWorkspace((db) => db.$queryRawUnsafe('SELECT 1 FROM "platform_settings" LIMIT 1'))).rejects.toThrow(/permission denied/i);
     await expect(asWorkspace(acme.tenantId, (db) => db.$executeRawUnsafe(`INSERT INTO "platform_settings" (key, value) VALUES ('concurrency_alert_pct', '1')`))).rejects.toThrow(/permission denied/i);
+    // exchange_rates (ADR 0049): global, staff-only. A customer connection can neither read a rate nor plant one.
+    await expect(withNoWorkspace((db) => db.$queryRawUnsafe('SELECT 1 FROM "exchange_rates" LIMIT 1'))).rejects.toThrow(/permission denied/i);
+    await expect(asWorkspace(acme.tenantId, (db) => db.$queryRawUnsafe('SELECT 1 FROM "exchange_rates" LIMIT 1'))).rejects.toThrow(/permission denied/i);
+    await expect(
+      asWorkspace(acme.tenantId, (db) =>
+        db.$executeRawUnsafe(`INSERT INTO "exchange_rates" (base_currency, quote_currency, rate, observed_on, source, series) VALUES ('USD', 'CAD', 0.01, '2026-11-17', 'planted', 'FXUSDCAD')`),
+      ),
+    ).rejects.toThrow(/permission denied/i);
   });
 });
 

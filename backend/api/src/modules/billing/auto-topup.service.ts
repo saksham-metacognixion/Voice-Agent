@@ -1,12 +1,12 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { Prisma, adminDb, withWorkspace } from '@portal/db';
-import { type AutoTopup, type AutoTopupRequest, type PricingConfig, autoTopup as autoTopupSchema } from '@portal/schemas';
+import { type AutoTopup, type AutoTopupRequest, BASE_CURRENCY, type CurrencyCode, autoTopup as autoTopupSchema, workspaceCurrency } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { OpsAlertService } from '../alerts';
 import { type WorkspaceContext, WorkspaceMfaService } from '../auth';
-import { PlatformConfigService, purchasablePackIn } from '../config';
+import { ExchangeRatesService, PlatformConfigService, type PriceQuote, purchasablePackIn } from '../config';
 import { WalletService, addMonths } from '../wallet/wallet.service';
-import { BillingService, isStripeNotFound } from './billing.service';
+import { BillingService, isStripeNotFound, purchaseMoney } from './billing.service';
 import { type PaymentIntentFacts, StripeGateway } from './stripe.gateway';
 
 /** A pending auto top-up younger than this is "in flight": no second charge for the same threshold. */
@@ -31,7 +31,11 @@ export type TopupSkipReason =
   | 'recent'
   | 'retries_exhausted'
   | 'cooldown'
-  | 'paused';
+  | 'paused'
+  /** ADR 0049: the switch was saved on in another currency than the workspace is in now. Never charged until it is saved on again. */
+  | 'currency_mismatch'
+  /** ADR 0049: no exchange rate is stored, so the pack has no price in the workspace currency. */
+  | 'currency_unavailable';
 
 export type TopupDecision =
   | { action: 'charge'; reason: 'below_threshold' }
@@ -64,6 +68,8 @@ export function decideTopup(input: {
   failures: number;
   lastFailureAt: Date | null;
   workspacePaused: boolean;
+  /** The workspace currency now. Omitted = not checked (callers that have already checked it). */
+  workspaceCurrency?: CurrencyCode;
   now?: Date;
 }): TopupDecision {
   const now = input.now ?? new Date();
@@ -72,6 +78,7 @@ export function decideTopup(input: {
   if (input.workspacePaused) return { action: 'skip', reason: 'paused' };
   if (!s.payment_method_id) return { action: 'skip', reason: 'no_card' };
   if (!s.pack_id || s.threshold === null) return { action: 'skip', reason: 'no_pack' };
+  if (input.workspaceCurrency && topupCurrency(s) !== input.workspaceCurrency) return { action: 'skip', reason: 'currency_mismatch' };
   if (input.balance >= s.threshold) return { action: 'skip', reason: 'above_threshold' };
   if (input.pendingSince && now.getTime() - input.pendingSince.getTime() < TOPUP_IN_FLIGHT_MS) return { action: 'skip', reason: 'in_flight' };
   if (input.lastPaidAt && now.getTime() - input.lastPaidAt.getTime() < TOPUP_MIN_INTERVAL_MS) return { action: 'skip', reason: 'recent' };
@@ -119,6 +126,7 @@ export class AutoTopupService {
     @Inject(forwardRef(() => BillingService)) private readonly billing: BillingService,
     private readonly alerts: OpsAlertService,
     private readonly mfa: WorkspaceMfaService,
+    private readonly fx: ExchangeRatesService,
   ) {}
 
   onAbandoned(listener: TopupAbandonedListener): void {
@@ -142,7 +150,7 @@ export class AutoTopupService {
   // ------------------------------------------------------------------ settings (PUT /wallet/auto-topup)
 
   async update(ctx: WorkspaceContext, input: AutoTopupRequest): Promise<AutoTopup> {
-    const tenant = await withWorkspace(ctx, (db) => db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { autoTopupJson: true, stripeCustomerId: true } }));
+    const tenant = await withWorkspace(ctx, (db) => db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { autoTopupJson: true, stripeCustomerId: true, currency: true } }));
     const current = parseSettings(tenant.autoTopupJson);
     const { config } = await this.config.currentPricing();
 
@@ -156,7 +164,9 @@ export class AutoTopupService {
       const pack = packId ? purchasablePackIn(config, packId) : undefined;
       if (!pack) throw new AppError('PACK_UNAVAILABLE', 'Pick a pack to top up with.', [{ field: 'pack_id', message: 'Unknown or inactive pack' }]);
       const threshold = input.threshold ?? current.threshold ?? Math.round((pack.credits * config.wallet_policy.auto_topup_threshold_pct) / 100);
-      const next: AutoTopup = { ...current, enabled: true, pack_id: pack.id, threshold };
+      // Saving the switch on is the customer agreeing to be charged in the workspace
+      // currency as it is now (ADR 0049); a later staff change of currency switches it off.
+      const next: AutoTopup = { ...current, enabled: true, pack_id: pack.id, threshold, currency: workspaceCurrency(tenant.currency) };
       // §6.2 (ADR 0036): turning auto top-up on is what puts a saved card at risk, so it is
       // the first change that needs a second factor — asked after the checks that would
       // refuse it anyway, so nobody sets up a factor to be told they have no card.
@@ -196,14 +206,14 @@ export class AutoTopupService {
         targetType: 'workspace',
         targetId: workspaceId,
         ip: who.ip ?? null,
-        metaJson: { pack_id: value.pack_id, threshold: value.threshold, card_last4: value.card_last4, ...(who.meta ?? {}) } as Prisma.InputJsonValue,
+        metaJson: { pack_id: value.pack_id, threshold: value.threshold, card_last4: value.card_last4, currency: value.currency, ...(who.meta ?? {}) } as Prisma.InputJsonValue,
       },
     });
   }
 
   /** The settings `update({enabled: false})` stores: the card stays, the switch goes off. Shared with the staff path. */
   static disabled(current: AutoTopup | null): AutoTopup {
-    return { ...(current ?? { payment_method_id: null, card_last4: null, pack_id: null, threshold: null }), enabled: false };
+    return { ...(current ?? { payment_method_id: null, card_last4: null, pack_id: null, threshold: null, currency: null }), enabled: false };
   }
 
   /** `tenants.auto_topup_json` parsed, or null when unset or malformed. */
@@ -218,7 +228,7 @@ export class AutoTopupService {
    * when nothing is due: one tenant read and one balance read before any lock is taken.
    */
   async evaluate(workspaceId: string, trigger: 'ledger' | 'schedule' | 'staff', options: { ignoreCooldown?: boolean } = {}): Promise<TopupAttemptOutcome> {
-    const tenant = await adminDb.tenant.findUnique({ where: { id: workspaceId }, select: { autoTopupJson: true, stripeCustomerId: true, pausedAt: true, name: true } });
+    const tenant = await adminDb.tenant.findUnique({ where: { id: workspaceId }, select: { autoTopupJson: true, stripeCustomerId: true, pausedAt: true, name: true, currency: true } });
     const settings = parseSettings(tenant?.autoTopupJson);
     if (!tenant || !settings?.enabled) return { outcome: 'skipped', reason: 'disabled' };
     if (!tenant.stripeCustomerId) return { outcome: 'skipped', reason: 'no_card' };
@@ -230,8 +240,20 @@ export class AutoTopupService {
     const pack = settings.pack_id ? purchasablePackIn(config, settings.pack_id) : undefined;
     if (!pack) return { outcome: 'skipped', reason: 'no_pack' };
 
-    const quick = decideTopup({ settings, balance, pendingSince: null, lastPaidAt: null, failures: 0, lastFailureAt: null, workspacePaused: tenant.pausedAt !== null });
+    const currency = workspaceCurrency(tenant.currency);
+    const quick = decideTopup({ settings, balance, pendingSince: null, lastPaidAt: null, failures: 0, lastFailureAt: null, workspacePaused: tenant.pausedAt !== null, workspaceCurrency: currency });
     if (quick.action === 'skip') return { outcome: 'skipped', reason: quick.reason };
+
+    // ADR 0049: the pack at today's price in the workspace currency, fixed on the purchase
+    // row before Stripe is asked. No rate stored = no price = no charge; the switch stays
+    // on and the next tick tries again.
+    let quote: PriceQuote;
+    try {
+      quote = await this.fx.quote(pack, currency);
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'CURRENCY_UNAVAILABLE') return { outcome: 'skipped', reason: 'currency_unavailable' };
+      throw error;
+    }
 
     await this.config.ensurePackRow(pack);
 
@@ -257,14 +279,14 @@ export class AutoTopupService {
         failures: options.ignoreCooldown ? 0 : streak.failures,
         lastFailureAt: options.ignoreCooldown ? null : streak.lastFailureAt,
         workspacePaused: tenant.pausedAt !== null,
+        workspaceCurrency: currency,
       });
       if (decision.action === 'skip') return { skipped: decision.reason as TopupSkipReason };
       const purchase = await tx.purchase.create({
         data: {
           tenantId: workspaceId,
           packId: pack.id,
-          amountCents: pack.price_cents,
-          currency: pack.currency,
+          ...purchaseMoney(quote),
           credits: pack.credits + pack.bonus_credits,
           status: 'pending',
           isAutoTopup: true,
@@ -275,15 +297,15 @@ export class AutoTopupService {
     });
     if ('skipped' in created) return { outcome: 'skipped', reason: created.skipped! };
 
-    this.log.log(`auto top-up for ${workspaceId} (${trigger}): balance ${balance} < ${settings.threshold}, charging ${pack.id} as purchase ${created.purchaseId}`);
-    return this.charge(workspaceId, created.purchaseId, { settings, pack, customerId: tenant.stripeCustomerId });
+    this.log.log(`auto top-up for ${workspaceId} (${trigger}): balance ${balance} < ${settings.threshold}, charging ${pack.id} (${quote.amountCents} ${quote.currency}) as purchase ${created.purchaseId}`);
+    return this.charge(workspaceId, created.purchaseId, { settings, pack, customerId: tenant.stripeCustomerId, amountCents: quote.amountCents, currency: quote.currency });
   }
 
   /** The Stripe half, outside every transaction. Reused by the reconcile sweep for a purchase that never got its intent. */
   private async charge(
     workspaceId: string,
     purchaseId: string,
-    input: { settings: AutoTopup; pack: PricingConfig['packs'][number]; customerId: string },
+    input: { settings: AutoTopup; pack: { id: string; name: string }; customerId: string; amountCents: number; currency: string },
   ): Promise<TopupAttemptOutcome> {
     let intent: PaymentIntentFacts;
     try {
@@ -293,8 +315,9 @@ export class AutoTopupService {
         packId: input.pack.id,
         customerId: input.customerId,
         paymentMethodId: input.settings.payment_method_id!,
-        amountCents: input.pack.price_cents,
-        currency: input.pack.currency,
+        // The purchase row's own amount and currency, fixed when it was created.
+        amountCents: input.amountCents,
+        currency: input.currency,
         description: `Auto top-up: ${input.pack.name} pack`,
       });
     } catch (error) {
@@ -449,7 +472,7 @@ export class AutoTopupService {
     let reconciled = 0;
     const stale = await adminDb.purchase.findMany({
       where: { isAutoTopup: true, status: 'pending', createdAt: { lt: new Date(now.getTime() - TOPUP_RECONCILE_AFTER_MS) } },
-      select: { id: true, tenantId: true, stripePaymentIntent: true, packId: true },
+      select: { id: true, tenantId: true, stripePaymentIntent: true, packId: true, amountCents: true, currency: true },
       take: 100,
     });
     for (const purchase of stale) {
@@ -475,7 +498,8 @@ export class AutoTopupService {
           if (!settings?.payment_method_id || !tenant?.stripeCustomerId || !pack) {
             await this.abandon(purchase.id, purchase.tenantId, 'no_card', 'card or pack no longer available');
           } else {
-            await this.charge(purchase.tenantId, purchase.id, { settings, pack, customerId: tenant.stripeCustomerId });
+            // The amount on the row, not today's price: the same idempotency key must carry the same parameters.
+            await this.charge(purchase.tenantId, purchase.id, { settings, pack, customerId: tenant.stripeCustomerId, amountCents: purchase.amountCents, currency: purchase.currency.trim() });
           }
         }
         reconciled += 1;
@@ -521,6 +545,11 @@ export async function failureStreak(db: Prisma.TransactionClient | typeof adminD
     db.purchase.findFirst({ where: failed, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
   ]);
   return { failures, lastFailureAt: last?.updatedAt ?? null };
+}
+
+/** The currency a saved switch may be charged in. Settings saved before currencies existed carry none and were all USD. */
+export function topupCurrency(settings: Pick<AutoTopup, 'currency'>): CurrencyCode {
+  return settings.currency ?? BASE_CURRENCY;
 }
 
 function parseSettings(value: unknown): AutoTopup | null {

@@ -1,0 +1,30 @@
+INFO workspace country "Canada", currency field reads "Canadian dollars (CAD)"
+PASS Settings shows the workspace currency
+PASS a Canadian workspace starts in CAD :: Canada → Canadian dollars (CAD)
+PASS the currency field is enabled before a purchase
+PASS a changed currency is saved and survives a reload :: US dollars (USD)
+PASS Settings is back on CAD
+PASS keyboard: the currency select opens with Enter and closes with Escape
+INFO balance before: 20 credits
+PASS pack prices are shown in CAD: CA$70, CA$213, CA$570, CA$1,428 :: CA$70 CA$213 CA$570 CA$1,428 CA$213
+PASS the note says where the CAD price comes from :: CAD prices are our USD prices converted at the Bank of Canada rate for Nov 17, 2026 (1.4291). They can change when the rate does. You pay the amount on the butt
+INFO Pay button in CAD: "Pay CA$213 and go live"
+PASS switching the currency reprices the packs in USD: $49, $149, $399, $999 :: $49 $149 $399 $999 $149
+PASS no conversion note in USD
+PASS and back to CAD
+PASS 390 px: the buy dialog has no horizontal overflow
+INFO Pay button: "Pay CA$213 and go live"
+INFO Stripe Checkout shows: "CA$213.00"
+PASS Stripe’s page charges the amount the button showed, in CAD :: Pay CA$213 and go live vs CA$213.00
+PASS Stripe returned to the wallet after payment :: http://localhost:3005/app/wallet?checkout=success&session_id=…
+INFO balance after: 520 credits
+PASS the pack’s credits were granted (20 trial + 500) :: 520 credits
+PASS the invoice or history shows a CAD amount :: CA$213
+PASS after the purchase the currency field is disabled
+PASS …and says why
+PASS the buy dialog now states the currency instead of offering a choice
+PASS ar: <html dir="rtl"> and the currency label is translated :: {"dir":"rtl","lang":"ar"}
+PASS ar: 390 px Settings has no horizontal overflow
+PASS fr-CA: <html dir="ltr"> and the currency label is translated :: {"dir":"ltr","lang":"fr-CA"}
+PASS fr-CA: 390 px Settings has no horizontal overflow
+PASS no console errors on our pages

@@ -314,6 +314,15 @@ export class JobQueues implements OnApplicationShutdown {
   }
 
   /**
+   * ADR 0049: a one-off `fx-refresh` for a worker that boots with no exchange rate stored
+   * (a first deploy), so CAD is priced within seconds rather than at the next hourly tick.
+   * Same handler, same schedule lock, one run however many workers boot.
+   */
+  enqueueFxRefreshNow(): Promise<EnqueueResult> {
+    return this.add(QUEUES.scheduled, SCHEDULED_JOBS.fxRefresh, {}, { ...REPAIR_JOB_OPTIONS, attempts: 1, jobId: 'fx-refresh-boot' });
+  }
+
+  /**
    * ADR 0011 §7 on demand. The delay is the throttle: while the job waits, every later
    * poll of the same call enqueues the same id and BullMQ refuses it, so an open W5 card
    * polling every 3 s costs one `get-call` per `RECOVER_CALL_DELAY_MS`, not one per poll.

@@ -48,7 +48,7 @@ export function userPath(id: string): string {
   return `${routes.userDetail}?id=${encodeURIComponent(id)}`;
 }
 
-export const PRICING_TABS = ['draft', 'preview', 'versions', 'costs'] as const;
+export const PRICING_TABS = ['draft', 'preview', 'versions', 'costs', 'currencies'] as const;
 export type PricingTab = (typeof PRICING_TABS)[number];
 
 export const TELEPHONY_TABS = ['numbers', 'agents', 'knowledge', 'provisioning', 'concurrency'] as const;

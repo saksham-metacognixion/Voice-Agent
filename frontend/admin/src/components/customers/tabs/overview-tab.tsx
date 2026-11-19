@@ -8,6 +8,7 @@ import { PermissionButton } from '@/src/components/common/permission-button';
 import { Fact, FactGrid } from '@/src/components/common/query-states';
 import { YesNo } from '@/src/components/common/status-badges';
 import { KycCard } from '@/src/components/customers/kyc-card';
+import { CurrencyDialog } from '@/src/components/customers/currency-dialog';
 import { OverridesDialog } from '@/src/components/customers/overrides-dialog';
 import { formatCents, formatCredits, formatDateTime, formatNumber } from '@/src/lib/format';
 import { useStaff } from '@/src/staff/staff-provider';
@@ -15,6 +16,7 @@ import { useStaff } from '@/src/staff/staff-provider';
 export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
   const { can } = useStaff();
   const [editingOverrides, setEditingOverrides] = React.useState(false);
+  const [changingCurrency, setChangingCurrency] = React.useState(false);
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <div className="flex flex-col gap-4">
@@ -89,15 +91,22 @@ export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader>
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
             <CardTitle className="text-sm">Billing</CardTitle>
+            <PermissionButton variant="outline" size="sm" denied={can.setCurrency()} onClick={() => setChangingCurrency(true)}>
+              Change currency
+            </PermissionButton>
           </CardHeader>
           <CardContent>
             <FactGrid columns={2}>
               <Fact label="Balance">{formatCredits(c.balance)} credits</Fact>
               <Fact label="Last pack">{c.last_pack_credits === null ? '–' : `${formatCredits(c.last_pack_credits)} credits`}</Fact>
               <Fact label="Paid purchases">{c.purchases_paid}</Fact>
-              <Fact label="Lifetime sales">{formatCents(c.lifetime_sales_cents)}</Fact>
+              <Fact label="Lifetime sales">{formatCents(c.lifetime_sales_cents, c.currency)}</Fact>
+              <Fact label="Currency" wrap>
+                {c.currency}
+                <span className="font-normal text-muted-foreground">{c.currency_locked ? ' · locked by a purchase' : ' · customer can change'}</span>
+              </Fact>
               <Fact label="Auto top-up">
                 <YesNo value={c.auto_topup_enabled} yes="On" no="Off" />
               </Fact>
@@ -105,6 +114,7 @@ export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
                 {c.stripe_customer_id ? <Copyable value={c.stripe_customer_id} full /> : '–'}
               </Fact>
             </FactGrid>
+            {changingCurrency ? <CurrencyDialog c={c} onClose={() => setChangingCurrency(false)} /> : null}
           </CardContent>
         </Card>
       </div>

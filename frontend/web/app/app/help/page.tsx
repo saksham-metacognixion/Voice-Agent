@@ -1,6 +1,6 @@
 'use client';
 
-import { isApiError, useApi, useGetPricing, useGetReadiness, useListCalls } from '@portal/api-client';
+import { isApiError, useApi, useGetReadiness, useListCalls } from '@portal/api-client';
 import type { Carrier } from '@portal/schemas';
 import { Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState, Skeleton, cn } from '@portal/ui';
 import { Activity, BookOpen, ExternalLink, Network, PhoneForwarded, PhoneIncoming, Receipt, RefreshCw } from 'lucide-react';
@@ -17,7 +17,7 @@ import { formatDateTime, formatNumber, formatTime } from '@/src/lib/format';
 import { callPath, routes } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * D7 Help (spec p. 39): the forwarding, SIP and billing guides — each built from what
@@ -104,8 +104,7 @@ function SipGuideCard() {
 /** The billing FAQ, every number from `GET /pricing` — the published config, never a constant here. */
 function BillingGuideCard() {
   const t = useTranslations('dashboard.help');
-  const api = useApi();
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const p = pricing.data;
   return (
     <Card id="billing">

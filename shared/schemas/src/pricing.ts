@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { type agentTier, planTier } from './enums.js';
 import { outboundPolicy } from './outbound.js';
+import { currencyCode, fxQuote } from './currency.js';
 
 /**
  * The versioned pricing snapshot stored in `pricing_configs.config_json` (admin §5.1).
@@ -12,9 +13,6 @@ import { outboundPolicy } from './outbound.js';
  * `credit_lots.policy_version`). A constant in code would make every later billing
  * question unanswerable, so there are none (CLAUDE.md, Configuration).
  */
-
-export const currencyCode = z.enum(['USD', 'CAD']);
-export type CurrencyCode = z.infer<typeof currencyCode>;
 
 /** Admin §5 "Feature gates" — what a plan tier unlocks. Read by the portal from GET /flags. */
 export const featureGate = z.enum([
@@ -149,7 +147,18 @@ export type PublicPack = z.infer<typeof publicPack>;
 export const pricingResponse = z.object({
   version: z.number().int(),
   effective_at: z.string(),
+  /** The currency `packs[].price_cents` are in: the one asked for, or the base when it could not be priced. */
   currency: currencyCode,
+  /** The currency prices are published in (ADR 0049). */
+  base_currency: currencyCode.default('USD'),
+  /** The rate the prices were converted with; null when `currency` is the base currency. */
+  fx: fxQuote.nullable().default(null),
+  /**
+   * True when the currency asked for has no exchange rate stored yet: the packs are then
+   * listed at their base price for reference and none of them can be bought until a rate
+   * arrives. Never a silent fallback to charging the base currency.
+   */
+  currency_unavailable: z.boolean().default(false),
   packs: z.array(publicPack),
   rates: pricingRates,
   recurring: pricingRecurring,
@@ -174,6 +183,12 @@ export const pricingQuery = z.object({
    * not sold in `region` adds nothing and is not an error.
    */
   pack: z.string().max(64).optional(),
+  /**
+   * The currency to price the packs in: the workspace's (`workspaceResponse.currency`).
+   * Omitted = the base currency. The route is public, so the portal names the currency;
+   * checkout prices from the workspace row whatever was asked for here.
+   */
+  currency: z.string().length(3).toUpperCase().pipe(currencyCode).optional(),
 });
 export type PricingQuery = z.infer<typeof pricingQuery>;
 

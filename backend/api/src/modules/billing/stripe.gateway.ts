@@ -28,8 +28,15 @@ export interface CreateCheckoutInput {
   purchaseId: string;
   workspaceId: string;
   pack: PricingPack;
+  /**
+   * What is charged, in minor units, and in which currency (ADR 0049): the purchase row's
+   * own figures. For a converted price they differ from `pack.price_cents`, so nothing in
+   * here reads the pack for money.
+   */
+  amountCents: number;
+  currency: CurrencyCode;
   configVersion: number;
-  /** The Stripe Price from stripe_price_map when the SA5 sync has run; inline price data otherwise. */
+  /** The Stripe Price from stripe_price_map when the SA5 sync has run for this exact amount; inline price data otherwise, and always for a converted price. */
   stripePriceId?: string;
   customerId?: string | null;
   customerEmail?: string;
@@ -137,6 +144,11 @@ export class StripeGateway {
 
     const session = await this.client.checkout.sessions.create({
       mode: 'payment',
+      // The customer pays the amount and currency our screen showed, nothing else (ADR 0049).
+      // Left on, Stripe's Adaptive Pricing offers the buyer's local currency at Stripe's own
+      // rate and fee: a buyer in India was shown and charged ₹4,763.60 for a $49.00 pack
+      // (19 Nov 2026) while the session still read 4900 usd, so our amount check saw nothing.
+      adaptive_pricing: { enabled: false },
       client_reference_id: input.purchaseId,
       metadata,
       line_items: [
@@ -145,8 +157,8 @@ export class StripeGateway {
           : {
               quantity: 1,
               price_data: {
-                currency: input.pack.currency.toLowerCase(),
-                unit_amount: input.pack.price_cents,
+                currency: input.currency.toLowerCase(),
+                unit_amount: input.amountCents,
                 product_data: {
                   name: `${input.pack.name} pack`,
                   description: `${totalCredits.toLocaleString('en-US')} credits · 1 credit = 1 minute of a Standard agent`,
@@ -163,14 +175,17 @@ export class StripeGateway {
         ...(autoTopup ? { setup_future_usage: 'off_session' } : {}),
       },
       ...(autoTopup ? { saved_payment_method_options: { payment_method_save: 'enabled' } } : {}),
-      invoice_creation: { enabled: true },
+      // The invoice carries our ids too. Since Stripe API 2025-03 an invoice object has no
+      // `payment_intent`, so its metadata is the only thing an `invoice.*` event has to
+      // tell `InvoicesService` which purchase it is the receipt for.
+      invoice_creation: { enabled: true, invoice_data: { metadata } },
       success_url: this.config.successUrl(Boolean(input.agentId)),
       cancel_url: this.config.cancelUrl(Boolean(input.agentId)),
       expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_TTL_S,
     });
 
     if (!session.url) throw new Error(`Stripe returned checkout session ${session.id} without a URL`);
-    this.log.log(`checkout ${session.id} for purchase ${input.purchaseId} (${input.pack.id}, ${input.pack.price_cents} ${input.pack.currency})`);
+    this.log.log(`checkout ${session.id} for purchase ${input.purchaseId} (${input.pack.id}, ${input.amountCents} ${input.currency})`);
     return { id: session.id, url: session.url };
   }
 
@@ -418,9 +433,5 @@ export class StripeGateway {
       paid_at: transitions.paid_at ?? null,
       voided_at: transitions.voided_at ?? null,
     };
-  }
-
-  static isCurrency(value: string | null): value is CurrencyCode {
-    return value === 'USD' || value === 'CAD';
   }
 }

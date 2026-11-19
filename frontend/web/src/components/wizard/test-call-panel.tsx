@@ -1,6 +1,6 @@
 'use client';
 
-import { isApiError, useApi, useGetPricing, useGetWallet, useListAgentVersions } from '@portal/api-client';
+import { isApiError, useApi, useGetWallet, useListAgentVersions } from '@portal/api-client';
 import type { AgentDetail } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Spinner, cn } from '@portal/ui';
 import { Mic, PhoneOff } from 'lucide-react';
@@ -16,7 +16,7 @@ import { formatCredits } from '@/src/wizard/plan-gates';
 import { canTransfer, needsPhoneTransfer } from '@/src/wizard/test-scenarios';
 import { resolveTestVersion, testableVersions } from '@/src/wizard/test-versions';
 import { useTestCall, type TestCallFailure } from '@/src/wizard/use-test-call';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * W5 TestCallPanel (§12.3, §12.4): talk to the draft in the browser. Microphone, one
@@ -58,7 +58,7 @@ export function TestCallPanel({ agent, onEnded, outOfCredits }: TestCallPanelPro
   const testingDraft = versionNo !== null && versionNo === draft?.version_no;
   const { state, start, end } = useTestCall(agent.id, versionNo);
   const wallet = useGetWallet(api, { staleTime: 15_000 });
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
+  const pricing = usePricing();
   const transcriptEnd = React.useRef<HTMLDivElement>(null);
   const reported = React.useRef<string | null>(null);
 

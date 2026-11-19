@@ -168,6 +168,12 @@ function PurchaseFacts({ p }: { p: AdminPurchaseDetail }) {
       </Fact>
       <Fact label="Pack">{p.pack_name ?? p.pack_id ?? '–'}</Fact>
       <Fact label="Amount">{formatCents(p.amount_cents, p.currency)}</Fact>
+      {p.fx_rate ? (
+        <Fact label="Converted from" wrap>
+          {formatCents(p.base_amount_cents, p.base_currency ?? 'USD')} at {p.fx_rate}
+          {p.fx_rate_date ? ` (${p.fx_rate_date})` : ''}
+        </Fact>
+      ) : null}
       <Fact label="Credits">{formatCredits(p.credits)}</Fact>
       <Fact label="Refunded">{p.refunded_cents > 0 ? formatCents(p.refunded_cents, p.currency) : '–'}</Fact>
       <Fact label="Refundable">{p.status === 'paid' ? formatCents(p.refundable_cents, p.currency) : '–'}</Fact>

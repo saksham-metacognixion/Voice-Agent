@@ -185,6 +185,14 @@ export const ErrorCode = {
   DESTINATION_IS_AGENT: 'DESTINATION_IS_AGENT',
   /** D18: the other party of the call has no number we can dial (withheld, a browser call, not a real number). */
   DESTINATION_INVALID: 'DESTINATION_INVALID',
+  /**
+   * ADR 0049: the price the customer was shown is not the price in force (a new exchange
+   * rate or a pricing publish since). Nothing was charged; `fields` carries the latest
+   * `expected_amount_cents` and `expected_currency` to show before they confirm again.
+   */
+  PRICE_CHANGED: 'PRICE_CHANGED',
+  /** ADR 0049: the workspace has a paid purchase, so only staff can change its currency. */
+  CURRENCY_LOCKED: 'CURRENCY_LOCKED',
   // 429
   TEST_RATE_LIMIT: 'TEST_RATE_LIMIT',
   /** D18: the workspace placed as many outbound calls today (its local day) as its plan allows. */
@@ -197,6 +205,8 @@ export const ErrorCode = {
   NOT_CONFIGURED: 'NOT_CONFIGURED',
   /** Stripe refused the price sync; the version stays unpublished (admin §5.2 step 3). */
   STRIPE_SYNC_FAILED: 'STRIPE_SYNC_FAILED',
+  /** ADR 0049: no exchange rate is stored for the workspace currency, so nothing can be priced or charged in it yet. */
+  CURRENCY_UNAVAILABLE: 'CURRENCY_UNAVAILABLE',
 } as const;
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
 
@@ -246,6 +256,8 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   CONFLICT: 409,
   SIP_VERIFY_IN_PROGRESS: 409,
   PURCHASES_PAUSED: 409,
+  PRICE_CHANGED: 409,
+  CURRENCY_LOCKED: 409,
   GENERATION_PAUSED: 409,
   TESTS_PAUSED: 409,
   CONCURRENCY_LIMIT: 409,
@@ -291,4 +303,5 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   UPSTREAM_UNAVAILABLE: 503,
   NOT_CONFIGURED: 503,
   STRIPE_SYNC_FAILED: 503,
+  CURRENCY_UNAVAILABLE: 503,
 };

@@ -1,16 +1,14 @@
 'use client';
 
-import { useApi, useGetPricing } from '@portal/api-client';
 import { pricingResponse } from '@portal/schemas';
 import * as React from 'react';
 import { config } from '../config';
-import { PRICING_STALE_MS, pricingFigures, type PricingFigures } from './pricing';
+import { pricingFigures, type PricingFigures } from './pricing';
+import { usePricing } from './use-pricing';
 
 /** The published rates and trial size for a signed-in screen (the shared `GET /pricing` query). */
 export function usePricingFigures(): PricingFigures {
-  const api = useApi();
-  const pricing = useGetPricing(api, undefined, { staleTime: PRICING_STALE_MS });
-  return pricingFigures(pricing.data);
+  return pricingFigures(usePricing().data);
 }
 
 /**

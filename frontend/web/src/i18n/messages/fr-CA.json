@@ -53,7 +53,15 @@
     "language": "Langue",
     "changeLanguage": "Changer de langue",
     "listSeparator": ", ",
-    "photo": "Photo"
+    "photo": "Photo",
+    "currency": {
+      "label": "Devise",
+      "USD": "Dollars américains (USD)",
+      "CAD": "Dollars canadiens (CAD)",
+      "line": "Devise : {currency}",
+      "fixedLine": "Devise : {currency}. Votre premier achat l’a fixée. Communiquez avec le soutien pour la modifier.",
+      "changeHint": "Vous pouvez la modifier jusqu’à votre premier achat."
+    }
   },
   "nav": {
     "home": "Accueil",
@@ -442,7 +450,10 @@
     },
     "NUMBER_LIMIT": "Tous les numéros de téléphone inclus dans votre formule sont déjà utilisés. Passez à une formule supérieure pour en ajouter un autre.",
     "NUMBER_ON_CALL": "Ce numéro est en communication en ce moment. Vous pourrez le libérer une fois l’appel terminé.",
-    "FORWARDING_NUMBER_INVALID": "Votre ligne actuelle a été enregistrée sans l’indicatif de pays, nous ne l’appellerons donc pas. Corrigez-la sous Votre ligne actuelle, puis refaites le test."
+    "FORWARDING_NUMBER_INVALID": "Votre ligne actuelle a été enregistrée sans l’indicatif de pays, nous ne l’appellerons donc pas. Corrigez-la sous Votre ligne actuelle, puis refaites le test.",
+    "PRICE_CHANGED": "Le prix a changé depuis le chargement de cette page. Vérifiez le nouveau prix, puis confirmez de nouveau.",
+    "CURRENCY_LOCKED": "Votre devise a été fixée par votre premier achat. Communiquez avec le soutien pour la modifier.",
+    "CURRENCY_UNAVAILABLE": "Les prix dans cette devise ne sont pas offerts pour le moment. Réessayez un peu plus tard."
   },
   "validation": {
     "required": "Obligatoire",
@@ -1649,7 +1660,14 @@
         "topupWhen": "Recharger quand le solde tombe à",
         "topupPct": "{pct} % du forfait ({credits} crédits)",
         "minutes": "≈ {n, plural, one {# minute} other {# minutes}} avec une voix Standard",
-        "minutesPremium": "{n, number} en Premium"
+        "minutesPremium": "{n, number} en Premium",
+        "currencyUnavailableTitle": "{currency} : les prix ne sont pas offerts pour le moment",
+        "currencyUnavailableBody": "Nous n’avons pas pu obtenir le taux de change du jour; aucun paiement n’est donc possible dans cette devise pour l’instant. Les prix ci-dessous sont en dollars américains, à titre indicatif. Réessayez un peu plus tard.",
+        "fxNote": "Les prix en {currency} sont nos prix en {base} convertis au taux de la Banque du Canada du {date} ({rate}). Ils peuvent changer avec le taux. Vous payez le montant indiqué sur le bouton.",
+        "fxNoteNoSource": "Les prix en {currency} sont nos prix en {base} convertis au taux de change du {date} ({rate}). Ils peuvent changer avec le taux. Vous payez le montant indiqué sur le bouton.",
+        "fxTopupNote": "Les recharges automatiques sont facturées en {currency}, au prix du jour.",
+        "priceChangedTitle": "Le prix a changé",
+        "priceChangedBody": "Il est maintenant de {price}. Rien n’a été facturé. Vérifiez le nouveau prix, puis payez."
       },
       "progress": {
         "connecting": "Connexion…",
@@ -2927,7 +2945,8 @@
         "save": "Enregistrer la recharge automatique",
         "saved": "Recharge automatique enregistrée.",
         "summaryOn": "Achète le forfait {pack} quand le solde descend sous {threshold} crédits.",
-        "summaryOff": "Désactivée. Votre agent cesse de répondre quand il n’y a plus de crédits."
+        "summaryOff": "Désactivée. Votre agent cesse de répondre quand il n’y a plus de crédits.",
+        "fxHint": "Facturé en {currency}, au prix du jour de la recharge."
       },
       "expiring": {
         "title": "Expirent bientôt",
@@ -3053,7 +3072,10 @@
         "hoursTitle": "Heures d’ouverture par défaut",
         "hoursBody": "Les numéros réglés sur « pendant les heures d’ouverture » répondent selon cet horaire.",
         "hoursClear": "Aucune heure d’ouverture",
-        "save": "Enregistrer l’espace de travail"
+        "save": "Enregistrer l’espace de travail",
+        "currency": "Devise",
+        "currencyHint": "La devise dans laquelle vos forfaits et vos recharges sont facturés. Vous pouvez la modifier jusqu’à votre premier achat.",
+        "currencyLockedHint": "Fixée par votre premier achat. Communiquez avec le soutien pour la modifier."
       },
       "team": {
         "title": "Membres",

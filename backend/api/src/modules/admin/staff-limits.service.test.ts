@@ -13,6 +13,7 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock('@portal/db', () => ({ adminDb: db }));
 
+import { limitInCurrency } from '@portal/schemas';
 import { StaffLimitsService } from './staff-limits.service';
 
 const dec = (n: number) => ({ toNumber: () => n });
@@ -194,6 +195,56 @@ describe('assertRefund (SA9, per purchase)', () => {
   it('omits the "already refunded" clause on a first refund', async () => {
     await expect(limits.assertRefund(staff('finance'), 60_000)).rejects.toMatchObject({
       message: 'Your role may refund up to 500.00 per purchase; this would make 600.00. Requires super admin.',
+    });
+  });
+});
+
+/* ADR 0049: the cap is a USD figure. A CAD purchase is judged against it at that purchase's own rate. */
+describe('assertRefund in CAD', () => {
+  const at = (rate: string) => ({ currency: 'CAD', convert: (cents: number) => limitInCurrency(cents, 'CAD', rate)! });
+
+  it('converts the USD cap with the purchase rate: 500.00 USD at 1.4291 is 714.55 CAD', async () => {
+    await expect(limits.assertRefund(staff('finance'), 71_455, 0, at('1.4291'))).resolves.toBeTruthy();
+    await expect(limits.assertRefund(staff('finance'), 71_456, 0, at('1.4291'))).rejects.toMatchObject({
+      code: 'STAFF_LIMIT_EXCEEDED',
+      message: "Your role may refund up to 714.55 CAD (500.00 USD at this purchase's rate) per purchase; this would make 714.56. Requires super admin.",
+    });
+  });
+
+  it('uses the rate handed in, so a purchase made at another rate keeps its own ceiling', async () => {
+    await expect(limits.assertRefund(staff('finance'), 67_500, 0, at('1.3500'))).resolves.toBeTruthy();
+    await expect(limits.assertRefund(staff('finance'), 67_501, 0, at('1.3500'))).rejects.toMatchObject({ code: 'STAFF_LIMIT_EXCEEDED' });
+    // The same 675.01 CAD is inside the cap of a purchase made at 1.4291.
+    await expect(limits.assertRefund(staff('finance'), 67_501, 0, at('1.4291'))).resolves.toBeTruthy();
+  });
+
+  it('counts earlier CAD refunds on the purchase against the converted cap', async () => {
+    await expect(limits.assertRefund(staff('finance'), 21_455, 50_000, at('1.4291'))).resolves.toBeTruthy();
+    await expect(limits.assertRefund(staff('finance'), 21_456, 50_000, at('1.4291'))).rejects.toMatchObject({ code: 'STAFF_LIMIT_EXCEEDED' });
+  });
+
+  it('keeps "cannot refund" and "unlimited" as they are in any currency', async () => {
+    await expect(limits.assertRefund(staff('ops'), 1, 0, at('1.4291'))).rejects.toMatchObject({ code: 'STAFF_LIMIT_EXCEEDED' });
+    await expect(limits.assertRefund(staff('super_admin'), 9_999_999, 0, at('1.4291'))).resolves.toBeTruthy();
+  });
+
+  it('asks for the conversion only when the role has a cap to convert', async () => {
+    const noRate = vi.fn(async (): Promise<never> => {
+      throw new Error('no exchange rate');
+    });
+    await expect(limits.assertRefund(staff('super_admin'), 9_999_999, 0, noRate)).resolves.toBeTruthy();
+    expect(noRate).not.toHaveBeenCalled();
+    // A role that cannot refund at all is told so, not that a rate is missing.
+    await expect(limits.assertRefund(staff('ops'), 1, 0, noRate)).rejects.toMatchObject({ code: 'STAFF_LIMIT_EXCEEDED' });
+    // A capped role does need it, and its failure is the caller's error.
+    await expect(limits.assertRefund(staff('finance'), 1, 0, noRate)).rejects.toThrow('no exchange rate');
+    await expect(limits.assertRefund(staff('finance'), 71_455, 0, async () => at('1.4291'))).resolves.toBeTruthy();
+  });
+
+  it('a USD purchase is judged against the cap exactly as stored', async () => {
+    await expect(limits.assertRefund(staff('finance'), 50_000, 0, { currency: 'USD', convert: (cents) => cents })).resolves.toBeTruthy();
+    await expect(limits.assertRefund(staff('finance'), 50_001, 0, { currency: 'USD', convert: (cents) => cents })).rejects.toMatchObject({
+      message: 'Your role may refund up to 500.00 per purchase; this would make 500.01. Requires super admin.',
     });
   });
 });

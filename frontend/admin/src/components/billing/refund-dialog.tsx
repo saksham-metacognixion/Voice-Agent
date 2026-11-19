@@ -1,7 +1,7 @@
 'use client';
 
 import { useAdminGetPurchase, useAdminRefundPurchase, useApi } from '@portal/api-client';
-import type { AdminPurchaseDetail, StaffActionRequest } from '@portal/schemas';
+import { type AdminPurchaseDetail, BASE_CURRENCY, type StaffActionRequest, isCurrencyCode, limitInCurrency } from '@portal/schemas';
 import { Alert, Field, Input, Skeleton, toast } from '@portal/ui';
 import { useQueryClient } from '@tanstack/react-query';
 import * as React from 'react';
@@ -31,13 +31,17 @@ function RefundDialogInner({ purchaseId, onClose, onDone }: { purchaseId: string
   const api = useApi();
   const queryClient = useQueryClient();
   const { can } = useStaff();
-  const cap = can.refundCap();
+  // The role cap is a USD figure. For a purchase in another currency it is converted with
+  // the rate that purchase was made at (ADR 0049), the same sum the API does; with no
+  // rate on the row the dialog shows no cap and the API decides.
+  const baseCap = can.refundCap();
   const detail = useAdminGetPurchase(api, { id: purchaseId });
   const refund = useAdminRefundPurchase(api);
   const [idempotencyKey] = React.useState(() => crypto.randomUUID());
   const [amount, setAmount] = React.useState<string | null>(null);
 
   const p = detail.data;
+  const cap = baseCap === null || !p ? null : p.currency === BASE_CURRENCY ? baseCap : isCurrencyCode(p.currency) ? limitInCurrency(baseCap, p.currency, p.fx_rate) : null;
   const refundable = p?.refundable_cents ?? 0;
   // What the role cap still allows on this purchase (`StaffLimitsService.assertRefund`).
   const inFlight = p?.refunds.filter((r) => r.status === 'pending').reduce((sum, r) => sum + r.amount_cents, 0) ?? 0;

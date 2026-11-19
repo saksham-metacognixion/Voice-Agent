@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { type Prisma, adminDb } from '@portal/db';
-import type { StaffLimits, StaffRole } from '@portal/schemas';
+import { BASE_CURRENCY, type StaffLimits, type StaffRole } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import type { StaffContext } from '../auth';
 import { DAY_MS, numOrNull } from './admin.helpers';
@@ -67,6 +67,12 @@ const NOTHING: StaffLimits = {
  * Exceeding a limit is `403 STAFF_LIMIT_EXCEEDED` naming the role that could (admin §10);
  * the approval workflow that turns that into a request is P2.
  */
+/** A purchase's currency and a base-currency (USD) cap converted into it. */
+export interface RefundMoney {
+  currency: string;
+  convert: (baseCents: number) => number;
+}
+
 @Injectable()
 export class StaffLimitsService {
   async limitsFor(role: StaffRole): Promise<StaffLimits> {
@@ -200,33 +206,53 @@ export class StaffLimitsService {
     staff: StaffContext,
     amountCents: number,
     alreadyRefundedCents = 0,
+    /**
+     * ADR 0049: the purchase's currency, and the cap converted into it. The cap is a USD
+     * figure; for a CAD purchase the caller converts it with that purchase's own rate
+     * (`refundCapIn`), so the ceiling on a refund does not move after the purchase was
+     * made. Omitted = a USD purchase, the cap as stored. A function is called only once
+     * the role turns out to have a cap: working the conversion out can fail (no rate),
+     * and that must never refuse a role with no cap to convert.
+     */
+    money: RefundMoney | (() => Promise<RefundMoney>) = { currency: BASE_CURRENCY, convert: (cents) => cents },
   ): Promise<StaffLimits> {
     const limits = await this.limitsFor(staff.role);
-    const cap = limits.refund_max_cents;
-    if (cap === null) return limits;
+    const baseCap = limits.refund_max_cents;
+    if (baseCap === null) return limits;
+    if (baseCap === 0 && typeof money === 'function') {
+      // "Cannot refund at all" needs no conversion either; the sentence names super admins.
+      throw new AppError('STAFF_LIMIT_EXCEEDED', `Your role (${staff.role.replace('_', ' ')}) cannot issue refunds. This requires ${await this.rolesThatCanRefund(alreadyRefundedCents + amountCents, await money().then((m) => m.convert, () => null))}.`);
+    }
+    const resolved = typeof money === 'function' ? await money() : money;
+    const currency = resolved.currency.trim().toUpperCase();
+    const inCurrency = resolved.convert;
     const total = alreadyRefundedCents + amountCents;
-    if (cap === 0) {
+    if (baseCap === 0) {
       throw new AppError(
         'STAFF_LIMIT_EXCEEDED',
-        `Your role (${staff.role.replace('_', ' ')}) cannot issue refunds. This requires ${await this.rolesThatCanRefund(total)}.`,
+        `Your role (${staff.role.replace('_', ' ')}) cannot issue refunds. This requires ${await this.rolesThatCanRefund(total, inCurrency)}.`,
       );
     }
+    const cap = inCurrency(baseCap);
     if (total > cap) {
       const already = alreadyRefundedCents
         ? ` (${(alreadyRefundedCents / 100).toFixed(2)} already refunded plus ${(amountCents / 100).toFixed(2)})`
         : '';
+      // A USD purchase reads as it always has; a converted cap says what it was converted from.
+      const converted = currency === BASE_CURRENCY ? '' : ` ${currency} (${(baseCap / 100).toFixed(2)} ${BASE_CURRENCY} at this purchase's rate)`;
       throw new AppError(
         'STAFF_LIMIT_EXCEEDED',
-        `Your role may refund up to ${(cap / 100).toFixed(2)} per purchase; this would make ${(total / 100).toFixed(2)}${already}. Requires ${await this.rolesThatCanRefund(total)}.`,
+        `Your role may refund up to ${(cap / 100).toFixed(2)}${converted} per purchase; this would make ${(total / 100).toFixed(2)}${already}. Requires ${await this.rolesThatCanRefund(total, inCurrency)}.`,
       );
     }
     return limits;
   }
 
-  private async rolesThatCanRefund(amountCents: number): Promise<string> {
+  /** `inCurrency` null = the cap cannot be converted: only the roles with no cap are named. */
+  private async rolesThatCanRefund(amountCents: number, inCurrency: ((cents: number) => number) | null): Promise<string> {
     const rows = await adminDb.staffRoleLimit.findMany();
     const names = rows
-      .filter((r) => r.refundMaxCents === null || (r.refundMaxCents > 0 && r.refundMaxCents >= amountCents))
+      .filter((r) => r.refundMaxCents === null || (inCurrency !== null && r.refundMaxCents > 0 && inCurrency(r.refundMaxCents) >= amountCents))
       .map((r) => r.role.replace('_', ' '));
     return names.length ? names.join(' or ') : 'a super admin';
   }

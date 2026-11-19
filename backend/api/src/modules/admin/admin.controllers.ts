@@ -16,6 +16,9 @@ import { Readable } from 'node:stream';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { adminDb } from '@portal/db';
 import {
+  type AdminFxRefreshResponse,
+  type AdminFxResponse,
+  adminCustomerCurrencyRequest,
   type AdminKycResponse,
   adminCallerIdRequest,
   adminKycDecisionRequest,
@@ -102,6 +105,7 @@ import { AdminJobsService } from './admin-jobs.service';
 import { AdminKpisService } from './admin-kpis.service';
 import { AdminNumbersService } from './admin-numbers.service';
 import { AdminOutboundService } from './admin-outbound.service';
+import { AdminFxService } from './admin-fx.service';
 import { AdminPricingService } from './admin-pricing.service';
 import { AdminReconciliationService } from './admin-reconciliation.service';
 import { AdminSearchService } from './admin-search.service';
@@ -193,6 +197,7 @@ export class AdminCustomersController {
     private readonly webhooks: AdminWebhooksService,
     private readonly impersonation: ImpersonationService,
     private readonly outbound: AdminOutboundService,
+    private readonly fx: AdminFxService,
   ) {}
 
   @Get()
@@ -304,6 +309,19 @@ export class AdminCustomersController {
     @Req() request: FastifyRequest,
   ): Promise<AdminCustomerDetail> {
     return this.customers.setOverrides(staff, id, adminOverridesRequest.parse(body), request);
+  }
+
+  /** ADR 0049: the workspace currency, by staff with a reason code. The only change possible after the first purchase. */
+  @Put(':id/currency')
+  @StaffRoles(...COMMERCIAL)
+  async currency(
+    @StaffCtx() staff: StaffContext,
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: FastifyRequest,
+  ): Promise<AdminCustomerDetail> {
+    await this.fx.setCustomerCurrency(staff, id, adminCustomerCurrencyRequest.parse(body), request);
+    return this.customers.detail(id);
   }
 
   /** A member's role (admin §9 `PATCH /admin/customers/:id/members/:mid`); never the owner's. */
@@ -793,7 +811,24 @@ export class AdminFlagsController {
 
 @Controller('admin')
 export class AdminPricingController {
-  constructor(private readonly pricing: AdminPricingService) {}
+  constructor(
+    private readonly pricing: AdminPricingService,
+    private readonly fx: AdminFxService,
+  ) {}
+
+  /** ADR 0049: base and derived prices, the rate in force, the last refresh and the conversion settings. */
+  @Get('pricing/fx')
+  fxOverview(): Promise<AdminFxResponse> {
+    return this.fx.overview();
+  }
+
+  /** ADR 0049: ask the exchange-rate source now. A failure keeps the rate in force and is answered, not thrown. */
+  @Post('pricing/fx/refresh')
+  @HttpCode(200)
+  @StaffRoles(...PRICING_EDIT)
+  fxRefresh(@StaffCtx() staff: StaffContext, @Body() body: unknown, @Req() request: FastifyRequest): Promise<AdminFxRefreshResponse> {
+    return this.fx.refresh(staff, staffActionRequest.parse(body), request);
+  }
 
   @Get('pricing/draft')
   draft(): Promise<AdminPricingDraftResponse> {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useApi, useGetPricing, useGetWallet } from '@portal/api-client';
+import { useApi, useGetWallet } from '@portal/api-client';
 import { Skeleton, Tooltip, TooltipContent, TooltipTrigger, cn } from '@portal/ui';
 import { Coins } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -8,10 +8,10 @@ import Link from 'next/link';
 import { canTopUp, creditsOutlook } from '@/src/dashboard/home-view';
 import { balanceTone } from '@/src/dashboard/wallet-view';
 import { formatCreditsValue, formatNumber } from '@/src/lib/format';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
 import { routes } from '@/src/routes';
 import { useRole } from '@/src/workspace/use-role';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
+import { usePricing } from '@/src/lib/use-pricing';
 
 /**
  * §7.2 "balance pill": credits, ≈ minutes of a Standard agent at the published rate,
@@ -31,7 +31,7 @@ export function BalancePill({ className, compact = false }: { className?: string
   const ws = useWorkspace();
   const { role } = useRole();
   const wallet = useGetWallet(api, { enabled: Boolean(ws.active), staleTime: 15_000 });
-  const pricing = useGetPricing(api, undefined, { enabled: Boolean(ws.active), staleTime: PRICING_STALE_MS });
+  const pricing = usePricing({}, { enabled: Boolean(ws.active) });
 
   if (wallet.isPending) return <Skeleton className={cn('h-8 w-20 rounded-full', className)} data-testid="balance-pill-loading" />;
   if (wallet.isError || !wallet.data) {

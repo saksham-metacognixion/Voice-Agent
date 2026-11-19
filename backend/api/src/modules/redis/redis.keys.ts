@@ -24,6 +24,8 @@
  *   ratelimit:verify-email:{user}  A2 "Resend": the 60-second cooldown, value = when it started (ADR 0036)
  *   ratelimit:verify-email:{user}:{hour}  A2 "Resend": sends in one clock hour, at most 5 (ADR 0036)
  *   alert:platform_concurrency  the open platform-wide concurrency incident (D7)
+ *   fx:current:{source}  the newest stored USD/CAD rate of the configured source (ADR 0049)
+ *   alert:fx:{kind}   the open exchange-rate incident of one kind (ADR 0049)
  *   events:{ws}       pub/sub channel for the workspace's SSE frames (not a key: PUBLISH only)
  *
  * `{ws}` is the workspace (tenant) id. Braces are literal, so a Redis Cluster would hash
@@ -99,6 +101,10 @@ export const redisKeys = {
    * most, so a lost DEL cannot silence the monitor forever.
    */
   platformConcurrencyAlert: 'alert:platform_concurrency',
+  /** ADR 0049: the newest stored USD/CAD rate of one source, 60 s like the rest of the config; dropped by every refresh. */
+  fxCurrent: (source: string) => `fx:current:${source}`,
+  /** ADR 0049: one open exchange-rate incident (`refresh_failed`, `stale`, `implausible`), so ops is paged once per incident, not once per hourly tick. */
+  fxAlert: (kind: string) => `alert:fx:${kind}`,
   /** Pub/sub channel carrying one workspace's SSE frames (§16 GET /events). */
   eventsChannel: (workspaceId: string) => `events:{${workspaceId}}`,
 } as const;

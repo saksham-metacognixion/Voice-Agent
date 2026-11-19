@@ -181,7 +181,13 @@ before a purchase, `caps:*` rebuilt in place, `purchasablePackIn` as the one "ma
 deactivation and two blocker lists, `outbound` in the diff, the newest version whose date has passed is current plus
 `POST /admin/pricing/versions/:version/cancel`, the SA2 list in SQL, sales per currency, the link-only pack's
 `/app/wallet/?pack=` link, `GET /wallet` answering the caps in force, and rates / trial size in copy read from
-`GET /pricing` (18 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
+`GET /pricing` (18 Nov), 0049 USD and CAD — `tenants.currency` (CA → CAD, locked by the first paid
+purchase, staff change with a reason), the Bank of Canada `FXUSDCAD` rate kept as history in
+`exchange_rates` and refreshed by the hourly `fx-refresh` tick, CAD prices derived in `convertCents()`
+with the rounding a platform setting, `GET /pricing?currency=`, `PRICE_CHANGED`, the purchase's amount,
+currency and rate fixed when checkout begins, CAD as inline `price_data`, auto top-up and the USD review
+limit / refund cap in the purchase's currency at its own rate; six rules pending the spec owner, no
+GST/HST (18 Nov). Rejected and why, in `docs/decisions/0001-tech-stack.md`: plain Fastify (less ceremony but the spec
 names NestJS), Drizzle (SQL-first migrations but the spec names Prisma), FastAPI (would fork the shared
 zod schema layer), Next.js route handlers only (breaks SSE and BullMQ).
 
@@ -254,8 +260,8 @@ needs it too, which is what saves both modules from a `forwardRef`.
 Jobs: `modules/jobs` owns the BullMQ plumbing — five queues (`webhooks`, `calls`, `prompting`,
 `provisioning`, `scheduled`), a handler registry every feature module registers into at module init, the worker
 runtime, the §13.11 schedulers (plus `job-sweeper`, which writes off `jobs` rows whose queue
-job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). Fourteen
-of the fifteen schedules are live (`kb-sync` is the skeleton; `call-recovery` joined on 24 Sep, `data-retention` on 3 Nov); each is upserted by
+job is gone) — plus the `jobs` table behind `202 {job_id}` and `GET /jobs/:id` (§16). Fifteen
+of the sixteen schedules are live (`kb-sync` is the skeleton; `call-recovery` joined on 24 Sep, `data-retention` on 3 Nov, `fx-refresh` on 18 Nov); each is upserted by
 id on worker boot, strangers are removed, and **every tick runs under
 `lock:schedule:{name}`** — a tick that outlives its interval is skipped on the second worker,
 not run twice (ADR 0014 §1). The lock waits 2 s for Redis, and the third consecutive skip
@@ -1517,6 +1523,63 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
   (`supportPath()`), the Customer 360 `tickets` tab, and the portal's Help page form +
   "My tickets". Exit check: `test/d13-support.e2e.test.ts` (16 cases).
 
+**Two currencies (§5.5 #2 — ADR 0049)**
+
+- **USD is the base; CAD is derived in one function.** Packs are published in USD. A CAD figure is
+  `convertCents(usdCents, rate, rounding)` in `shared/schemas/src/currency.ts`: integer cents and the
+  rate's decimal text as a scaled `BigInt`, never a `number`. `priceInCurrency()` answers `null` when
+  it cannot convert — no rate, a price published in another currency, or a conversion the rounding
+  takes to 0 — and null is "do not sell", never "sell at the USD figure". A currency read from a row
+  or from Stripe goes through `storedCurrency()` / `workspaceCurrency()` (same file), never a local
+  `trim().toUpperCase()`. Credits, rates,
+  rental, trial, expiry, grace and thresholds are credit figures and do not know a currency exists.
+- **`tenants.currency`** is `defaultCurrencyForCountry()` at creation (CA → CAD, else USD), the
+  owner's or admin's through `PATCH /workspace {currency}` until a purchase is paid, then
+  `409 CURRENCY_LOCKED` (service, the `guard_tenant_currency` trigger, and
+  `settleWorkspaceCurrency` in `fulfil`: the first paid purchase decides, under the tenant row lock
+  PATCH also takes). After the lock: `PUT /admin/customers/:id/currency`, a `staffActionRequest`,
+  `STAFF_ROUTE_ROLES.commercial`; it switches auto top-up off.
+- **The rate is a stored row, never a constant.** `ExchangeRatesService` (module `config`) reads the
+  Bank of Canada Valet series `FXUSDCAD` through `BankOfCanadaClient` and keeps one `exchange_rates`
+  row per (source, pair, business day); a refresh that meets the same day moves `confirmed_at` only.
+  The rate in force is the newest day of the configured source. A failed, empty, backwards or
+  implausible answer (`fx_max_move_pct`) changes nothing and raises one ops alert per incident
+  (`fx_refresh_failed`, `fx_rate_implausible`; `fx_rate_stale` daily past `fx_stale_after_days`,
+  still used). **No rate stored = no CAD price**: `currency_unavailable` on `GET /pricing`,
+  `503 CURRENCY_UNAVAILABLE` on checkout, top-up and a change to CAD. Never add a fallback rate.
+- **`quote(pack, currency)` is the one price for a charge**; `GET /pricing?currency=` (public, the
+  portal sends the workspace's through `usePricing()`) uses the same arithmetic and answers
+  `currency`, `base_currency`, `fx` and `currency_unavailable`. That flag means "no rate" only: a
+  single pack that cannot be priced in the asked currency is left out of the list.
+- **Checkout charges what was shown or nothing.** `expected_amount_cents` / `expected_currency` are
+  checked by `assertPriceShown()` before any purchase row or Stripe session: a difference is
+  `409 PRICE_CHANGED` with the latest figures in `fields`; a converted price must be stated.
+  `purchaseMoney(quote)` writes `amount_cents`, `currency`, `base_amount_cents`, `base_currency`,
+  `fx_rate`, `fx_rate_date`, `fx_rate_id` once, and nothing re-prices the row. USD uses the synced
+  Stripe Price; **CAD is inline `price_data`** (a Price is immutable, the amount follows the rate).
+  **Adaptive Pricing is off on every session** (`adaptive_pricing: {enabled: false}`): left on, Stripe's
+  page charged a buyer abroad in their own currency while the session still said USD. The session's
+  invoice carries our ids in `invoice_creation.invoice_data.metadata` (an invoice has no
+  `payment_intent` on the pinned API version); `pnpm --filter @portal/api invoices:link [--apply]`
+  links the invoices of older purchases.
+- **Auto top-up** prices with the same `quote()`, charges the row's own amount, and never in a
+  currency the switch was not saved on in (`auto_topup_json.currency`, `currency_mismatch`).
+- **USD limits** (`max_first_purchase_cents_without_review`, `refund_max_cents`) are converted for a
+  CAD purchase with that purchase's own rate (`limitInCurrency`, rounded down), never today's.
+  The §17 review is `firstPurchaseOverLimit()`, the same call in checkout and in `fulfil`; a CAD
+  purchase with no rate of its own is reviewed. `assertRefund` takes the cap's conversion as a
+  function and asks for it only when the role has a cap.
+- **The refresh** is due `REFRESH_DUE_SLACK_MS` (5 min) short of its interval, so the hourly tick's
+  jitter cannot push it an hour. The staff "Refresh now" audits `fx.refresh_requested` before the
+  source is asked and `fx.refreshed` / `fx.refresh_failed` after.
+- Settings (`platform_settings`): `fx_source`, `fx_refresh_interval_hours`, `fx_stale_after_days`,
+  `fx_max_move_pct`, `cad_rounding_step_cents`, `cad_rounding_mode`. The defaults are proposals
+  pending the spec owner; **no GST/HST is calculated anywhere**.
+- An e2e that needs a rate sets `BankOfCanadaClient.source` to a name of its own and stubs
+  `recent()`; rows and `fx:current:{source}` are per source, so a dev box's real history is not read
+  or moved. Exit check: `test/d23-currency.e2e.test.ts`; the Stripe-test-account money run is
+  `MONEY_RUN=1 … test/money-run-currency.e2e.test.ts`.
+
 **Configuration**
 
 - Pricing, feature flags, kill switches, templates and the agent stack live in versioned tables and are
@@ -1708,6 +1771,8 @@ resolved_at IS NULL`. Open = `INSERT … ON CONFLICT DO NOTHING`; a schedule tha
 | `worker:heartbeat`           | the worker's liveness beacon, refreshed every 30 s, read by `GET /health/ready` (D7)                                    |
 | `alert:platform_concurrency` | the open platform-wide concurrency incident, so ops is paged once per incident; held a day at most (D7)                 |
 | `admin:health:{provider}`    | the health strip's Retell / Stripe probe: fresh 60 s, then served while refreshed behind the response, kept 10 min (D12, ADR 0032) |
+| `fx:current:{source}`        | the newest stored USD/CAD rate of the configured source, 60 s; dropped by every refresh (ADR 0049)                    |
+| `alert:fx:{kind}`            | one open exchange-rate incident (`refresh_failed`, `implausible`, `stale`), so ops is paged once per incident (ADR 0049) |
 | `ratelimit:api:{ip}:{min}`   | API requests from one client IP in one epoch minute, TTL 2 min (D14, ADR 0025)                                          |
 | `ratelimit:sip-verify:{ws}`  | SIP re-verify checks this hour, per workspace (D16, ADR 0028)                                                           |
 | `fwdtest:{e164}`             | the "Test forwarding" ringing for a number, `SET NX` 90 s — the lease and the inbound path's cue (D17, ADR 0029)        |
@@ -1891,6 +1956,14 @@ throws and never waits past its budget (ADR 0010 §6).
   `sentiment`; `GET /workspace/checklist` answers `forwarding_tested` (nullable),
   `team_invited` and `all_done`; `workspaceResponse.paused_ticket_id`; `agentSummary`
   carries `draft_has_prompt`, `number_e164`, `paused_by` and `paused_ticket_id`.
+- ADR 0049 routes: `GET /pricing?currency=USD|CAD`; `PATCH /workspace {currency}` (owner/admin;
+  `CURRENCY_LOCKED`, `CURRENCY_UNAVAILABLE`); `POST /wallet/checkout {expected_amount_cents,
+  expected_currency}` (`PRICE_CHANGED`, `CURRENCY_UNAVAILABLE`); staff
+  `PUT /admin/customers/:id/currency` (`adminCustomerCurrencyRequest`, commercial roles),
+  `GET /admin/pricing/fx` (any staff, `adminFxResponse`) and `POST /admin/pricing/fx/refresh`
+  (`staffActionRequest`, super admin / finance; a failure is answered `outcome: failed`, not thrown).
+  `workspaceResponse` and `adminCustomerDetail` carry `currency` and `currency_locked`;
+  `adminPurchaseResponse` carries `base_amount_cents`, `base_currency`, `fx_rate`, `fx_rate_date`.
 - Webhook routes take no JWT: `/webhooks/retell`, `/webhooks/retell/inbound/:number_token`,
   `/webhooks/stripe`, `/webhooks/auth`.
 
@@ -1900,7 +1973,8 @@ Portal (§15): `users, tenants, memberships, invites, audit_log, notification_se
 agents, agent_versions, voices, knowledge_sources, phone_plans, phone_numbers, calls, credit_lots,
 credit_ledger, purchases, packs, webhook_events, jobs, alerts`, plus since D7 `notifications`
 (the outbox) and `reconciliation_runs` (global, staff-only), and since D18 `outbound_calls`
-and `dnc_entries`.
+and `dnc_entries`, and since ADR 0049 `exchange_rates` (global, staff-only, never updated in its
+rate or deleted).
 
 Admin (§8): `staff_users, staff_role_limits, pricing_drafts, pricing_configs, stripe_price_map,
 promo_codes, custom_deals, tenant_overrides, agent_stack_configs, retell_cost_inputs,
@@ -1977,7 +2051,11 @@ deploy and verification: `docs/runbooks/staging.md`.
 
 1. ~~Working name and domain~~ — resolved 22 Sep 2026: **oraly.ai** (Namecheap, BasicDNS). Hosts
    `api` / `app` / `admin.oraly.ai`, staging with a `-staging` suffix (ADR 0015).
-2. USD vs CAD; merchant of record (Metacognixion Canada vs Gritbyte India).
+2. USD vs CAD; merchant of record (Metacognixion Canada vs Gritbyte India). Both currencies are built
+   (ADR 0049) on six proposed rules awaiting the spec owner: the Bank of Canada rate, the daily
+   refresh, whole-dollar CAD rounding, the amount fixed at checkout, the workspace default and lock,
+   and USD limits converted at the purchase's rate. Still open and not built: GST/HST on CAD
+   purchases, the merchant entity and live Stripe access, a CAD payout account.
 3. ~~Standard-tier LLM~~ — decided 4 Nov 2026: **GPT-4.1 mini** (ADR 0037, `pnpm --filter @portal/api bench:incall`). The
    SA6 stack row is `agent_stack_configs` v2 since ADR 0038 (rerun of the bench); an environment seeded
    before it keeps v1's `gpt-5-mini` until `pnpm db:seed` runs there.

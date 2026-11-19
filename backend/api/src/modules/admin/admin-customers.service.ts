@@ -22,6 +22,7 @@ import type {
   RemovedResponse,
   StaffActionRequest,
 } from '@portal/schemas';
+import { workspaceCurrency } from '@portal/schemas';
 import { AppError } from '../../common/errors/app-error';
 import { cursorArgs, decodeCursor, encodeCursor, toPage } from '../../common/pagination';
 import type { StaffContext } from '../auth';
@@ -155,7 +156,7 @@ export class AdminCustomersService {
     if (!tenant) throw AppError.notFound('Customer');
     const facts = (await this.facts([id])).get(id)!;
     const d30 = new Date(Date.now() - 30 * DAY_MS);
-    const [members, calls30d, purchases, sales, openAlerts, impersonations] = await Promise.all([
+    const [members, calls30d, purchases, sales, openAlerts, impersonations, everPaid] = await Promise.all([
       adminDb.membership.count({ where: { tenantId: id } }),
       adminDb.call.count({ where: { tenantId: id, createdAt: { gte: d30 } } }),
       adminDb.purchase.count({ where: { tenantId: id, status: 'paid' } }),
@@ -167,6 +168,7 @@ export class AdminCustomersService {
       adminDb.impersonationSession.count({
         where: { tenantId: id, endedAt: null, expiresAt: { gt: new Date() } },
       }),
+      adminDb.purchase.count({ where: { tenantId: id, status: { in: ['paid', 'refunded'] } } }),
     ]);
     const autoTopup = record(tenant.autoTopupJson);
     return {
@@ -176,6 +178,8 @@ export class AdminCustomersService {
       concurrency_cap: tenant.concurrencyCap,
       kb_allowance: tenant.kbAllowance,
       stripe_customer_id: tenant.stripeCustomerId,
+      currency: workspaceCurrency(tenant.currency),
+      currency_locked: everPaid > 0,
       paused_at: iso(tenant.pausedAt),
       auto_topup_enabled: autoTopup.enabled === true,
       members,
@@ -932,6 +936,10 @@ export function toPurchase(p: {
   packId: string | null;
   amountCents: number;
   currency: string;
+  baseAmountCents?: number | null;
+  baseCurrency?: string | null;
+  fxRate?: { toFixed(): string } | null;
+  fxRateDate?: Date | null;
   credits: number;
   status: AdminPurchaseResponse['status'];
   isAutoTopup: boolean;
@@ -948,6 +956,11 @@ export function toPurchase(p: {
     pack_id: p.packId,
     amount_cents: p.amountCents,
     currency: p.currency,
+    // Only a converted purchase carries a rate; one at its published price shows none.
+    base_amount_cents: p.fxRate ? (p.baseAmountCents ?? null) : null,
+    base_currency: p.fxRate ? (p.baseCurrency ?? null) : null,
+    fx_rate: p.fxRate ? p.fxRate.toFixed() : null,
+    fx_rate_date: p.fxRate && p.fxRateDate ? p.fxRateDate.toISOString().slice(0, 10) : null,
     credits: p.credits,
     status: p.status,
     is_auto_topup: p.isAutoTopup,

@@ -48,6 +48,10 @@ export function can(me: StaffMeResponse | null | undefined) {
     publishPricing: (): Denied => needsRole(role, R.pricingPublish) ?? (limits ? needsLimit(limits, 'can_publish_pricing', 'publish or roll back pricing') : missing),
     /** SA2 tenant overrides — a custom deal: super admin, ops or finance. */
     setOverrides: (): Denied => needsRole(role, R.commercial),
+    /** ADR 0049: a workspace's currency after its first purchase — a commercial decision, like its caps. */
+    setCurrency: (): Denied => needsRole(role, R.commercial),
+    /** ADR 0049: asking the exchange-rate source now. The roles that edit pricing. */
+    refreshFx: (): Denied => needsRole(role, R.pricingEdit),
     /** Jobs and webhooks actions: super admin or ops. */
     operateQueues: (): Denied => needsRole(role, R.system),
     /** Agent / number / user actions: super admin, ops, support. */

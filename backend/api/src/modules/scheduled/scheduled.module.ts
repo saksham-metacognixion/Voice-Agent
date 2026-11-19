@@ -61,6 +61,7 @@ export class ScheduledModule implements OnModuleInit {
       [SCHEDULED_JOBS.concurrencyMonitor]: () => this.jobs.concurrencyMonitor(),
       [SCHEDULED_JOBS.dailyDigest]: () => this.jobs.dailyDigest(),
       [SCHEDULED_JOBS.dataRetention]: () => this.jobs.dataRetention(),
+      [SCHEDULED_JOBS.fxRefresh]: () => this.jobs.fxRefresh(),
     };
     for (const spec of SCHEDULES) {
       const handler = live[spec.name];

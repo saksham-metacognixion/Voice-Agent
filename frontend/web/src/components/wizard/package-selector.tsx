@@ -1,6 +1,7 @@
 'use client';
 
-import { createCheckout, isApiError, useApi, useGetPricing } from '@portal/api-client';
+import { createCheckout, isApiError, useApi } from '@portal/api-client';
+import { useQueryClient } from '@tanstack/react-query';
 import type { PricingResponse } from '@portal/schemas';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, ErrorState, Field, RadioCard, RadioGroup, Select, SelectContent, SelectItem, SelectTrigger, SelectValue, Skeleton, Switch } from '@portal/ui';
 import { CreditCard, Lock } from 'lucide-react';
@@ -9,14 +10,16 @@ import { useTranslations } from 'next-intl';
 import { useServerCopy } from '@/src/i18n/server-copy';
 import * as React from 'react';
 import { track } from '@/src/analytics/posthog';
+import { CheckoutCurrency } from '@/src/components/wizard/currency-field';
+import { formatDate } from '@/src/lib/format';
 import { errorMessage } from '@/src/lib/errors';
 import { checkoutMarker } from '@/src/wizard/checkout-marker';
 import { TOPUP_PERCENTS, defaultTopupPercent, packMinutes, topupThreshold, type TopupPercent } from '@/src/wizard/pack-minutes';
 import { formatCredits, formatMoney } from '@/src/wizard/plan-gates';
 import { useWorkspace } from '@/src/workspace/workspace-provider';
-import { PRICING_STALE_MS } from '@/src/lib/pricing';
 import { currentPathWithQuery } from '@/src/lib/query-string';
 import { routes, withNext } from '@/src/routes';
+import { usePricing } from '@/src/lib/use-pricing';
 
 type Pack = PricingResponse['packs'][number];
 
@@ -37,11 +40,7 @@ export function PackageSelector({ agentId, compact = false, linkedPackId }: { ag
   const api = useApi();
   const ws = useWorkspace();
   // A link-only pack is listed for whoever holds its link: the id rides on the request and the API adds that one pack.
-  const pricing = useGetPricing(
-    api,
-    ws.workspace?.country || linkedPackId ? { ...(ws.workspace?.country ? { region: ws.workspace.country } : {}), ...(linkedPackId ? { pack: linkedPackId } : {}) } : undefined,
-    { staleTime: PRICING_STALE_MS },
-  );
+  const pricing = usePricing({ ...(ws.workspace?.country ? { region: ws.workspace.country } : {}), ...(linkedPackId ? { pack: linkedPackId } : {}) });
   const packs = React.useMemo(() => [...(pricing.data?.packs ?? [])].sort((a, b) => a.sort_order - b.sort_order || a.price_cents - b.price_cents), [pricing.data]);
   const [packId, setPackId] = React.useState<string | null>(null);
   const [autoTopup, setAutoTopup] = React.useState<boolean | null>(null);
@@ -53,6 +52,15 @@ export function PackageSelector({ agentId, compact = false, linkedPackId }: { ag
   // money at risk on a stored card asks an owner or admin for a second factor first.
   const [inReview, setInReview] = React.useState(false);
   const [needsMfa, setNeedsMfa] = React.useState(false);
+  // ADR 0049: the API refused to charge a price that is no longer the price. The new one
+  // is on screen once the refetch lands; the customer reads it and presses Pay again.
+  // The refusal may be about the currency (changed by staff, or in another tab), and the
+  // pricing query is keyed on the workspace's, so the workspace is re-read first.
+  const [priceChanged, setPriceChanged] = React.useState(false);
+  const queryClient = useQueryClient();
+  // No exchange rate stored yet: the list shows the base prices for reference and nothing can be bought in this currency.
+  const unavailable = pricing.data?.currency_unavailable === true;
+  const fx = pricing.data?.fx ?? null;
 
   const canBuy = ws.workspace?.role === 'owner' || ws.workspace?.role === 'admin';
   const selected = packs.find((p) => p.id === packId) ?? null;
@@ -70,13 +78,17 @@ export function PackageSelector({ agentId, compact = false, linkedPackId }: { ag
   }, [packs, packId, linkedPack]);
 
   async function pay() {
-    if (!selected || redirecting || !canBuy) return;
+    if (!selected || redirecting || !canBuy || unavailable) return;
     setError(null);
     setNeedsMfa(false);
+    setPriceChanged(false);
     setRedirecting(true);
     try {
       const res = await createCheckout(api, {
         pack_id: selected.id,
+        // Exactly what the button says. The API prices the pack again and charges nothing if they differ.
+        expected_amount_cents: selected.price_cents,
+        expected_currency: selected.currency,
         ...(agentId ? { agent_id: agentId } : {}),
         ...(threshold !== null ? { auto_topup: { enabled: topupOn, ...(topupOn ? { threshold } : {}) } } : {}),
       });
@@ -92,7 +104,11 @@ export function PackageSelector({ agentId, compact = false, linkedPackId }: { ag
       // Stay in the redirecting state: the page is being replaced.
     } catch (e) {
       if (isApiError(e, 'MFA_REQUIRED')) setNeedsMfa(true);
-      else setError(errorMessage(e, t));
+      else if (isApiError(e, 'PRICE_CHANGED')) {
+        setPriceChanged(true);
+        await ws.refetchWorkspace();
+        await queryClient.invalidateQueries({ queryKey: ['getPricing'] });
+      } else setError(errorMessage(e, t));
       setRedirecting(false);
     }
   }
@@ -105,6 +121,12 @@ export function PackageSelector({ agentId, compact = false, linkedPackId }: { ag
     <div className="flex flex-col gap-6">
       {!canBuy ? <Alert variant="warning" title={tp('roleTitle')}>{tp('roleBody')}</Alert> : null}
       {linkedPackId && pricing.isSuccess && !linkedPack ? <Alert variant="warning">{tp('linkUnavailable')}</Alert> : null}
+      <CheckoutCurrency disabled={redirecting} onError={setError} />
+      {unavailable && ws.workspace ? (
+        <Alert variant="warning" title={tp('currencyUnavailableTitle', { currency: t(`common.currency.${ws.workspace.currency}`) })}>
+          {tp('currencyUnavailableBody')}
+        </Alert>
+      ) : null}
 
       {pricing.isPending ? (
         <div className={compact ? 'grid gap-3 sm:grid-cols-2' : 'grid gap-3 md:grid-cols-2'}>
@@ -154,6 +176,17 @@ export function PackageSelector({ agentId, compact = false, linkedPackId }: { ag
                 ) : null}
               </div>
             ) : null}
+            {fx && selected.currency !== pricing.data?.base_currency ? (
+              <p className="text-sm text-muted-foreground" data-testid="fx-note">
+                {tp(fx.source === 'bank_of_canada' ? 'fxNote' : 'fxNoteNoSource', { currency: selected.currency, base: pricing.data?.base_currency ?? '', rate: fx.rate, date: formatDate(`${fx.observed_on}T12:00:00Z`) })}
+                {threshold !== null && topupOn ? ` ${tp('fxTopupNote', { currency: selected.currency })}` : ''}
+              </p>
+            ) : null}
+            {priceChanged ? (
+              <Alert variant="warning" title={tp('priceChangedTitle')} data-testid="price-changed">
+                {tp('priceChangedBody', { price: formatMoney(selected.price_cents, selected.currency) })}
+              </Alert>
+            ) : null}
             {error ? <Alert variant="danger">{error}</Alert> : null}
             {inReview ? <Alert variant="info" title={tp('reviewTitle')}>{tp('reviewBody')}</Alert> : null}
             {needsMfa ? (
@@ -170,7 +203,7 @@ export function PackageSelector({ agentId, compact = false, linkedPackId }: { ag
               </Alert>
             ) : null}
             <div className="flex flex-wrap items-center gap-3">
-              <Button size="lg" onClick={() => void pay()} disabled={!canBuy || redirecting || inReview} loading={redirecting}>
+              <Button size="lg" onClick={() => void pay()} disabled={!canBuy || redirecting || inReview || unavailable || pricing.isFetching} loading={redirecting}>
                 {redirecting ? null : <CreditCard />} {redirecting ? tp('redirecting') : tp('pay', { price: formatMoney(selected.price_cents, selected.currency) })}
               </Button>
               <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">

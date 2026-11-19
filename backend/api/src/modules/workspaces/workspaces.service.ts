@@ -13,7 +13,8 @@ import {
 import { AppError } from '../../common/errors/app-error';
 import { decodeCursor, invalidCursor, toPage } from '../../common/pagination';
 import { type AuthenticatedUser, type WorkspaceContext, WorkspaceMfaService, assertTermsAccepted } from '../auth';
-import { PlatformConfigService } from '../config';
+import { BASE_CURRENCY, defaultCurrencyForCountry, workspaceCurrency } from '@portal/schemas';
+import { ExchangeRatesService, PlatformConfigService } from '../config';
 import { RuntimeCacheService } from '../runtime-cache';
 import { WalletService } from '../wallet';
 
@@ -44,6 +45,7 @@ export class WorkspacesService {
     private readonly config: PlatformConfigService,
     private readonly runtimeCache: RuntimeCacheService,
     private readonly mfa: WorkspaceMfaService,
+    private readonly fx: ExchangeRatesService,
   ) {}
 
   /**
@@ -79,6 +81,8 @@ export class WorkspacesService {
           data: {
             name: input.name.trim(),
             country: input.country,
+            // ADR 0049: CAD for a Canadian business, USD for any other; theirs to change until the first purchase.
+            currency: defaultCurrencyForCountry(input.country),
             timezone: input.timezone,
             website: input.website,
             planTier: 'trial',
@@ -107,6 +111,7 @@ export class WorkspacesService {
             ip: ip ?? null,
             metaJson: {
               country: input.country,
+              currency: defaultCurrencyForCountry(input.country),
               timezone: input.timezone,
               trial_credits: policy.trial_credits,
               config_version: configVersion,
@@ -196,7 +201,33 @@ export class WorkspacesService {
           : (businessHoursSchema.parse(input.business_hours) as unknown as Prisma.InputJsonValue);
     }
 
+    // ADR 0049: a currency that cannot be priced is not offered (no rate stored yet).
+    if (input.currency !== undefined && input.currency !== BASE_CURRENCY && !(await this.fx.current())) {
+      throw new AppError('CURRENCY_UNAVAILABLE', `Prices in ${input.currency} are not available right now. Please try again later.`, [
+        { field: 'currency', message: 'No exchange rate is stored yet' },
+      ]);
+    }
+
     const tenant = await withWorkspace(ctx, async (db) => {
+      let currencyChange: { from: string; to: string } | null = null;
+      if (input.currency !== undefined) {
+        // The row is locked first, so a purchase being credited at this moment either
+        // commits before the count below (and the change is refused) or after this
+        // transaction (and `settleWorkspaceCurrency` puts the currency back to what was
+        // charged). The trigger `guard_tenant_currency` refuses the same thing again.
+        const rows = await db.$queryRaw<Array<{ currency: string }>>`SELECT currency FROM tenants WHERE id = ${ctx.workspaceId}::uuid FOR UPDATE`;
+        const from = workspaceCurrency(rows[0]?.currency);
+        if (from !== input.currency) {
+          const paid = await db.purchase.count({ where: { tenantId: ctx.workspaceId, status: { in: ['paid', 'refunded'] } } });
+          if (paid > 0) {
+            throw new AppError('CURRENCY_LOCKED', 'Your currency was fixed by your first purchase. Contact support to change it.', [
+              { field: 'currency', message: 'Locked after the first purchase' },
+            ]);
+          }
+          data.currency = input.currency;
+          currencyChange = { from, to: input.currency };
+        }
+      }
       const updated = await db.tenant.update({ where: { id: ctx.workspaceId }, data });
       await db.auditLog.create({
         data: {
@@ -206,7 +237,7 @@ export class WorkspacesService {
           targetType: 'workspace',
           targetId: ctx.workspaceId,
           ip: ip ?? null,
-          metaJson: { fields: Object.keys(data) } as Prisma.InputJsonValue,
+          metaJson: { fields: Object.keys(data), ...(currencyChange ? { currency: currencyChange } : {}) } as Prisma.InputJsonValue,
         },
       });
       return updated;
@@ -338,8 +369,13 @@ export class WorkspacesService {
 
   /** The §6.2 MFA rule for the caller rides on every workspace response (ADR 0036). */
   private async respond(tenant: Parameters<typeof toResponse>[0], ctx: WorkspaceContext): Promise<WorkspaceResponse> {
-    const mfa = await this.mfa.describe(tenant.id, ctx.role, ctx.mfa ?? false);
-    return toResponse(tenant, ctx.role, mfa);
+    const [mfa, paid] = await Promise.all([
+      this.mfa.describe(tenant.id, ctx.role, ctx.mfa ?? false),
+      // ADR 0049: a paid purchase is what locks the currency for the customer. Asked on
+      // every workspace read, so it is one row of this workspace's own, not a count.
+      withWorkspace(ctx, (db) => db.purchase.findFirst({ where: { tenantId: tenant.id, status: { in: ['paid', 'refunded'] } }, select: { id: true } })),
+    ]);
+    return toResponse(tenant, ctx.role, mfa, paid !== null);
   }
 }
 
@@ -355,6 +391,7 @@ function toResponse(
     planTier: string;
     concurrencyCap: number;
     kbAllowance: number;
+    currency: string;
     businessHoursJson: unknown;
     recordingDefault: boolean;
     retentionDays: number;
@@ -371,6 +408,7 @@ function toResponse(
   },
   role: WorkspaceContext['role'],
   mfa: WorkspaceResponse['mfa'],
+  currencyLocked: boolean,
 ): WorkspaceResponse {
   return {
     id: tenant.id,
@@ -381,6 +419,8 @@ function toResponse(
     plan_tier: tenant.planTier as WorkspaceResponse['plan_tier'],
     concurrency_cap: tenant.concurrencyCap,
     kb_allowance: tenant.kbAllowance,
+    currency: workspaceCurrency(tenant.currency),
+    currency_locked: currencyLocked,
     business_hours: businessHoursSchema.safeParse(tenant.businessHoursJson).data ?? null,
     recording_default: tenant.recordingDefault,
     retention_days: tenant.retentionDays,

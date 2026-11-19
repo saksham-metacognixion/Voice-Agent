@@ -27,6 +27,7 @@ import { AdminNumbersService } from './admin-numbers.service';
 import { AdminOutboundService } from './admin-outbound.service';
 import { AdminOperationsController } from './admin-operations.controller';
 import { AdminOperationsService } from './admin-operations.service';
+import { AdminFxService } from './admin-fx.service';
 import { AdminPricingService } from './admin-pricing.service';
 import { AdminSearchService } from './admin-search.service';
 import { AdminStaffController } from './admin-staff.controller';
@@ -133,6 +134,7 @@ import { StaffLimitsService } from './staff-limits.service';
     AdminWebhooksService,
     AdminFlagsService,
     AdminPricingService,
+    AdminFxService,
     AdminSearchService,
     AdminSystemService,
     AdminSupportService,

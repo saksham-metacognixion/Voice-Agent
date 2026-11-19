@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { planTier } from './enums.js';
 import { paginationQuery, uuid } from './common.js';
+import { currencyCode } from './currency.js';
 
 /** `credit_ledger.reason` (§15). Every movement of credits is exactly one of these. */
 export const ledgerReason = z.enum([
@@ -35,6 +36,12 @@ export const autoTopup = z.object({
   payment_method_id: z.string().nullable().default(null),
   /** Last four of the saved card, for the D5 "Card •••• 4242" line. Never the PAN. */
   card_last4: z.string().length(4).nullable().default(null),
+  /**
+   * The workspace currency the customer agreed to be charged in when the switch was last
+   * saved on (ADR 0049). A top-up is never charged while it differs from the workspace's;
+   * null on settings saved before currencies existed, which were all USD.
+   */
+  currency: currencyCode.nullable().default(null),
 });
 export type AutoTopup = z.infer<typeof autoTopup>;
 
@@ -104,6 +111,14 @@ export const checkoutRequest = z.object({
   /** W7: activate this agent once paid (§13.8). */
   agent_id: z.string().uuid().optional(),
   promo_code: z.string().min(1).max(64).optional(),
+  /**
+   * The price the customer was shown, in minor units, and its currency (ADR 0049). The
+   * server prices the pack again from the workspace currency and the rate in force; a
+   * different answer is `409 PRICE_CHANGED` and nothing is charged. Required whenever
+   * the price is a converted one, where it can move from one day to the next.
+   */
+  expected_amount_cents: z.number().int().positive().optional(),
+  expected_currency: currencyCode.optional(),
 });
 export type CheckoutRequest = z.infer<typeof checkoutRequest>;
 
