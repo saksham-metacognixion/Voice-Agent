@@ -1,0 +1,24 @@
+{
+  "captured_at": "2026-09-15T05:34:12.970Z",
+  "data": {
+    "phone_number": "+16204459730",
+    "phone_number_type": "retell-twilio",
+    "phone_number_pretty": "(620) 445-9730",
+    "nickname": "dev-spike-inbound",
+    "inbound_agents": [
+      {
+        "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+        "agent_version": "latest_published",
+        "weight": 1
+      }
+    ],
+    "area_code": 620,
+    "inbound_webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell/inbound/spike_x1afrsrwgek?mode=decline_reject",
+    "last_modification_timestamp": 1789450452868,
+    "toll_free": false,
+    "country_code": "US",
+    "custom_sms_enabled": false,
+    "creation_timestamp": 1789450017526,
+    "sip_outbound_trunk_config": "[redacted]"
+  }
+}

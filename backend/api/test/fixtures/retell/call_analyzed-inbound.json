@@ -1,0 +1,2102 @@
+{
+  "captured_at": "2026-09-15T05:42:11.879Z",
+  "provider": "retell",
+  "event_type": "call_analyzed",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "25128",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=0ad0fc7bc8ef415fa56986f237b939e1,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "0ad0fc7bc8ef415fa56986f237b939e1-bd4e2287bdbb32e2",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789450931407,d=f47fc109af38577b5f9b7633b67f3e534a40f9c06436ec145411186c6f2354ac"
+  },
+  "raw": "{\"event\":\"call_analyzed\",\"call\":{\"call_id\":\"call_223a17f623992dc042d706288e1\",\"call_type\":\"phone_call\",\"agent_id\":\"agent_c72a20039d1559e8c6e345c03c\",\"agent_version\":0,\"agent_name\":\"dev-spike-receptionist\",\"retell_llm_dynamic_variables\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"twilio-accountsid\":\"AC[redacted]\",\"twilio-callsid\":\"CA[redacted]\",\"twilio-verstat\":\"TN-Validation-Passed-B\"},\"contact_dynamic_variables\":{},\"custom_sip_headers\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"x-twilio-accountsid\":\"AC[redacted]\",\"x-twilio-callsid\":\"CA[redacted]\",\"x-twilio-verstat\":\"TN-Validation-Passed-B\"},\"call_status\":\"ended\",\"start_timestamp\":1789450864096,\"end_timestamp\":1789450929645,\"duration_ms\":65549,\"transcript\":\"User: Hi there. Is this Maple Dental? I had a few questions. \\nAgent: Hello, this is Maple Dental in Toronto. Would you like to book, ask a question, or something else? May I have your name, please?\\nUser: Thanks. I'm Sam. Could you tell me your opening hours, please? \\nAgent: Thanks, Sam. Our hours are Monday to Friday, 9am to 5pm. Anything else I can help with?\\nUser: Thanks. Do you have parking available? \\nAgent: Thanks, Sam. Yes, we have limited on-site parking; street parking and nearby lots are also available. Anything else?\\nUser: Thanks. Do you accept new patients? \\nAgent: Thanks, Sam. Yes, we’re accepting new patients. Would you like to book an appointment now?\\nUser: Thanks. Uh, what's your price for a routine cleaning? \\nAgent: Thanks, Sam. Routine cleaning costs vary; our office will call you back with exact pricing. Would you like us to call?\\nUser: Thanks. Can you tell me if you offer same day emergency appointments? \\nAgent: Thanks, Sam. Yes, we offer same-day emergency appointments when available; please call during business hours and we'll assist. Goodbye.\\nUser: Thanks. \\n\",\"transcript_object\":[{\"role\":\"user\",\"content\":\"Hi there. Is this Maple Dental? I had a few questions. \",\"words\":[{\"word\":\"Hi \",\"start\":0.27899999999999997,\"end\":0.519},{\"word\":\"there. \",\"start\":0.519,\"end\":0.83899995},{\"word\":\"Is \",\"start\":0.83899995,\"end\":0.919},{\"word\":\"this \",\"start\":0.919,\"end\":1.079},{\"word\":\"Maple \",\"start\":1.079,\"end\":1.399},{\"word\":\"Dental? \",\"start\":1.399,\"end\":1.8789999},{\"word\":\"I \",\"start\":1.8789999,\"end\":2.039},{\"word\":\"had \",\"start\":2.039,\"end\":2.1989998},{\"word\":\"a \",\"start\":2.1989998,\"end\":2.2790000000000004},{\"word\":\"few \",\"start\":2.2790000000000004,\"end\":2.4389999},{\"word\":\"questions. \",\"start\":2.4389999,\"end\":2.6789999}]},{\"role\":\"agent\",\"content\":\"Hello, this is Maple Dental in Toronto. Would you like to book, ask a question, or something else? May I have your name, please?\",\"words\":[{\"word\":\"Hello, \",\"start\":4.192,\"end\":4.598},{\"word\":\"this \",\"start\":4.598,\"end\":4.784},{\"word\":\"is \",\"start\":4.784,\"end\":4.912},{\"word\":\"Maple \",\"start\":4.912,\"end\":5.167},{\"word\":\"Dental \",\"start\":5.167,\"end\":5.434},{\"word\":\"in \",\"start\":5.434,\"end\":5.515},{\"word\":\"Toronto.\",\"start\":5.515,\"end\":6.189},{\"word\":\" Would \",\"start\":6.189,\"end\":6.41},{\"word\":\"you \",\"start\":6.41,\"end\":6.526},{\"word\":\"like \",\"start\":6.526,\"end\":6.688},{\"word\":\"to \",\"start\":6.688,\"end\":6.816},{\"word\":\"book, \",\"start\":6.816,\"end\":7.234},{\"word\":\"ask \",\"start\":7.234,\"end\":7.559},{\"word\":\"a \",\"start\":7.559,\"end\":7.652},{\"word\":\"question, \",\"start\":7.652,\"end\":8.476},{\"word\":\"or \",\"start\":8.476,\"end\":8.662},{\"word\":\"something \",\"start\":8.662,\"end\":9.045},{\"word\":\"else?\",\"start\":9.045,\"end\":9.579},{\"word\":\" May \",\"start\":9.579,\"end\":9.8},{\"word\":\"I \",\"start\":9.8,\"end\":9.869},{\"word\":\"have \",\"start\":9.869,\"end\":10.02},{\"word\":\"your \",\"start\":10.02,\"end\":10.159},{\"word\":\"name, \",\"start\":10.159,\"end\":10.357},{\"word\":\"please?\",\"start\":10.357,\"end\":10.926}],\"metadata\":{\"response_id\":2}},{\"role\":\"user\",\"content\":\"Thanks. I'm Sam. Could you tell me your opening hours, please? \",\"words\":[{\"word\":\"Thanks. \",\"start\":12.109,\"end\":12.428999},{\"word\":\"I'm \",\"start\":12.729,\"end\":12.968999},{\"word\":\"Sam. \",\"start\":12.968999,\"end\":13.449},{\"word\":\"Could \",\"start\":13.449,\"end\":13.609},{\"word\":\"you \",\"start\":13.609,\"end\":13.769},{\"word\":\"tell \",\"start\":13.769,\"end\":13.848999},{\"word\":\"me \",\"start\":13.848999,\"end\":14.008999},{\"word\":\"your \",\"start\":14.008999,\"end\":14.088999},{\"word\":\"opening \",\"start\":14.088999,\"end\":14.328999},{\"word\":\"hours, \",\"start\":14.328999,\"end\":14.729},{\"word\":\"please? \",\"start\":14.729,\"end\":14.888999}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Our hours are Monday to Friday, 9am to 5pm. Anything else I can help with?\",\"words\":[{\"word\":\"Thanks, \",\"start\":16.143,\"end\":16.607},{\"word\":\"Sam.\",\"start\":16.607,\"end\":17.165},{\"word\":\" Our \",\"start\":17.165,\"end\":17.339},{\"word\":\"hours \",\"start\":17.339,\"end\":17.629},{\"word\":\"are \",\"start\":17.629,\"end\":17.745},{\"word\":\"Monday \",\"start\":17.745,\"end\":18.001},{\"word\":\"to \",\"start\":18.001,\"end\":18.094},{\"word\":\"Friday, \",\"start\":18.094,\"end\":18.512},{\"word\":\"9am \",\"start\":18.512,\"end\":18.906},{\"word\":\"to \",\"start\":18.906,\"end\":19.011},{\"word\":\"5pm.\",\"start\":19.011,\"end\":19.673},{\"word\":\" Anything \",\"start\":19.673,\"end\":20.045},{\"word\":\"else \",\"start\":20.045,\"end\":20.265},{\"word\":\"I \",\"start\":20.265,\"end\":20.358},{\"word\":\"can \",\"start\":20.358,\"end\":20.486},{\"word\":\"help \",\"start\":20.486,\"end\":20.637},{\"word\":\"with?\",\"start\":20.637,\"end\":20.973}],\"metadata\":{\"response_id\":4}},{\"role\":\"user\",\"content\":\"Thanks. Do you have parking available? \",\"words\":[{\"word\":\"Thanks. \",\"start\":22.259001,\"end\":22.899},{\"word\":\"Do \",\"start\":22.899,\"end\":23.139000000000003},{\"word\":\"you \",\"start\":23.139000000000003,\"end\":23.219},{\"word\":\"have \",\"start\":23.219,\"end\":23.379},{\"word\":\"parking \",\"start\":23.379,\"end\":23.619},{\"word\":\"available? \",\"start\":23.619,\"end\":23.939}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Yes, we have limited on-site parking; street parking and nearby lots are also available. Anything else?\",\"words\":[{\"word\":\"Thanks, \",\"start\":25.358,\"end\":25.683},{\"word\":\"Sam.\",\"start\":25.683,\"end\":26.194},{\"word\":\" Yes, \",\"start\":26.194,\"end\":26.449},{\"word\":\"we \",\"start\":26.449,\"end\":26.566},{\"word\":\"have \",\"start\":26.566,\"end\":26.728},{\"word\":\"limited \",\"start\":26.728,\"end\":27.042},{\"word\":\"on-site \",\"start\":27.042,\"end\":27.32},{\"word\":\"parking;\",\"start\":27.32,\"end\":27.866},{\"word\":\" street \",\"start\":27.866,\"end\":28.168},{\"word\":\"parking \",\"start\":28.168,\"end\":28.505},{\"word\":\"and \",\"start\":28.505,\"end\":28.597},{\"word\":\"nearby \",\"start\":28.597,\"end\":28.923},{\"word\":\"lots \",\"start\":28.923,\"end\":29.143},{\"word\":\"are \",\"start\":29.143,\"end\":29.259},{\"word\":\"also \",\"start\":29.259,\"end\":29.561},{\"word\":\"available.\",\"start\":29.561,\"end\":30.188},{\"word\":\" Anything \",\"start\":30.188,\"end\":30.478},{\"word\":\"else?\",\"start\":30.478,\"end\":30.885}],\"metadata\":{\"response_id\":5}},{\"role\":\"user\",\"content\":\"Thanks. Do you accept new patients? \",\"words\":[{\"word\":\"Thanks. \",\"start\":32.149,\"end\":32.709002},{\"word\":\"Do \",\"start\":32.709002,\"end\":32.869},{\"word\":\"you \",\"start\":32.869,\"end\":32.949},{\"word\":\"accept \",\"start\":32.949,\"end\":33.189},{\"word\":\"new \",\"start\":33.189,\"end\":33.349000000000004},{\"word\":\"patients? \",\"start\":33.349000000000004,\"end\":33.589}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Yes, we’re accepting new patients. Would you like to book an appointment now?\",\"words\":[{\"word\":\"Thanks, \",\"start\":34.672,\"end\":35.148},{\"word\":\"Sam.\",\"start\":35.148,\"end\":35.554},{\"word\":\" Yes, \",\"start\":35.554,\"end\":35.798},{\"word\":\"we’re \",\"start\":35.798,\"end\":35.96},{\"word\":\"accepting \",\"start\":35.96,\"end\":36.355},{\"word\":\"new \",\"start\":36.355,\"end\":36.494},{\"word\":\"patients.\",\"start\":36.494,\"end\":37.087},{\"word\":\" Would \",\"start\":37.087,\"end\":37.331},{\"word\":\"you \",\"start\":37.331,\"end\":37.447},{\"word\":\"like \",\"start\":37.447,\"end\":37.598},{\"word\":\"to \",\"start\":37.598,\"end\":37.667},{\"word\":\"book \",\"start\":37.667,\"end\":37.842},{\"word\":\"an \",\"start\":37.842,\"end\":37.923},{\"word\":\"appointment \",\"start\":37.923,\"end\":38.399},{\"word\":\"now?\",\"start\":38.399,\"end\":38.991}],\"metadata\":{\"response_id\":6}},{\"role\":\"user\",\"content\":\"Thanks. Uh, what's your price for a routine cleaning? \",\"words\":[{\"word\":\"Thanks. \",\"start\":40.149,\"end\":40.789},{\"word\":\"Uh, \",\"start\":40.789,\"end\":40.949},{\"word\":\"what's \",\"start\":40.949,\"end\":41.269},{\"word\":\"your \",\"start\":41.269,\"end\":41.348998},{\"word\":\"price \",\"start\":41.348998,\"end\":41.589},{\"word\":\"for \",\"start\":41.589,\"end\":41.749},{\"word\":\"a \",\"start\":41.749,\"end\":41.909},{\"word\":\"routine \",\"start\":41.909,\"end\":42.149},{\"word\":\"cleaning? \",\"start\":42.149,\"end\":42.549}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Routine cleaning costs vary; our office will call you back with exact pricing. Would you like us to call?\",\"words\":[{\"word\":\"Thanks, \",\"start\":43.982,\"end\":44.388},{\"word\":\"Sam.\",\"start\":44.388,\"end\":44.818},{\"word\":\" Routine \",\"start\":44.818,\"end\":45.166},{\"word\":\"cleaning \",\"start\":45.166,\"end\":45.468},{\"word\":\"costs \",\"start\":45.468,\"end\":45.77},{\"word\":\"vary;\",\"start\":45.77,\"end\":46.351},{\"word\":\" our \",\"start\":46.351,\"end\":46.56},{\"word\":\"office \",\"start\":46.56,\"end\":46.804},{\"word\":\"will \",\"start\":46.804,\"end\":46.943},{\"word\":\"call \",\"start\":46.943,\"end\":47.129},{\"word\":\"you \",\"start\":47.129,\"end\":47.233},{\"word\":\"back \",\"start\":47.233,\"end\":47.408},{\"word\":\"with \",\"start\":47.408,\"end\":47.57},{\"word\":\"exact \",\"start\":47.57,\"end\":47.849},{\"word\":\"pricing.\",\"start\":47.849,\"end\":48.441},{\"word\":\" Would \",\"start\":48.441,\"end\":48.65},{\"word\":\"you \",\"start\":48.65,\"end\":48.754},{\"word\":\"like \",\"start\":48.754,\"end\":48.905},{\"word\":\"us \",\"start\":48.905,\"end\":49.01},{\"word\":\"to \",\"start\":49.01,\"end\":49.103},{\"word\":\"call?\",\"start\":49.103,\"end\":49.556}],\"metadata\":{\"response_id\":7}},{\"role\":\"user\",\"content\":\"Thanks. Can you tell me if you offer same day emergency appointments? \",\"words\":[{\"word\":\"Thanks. \",\"start\":51.539,\"end\":51.938998},{\"word\":\"Can \",\"start\":52.169000000000004,\"end\":52.409003},{\"word\":\"you \",\"start\":52.409003,\"end\":52.569003},{\"word\":\"tell \",\"start\":52.569003,\"end\":52.649},{\"word\":\"me \",\"start\":52.649,\"end\":52.809000000000005},{\"word\":\"if \",\"start\":52.809000000000005,\"end\":52.889002000000005},{\"word\":\"you \",\"start\":52.889002000000005,\"end\":53.049002},{\"word\":\"offer \",\"start\":53.049002,\"end\":53.209002},{\"word\":\"same \",\"start\":53.209002,\"end\":53.449},{\"word\":\"day \",\"start\":53.449,\"end\":53.689},{\"word\":\"emergency \",\"start\":53.689,\"end\":54.089},{\"word\":\"appointments? \",\"start\":54.089,\"end\":54.569003}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Yes, we offer same-day emergency appointments when available; please call during business hours and we'll assist. Goodbye.\",\"words\":[{\"word\":\"Thanks, \",\"start\":55.892,\"end\":56.287},{\"word\":\"Sam.\",\"start\":56.287,\"end\":56.821},{\"word\":\" Yes, \",\"start\":56.821,\"end\":57.065},{\"word\":\"we \",\"start\":57.065,\"end\":57.193},{\"word\":\"offer \",\"start\":57.193,\"end\":57.425},{\"word\":\"same-day \",\"start\":57.425,\"end\":57.75},{\"word\":\"emergency \",\"start\":57.75,\"end\":58.191},{\"word\":\"appointments \",\"start\":58.191,\"end\":58.609},{\"word\":\"when \",\"start\":58.609,\"end\":58.771},{\"word\":\"available;\",\"start\":58.771,\"end\":59.468},{\"word\":\" please \",\"start\":59.468,\"end\":59.793},{\"word\":\"call \",\"start\":59.793,\"end\":59.99},{\"word\":\"during \",\"start\":59.99,\"end\":60.199},{\"word\":\"business \",\"start\":60.199,\"end\":60.525},{\"word\":\"hours \",\"start\":60.525,\"end\":60.768},{\"word\":\"and \",\"start\":60.768,\"end\":60.873},{\"word\":\"we'll \",\"start\":60.873,\"end\":61.07},{\"word\":\"assist.\",\"start\":61.07,\"end\":61.604},{\"word\":\" Goodbye.\",\"start\":61.604,\"end\":62.254}],\"metadata\":{\"response_id\":8}},{\"role\":\"user\",\"content\":\"Thanks. \",\"words\":[{\"word\":\"Thanks. \",\"start\":64.82900000000001,\"end\":65.229}]}],\"transcript_with_tool_calls\":[{\"role\":\"user\",\"content\":\"Hi there. Is this Maple Dental? I had a few questions. \",\"words\":[{\"word\":\"Hi \",\"start\":0.27899999999999997,\"end\":0.519},{\"word\":\"there. \",\"start\":0.519,\"end\":0.83899995},{\"word\":\"Is \",\"start\":0.83899995,\"end\":0.919},{\"word\":\"this \",\"start\":0.919,\"end\":1.079},{\"word\":\"Maple \",\"start\":1.079,\"end\":1.399},{\"word\":\"Dental? \",\"start\":1.399,\"end\":1.8789999},{\"word\":\"I \",\"start\":1.8789999,\"end\":2.039},{\"word\":\"had \",\"start\":2.039,\"end\":2.1989998},{\"word\":\"a \",\"start\":2.1989998,\"end\":2.2790000000000004},{\"word\":\"few \",\"start\":2.2790000000000004,\"end\":2.4389999},{\"word\":\"questions. \",\"start\":2.4389999,\"end\":2.6789999}]},{\"role\":\"agent\",\"content\":\"Hello, this is Maple Dental in Toronto. Would you like to book, ask a question, or something else? May I have your name, please?\",\"words\":[{\"word\":\"Hello, \",\"start\":4.192,\"end\":4.598},{\"word\":\"this \",\"start\":4.598,\"end\":4.784},{\"word\":\"is \",\"start\":4.784,\"end\":4.912},{\"word\":\"Maple \",\"start\":4.912,\"end\":5.167},{\"word\":\"Dental \",\"start\":5.167,\"end\":5.434},{\"word\":\"in \",\"start\":5.434,\"end\":5.515},{\"word\":\"Toronto.\",\"start\":5.515,\"end\":6.189},{\"word\":\" Would \",\"start\":6.189,\"end\":6.41},{\"word\":\"you \",\"start\":6.41,\"end\":6.526},{\"word\":\"like \",\"start\":6.526,\"end\":6.688},{\"word\":\"to \",\"start\":6.688,\"end\":6.816},{\"word\":\"book, \",\"start\":6.816,\"end\":7.234},{\"word\":\"ask \",\"start\":7.234,\"end\":7.559},{\"word\":\"a \",\"start\":7.559,\"end\":7.652},{\"word\":\"question, \",\"start\":7.652,\"end\":8.476},{\"word\":\"or \",\"start\":8.476,\"end\":8.662},{\"word\":\"something \",\"start\":8.662,\"end\":9.045},{\"word\":\"else?\",\"start\":9.045,\"end\":9.579},{\"word\":\" May \",\"start\":9.579,\"end\":9.8},{\"word\":\"I \",\"start\":9.8,\"end\":9.869},{\"word\":\"have \",\"start\":9.869,\"end\":10.02},{\"word\":\"your \",\"start\":10.02,\"end\":10.159},{\"word\":\"name, \",\"start\":10.159,\"end\":10.357},{\"word\":\"please?\",\"start\":10.357,\"end\":10.926}],\"metadata\":{\"response_id\":2}},{\"role\":\"user\",\"content\":\"Thanks. I'm Sam. Could you tell me your opening hours, please? \",\"words\":[{\"word\":\"Thanks. \",\"start\":12.109,\"end\":12.428999},{\"word\":\"I'm \",\"start\":12.729,\"end\":12.968999},{\"word\":\"Sam. \",\"start\":12.968999,\"end\":13.449},{\"word\":\"Could \",\"start\":13.449,\"end\":13.609},{\"word\":\"you \",\"start\":13.609,\"end\":13.769},{\"word\":\"tell \",\"start\":13.769,\"end\":13.848999},{\"word\":\"me \",\"start\":13.848999,\"end\":14.008999},{\"word\":\"your \",\"start\":14.008999,\"end\":14.088999},{\"word\":\"opening \",\"start\":14.088999,\"end\":14.328999},{\"word\":\"hours, \",\"start\":14.328999,\"end\":14.729},{\"word\":\"please? \",\"start\":14.729,\"end\":14.888999}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Our hours are Monday to Friday, 9am to 5pm. Anything else I can help with?\",\"words\":[{\"word\":\"Thanks, \",\"start\":16.143,\"end\":16.607},{\"word\":\"Sam.\",\"start\":16.607,\"end\":17.165},{\"word\":\" Our \",\"start\":17.165,\"end\":17.339},{\"word\":\"hours \",\"start\":17.339,\"end\":17.629},{\"word\":\"are \",\"start\":17.629,\"end\":17.745},{\"word\":\"Monday \",\"start\":17.745,\"end\":18.001},{\"word\":\"to \",\"start\":18.001,\"end\":18.094},{\"word\":\"Friday, \",\"start\":18.094,\"end\":18.512},{\"word\":\"9am \",\"start\":18.512,\"end\":18.906},{\"word\":\"to \",\"start\":18.906,\"end\":19.011},{\"word\":\"5pm.\",\"start\":19.011,\"end\":19.673},{\"word\":\" Anything \",\"start\":19.673,\"end\":20.045},{\"word\":\"else \",\"start\":20.045,\"end\":20.265},{\"word\":\"I \",\"start\":20.265,\"end\":20.358},{\"word\":\"can \",\"start\":20.358,\"end\":20.486},{\"word\":\"help \",\"start\":20.486,\"end\":20.637},{\"word\":\"with?\",\"start\":20.637,\"end\":20.973}],\"metadata\":{\"response_id\":4}},{\"role\":\"user\",\"content\":\"Thanks. Do you have parking available? \",\"words\":[{\"word\":\"Thanks. \",\"start\":22.259001,\"end\":22.899},{\"word\":\"Do \",\"start\":22.899,\"end\":23.139000000000003},{\"word\":\"you \",\"start\":23.139000000000003,\"end\":23.219},{\"word\":\"have \",\"start\":23.219,\"end\":23.379},{\"word\":\"parking \",\"start\":23.379,\"end\":23.619},{\"word\":\"available? \",\"start\":23.619,\"end\":23.939}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Yes, we have limited on-site parking; street parking and nearby lots are also available. Anything else?\",\"words\":[{\"word\":\"Thanks, \",\"start\":25.358,\"end\":25.683},{\"word\":\"Sam.\",\"start\":25.683,\"end\":26.194},{\"word\":\" Yes, \",\"start\":26.194,\"end\":26.449},{\"word\":\"we \",\"start\":26.449,\"end\":26.566},{\"word\":\"have \",\"start\":26.566,\"end\":26.728},{\"word\":\"limited \",\"start\":26.728,\"end\":27.042},{\"word\":\"on-site \",\"start\":27.042,\"end\":27.32},{\"word\":\"parking;\",\"start\":27.32,\"end\":27.866},{\"word\":\" street \",\"start\":27.866,\"end\":28.168},{\"word\":\"parking \",\"start\":28.168,\"end\":28.505},{\"word\":\"and \",\"start\":28.505,\"end\":28.597},{\"word\":\"nearby \",\"start\":28.597,\"end\":28.923},{\"word\":\"lots \",\"start\":28.923,\"end\":29.143},{\"word\":\"are \",\"start\":29.143,\"end\":29.259},{\"word\":\"also \",\"start\":29.259,\"end\":29.561},{\"word\":\"available.\",\"start\":29.561,\"end\":30.188},{\"word\":\" Anything \",\"start\":30.188,\"end\":30.478},{\"word\":\"else?\",\"start\":30.478,\"end\":30.885}],\"metadata\":{\"response_id\":5}},{\"role\":\"user\",\"content\":\"Thanks. Do you accept new patients? \",\"words\":[{\"word\":\"Thanks. \",\"start\":32.149,\"end\":32.709002},{\"word\":\"Do \",\"start\":32.709002,\"end\":32.869},{\"word\":\"you \",\"start\":32.869,\"end\":32.949},{\"word\":\"accept \",\"start\":32.949,\"end\":33.189},{\"word\":\"new \",\"start\":33.189,\"end\":33.349000000000004},{\"word\":\"patients? \",\"start\":33.349000000000004,\"end\":33.589}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Yes, we’re accepting new patients. Would you like to book an appointment now?\",\"words\":[{\"word\":\"Thanks, \",\"start\":34.672,\"end\":35.148},{\"word\":\"Sam.\",\"start\":35.148,\"end\":35.554},{\"word\":\" Yes, \",\"start\":35.554,\"end\":35.798},{\"word\":\"we’re \",\"start\":35.798,\"end\":35.96},{\"word\":\"accepting \",\"start\":35.96,\"end\":36.355},{\"word\":\"new \",\"start\":36.355,\"end\":36.494},{\"word\":\"patients.\",\"start\":36.494,\"end\":37.087},{\"word\":\" Would \",\"start\":37.087,\"end\":37.331},{\"word\":\"you \",\"start\":37.331,\"end\":37.447},{\"word\":\"like \",\"start\":37.447,\"end\":37.598},{\"word\":\"to \",\"start\":37.598,\"end\":37.667},{\"word\":\"book \",\"start\":37.667,\"end\":37.842},{\"word\":\"an \",\"start\":37.842,\"end\":37.923},{\"word\":\"appointment \",\"start\":37.923,\"end\":38.399},{\"word\":\"now?\",\"start\":38.399,\"end\":38.991}],\"metadata\":{\"response_id\":6}},{\"role\":\"user\",\"content\":\"Thanks. Uh, what's your price for a routine cleaning? \",\"words\":[{\"word\":\"Thanks. \",\"start\":40.149,\"end\":40.789},{\"word\":\"Uh, \",\"start\":40.789,\"end\":40.949},{\"word\":\"what's \",\"start\":40.949,\"end\":41.269},{\"word\":\"your \",\"start\":41.269,\"end\":41.348998},{\"word\":\"price \",\"start\":41.348998,\"end\":41.589},{\"word\":\"for \",\"start\":41.589,\"end\":41.749},{\"word\":\"a \",\"start\":41.749,\"end\":41.909},{\"word\":\"routine \",\"start\":41.909,\"end\":42.149},{\"word\":\"cleaning? \",\"start\":42.149,\"end\":42.549}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Routine cleaning costs vary; our office will call you back with exact pricing. Would you like us to call?\",\"words\":[{\"word\":\"Thanks, \",\"start\":43.982,\"end\":44.388},{\"word\":\"Sam.\",\"start\":44.388,\"end\":44.818},{\"word\":\" Routine \",\"start\":44.818,\"end\":45.166},{\"word\":\"cleaning \",\"start\":45.166,\"end\":45.468},{\"word\":\"costs \",\"start\":45.468,\"end\":45.77},{\"word\":\"vary;\",\"start\":45.77,\"end\":46.351},{\"word\":\" our \",\"start\":46.351,\"end\":46.56},{\"word\":\"office \",\"start\":46.56,\"end\":46.804},{\"word\":\"will \",\"start\":46.804,\"end\":46.943},{\"word\":\"call \",\"start\":46.943,\"end\":47.129},{\"word\":\"you \",\"start\":47.129,\"end\":47.233},{\"word\":\"back \",\"start\":47.233,\"end\":47.408},{\"word\":\"with \",\"start\":47.408,\"end\":47.57},{\"word\":\"exact \",\"start\":47.57,\"end\":47.849},{\"word\":\"pricing.\",\"start\":47.849,\"end\":48.441},{\"word\":\" Would \",\"start\":48.441,\"end\":48.65},{\"word\":\"you \",\"start\":48.65,\"end\":48.754},{\"word\":\"like \",\"start\":48.754,\"end\":48.905},{\"word\":\"us \",\"start\":48.905,\"end\":49.01},{\"word\":\"to \",\"start\":49.01,\"end\":49.103},{\"word\":\"call?\",\"start\":49.103,\"end\":49.556}],\"metadata\":{\"response_id\":7}},{\"role\":\"user\",\"content\":\"Thanks. Can you tell me if you offer same day emergency appointments? \",\"words\":[{\"word\":\"Thanks. \",\"start\":51.539,\"end\":51.938998},{\"word\":\"Can \",\"start\":52.169000000000004,\"end\":52.409003},{\"word\":\"you \",\"start\":52.409003,\"end\":52.569003},{\"word\":\"tell \",\"start\":52.569003,\"end\":52.649},{\"word\":\"me \",\"start\":52.649,\"end\":52.809000000000005},{\"word\":\"if \",\"start\":52.809000000000005,\"end\":52.889002000000005},{\"word\":\"you \",\"start\":52.889002000000005,\"end\":53.049002},{\"word\":\"offer \",\"start\":53.049002,\"end\":53.209002},{\"word\":\"same \",\"start\":53.209002,\"end\":53.449},{\"word\":\"day \",\"start\":53.449,\"end\":53.689},{\"word\":\"emergency \",\"start\":53.689,\"end\":54.089},{\"word\":\"appointments? \",\"start\":54.089,\"end\":54.569003}]},{\"role\":\"agent\",\"content\":\"Thanks, Sam. Yes, we offer same-day emergency appointments when available; please call during business hours and we'll assist. Goodbye.\",\"words\":[{\"word\":\"Thanks, \",\"start\":55.892,\"end\":56.287},{\"word\":\"Sam.\",\"start\":56.287,\"end\":56.821},{\"word\":\" Yes, \",\"start\":56.821,\"end\":57.065},{\"word\":\"we \",\"start\":57.065,\"end\":57.193},{\"word\":\"offer \",\"start\":57.193,\"end\":57.425},{\"word\":\"same-day \",\"start\":57.425,\"end\":57.75},{\"word\":\"emergency \",\"start\":57.75,\"end\":58.191},{\"word\":\"appointments \",\"start\":58.191,\"end\":58.609},{\"word\":\"when \",\"start\":58.609,\"end\":58.771},{\"word\":\"available;\",\"start\":58.771,\"end\":59.468},{\"word\":\" please \",\"start\":59.468,\"end\":59.793},{\"word\":\"call \",\"start\":59.793,\"end\":59.99},{\"word\":\"during \",\"start\":59.99,\"end\":60.199},{\"word\":\"business \",\"start\":60.199,\"end\":60.525},{\"word\":\"hours \",\"start\":60.525,\"end\":60.768},{\"word\":\"and \",\"start\":60.768,\"end\":60.873},{\"word\":\"we'll \",\"start\":60.873,\"end\":61.07},{\"word\":\"assist.\",\"start\":61.07,\"end\":61.604},{\"word\":\" Goodbye.\",\"start\":61.604,\"end\":62.254}],\"metadata\":{\"response_id\":8}},{\"role\":\"user\",\"content\":\"Thanks. \",\"words\":[{\"word\":\"Thanks. \",\"start\":64.82900000000001,\"end\":65.229}]}],\"recording_url\":\"[redacted-signed-url]\",\"recording_multi_channel_url\":\"[redacted-signed-url]\",\"public_log_url\":\"[redacted-signed-url]\",\"disconnection_reason\":\"user_hangup\",\"latency\":{\"llm\":{\"p50\":947,\"p90\":1026.2,\"p95\":1034.6,\"p99\":1041.32,\"min\":6,\"max\":1043,\"num\":9,\"sum\":7705,\"values\":[6,947,1043,932,1001,1022,810,1012,932]},\"e2e\":{\"p50\":1370.99853515625,\"p90\":1473,\"p95\":1493,\"p99\":1509,\"min\":1083,\"max\":1513,\"num\":6,\"sum\":8024.998046875,\"values\":[1513,1254.0009765625,1419,1083,1433,1322.9970703125]},\"tts\":{\"p50\":148,\"p90\":174.1,\"p95\":194.04999999999995,\"p99\":210.01,\"min\":136,\"max\":214,\"num\":8,\"sum\":1235,\"values\":[214,157,151,138,136,147,143,149]},\"asr\":{\"p50\":253.5,\"p90\":310,\"p95\":316.5,\"p99\":321.7,\"min\":90,\"max\":323,\"num\":6,\"sum\":1361,\"values\":[323,90,267,144,297,240]}},\"call_cost\":{\"product_costs\":[{\"product\":\"retell_voice_engine\",\"unit_price\":0.0916667,\"cost\":6.0500022},{\"product\":\"elevenlabs_tts_03_2026\",\"unit_price\":0.0666667,\"cost\":4.4000022},{\"product\":\"gpt_5_mini\",\"unit_price\":0.0133333,\"cost\":0.8799978},{\"product\":\"us_twilio_telephony\",\"unit_price\":0.025,\"cost\":1.65},{\"product\":\"gpt_5_6_terra_text_testing\",\"unit_price\":2.08,\"cost\":2.08}],\"total_duration_seconds\":66,\"total_duration_unit_price\":0.1966667,\"combined_cost\":15.0600022},\"call_analysis\":{\"call_summary\":\"Sam called Maple Dental to ask about hours, parking, new-patient acceptance, routine cleaning pricing, and same-day emergency appointments. The agent answered the questions and noted that the office would call with exact cleaning pricing, but no callback was explicitly requested.\",\"in_voicemail\":false,\"user_sentiment\":\"Positive\",\"call_successful\":true,\"custom_analysis_data\":{\"caller_name\":\"Sam\",\"call_reason\":\"question\",\"callback_requested\":false,\"party_size\":1}},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":true,\"llm_token_usage\":{\"values\":[419,425,472,482,527,571,615,666,649],\"average\":536.2222222222222,\"num_requests\":9},\"tool_calls\":[],\"from_number\":\"+19377293562\",\"to_number\":\"+16204459730\",\"direction\":\"inbound\",\"telephony_identifier\":{\"twilio_call_sid\":\"CA[redacted]\"}},\"event_timestamp\":1789450931407}",
+  "body": {
+    "event": "call_analyzed",
+    "call": {
+      "call_id": "call_223a17f623992dc042d706288e1",
+      "call_type": "phone_call",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 0,
+      "agent_name": "dev-spike-receptionist",
+      "retell_llm_dynamic_variables": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "twilio-accountsid": "AC[redacted]",
+        "twilio-callsid": "CA[redacted]",
+        "twilio-verstat": "TN-Validation-Passed-B"
+      },
+      "contact_dynamic_variables": {},
+      "custom_sip_headers": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "x-twilio-accountsid": "AC[redacted]",
+        "x-twilio-callsid": "CA[redacted]",
+        "x-twilio-verstat": "TN-Validation-Passed-B"
+      },
+      "call_status": "ended",
+      "start_timestamp": 1789450864096,
+      "end_timestamp": 1789450929645,
+      "duration_ms": 65549,
+      "transcript": "User: Hi there. Is this Maple Dental? I had a few questions. \nAgent: Hello, this is Maple Dental in Toronto. Would you like to book, ask a question, or something else? May I have your name, please?\nUser: Thanks. I'm Sam. Could you tell me your opening hours, please? \nAgent: Thanks, Sam. Our hours are Monday to Friday, 9am to 5pm. Anything else I can help with?\nUser: Thanks. Do you have parking available? \nAgent: Thanks, Sam. Yes, we have limited on-site parking; street parking and nearby lots are also available. Anything else?\nUser: Thanks. Do you accept new patients? \nAgent: Thanks, Sam. Yes, we’re accepting new patients. Would you like to book an appointment now?\nUser: Thanks. Uh, what's your price for a routine cleaning? \nAgent: Thanks, Sam. Routine cleaning costs vary; our office will call you back with exact pricing. Would you like us to call?\nUser: Thanks. Can you tell me if you offer same day emergency appointments? \nAgent: Thanks, Sam. Yes, we offer same-day emergency appointments when available; please call during business hours and we'll assist. Goodbye.\nUser: Thanks. \n",
+      "transcript_object": [
+        {
+          "role": "user",
+          "content": "Hi there. Is this Maple Dental? I had a few questions. ",
+          "words": [
+            {
+              "word": "Hi ",
+              "start": 0.27899999999999997,
+              "end": 0.519
+            },
+            {
+              "word": "there. ",
+              "start": 0.519,
+              "end": 0.83899995
+            },
+            {
+              "word": "Is ",
+              "start": 0.83899995,
+              "end": 0.919
+            },
+            {
+              "word": "this ",
+              "start": 0.919,
+              "end": 1.079
+            },
+            {
+              "word": "Maple ",
+              "start": 1.079,
+              "end": 1.399
+            },
+            {
+              "word": "Dental? ",
+              "start": 1.399,
+              "end": 1.8789999
+            },
+            {
+              "word": "I ",
+              "start": 1.8789999,
+              "end": 2.039
+            },
+            {
+              "word": "had ",
+              "start": 2.039,
+              "end": 2.1989998
+            },
+            {
+              "word": "a ",
+              "start": 2.1989998,
+              "end": 2.2790000000000004
+            },
+            {
+              "word": "few ",
+              "start": 2.2790000000000004,
+              "end": 2.4389999
+            },
+            {
+              "word": "questions. ",
+              "start": 2.4389999,
+              "end": 2.6789999
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Maple Dental in Toronto. Would you like to book, ask a question, or something else? May I have your name, please?",
+          "words": [
+            {
+              "word": "Hello, ",
+              "start": 4.192,
+              "end": 4.598
+            },
+            {
+              "word": "this ",
+              "start": 4.598,
+              "end": 4.784
+            },
+            {
+              "word": "is ",
+              "start": 4.784,
+              "end": 4.912
+            },
+            {
+              "word": "Maple ",
+              "start": 4.912,
+              "end": 5.167
+            },
+            {
+              "word": "Dental ",
+              "start": 5.167,
+              "end": 5.434
+            },
+            {
+              "word": "in ",
+              "start": 5.434,
+              "end": 5.515
+            },
+            {
+              "word": "Toronto.",
+              "start": 5.515,
+              "end": 6.189
+            },
+            {
+              "word": " Would ",
+              "start": 6.189,
+              "end": 6.41
+            },
+            {
+              "word": "you ",
+              "start": 6.41,
+              "end": 6.526
+            },
+            {
+              "word": "like ",
+              "start": 6.526,
+              "end": 6.688
+            },
+            {
+              "word": "to ",
+              "start": 6.688,
+              "end": 6.816
+            },
+            {
+              "word": "book, ",
+              "start": 6.816,
+              "end": 7.234
+            },
+            {
+              "word": "ask ",
+              "start": 7.234,
+              "end": 7.559
+            },
+            {
+              "word": "a ",
+              "start": 7.559,
+              "end": 7.652
+            },
+            {
+              "word": "question, ",
+              "start": 7.652,
+              "end": 8.476
+            },
+            {
+              "word": "or ",
+              "start": 8.476,
+              "end": 8.662
+            },
+            {
+              "word": "something ",
+              "start": 8.662,
+              "end": 9.045
+            },
+            {
+              "word": "else?",
+              "start": 9.045,
+              "end": 9.579
+            },
+            {
+              "word": " May ",
+              "start": 9.579,
+              "end": 9.8
+            },
+            {
+              "word": "I ",
+              "start": 9.8,
+              "end": 9.869
+            },
+            {
+              "word": "have ",
+              "start": 9.869,
+              "end": 10.02
+            },
+            {
+              "word": "your ",
+              "start": 10.02,
+              "end": 10.159
+            },
+            {
+              "word": "name, ",
+              "start": 10.159,
+              "end": 10.357
+            },
+            {
+              "word": "please?",
+              "start": 10.357,
+              "end": 10.926
+            }
+          ],
+          "metadata": {
+            "response_id": 2
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. I'm Sam. Could you tell me your opening hours, please? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 12.109,
+              "end": 12.428999
+            },
+            {
+              "word": "I'm ",
+              "start": 12.729,
+              "end": 12.968999
+            },
+            {
+              "word": "Sam. ",
+              "start": 12.968999,
+              "end": 13.449
+            },
+            {
+              "word": "Could ",
+              "start": 13.449,
+              "end": 13.609
+            },
+            {
+              "word": "you ",
+              "start": 13.609,
+              "end": 13.769
+            },
+            {
+              "word": "tell ",
+              "start": 13.769,
+              "end": 13.848999
+            },
+            {
+              "word": "me ",
+              "start": 13.848999,
+              "end": 14.008999
+            },
+            {
+              "word": "your ",
+              "start": 14.008999,
+              "end": 14.088999
+            },
+            {
+              "word": "opening ",
+              "start": 14.088999,
+              "end": 14.328999
+            },
+            {
+              "word": "hours, ",
+              "start": 14.328999,
+              "end": 14.729
+            },
+            {
+              "word": "please? ",
+              "start": 14.729,
+              "end": 14.888999
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Our hours are Monday to Friday, 9am to 5pm. Anything else I can help with?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 16.143,
+              "end": 16.607
+            },
+            {
+              "word": "Sam.",
+              "start": 16.607,
+              "end": 17.165
+            },
+            {
+              "word": " Our ",
+              "start": 17.165,
+              "end": 17.339
+            },
+            {
+              "word": "hours ",
+              "start": 17.339,
+              "end": 17.629
+            },
+            {
+              "word": "are ",
+              "start": 17.629,
+              "end": 17.745
+            },
+            {
+              "word": "Monday ",
+              "start": 17.745,
+              "end": 18.001
+            },
+            {
+              "word": "to ",
+              "start": 18.001,
+              "end": 18.094
+            },
+            {
+              "word": "Friday, ",
+              "start": 18.094,
+              "end": 18.512
+            },
+            {
+              "word": "9am ",
+              "start": 18.512,
+              "end": 18.906
+            },
+            {
+              "word": "to ",
+              "start": 18.906,
+              "end": 19.011
+            },
+            {
+              "word": "5pm.",
+              "start": 19.011,
+              "end": 19.673
+            },
+            {
+              "word": " Anything ",
+              "start": 19.673,
+              "end": 20.045
+            },
+            {
+              "word": "else ",
+              "start": 20.045,
+              "end": 20.265
+            },
+            {
+              "word": "I ",
+              "start": 20.265,
+              "end": 20.358
+            },
+            {
+              "word": "can ",
+              "start": 20.358,
+              "end": 20.486
+            },
+            {
+              "word": "help ",
+              "start": 20.486,
+              "end": 20.637
+            },
+            {
+              "word": "with?",
+              "start": 20.637,
+              "end": 20.973
+            }
+          ],
+          "metadata": {
+            "response_id": 4
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Do you have parking available? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 22.259001,
+              "end": 22.899
+            },
+            {
+              "word": "Do ",
+              "start": 22.899,
+              "end": 23.139000000000003
+            },
+            {
+              "word": "you ",
+              "start": 23.139000000000003,
+              "end": 23.219
+            },
+            {
+              "word": "have ",
+              "start": 23.219,
+              "end": 23.379
+            },
+            {
+              "word": "parking ",
+              "start": 23.379,
+              "end": 23.619
+            },
+            {
+              "word": "available? ",
+              "start": 23.619,
+              "end": 23.939
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Yes, we have limited on-site parking; street parking and nearby lots are also available. Anything else?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 25.358,
+              "end": 25.683
+            },
+            {
+              "word": "Sam.",
+              "start": 25.683,
+              "end": 26.194
+            },
+            {
+              "word": " Yes, ",
+              "start": 26.194,
+              "end": 26.449
+            },
+            {
+              "word": "we ",
+              "start": 26.449,
+              "end": 26.566
+            },
+            {
+              "word": "have ",
+              "start": 26.566,
+              "end": 26.728
+            },
+            {
+              "word": "limited ",
+              "start": 26.728,
+              "end": 27.042
+            },
+            {
+              "word": "on-site ",
+              "start": 27.042,
+              "end": 27.32
+            },
+            {
+              "word": "parking;",
+              "start": 27.32,
+              "end": 27.866
+            },
+            {
+              "word": " street ",
+              "start": 27.866,
+              "end": 28.168
+            },
+            {
+              "word": "parking ",
+              "start": 28.168,
+              "end": 28.505
+            },
+            {
+              "word": "and ",
+              "start": 28.505,
+              "end": 28.597
+            },
+            {
+              "word": "nearby ",
+              "start": 28.597,
+              "end": 28.923
+            },
+            {
+              "word": "lots ",
+              "start": 28.923,
+              "end": 29.143
+            },
+            {
+              "word": "are ",
+              "start": 29.143,
+              "end": 29.259
+            },
+            {
+              "word": "also ",
+              "start": 29.259,
+              "end": 29.561
+            },
+            {
+              "word": "available.",
+              "start": 29.561,
+              "end": 30.188
+            },
+            {
+              "word": " Anything ",
+              "start": 30.188,
+              "end": 30.478
+            },
+            {
+              "word": "else?",
+              "start": 30.478,
+              "end": 30.885
+            }
+          ],
+          "metadata": {
+            "response_id": 5
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Do you accept new patients? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 32.149,
+              "end": 32.709002
+            },
+            {
+              "word": "Do ",
+              "start": 32.709002,
+              "end": 32.869
+            },
+            {
+              "word": "you ",
+              "start": 32.869,
+              "end": 32.949
+            },
+            {
+              "word": "accept ",
+              "start": 32.949,
+              "end": 33.189
+            },
+            {
+              "word": "new ",
+              "start": 33.189,
+              "end": 33.349000000000004
+            },
+            {
+              "word": "patients? ",
+              "start": 33.349000000000004,
+              "end": 33.589
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Yes, we’re accepting new patients. Would you like to book an appointment now?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 34.672,
+              "end": 35.148
+            },
+            {
+              "word": "Sam.",
+              "start": 35.148,
+              "end": 35.554
+            },
+            {
+              "word": " Yes, ",
+              "start": 35.554,
+              "end": 35.798
+            },
+            {
+              "word": "we’re ",
+              "start": 35.798,
+              "end": 35.96
+            },
+            {
+              "word": "accepting ",
+              "start": 35.96,
+              "end": 36.355
+            },
+            {
+              "word": "new ",
+              "start": 36.355,
+              "end": 36.494
+            },
+            {
+              "word": "patients.",
+              "start": 36.494,
+              "end": 37.087
+            },
+            {
+              "word": " Would ",
+              "start": 37.087,
+              "end": 37.331
+            },
+            {
+              "word": "you ",
+              "start": 37.331,
+              "end": 37.447
+            },
+            {
+              "word": "like ",
+              "start": 37.447,
+              "end": 37.598
+            },
+            {
+              "word": "to ",
+              "start": 37.598,
+              "end": 37.667
+            },
+            {
+              "word": "book ",
+              "start": 37.667,
+              "end": 37.842
+            },
+            {
+              "word": "an ",
+              "start": 37.842,
+              "end": 37.923
+            },
+            {
+              "word": "appointment ",
+              "start": 37.923,
+              "end": 38.399
+            },
+            {
+              "word": "now?",
+              "start": 38.399,
+              "end": 38.991
+            }
+          ],
+          "metadata": {
+            "response_id": 6
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Uh, what's your price for a routine cleaning? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 40.149,
+              "end": 40.789
+            },
+            {
+              "word": "Uh, ",
+              "start": 40.789,
+              "end": 40.949
+            },
+            {
+              "word": "what's ",
+              "start": 40.949,
+              "end": 41.269
+            },
+            {
+              "word": "your ",
+              "start": 41.269,
+              "end": 41.348998
+            },
+            {
+              "word": "price ",
+              "start": 41.348998,
+              "end": 41.589
+            },
+            {
+              "word": "for ",
+              "start": 41.589,
+              "end": 41.749
+            },
+            {
+              "word": "a ",
+              "start": 41.749,
+              "end": 41.909
+            },
+            {
+              "word": "routine ",
+              "start": 41.909,
+              "end": 42.149
+            },
+            {
+              "word": "cleaning? ",
+              "start": 42.149,
+              "end": 42.549
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Routine cleaning costs vary; our office will call you back with exact pricing. Would you like us to call?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 43.982,
+              "end": 44.388
+            },
+            {
+              "word": "Sam.",
+              "start": 44.388,
+              "end": 44.818
+            },
+            {
+              "word": " Routine ",
+              "start": 44.818,
+              "end": 45.166
+            },
+            {
+              "word": "cleaning ",
+              "start": 45.166,
+              "end": 45.468
+            },
+            {
+              "word": "costs ",
+              "start": 45.468,
+              "end": 45.77
+            },
+            {
+              "word": "vary;",
+              "start": 45.77,
+              "end": 46.351
+            },
+            {
+              "word": " our ",
+              "start": 46.351,
+              "end": 46.56
+            },
+            {
+              "word": "office ",
+              "start": 46.56,
+              "end": 46.804
+            },
+            {
+              "word": "will ",
+              "start": 46.804,
+              "end": 46.943
+            },
+            {
+              "word": "call ",
+              "start": 46.943,
+              "end": 47.129
+            },
+            {
+              "word": "you ",
+              "start": 47.129,
+              "end": 47.233
+            },
+            {
+              "word": "back ",
+              "start": 47.233,
+              "end": 47.408
+            },
+            {
+              "word": "with ",
+              "start": 47.408,
+              "end": 47.57
+            },
+            {
+              "word": "exact ",
+              "start": 47.57,
+              "end": 47.849
+            },
+            {
+              "word": "pricing.",
+              "start": 47.849,
+              "end": 48.441
+            },
+            {
+              "word": " Would ",
+              "start": 48.441,
+              "end": 48.65
+            },
+            {
+              "word": "you ",
+              "start": 48.65,
+              "end": 48.754
+            },
+            {
+              "word": "like ",
+              "start": 48.754,
+              "end": 48.905
+            },
+            {
+              "word": "us ",
+              "start": 48.905,
+              "end": 49.01
+            },
+            {
+              "word": "to ",
+              "start": 49.01,
+              "end": 49.103
+            },
+            {
+              "word": "call?",
+              "start": 49.103,
+              "end": 49.556
+            }
+          ],
+          "metadata": {
+            "response_id": 7
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Can you tell me if you offer same day emergency appointments? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 51.539,
+              "end": 51.938998
+            },
+            {
+              "word": "Can ",
+              "start": 52.169000000000004,
+              "end": 52.409003
+            },
+            {
+              "word": "you ",
+              "start": 52.409003,
+              "end": 52.569003
+            },
+            {
+              "word": "tell ",
+              "start": 52.569003,
+              "end": 52.649
+            },
+            {
+              "word": "me ",
+              "start": 52.649,
+              "end": 52.809000000000005
+            },
+            {
+              "word": "if ",
+              "start": 52.809000000000005,
+              "end": 52.889002000000005
+            },
+            {
+              "word": "you ",
+              "start": 52.889002000000005,
+              "end": 53.049002
+            },
+            {
+              "word": "offer ",
+              "start": 53.049002,
+              "end": 53.209002
+            },
+            {
+              "word": "same ",
+              "start": 53.209002,
+              "end": 53.449
+            },
+            {
+              "word": "day ",
+              "start": 53.449,
+              "end": 53.689
+            },
+            {
+              "word": "emergency ",
+              "start": 53.689,
+              "end": 54.089
+            },
+            {
+              "word": "appointments? ",
+              "start": 54.089,
+              "end": 54.569003
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Yes, we offer same-day emergency appointments when available; please call during business hours and we'll assist. Goodbye.",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 55.892,
+              "end": 56.287
+            },
+            {
+              "word": "Sam.",
+              "start": 56.287,
+              "end": 56.821
+            },
+            {
+              "word": " Yes, ",
+              "start": 56.821,
+              "end": 57.065
+            },
+            {
+              "word": "we ",
+              "start": 57.065,
+              "end": 57.193
+            },
+            {
+              "word": "offer ",
+              "start": 57.193,
+              "end": 57.425
+            },
+            {
+              "word": "same-day ",
+              "start": 57.425,
+              "end": 57.75
+            },
+            {
+              "word": "emergency ",
+              "start": 57.75,
+              "end": 58.191
+            },
+            {
+              "word": "appointments ",
+              "start": 58.191,
+              "end": 58.609
+            },
+            {
+              "word": "when ",
+              "start": 58.609,
+              "end": 58.771
+            },
+            {
+              "word": "available;",
+              "start": 58.771,
+              "end": 59.468
+            },
+            {
+              "word": " please ",
+              "start": 59.468,
+              "end": 59.793
+            },
+            {
+              "word": "call ",
+              "start": 59.793,
+              "end": 59.99
+            },
+            {
+              "word": "during ",
+              "start": 59.99,
+              "end": 60.199
+            },
+            {
+              "word": "business ",
+              "start": 60.199,
+              "end": 60.525
+            },
+            {
+              "word": "hours ",
+              "start": 60.525,
+              "end": 60.768
+            },
+            {
+              "word": "and ",
+              "start": 60.768,
+              "end": 60.873
+            },
+            {
+              "word": "we'll ",
+              "start": 60.873,
+              "end": 61.07
+            },
+            {
+              "word": "assist.",
+              "start": 61.07,
+              "end": 61.604
+            },
+            {
+              "word": " Goodbye.",
+              "start": 61.604,
+              "end": 62.254
+            }
+          ],
+          "metadata": {
+            "response_id": 8
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 64.82900000000001,
+              "end": 65.229
+            }
+          ]
+        }
+      ],
+      "transcript_with_tool_calls": [
+        {
+          "role": "user",
+          "content": "Hi there. Is this Maple Dental? I had a few questions. ",
+          "words": [
+            {
+              "word": "Hi ",
+              "start": 0.27899999999999997,
+              "end": 0.519
+            },
+            {
+              "word": "there. ",
+              "start": 0.519,
+              "end": 0.83899995
+            },
+            {
+              "word": "Is ",
+              "start": 0.83899995,
+              "end": 0.919
+            },
+            {
+              "word": "this ",
+              "start": 0.919,
+              "end": 1.079
+            },
+            {
+              "word": "Maple ",
+              "start": 1.079,
+              "end": 1.399
+            },
+            {
+              "word": "Dental? ",
+              "start": 1.399,
+              "end": 1.8789999
+            },
+            {
+              "word": "I ",
+              "start": 1.8789999,
+              "end": 2.039
+            },
+            {
+              "word": "had ",
+              "start": 2.039,
+              "end": 2.1989998
+            },
+            {
+              "word": "a ",
+              "start": 2.1989998,
+              "end": 2.2790000000000004
+            },
+            {
+              "word": "few ",
+              "start": 2.2790000000000004,
+              "end": 2.4389999
+            },
+            {
+              "word": "questions. ",
+              "start": 2.4389999,
+              "end": 2.6789999
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Hello, this is Maple Dental in Toronto. Would you like to book, ask a question, or something else? May I have your name, please?",
+          "words": [
+            {
+              "word": "Hello, ",
+              "start": 4.192,
+              "end": 4.598
+            },
+            {
+              "word": "this ",
+              "start": 4.598,
+              "end": 4.784
+            },
+            {
+              "word": "is ",
+              "start": 4.784,
+              "end": 4.912
+            },
+            {
+              "word": "Maple ",
+              "start": 4.912,
+              "end": 5.167
+            },
+            {
+              "word": "Dental ",
+              "start": 5.167,
+              "end": 5.434
+            },
+            {
+              "word": "in ",
+              "start": 5.434,
+              "end": 5.515
+            },
+            {
+              "word": "Toronto.",
+              "start": 5.515,
+              "end": 6.189
+            },
+            {
+              "word": " Would ",
+              "start": 6.189,
+              "end": 6.41
+            },
+            {
+              "word": "you ",
+              "start": 6.41,
+              "end": 6.526
+            },
+            {
+              "word": "like ",
+              "start": 6.526,
+              "end": 6.688
+            },
+            {
+              "word": "to ",
+              "start": 6.688,
+              "end": 6.816
+            },
+            {
+              "word": "book, ",
+              "start": 6.816,
+              "end": 7.234
+            },
+            {
+              "word": "ask ",
+              "start": 7.234,
+              "end": 7.559
+            },
+            {
+              "word": "a ",
+              "start": 7.559,
+              "end": 7.652
+            },
+            {
+              "word": "question, ",
+              "start": 7.652,
+              "end": 8.476
+            },
+            {
+              "word": "or ",
+              "start": 8.476,
+              "end": 8.662
+            },
+            {
+              "word": "something ",
+              "start": 8.662,
+              "end": 9.045
+            },
+            {
+              "word": "else?",
+              "start": 9.045,
+              "end": 9.579
+            },
+            {
+              "word": " May ",
+              "start": 9.579,
+              "end": 9.8
+            },
+            {
+              "word": "I ",
+              "start": 9.8,
+              "end": 9.869
+            },
+            {
+              "word": "have ",
+              "start": 9.869,
+              "end": 10.02
+            },
+            {
+              "word": "your ",
+              "start": 10.02,
+              "end": 10.159
+            },
+            {
+              "word": "name, ",
+              "start": 10.159,
+              "end": 10.357
+            },
+            {
+              "word": "please?",
+              "start": 10.357,
+              "end": 10.926
+            }
+          ],
+          "metadata": {
+            "response_id": 2
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. I'm Sam. Could you tell me your opening hours, please? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 12.109,
+              "end": 12.428999
+            },
+            {
+              "word": "I'm ",
+              "start": 12.729,
+              "end": 12.968999
+            },
+            {
+              "word": "Sam. ",
+              "start": 12.968999,
+              "end": 13.449
+            },
+            {
+              "word": "Could ",
+              "start": 13.449,
+              "end": 13.609
+            },
+            {
+              "word": "you ",
+              "start": 13.609,
+              "end": 13.769
+            },
+            {
+              "word": "tell ",
+              "start": 13.769,
+              "end": 13.848999
+            },
+            {
+              "word": "me ",
+              "start": 13.848999,
+              "end": 14.008999
+            },
+            {
+              "word": "your ",
+              "start": 14.008999,
+              "end": 14.088999
+            },
+            {
+              "word": "opening ",
+              "start": 14.088999,
+              "end": 14.328999
+            },
+            {
+              "word": "hours, ",
+              "start": 14.328999,
+              "end": 14.729
+            },
+            {
+              "word": "please? ",
+              "start": 14.729,
+              "end": 14.888999
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Our hours are Monday to Friday, 9am to 5pm. Anything else I can help with?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 16.143,
+              "end": 16.607
+            },
+            {
+              "word": "Sam.",
+              "start": 16.607,
+              "end": 17.165
+            },
+            {
+              "word": " Our ",
+              "start": 17.165,
+              "end": 17.339
+            },
+            {
+              "word": "hours ",
+              "start": 17.339,
+              "end": 17.629
+            },
+            {
+              "word": "are ",
+              "start": 17.629,
+              "end": 17.745
+            },
+            {
+              "word": "Monday ",
+              "start": 17.745,
+              "end": 18.001
+            },
+            {
+              "word": "to ",
+              "start": 18.001,
+              "end": 18.094
+            },
+            {
+              "word": "Friday, ",
+              "start": 18.094,
+              "end": 18.512
+            },
+            {
+              "word": "9am ",
+              "start": 18.512,
+              "end": 18.906
+            },
+            {
+              "word": "to ",
+              "start": 18.906,
+              "end": 19.011
+            },
+            {
+              "word": "5pm.",
+              "start": 19.011,
+              "end": 19.673
+            },
+            {
+              "word": " Anything ",
+              "start": 19.673,
+              "end": 20.045
+            },
+            {
+              "word": "else ",
+              "start": 20.045,
+              "end": 20.265
+            },
+            {
+              "word": "I ",
+              "start": 20.265,
+              "end": 20.358
+            },
+            {
+              "word": "can ",
+              "start": 20.358,
+              "end": 20.486
+            },
+            {
+              "word": "help ",
+              "start": 20.486,
+              "end": 20.637
+            },
+            {
+              "word": "with?",
+              "start": 20.637,
+              "end": 20.973
+            }
+          ],
+          "metadata": {
+            "response_id": 4
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Do you have parking available? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 22.259001,
+              "end": 22.899
+            },
+            {
+              "word": "Do ",
+              "start": 22.899,
+              "end": 23.139000000000003
+            },
+            {
+              "word": "you ",
+              "start": 23.139000000000003,
+              "end": 23.219
+            },
+            {
+              "word": "have ",
+              "start": 23.219,
+              "end": 23.379
+            },
+            {
+              "word": "parking ",
+              "start": 23.379,
+              "end": 23.619
+            },
+            {
+              "word": "available? ",
+              "start": 23.619,
+              "end": 23.939
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Yes, we have limited on-site parking; street parking and nearby lots are also available. Anything else?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 25.358,
+              "end": 25.683
+            },
+            {
+              "word": "Sam.",
+              "start": 25.683,
+              "end": 26.194
+            },
+            {
+              "word": " Yes, ",
+              "start": 26.194,
+              "end": 26.449
+            },
+            {
+              "word": "we ",
+              "start": 26.449,
+              "end": 26.566
+            },
+            {
+              "word": "have ",
+              "start": 26.566,
+              "end": 26.728
+            },
+            {
+              "word": "limited ",
+              "start": 26.728,
+              "end": 27.042
+            },
+            {
+              "word": "on-site ",
+              "start": 27.042,
+              "end": 27.32
+            },
+            {
+              "word": "parking;",
+              "start": 27.32,
+              "end": 27.866
+            },
+            {
+              "word": " street ",
+              "start": 27.866,
+              "end": 28.168
+            },
+            {
+              "word": "parking ",
+              "start": 28.168,
+              "end": 28.505
+            },
+            {
+              "word": "and ",
+              "start": 28.505,
+              "end": 28.597
+            },
+            {
+              "word": "nearby ",
+              "start": 28.597,
+              "end": 28.923
+            },
+            {
+              "word": "lots ",
+              "start": 28.923,
+              "end": 29.143
+            },
+            {
+              "word": "are ",
+              "start": 29.143,
+              "end": 29.259
+            },
+            {
+              "word": "also ",
+              "start": 29.259,
+              "end": 29.561
+            },
+            {
+              "word": "available.",
+              "start": 29.561,
+              "end": 30.188
+            },
+            {
+              "word": " Anything ",
+              "start": 30.188,
+              "end": 30.478
+            },
+            {
+              "word": "else?",
+              "start": 30.478,
+              "end": 30.885
+            }
+          ],
+          "metadata": {
+            "response_id": 5
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Do you accept new patients? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 32.149,
+              "end": 32.709002
+            },
+            {
+              "word": "Do ",
+              "start": 32.709002,
+              "end": 32.869
+            },
+            {
+              "word": "you ",
+              "start": 32.869,
+              "end": 32.949
+            },
+            {
+              "word": "accept ",
+              "start": 32.949,
+              "end": 33.189
+            },
+            {
+              "word": "new ",
+              "start": 33.189,
+              "end": 33.349000000000004
+            },
+            {
+              "word": "patients? ",
+              "start": 33.349000000000004,
+              "end": 33.589
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Yes, we’re accepting new patients. Would you like to book an appointment now?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 34.672,
+              "end": 35.148
+            },
+            {
+              "word": "Sam.",
+              "start": 35.148,
+              "end": 35.554
+            },
+            {
+              "word": " Yes, ",
+              "start": 35.554,
+              "end": 35.798
+            },
+            {
+              "word": "we’re ",
+              "start": 35.798,
+              "end": 35.96
+            },
+            {
+              "word": "accepting ",
+              "start": 35.96,
+              "end": 36.355
+            },
+            {
+              "word": "new ",
+              "start": 36.355,
+              "end": 36.494
+            },
+            {
+              "word": "patients.",
+              "start": 36.494,
+              "end": 37.087
+            },
+            {
+              "word": " Would ",
+              "start": 37.087,
+              "end": 37.331
+            },
+            {
+              "word": "you ",
+              "start": 37.331,
+              "end": 37.447
+            },
+            {
+              "word": "like ",
+              "start": 37.447,
+              "end": 37.598
+            },
+            {
+              "word": "to ",
+              "start": 37.598,
+              "end": 37.667
+            },
+            {
+              "word": "book ",
+              "start": 37.667,
+              "end": 37.842
+            },
+            {
+              "word": "an ",
+              "start": 37.842,
+              "end": 37.923
+            },
+            {
+              "word": "appointment ",
+              "start": 37.923,
+              "end": 38.399
+            },
+            {
+              "word": "now?",
+              "start": 38.399,
+              "end": 38.991
+            }
+          ],
+          "metadata": {
+            "response_id": 6
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Uh, what's your price for a routine cleaning? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 40.149,
+              "end": 40.789
+            },
+            {
+              "word": "Uh, ",
+              "start": 40.789,
+              "end": 40.949
+            },
+            {
+              "word": "what's ",
+              "start": 40.949,
+              "end": 41.269
+            },
+            {
+              "word": "your ",
+              "start": 41.269,
+              "end": 41.348998
+            },
+            {
+              "word": "price ",
+              "start": 41.348998,
+              "end": 41.589
+            },
+            {
+              "word": "for ",
+              "start": 41.589,
+              "end": 41.749
+            },
+            {
+              "word": "a ",
+              "start": 41.749,
+              "end": 41.909
+            },
+            {
+              "word": "routine ",
+              "start": 41.909,
+              "end": 42.149
+            },
+            {
+              "word": "cleaning? ",
+              "start": 42.149,
+              "end": 42.549
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Routine cleaning costs vary; our office will call you back with exact pricing. Would you like us to call?",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 43.982,
+              "end": 44.388
+            },
+            {
+              "word": "Sam.",
+              "start": 44.388,
+              "end": 44.818
+            },
+            {
+              "word": " Routine ",
+              "start": 44.818,
+              "end": 45.166
+            },
+            {
+              "word": "cleaning ",
+              "start": 45.166,
+              "end": 45.468
+            },
+            {
+              "word": "costs ",
+              "start": 45.468,
+              "end": 45.77
+            },
+            {
+              "word": "vary;",
+              "start": 45.77,
+              "end": 46.351
+            },
+            {
+              "word": " our ",
+              "start": 46.351,
+              "end": 46.56
+            },
+            {
+              "word": "office ",
+              "start": 46.56,
+              "end": 46.804
+            },
+            {
+              "word": "will ",
+              "start": 46.804,
+              "end": 46.943
+            },
+            {
+              "word": "call ",
+              "start": 46.943,
+              "end": 47.129
+            },
+            {
+              "word": "you ",
+              "start": 47.129,
+              "end": 47.233
+            },
+            {
+              "word": "back ",
+              "start": 47.233,
+              "end": 47.408
+            },
+            {
+              "word": "with ",
+              "start": 47.408,
+              "end": 47.57
+            },
+            {
+              "word": "exact ",
+              "start": 47.57,
+              "end": 47.849
+            },
+            {
+              "word": "pricing.",
+              "start": 47.849,
+              "end": 48.441
+            },
+            {
+              "word": " Would ",
+              "start": 48.441,
+              "end": 48.65
+            },
+            {
+              "word": "you ",
+              "start": 48.65,
+              "end": 48.754
+            },
+            {
+              "word": "like ",
+              "start": 48.754,
+              "end": 48.905
+            },
+            {
+              "word": "us ",
+              "start": 48.905,
+              "end": 49.01
+            },
+            {
+              "word": "to ",
+              "start": 49.01,
+              "end": 49.103
+            },
+            {
+              "word": "call?",
+              "start": 49.103,
+              "end": 49.556
+            }
+          ],
+          "metadata": {
+            "response_id": 7
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. Can you tell me if you offer same day emergency appointments? ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 51.539,
+              "end": 51.938998
+            },
+            {
+              "word": "Can ",
+              "start": 52.169000000000004,
+              "end": 52.409003
+            },
+            {
+              "word": "you ",
+              "start": 52.409003,
+              "end": 52.569003
+            },
+            {
+              "word": "tell ",
+              "start": 52.569003,
+              "end": 52.649
+            },
+            {
+              "word": "me ",
+              "start": 52.649,
+              "end": 52.809000000000005
+            },
+            {
+              "word": "if ",
+              "start": 52.809000000000005,
+              "end": 52.889002000000005
+            },
+            {
+              "word": "you ",
+              "start": 52.889002000000005,
+              "end": 53.049002
+            },
+            {
+              "word": "offer ",
+              "start": 53.049002,
+              "end": 53.209002
+            },
+            {
+              "word": "same ",
+              "start": 53.209002,
+              "end": 53.449
+            },
+            {
+              "word": "day ",
+              "start": 53.449,
+              "end": 53.689
+            },
+            {
+              "word": "emergency ",
+              "start": 53.689,
+              "end": 54.089
+            },
+            {
+              "word": "appointments? ",
+              "start": 54.089,
+              "end": 54.569003
+            }
+          ]
+        },
+        {
+          "role": "agent",
+          "content": "Thanks, Sam. Yes, we offer same-day emergency appointments when available; please call during business hours and we'll assist. Goodbye.",
+          "words": [
+            {
+              "word": "Thanks, ",
+              "start": 55.892,
+              "end": 56.287
+            },
+            {
+              "word": "Sam.",
+              "start": 56.287,
+              "end": 56.821
+            },
+            {
+              "word": " Yes, ",
+              "start": 56.821,
+              "end": 57.065
+            },
+            {
+              "word": "we ",
+              "start": 57.065,
+              "end": 57.193
+            },
+            {
+              "word": "offer ",
+              "start": 57.193,
+              "end": 57.425
+            },
+            {
+              "word": "same-day ",
+              "start": 57.425,
+              "end": 57.75
+            },
+            {
+              "word": "emergency ",
+              "start": 57.75,
+              "end": 58.191
+            },
+            {
+              "word": "appointments ",
+              "start": 58.191,
+              "end": 58.609
+            },
+            {
+              "word": "when ",
+              "start": 58.609,
+              "end": 58.771
+            },
+            {
+              "word": "available;",
+              "start": 58.771,
+              "end": 59.468
+            },
+            {
+              "word": " please ",
+              "start": 59.468,
+              "end": 59.793
+            },
+            {
+              "word": "call ",
+              "start": 59.793,
+              "end": 59.99
+            },
+            {
+              "word": "during ",
+              "start": 59.99,
+              "end": 60.199
+            },
+            {
+              "word": "business ",
+              "start": 60.199,
+              "end": 60.525
+            },
+            {
+              "word": "hours ",
+              "start": 60.525,
+              "end": 60.768
+            },
+            {
+              "word": "and ",
+              "start": 60.768,
+              "end": 60.873
+            },
+            {
+              "word": "we'll ",
+              "start": 60.873,
+              "end": 61.07
+            },
+            {
+              "word": "assist.",
+              "start": 61.07,
+              "end": 61.604
+            },
+            {
+              "word": " Goodbye.",
+              "start": 61.604,
+              "end": 62.254
+            }
+          ],
+          "metadata": {
+            "response_id": 8
+          }
+        },
+        {
+          "role": "user",
+          "content": "Thanks. ",
+          "words": [
+            {
+              "word": "Thanks. ",
+              "start": 64.82900000000001,
+              "end": 65.229
+            }
+          ]
+        }
+      ],
+      "recording_url": "[redacted-signed-url]",
+      "recording_multi_channel_url": "[redacted-signed-url]",
+      "public_log_url": "[redacted-signed-url]",
+      "disconnection_reason": "user_hangup",
+      "latency": {
+        "llm": {
+          "p50": 947,
+          "p90": 1026.2,
+          "p95": 1034.6,
+          "p99": 1041.32,
+          "min": 6,
+          "max": 1043,
+          "num": 9,
+          "sum": 7705,
+          "values": [
+            6,
+            947,
+            1043,
+            932,
+            1001,
+            1022,
+            810,
+            1012,
+            932
+          ]
+        },
+        "e2e": {
+          "p50": 1370.99853515625,
+          "p90": 1473,
+          "p95": 1493,
+          "p99": 1509,
+          "min": 1083,
+          "max": 1513,
+          "num": 6,
+          "sum": 8024.998046875,
+          "values": [
+            1513,
+            1254.0009765625,
+            1419,
+            1083,
+            1433,
+            1322.9970703125
+          ]
+        },
+        "tts": {
+          "p50": 148,
+          "p90": 174.1,
+          "p95": 194.04999999999995,
+          "p99": 210.01,
+          "min": 136,
+          "max": 214,
+          "num": 8,
+          "sum": 1235,
+          "values": [
+            214,
+            157,
+            151,
+            138,
+            136,
+            147,
+            143,
+            149
+          ]
+        },
+        "asr": {
+          "p50": 253.5,
+          "p90": 310,
+          "p95": 316.5,
+          "p99": 321.7,
+          "min": 90,
+          "max": 323,
+          "num": 6,
+          "sum": 1361,
+          "values": [
+            323,
+            90,
+            267,
+            144,
+            297,
+            240
+          ]
+        }
+      },
+      "call_cost": {
+        "product_costs": [
+          {
+            "product": "retell_voice_engine",
+            "unit_price": 0.0916667,
+            "cost": 6.0500022
+          },
+          {
+            "product": "elevenlabs_tts_03_2026",
+            "unit_price": 0.0666667,
+            "cost": 4.4000022
+          },
+          {
+            "product": "gpt_5_mini",
+            "unit_price": 0.0133333,
+            "cost": 0.8799978
+          },
+          {
+            "product": "us_twilio_telephony",
+            "unit_price": 0.025,
+            "cost": 1.65
+          },
+          {
+            "product": "gpt_5_6_terra_text_testing",
+            "unit_price": 2.08,
+            "cost": 2.08
+          }
+        ],
+        "total_duration_seconds": 66,
+        "total_duration_unit_price": 0.1966667,
+        "combined_cost": 15.0600022
+      },
+      "call_analysis": {
+        "call_summary": "Sam called Maple Dental to ask about hours, parking, new-patient acceptance, routine cleaning pricing, and same-day emergency appointments. The agent answered the questions and noted that the office would call with exact cleaning pricing, but no callback was explicitly requested.",
+        "in_voicemail": false,
+        "user_sentiment": "Positive",
+        "call_successful": true,
+        "custom_analysis_data": {
+          "caller_name": "Sam",
+          "call_reason": "question",
+          "callback_requested": false,
+          "party_size": 1
+        }
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": true,
+      "llm_token_usage": {
+        "values": [
+          419,
+          425,
+          472,
+          482,
+          527,
+          571,
+          615,
+          666,
+          649
+        ],
+        "average": 536.2222222222222,
+        "num_requests": 9
+      },
+      "tool_calls": [],
+      "from_number": "+19377293562",
+      "to_number": "+16204459730",
+      "direction": "inbound",
+      "telephony_identifier": {
+        "twilio_call_sid": "CA[redacted]"
+      }
+    },
+    "event_timestamp": 1789450931407
+  },
+  "signature_valid": true,
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_analyzed-2026-09-15T05-42-11.879Z.json"
+}

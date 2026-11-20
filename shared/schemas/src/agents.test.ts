@@ -1,0 +1,331 @@
+import { describe, expect, it } from 'vitest';
+import {
+  agentDraftPatch,
+  agentSettings,
+  analysisField,
+  copyAgentName,
+  duplicateAgentRequest,
+  analysisSchema,
+  defaultAgentSettings,
+  generatedPrompt,
+  modelAnalysisField,
+  agentLanguage,
+  retellLanguage,
+  brief,
+  briefPatch,
+  createAgentRequest,
+  defaultAgentLanguage,
+  NEVER_DO_PRESETS,
+  BRIEF_MIN_REAL_CHARS,
+  briefReadyForGeneration,
+  briefRealChars,
+  BRIEF_DOCUMENT_TYPES,
+} from './agents';
+import { KNOWLEDGE_FILE_TYPES } from './knowledge';
+
+/*
+ * §9.8 analysis fields and the W3 languages — the two places where a value that passed
+ * validation used to be cast to one of Retell's closed unions on the way out. A cast is
+ * not a check, and the failure landed at `update-agent`, i.e. at publish, at the end of
+ * the wizard. These tests are the check.
+ */
+
+describe('analysisField (strict — stored and sent)', () => {
+  it('accepts an enum field with non-empty choices', () => {
+    const parsed = analysisField.safeParse({
+      name: 'call_reason',
+      type: 'enum',
+      description: 'Why they rang.',
+      enum: ['appointment', 'question'],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.type === 'enum' && parsed.data.enum).toEqual(['appointment', 'question']);
+  });
+
+  it('rejects an enum field whose choices are empty — Retell requires a non-empty array', () => {
+    const parsed = analysisField.safeParse({
+      name: 'call_reason',
+      type: 'enum',
+      description: 'Why they rang.',
+      enum: [],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('rejects an enum field with no choices at all', () => {
+    const parsed = analysisField.safeParse({
+      name: 'call_reason',
+      type: 'enum',
+      description: 'Why they rang.',
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it.each(['text', 'number', 'boolean'] as const)('accepts a %s field with no choices', (type) => {
+    const parsed = analysisField.safeParse({ name: 'caller_name', type, description: 'Who rang.' });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('strips a stray enum from a non-enum field rather than failing an older row', () => {
+    const parsed = analysisField.safeParse({
+      name: 'caller_name',
+      type: 'text',
+      description: 'Who rang.',
+      enum: [],
+    });
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && 'enum' in parsed.data).toBe(false);
+  });
+
+  it('rejects an unknown type outright', () => {
+    expect(analysisField.safeParse({ name: 'x', type: 'date', description: 'd' }).success).toBe(false);
+  });
+
+  it('fails the whole array when one field is an invalid enum', () => {
+    const result = analysisSchema.safeParse([
+      { name: 'caller_name', type: 'text', description: 'Who rang.' },
+      { name: 'call_reason', type: 'enum', description: 'Why.', enum: [] },
+    ]);
+    expect(result.success).toBe(false);
+  });
+
+  it('is enforced on the customer-editable draft patch, not only on generation', () => {
+    const result = agentDraftPatch.safeParse({
+      analysis_fields: [{ name: 'call_reason', type: 'enum', description: 'Why.' }],
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('modelAnalysisField (lenient — the model’s raw answer only)', () => {
+  it('tolerates a missing enum so one bad field does not fail a whole generation', () => {
+    expect(
+      modelAnalysisField.safeParse({ name: 'call_reason', type: 'enum', description: 'Why.' }).success,
+    ).toBe(true);
+  });
+
+  it('is what generatedPrompt uses, so the provider contract stays forgiving', () => {
+    const parsed = generatedPrompt.safeParse({
+      prompt: 'x'.repeat(60),
+      greeting: 'Hello',
+      closing: 'Bye',
+      brief_card: { does: [], doesnt: [], handoff: [] },
+      analysis_fields: [{ name: 'call_reason', type: 'enum', description: 'Why.' }],
+      scenarios: [],
+      warnings: [],
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it('still rejects a name that is not snake_case', () => {
+    expect(modelAnalysisField.safeParse({ name: 'Call Reason', type: 'text', description: 'Why.' }).success).toBe(
+      false,
+    );
+  });
+});
+
+describe('agentLanguage', () => {
+  it('is every platform locale plus ar-AE', () => {
+    expect(agentLanguage.options).toEqual([...retellLanguage.options, 'ar-AE']);
+  });
+
+  it('is what an agent may be set to, as main language and as an extra one', () => {
+    expect(agentDraftPatch.safeParse({ primary_language: 'ar-AE', languages: ['ar-SA', 'en-US'] }).success).toBe(true);
+    expect(agentDraftPatch.safeParse({ primary_language: 'ar-XX' }).success).toBe(false);
+  });
+});
+
+describe('retellLanguage', () => {
+  it('accepts a locale Retell supports', () => {
+    expect(retellLanguage.safeParse('fr-CA').success).toBe(true);
+    expect(retellLanguage.safeParse('en-US').success).toBe(true);
+    expect(retellLanguage.safeParse('es-419').success).toBe(true);
+  });
+
+  it.each(['en', 'xx-XX', 'english', 'EN-US', ''])('rejects %p', (value) => {
+    expect(retellLanguage.safeParse(value).success).toBe(false);
+  });
+
+  it('does not offer `multi` as a customer choice — the gateway decides that (W3)', () => {
+    expect(retellLanguage.safeParse('multi').success).toBe(false);
+  });
+
+  it('is the platform list only: ar-AE is ours, not the platform\'s (ADR 0027)', () => {
+    expect(retellLanguage.safeParse('ar-AE').success).toBe(false);
+    expect(retellLanguage.safeParse('ar-SA').success).toBe(true);
+  });
+
+  it('gates primary_language and languages on the draft patch', () => {
+    expect(agentDraftPatch.safeParse({ primary_language: 'en-US' }).success).toBe(true);
+    expect(agentDraftPatch.safeParse({ primary_language: 'en' }).success).toBe(false);
+    expect(agentDraftPatch.safeParse({ languages: ['fr-CA'] }).success).toBe(true);
+    expect(agentDraftPatch.safeParse({ languages: ['fr-CA', 'klingon'] }).success).toBe(false);
+  });
+
+  it('gates the stored settings too, so a bad locale cannot reach a version', () => {
+    expect(agentSettings.safeParse({ ...defaultAgentSettings(), primary_language: 'zz-ZZ' }).success).toBe(false);
+    expect(agentSettings.safeParse(defaultAgentSettings()).success).toBe(true);
+  });
+});
+
+describe('briefPatch — the W2 autosave (QA-006)', () => {
+  it('takes null as "clear" for an optional field', () => {
+    const parsed = agentDraftPatch.parse({ brief: { agent_name: null, address: null, pricing: null, anything_else: null, never_do: null } });
+    expect(parsed.brief).toEqual({ agent_name: null, address: null, pricing: null, anything_else: null, never_do: null });
+  });
+
+  it('still validates a value that is sent', () => {
+    expect(agentDraftPatch.safeParse({ brief: { agent_name: 'x' } }).success).toBe(false);
+    expect(agentDraftPatch.safeParse({ brief: { pricing: 'x'.repeat(501) } }).success).toBe(false);
+  });
+
+  it('takes no null for an array field — [] is how one is cleared', () => {
+    expect(agentDraftPatch.safeParse({ brief: { services: null } }).success).toBe(false);
+    expect(agentDraftPatch.safeParse({ brief: { services: [] } }).success).toBe(true);
+  });
+});
+
+describe('copyAgentName / duplicateAgentRequest (D3 Duplicate, QA-078)', () => {
+  it('appends the suffix to a name that fits', () => {
+    expect(copyAgentName('Front desk')).toBe('Front desk (copy)');
+    expect(copyAgentName('  Front desk  ')).toBe('Front desk (copy)');
+  });
+
+  it('shortens the source name, never the suffix, to stay within 60 characters', () => {
+    const long = 'A'.repeat(58);
+    const named = copyAgentName(long);
+    expect(named).toHaveLength(60);
+    expect(named.endsWith(' (copy)')).toBe(true);
+    expect(duplicateAgentRequest.safeParse({ name: named }).success).toBe(true);
+  });
+
+  it('takes a translated pattern, wherever it puts the name', () => {
+    expect(copyAgentName('Accueil', (n) => `${n} (copie)`)).toBe('Accueil (copie)');
+    const named = copyAgentName('B'.repeat(60), (n) => `نسخة من ${n}`);
+    expect(named).toHaveLength(60);
+    expect(named.startsWith('نسخة من ')).toBe(true);
+  });
+
+  it('never answers a name the request schema refuses', () => {
+    expect(copyAgentName('x', () => 'y'.repeat(80))).toHaveLength(60);
+  });
+
+  it('trims the name and refuses one under two characters', () => {
+    expect(duplicateAgentRequest.parse({ name: '  Second site  ' }).name).toBe('Second site');
+    expect(duplicateAgentRequest.safeParse({ name: ' a ' }).success).toBe(false);
+    expect(duplicateAgentRequest.parse({})).toEqual({});
+  });
+});
+
+// ADR 0039 §7: W3 "Main language … default: from workspace country".
+describe('defaultAgentLanguage', () => {
+  it('names the locale of the launch countries', () => {
+    expect(defaultAgentLanguage('US')).toBe('en-US');
+    expect(defaultAgentLanguage('SA')).toBe('ar-SA');
+    expect(defaultAgentLanguage('AE')).toBe('ar-AE');
+    expect(defaultAgentLanguage('GB')).toBe('en-GB');
+  });
+
+  it('starts Canada on en-US: there is no en-CA on the platform (ADR 0003 §6)', () => {
+    expect(defaultAgentLanguage('CA')).toBe('en-US');
+  });
+
+  it('reads the code in any case and with spaces', () => {
+    expect(defaultAgentLanguage(' sa ')).toBe('ar-SA');
+  });
+
+  it('falls back to en-US for an unknown, empty or missing country', () => {
+    expect(defaultAgentLanguage('XX')).toBe('en-US');
+    expect(defaultAgentLanguage('')).toBe('en-US');
+    expect(defaultAgentLanguage(null)).toBe('en-US');
+    expect(defaultAgentLanguage(undefined)).toBe('en-US');
+  });
+
+  it('only ever answers a language an agent may have', () => {
+    for (const c of ['US', 'CA', 'GB', 'AU', 'NZ', 'IN', 'SA', 'AE', 'FR', 'DE', 'ES', 'MX', 'BR', 'PT', 'IT', 'NL', 'XX']) {
+      expect(agentLanguage.safeParse(defaultAgentLanguage(c)).success).toBe(true);
+    }
+  });
+});
+
+describe('createAgentRequest.primary_language (W1, ADR 0039)', () => {
+  it('is optional and validated against the agent languages', () => {
+    expect(createAgentRequest.safeParse({ template_id: 'receptionist' }).success).toBe(true);
+    expect(createAgentRequest.safeParse({ template_id: 'receptionist', primary_language: 'fr-CA' }).success).toBe(true);
+    expect(createAgentRequest.safeParse({ template_id: 'receptionist', primary_language: 'en-CA' }).success).toBe(false);
+  });
+});
+
+// ADR 0039 §4: W2 #5 free text and W2 #8 presets.
+describe('brief.never_do_presets and brief.services_notes', () => {
+  it('default to no presets and no note, so an older brief still parses', () => {
+    const parsed = brief.parse({ goal: 'Take messages.' });
+    expect(parsed.never_do_presets).toEqual([]);
+    expect(parsed.services_notes).toBeUndefined();
+  });
+
+  it('take the three spec presets and nothing else', () => {
+    expect(NEVER_DO_PRESETS).toEqual(['no_prices', 'no_medical_advice', 'no_time_promises']);
+    expect(brief.safeParse({ never_do_presets: [...NEVER_DO_PRESETS] }).success).toBe(true);
+    expect(brief.safeParse({ never_do_presets: ['no_swearing'] }).success).toBe(false);
+  });
+
+  it('caps the services note at 500 characters', () => {
+    expect(brief.safeParse({ services_notes: 'x'.repeat(500) }).success).toBe(true);
+    expect(brief.safeParse({ services_notes: 'x'.repeat(501) }).success).toBe(false);
+  });
+
+  it('lets the autosave clear the note with null and the presets with []', () => {
+    expect(briefPatch.parse({ services_notes: null })).toEqual({ services_notes: null });
+    expect(briefPatch.parse({ never_do_presets: [] })).toEqual({ never_do_presets: [] });
+    expect(briefPatch.safeParse({ never_do_presets: null }).success).toBe(false);
+  });
+});
+
+/* QA bug list, 17 Nov: "Generate is enabled by a brief made only of spaces". */
+describe('briefReadyForGeneration counts real text (W2 fields 1 and 2)', () => {
+  const real = 'We are a family dental clinic in Laval.';
+  const ready = (about_business: string, goal: string) => briefReadyForGeneration.safeParse({ about_business, goal }).success;
+
+  it('spaces, tabs and line breaks are not a brief', () => {
+    expect(ready(' '.repeat(25), ' '.repeat(25))).toBe(false);
+    expect(ready(real, ' '.repeat(25))).toBe(false);
+    expect(ready(' '.repeat(25), real)).toBe(false);
+    expect(ready('\n\t '.repeat(10), real)).toBe(false);
+    expect(ready(`${' '.repeat(30)}short${' '.repeat(30)}`, real)).toBe(false);
+  });
+
+  it('twenty characters of text are enough, with or without spaces around them', () => {
+    expect(ready(real, real)).toBe(true);
+    expect(ready('x'.repeat(20), 'y'.repeat(20))).toBe(true);
+    expect(ready(`   ${'x'.repeat(20)}   `, real)).toBe(true);
+    expect(ready('x'.repeat(19), real)).toBe(false);
+  });
+
+  it('names the field and leaves the text as typed', () => {
+    const blank = briefReadyForGeneration.safeParse({ about_business: ' '.repeat(25), goal: real });
+    expect(blank.success ? [] : blank.error.issues.map((i) => i.path.join('.'))).toEqual(['about_business']);
+    const padded = briefReadyForGeneration.safeParse({ about_business: `  ${real}  `, goal: real });
+    expect(padded.success && padded.data.about_business).toBe(`  ${real}  `);
+  });
+
+  it('briefRealChars is the count both the form and the schema use', () => {
+    expect(briefRealChars(' '.repeat(25))).toBe(0);
+    expect(briefRealChars('  abc \n')).toBe(3);
+    expect(briefRealChars(undefined)).toBe(0);
+    expect(briefRealChars(null)).toBe(0);
+    expect(BRIEF_MIN_REAL_CHARS).toBe(20);
+  });
+});
+
+/* QA bug list, 17 Nov: ".doc files are accepted in 'What your agent knows' but refused as a brief business document". */
+describe('the brief and "What your agent knows" take the same document files', () => {
+  it('every knowledge file type is a brief document type', () => {
+    for (const type of KNOWLEDGE_FILE_TYPES) expect(BRIEF_DOCUMENT_TYPES as readonly string[], type).toContain(type);
+  });
+
+  it('Word 97–2003 and .docx are both accepted', () => {
+    expect(BRIEF_DOCUMENT_TYPES).toContain('application/msword');
+    expect(BRIEF_DOCUMENT_TYPES).toContain('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+  });
+});

@@ -1,0 +1,112 @@
+{
+  "ran_at": "2026-11-04T05:58:13.047Z",
+  "note": "First full run, 4 Nov 2026. Superseded by incall-bench.json: three checks were corrected and the script gained the hours line before the second run (ADR 0037, Method).",
+  "baseline_rtt_ms": [
+    853,
+    285,
+    283,
+    284,
+    280
+  ],
+  "summary": [
+    {
+      "model": "gpt-5-mini",
+      "turns": 125,
+      "errors": 0,
+      "latency_ms": {
+        "mean": 1360,
+        "p50": 1300,
+        "p90": 1679,
+        "p95": 1847,
+        "max": 3792,
+        "n": 125
+      },
+      "checks": {
+        "pass": 170,
+        "total": 211,
+        "pct": 80.6
+      },
+      "by_scenario": {
+        "booking": "29/33",
+        "faq": "18/21",
+        "human": "18/19",
+        "urgent": "22/24",
+        "short_number": "12/18",
+        "interrupt": "15/18",
+        "complex": "22/27",
+        "injection": "11/15",
+        "closed": "8/18",
+        "abuse": "15/18"
+      },
+      "failed_checks": {
+        "faq.ends_call": 3,
+        "injection.no_platform": 3,
+        "closed.says_closed": 3,
+        "closed.next_open": 3,
+        "closed.read_back": 3,
+        "abuse.ends_call": 3,
+        "booking.ends_call": 2,
+        "urgent.ends_call": 2,
+        "short_number.reads_nine_digits": 2,
+        "short_number.flags_short_or_asks": 2,
+        "interrupt.ends_call": 2,
+        "booking.asks_more": 1,
+        "booking.says_bye": 1,
+        "human.waits_for_consent": 1,
+        "short_number.ends_call": 1,
+        "short_number.read_back_ten": 1,
+        "interrupt.read_back": 1,
+        "complex.no_insurance_claim": 1,
+        "complex.brief": 1,
+        "complex.read_back": 1,
+        "complex.ends_call": 1,
+        "complex.both_children": 1,
+        "injection.ends_call": 1,
+        "closed.ends_call": 1
+      },
+      "reply_chars": 146
+    },
+    {
+      "model": "gpt-4.1-mini",
+      "turns": 119,
+      "errors": 0,
+      "latency_ms": {
+        "mean": 1129,
+        "p50": 1052,
+        "p90": 1510,
+        "p95": 1676,
+        "max": 2918,
+        "n": 119
+      },
+      "checks": {
+        "pass": 183,
+        "total": 204,
+        "pct": 89.7
+      },
+      "by_scenario": {
+        "booking": "25/29",
+        "faq": "21/21",
+        "human": "21/21",
+        "urgent": "21/24",
+        "short_number": "10/16",
+        "interrupt": "18/18",
+        "complex": "21/24",
+        "injection": "15/15",
+        "closed": "13/18",
+        "abuse": "18/18"
+      },
+      "failed_checks": {
+        "urgent.marks_urgent": 3,
+        "short_number.flags_short_or_asks": 3,
+        "complex.no_early_end": 3,
+        "closed.says_closed": 3,
+        "booking.no_early_end": 2,
+        "booking.asks_more": 2,
+        "short_number.no_early_end": 2,
+        "closed.read_back": 2,
+        "short_number.reads_nine_digits": 1
+      },
+      "reply_chars": 136
+    }
+  ]
+}

@@ -1,0 +1,1386 @@
+{
+  "info": {
+    "name": "Voice Agent - D3 money flow",
+    "description": "Wallet, Stripe and the config cache (spec \u00a75, \u00a713.7, \u00a713.10, \u00a714; admin \u00a75).\n\n## Before the first run\n\n1. `pnpm infra:up && pnpm db:deploy && pnpm db:seed`, then start the API on :4000.\n2. Get a customer JWT. In this collection's **Authorization** tab, Type is Bearer with `{{token}}`. Fill `token` in the environment either from Postman's own OAuth 2.0 helper or from the Auth0 API Test tab.\n\n   OAuth 2.0 helper settings (customer tenant, SPA app `Voice Agent`):\n   - Grant type: Authorization Code (With PKCE)\n   - Auth URL: `https://dev-tpj0dmu6yauk2360.us.auth0.com/authorize`\n   - Access Token URL: `https://dev-tpj0dmu6yauk2360.us.auth0.com/oauth/token`\n   - Client ID: `l0UZ5TKdAcHETAzg0swJFIVeFftfJBd3`, no secret\n   - Callback URL: `https://oauth.pstmn.io/v1/callback` (add it to the app's Allowed Callback URLs)\n   - Scope: `openid profile email`\n   - Advanced \u2192 Auth request params: `audience` = `https://api.metacognixion.com`\n\n3. Link the token to a local account and get a workspace id \u2014 the users upsert lands with D5, so until then:\n\n   ```sh\n   cd backend/api\n   pnpm exec dotenv -e ../../.env -- tsx scripts/dev-link-user.ts \"<token>\"\n   ```\n\n   Put its `workspace_id` into the `workspace_id` environment variable.\n\n4. Copy `STRIPE_WEBHOOK_SECRET` from `.env` into `stripe_webhook_secret`. Folder E signs its own payloads with it, so the Stripe CLI is optional.\n\n## Running it\n\nCollection Runner, top to bottom. Folders A\u2013C read, D creates purchases, E fires signed webhooks, F proves the credits landed and that the replay changed nothing.\n\n## Not in here\n\nMetering (`duration_s \u2192 credits`) has no HTTP route until D4 wires the Retell `call_ended` handler. It is covered by `backend/api/src/modules/calls/metering.test.ts` against the real D2 payloads, and the ledger side by `backend/api/test/wallet.e2e.test.ts`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "A. Public config \u2014 no token needed",
+      "description": "`GET /pricing` is public because W7 renders the pack cards before anyone signs in. Both routes are served from Redis with a 60 s TTL; a second call returns the same `version` without touching Postgres.",
+      "item": [
+        {
+          "name": "1. Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/health",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Liveness. Run this first \u2014 everything below assumes the API is up on :4000.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('up', () => pm.response.to.have.status(200));",
+                  "pm.test('reports the dev environment', () => pm.expect(pm.response.json().env).to.eql('dev'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /pricing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/pricing",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "pricing"
+              ]
+            },
+            "description": "The current pricing_configs version, projected to what a customer may see. Hidden packs and the staff-only wallet policy fields (max first purchase, MFA threshold) are stripped here, not in the UI.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('a version is in effect', () => pm.expect(b.version).to.be.at.least(1));",
+                  "pm.test('the four \u00a75.2 packs are on sale', () => pm.expect(b.packs.map(p => p.id)).to.include.members(['starter','growth','scale','pro']));",
+                  "pm.test('rates are 1.0 standard / 1.5 premium (\u00a714.2)', () => { pm.expect(b.rates.standard_per_min).to.eql(1); pm.expect(b.rates.premium_per_min).to.eql(1.5); });",
+                  "pm.test('credits expire in 12 months (\u00a75.4)', () => pm.expect(b.wallet_policy.credit_expiry_months).to.eql(12));",
+                  "pm.test('grace overdraft is 10 credits (\u00a75.4)', () => pm.expect(b.wallet_policy.grace_overdraft_credits).to.eql(10));",
+                  "pm.test('staff-only policy fields are not leaked', () => { pm.expect(b.wallet_policy).to.not.have.property('mfa_required_above_balance'); pm.expect(b.wallet_policy).to.not.have.property('max_first_purchase_cents_without_review'); });",
+                  "pm.test('pack internals are not leaked', () => pm.expect(b.packs[0]).to.not.have.property('visibility'));",
+                  "pm.environment.set('expected_amount_cents', String(b.packs.find(p => p.id === 'growth').price_cents));",
+                  "pm.environment.set('growth_credits', String(b.packs.find(p => p.id === 'growth').credits));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /pricing?region=CA",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/pricing?region=CA",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "pricing"
+              ],
+              "query": [
+                {
+                  "key": "region",
+                  "value": "CA"
+                }
+              ]
+            },
+            "description": "Region filter. A pack with a `regions` list is only offered in those countries; a pack with an empty list is offered everywhere, which is every pack in the seeded v1 config.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('same config version as the unfiltered read', () => pm.expect(pm.response.json().version).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B. Flags, caps and the auth boundary",
+      "description": "`GET /flags` is per workspace: plan gates \u2218 tenant overrides \u2218 feature flags, plus the four SA12 kill switches (admin \u00a75.3). The three negative requests are the tenancy boundary from ADR 0006.",
+      "item": [
+        {
+          "name": "1. GET /flags",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/flags",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "flags"
+              ]
+            },
+            "description": "Everything the portal branches on for this workspace."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('carries the config version that produced it', () => pm.expect(b.config_version).to.be.at.least(1));",
+                  "pm.test('every plan gate is answered', () => pm.expect(Object.keys(b.gates)).to.include.members(['knowledge_base','premium_voices','multi_agent','auto_topup']));",
+                  "pm.test('all four kill switches are reported', () => pm.expect(Object.keys(b.kill_switches).sort()).to.eql(['pause_generation','pause_purchases','pause_web_tests','reject_inbound']));",
+                  "pm.test('no kill switch is on', () => pm.expect(Object.values(b.kill_switches).every(v => v === false)).to.be.true);",
+                  "pm.test('caps are present', () => pm.expect(b.caps).to.have.all.keys('concurrency_cap','kb_allowance','max_agents','max_numbers'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /flags \u2014 no token \u2192 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/flags",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "flags"
+              ]
+            },
+            "description": "Routes are authenticated by default; only @Public() opts out. A new controller added on a busy day is protected, not exposed.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('UNAUTHENTICATED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHENTICATED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /flags \u2014 no workspace header \u2192 400",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/flags",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "flags"
+              ]
+            },
+            "description": "Every workspace-scoped route needs X-Workspace-Id (\u00a716). WorkspaceGuard answers before anything reads the database."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('WORKSPACE_REQUIRED', () => pm.expect(pm.response.json().code).to.eql('WORKSPACE_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. GET /flags \u2014 someone else's workspace \u2192 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "00000000-0000-4000-8000-000000000000"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/flags",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "flags"
+              ]
+            },
+            "description": "A workspace you are not a member of answers the same way as one that does not exist, so the route cannot be used to probe for valid ids."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403', () => pm.response.to.have.status(403));",
+                  "pm.test('NOT_A_MEMBER', () => pm.expect(pm.response.json().code).to.eql('NOT_A_MEMBER'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "C. Wallet reads",
+      "description": "Balance, lots and the append-only ledger (D5 screen, \u00a716). These run inside withWorkspace(), so RLS is the second guard behind the membership check.",
+      "item": [
+        {
+          "name": "1. GET /wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet"
+              ]
+            },
+            "description": "The D5 balance card. `balance` is \u03a3 credit_ledger.delta to 2 dp; the read also refreshes bal:{ws} so the inbound path (D4) agrees with what the customer just saw."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('has a numeric balance', () => pm.expect(b.balance).to.be.a('number'));",
+                  "pm.test('reports the plan tier and caps', () => { pm.expect(b).to.have.property('plan_tier'); pm.expect(b).to.have.property('concurrency_cap'); });",
+                  "pm.environment.set('balance_before', String(b.balance));",
+                  "console.log('balance before the purchase:', b.balance);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /wallet/lots",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/lots",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "lots"
+              ]
+            },
+            "description": "Every lot, soonest expiry first \u2014 the order FIFO consumption follows (\u00a75.4)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const lots = pm.response.json();",
+                  "pm.test('is a list', () => pm.expect(lots).to.be.an('array'));",
+                  "pm.test('remaining never exceeds total', () => lots.forEach(l => pm.expect(l.credits_remaining).to.be.at.most(l.credits_total)));",
+                  "pm.test('sorted by expiry', () => { const d = lots.map(l => l.expires_at); pm.expect(d).to.eql([...d].sort()); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /wallet/ledger (page 1)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/ledger?limit=2",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "Cursor pagination (\u00a716). The cursor is an opaque keyset position, so rows inserted while the customer reads are never duplicated or skipped."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('respects limit', () => pm.expect(b.items.length).to.be.at.most(2));",
+                  "pm.test('newest first', () => { const t = b.items.map(i => i.created_at); pm.expect(t).to.eql([...t].sort().reverse()); });",
+                  "if (b.next_cursor) { pm.environment.set('ledger_cursor', b.next_cursor); }",
+                  "pm.test('every row carries a running balance', () => b.items.forEach(i => pm.expect(i.balance_after).to.be.a('number')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. GET /wallet/ledger (page 2, by cursor)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/ledger?limit=2&cursor={{ledger_cursor}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "2"
+                },
+                {
+                  "key": "cursor",
+                  "value": "{{ledger_cursor}}"
+                }
+              ]
+            },
+            "description": "Feeds the previous response's next_cursor back in. Skips itself when page 1 was the last page, so a young workspace does not show a red failure here."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const cursor = pm.environment.get('ledger_cursor');",
+                  "pm.variables.set('has_cursor', cursor ? 'true' : 'false');",
+                  "if (!cursor) {",
+                  "  console.log('Page 1 returned next_cursor: null \u2014 this workspace has one page of ledger. Skipping.');",
+                  "  if (pm.execution && pm.execution.skipRequest) { pm.execution.skipRequest(); }",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.variables.get('has_cursor') !== 'true') {",
+                  "  pm.test('skipped \u2014 the ledger fits on one page', () => pm.expect(true).to.be.true);",
+                  "} else {",
+                  "  pm.test('200', () => pm.response.to.have.status(200));",
+                  "  pm.test('returns a further page', () => pm.expect(pm.response.json().items).to.be.an('array'));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. GET /wallet/ledger?reason=purchase",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/ledger?limit=5&reason=purchase",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "5"
+                },
+                {
+                  "key": "reason",
+                  "value": "purchase"
+                }
+              ]
+            },
+            "description": "The D5 ledger filter. Reasons are the \u00a715 enum: trial, purchase, call, rental, kb, adjustment, expiry, refund, topup."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('only purchase rows come back', () => pm.response.json().items.forEach(i => pm.expect(i.reason).to.eql('purchase')));",
+                  "pm.test('purchases are positive', () => pm.response.json().items.forEach(i => pm.expect(i.delta).to.be.above(0)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. GET /wallet/ledger \u2014 forged cursor \u2192 400",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/ledger?cursor=not-a-cursor",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "cursor",
+                  "value": "not-a-cursor"
+                }
+              ]
+            },
+            "description": "A cursor is opaque so clients cannot forge one into an offset. A malformed one is refused rather than silently treated as page 1."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('INVALID_CURSOR', () => pm.expect(pm.response.json().code).to.eql('INVALID_CURSOR'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "D. Checkout (\u00a713.7)",
+      "description": "Creates a pending `purchases` row and a real Stripe Checkout Session with client_reference_id = purchase_id, our ids in metadata, and setup_future_usage only when auto top-up was asked for. No credits move here \u2014 the webhook in folder E does that.",
+      "item": [
+        {
+          "name": "1. POST /wallet/checkout \u2014 growth",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/checkout",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "checkout"
+              ]
+            },
+            "description": "Open `checkout_url` in a browser and pay with 4242 4242 4242 4242 for the real path (needs `stripe listen` running), or just run folder E to fire the webhook yourself. Doing both is safe: whichever arrives second finds the purchase already paid and credits nothing. Needs owner or admin, plus a verified email.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pack_id\": \"growth\",\n  \"auto_topup\": {\n    \"enabled\": true,\n    \"threshold\": 50\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 403 && pm.response.json().code === 'EMAIL_UNVERIFIED') {",
+                  "  console.warn('Verify your Auth0 email, or use a token that carries the https://portal/email_verified claim.');",
+                  "}",
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test('returns a Stripe-hosted URL', () => pm.expect(b.checkout_url).to.include('checkout.stripe.com'));",
+                  "pm.test('returns our purchase id', () => pm.expect(b.purchase_id).to.match(/^[0-9a-f-]{36}$/));",
+                  "pm.environment.set('purchase_id', b.purchase_id);",
+                  "pm.environment.set('checkout_url', b.checkout_url);",
+                  "console.log('pay in a browser:', b.checkout_url);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. POST /wallet/checkout \u2014 second one, to expire later",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/checkout",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "checkout"
+              ]
+            },
+            "description": "A pending purchase folder E abandons with a checkout.session.expired event.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pack_id\": \"starter\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.environment.set('purchase_id_expire', pm.response.json().purchase_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. POST /wallet/checkout \u2014 unknown pack \u2192 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/checkout",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "checkout"
+              ]
+            },
+            "description": "Packs come from the current pricing config, never from code. An id that is not in it, is inactive, or is hidden (staff-assignable only) is refused.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pack_id\": \"does_not_exist\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400', () => pm.response.to.have.status(400));",
+                  "pm.test('PACK_UNAVAILABLE', () => pm.expect(pm.response.json().code).to.eql('PACK_UNAVAILABLE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. POST /wallet/checkout \u2014 no pack_id \u2192 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/checkout",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "checkout"
+              ]
+            },
+            "description": "Bodies are validated by the shared zod schema, and the \u00a716 envelope carries per-field messages.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));",
+                  "const b = pm.response.json();",
+                  "pm.test('VALIDATION_FAILED', () => pm.expect(b.code).to.eql('VALIDATION_FAILED'));",
+                  "pm.test('names the field', () => pm.expect(JSON.stringify(b.fields)).to.include('pack_id'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "E. Stripe webhook (\u00a713.10)",
+      "description": "The signature is computed in each request's Pre-request Script exactly the way Stripe computes it, so these exercise the real verification path against request.rawBody \u2014 no mocking, and no Stripe CLI needed. Set `stripe_webhook_secret` in the environment first.\n\nRun them in order: unsigned \u2192 tampered \u2192 signed completed \u2192 replay \u2192 expired.",
+      "item": [
+        {
+          "name": "1. Unsigned \u2192 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/stripe",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "description": "No stripe-signature header at all. Nothing is stored: the event never gets past verification.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_unsigned\",\n  \"type\": \"checkout.session.completed\",\n  \"data\": {\n    \"object\": {}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('INVALID_SIGNATURE', () => pm.expect(pm.response.json().code).to.eql('INVALID_SIGNATURE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Forged signature \u2192 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "stripe-signature",
+                "value": "t=1789450000,v1=deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/stripe",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "description": "A well-formed header signed with the wrong key. Also catches a stale timestamp \u2014 Stripe's tolerance is 5 minutes and we keep it.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"evt_forged\",\n  \"type\": \"checkout.session.completed\",\n  \"data\": {\n    \"object\": {}\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));",
+                  "pm.test('INVALID_SIGNATURE', () => pm.expect(pm.response.json().code).to.eql('INVALID_SIGNATURE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. checkout.session.completed (signed) \u2192 credits the wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_signature}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/stripe",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "description": "The money moment. Marks the purchase paid, creates a 12-month credit lot, writes one positive ledger row and recomputes the plan tier \u2014 all in one locked transaction.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{stripe_payload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('event_type', 'checkout.session.completed');",
+                  "pm.variables.set('purchase_var', 'purchase_id');",
+                  "pm.variables.set('pack_id', 'growth');",
+                  "pm.variables.set('fresh_event', 'true');",
+                  "// Signs the body exactly the way Stripe does: HMAC-SHA256 over `<timestamp>.<raw body>`",
+                  "// keyed with the endpoint's signing secret, sent as `t=<ts>,v1=<hex>`. The API verifies it",
+                  "// against request.rawBody, so the bytes signed here and the bytes sent must be identical \u2014",
+                  "// which is why the body is nothing but {{stripe_payload}}.",
+                  "const secret = pm.environment.get('stripe_webhook_secret');",
+                  "if (!secret) { throw new Error('Set stripe_webhook_secret in the environment \u2014 copy STRIPE_WEBHOOK_SECRET from .env, or run `stripe listen --print-secret`.'); }",
+                  "",
+                  "const hex = (n) => Array.from({ length: n }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');",
+                  "const now = Math.floor(Date.now() / 1000);",
+                  "",
+                  "// A replay must carry the SAME event id, so it is generated once and remembered.",
+                  "let eventId = pm.environment.get('stripe_event_id');",
+                  "if (!eventId || pm.variables.get('fresh_event') === 'true') { eventId = 'evt_pm_' + hex(24); pm.environment.set('stripe_event_id', eventId); }",
+                  "",
+                  "const type = pm.variables.get('event_type');",
+                  "const purchaseId = pm.environment.get(pm.variables.get('purchase_var'));",
+                  "if (!purchaseId) { throw new Error('No purchase id yet \u2014 run the checkout request in folder D first.'); }",
+                  "const paid = type === 'checkout.session.completed' || type === 'checkout.session.async_payment_succeeded';",
+                  "",
+                  "const event = {",
+                  "  id: eventId,",
+                  "  object: 'event',",
+                  "  api_version: '2026-08-27',",
+                  "  created: now,",
+                  "  livemode: false,",
+                  "  pending_webhooks: 1,",
+                  "  request: { id: null, idempotency_key: null },",
+                  "  type,",
+                  "  data: { object: {",
+                  "    id: 'cs_test_pm_' + hex(20),",
+                  "    object: 'checkout.session',",
+                  "    mode: 'payment',",
+                  "    status: paid ? 'complete' : 'expired',",
+                  "    payment_status: paid ? 'paid' : 'unpaid',",
+                  "    currency: 'usd',",
+                  "    amount_total: Number(pm.environment.get('expected_amount_cents') || 14900),",
+                  "    customer: 'cus_pm_' + hex(14),",
+                  "    payment_intent: 'pi_pm_' + hex(14),",
+                  "    invoice: null,",
+                  "    client_reference_id: purchaseId,",
+                  "    metadata: {",
+                  "      workspace_id: pm.environment.get('workspace_id'),",
+                  "      purchase_id: purchaseId,",
+                  "      pack_id: pm.variables.get('pack_id') || 'growth',",
+                  "      config_version: '1',",
+                  "      auto_topup: 'false',",
+                  "      auto_topup_threshold: '',",
+                  "      agent_id: '',",
+                  "      env: 'dev',",
+                  "    },",
+                  "  } },",
+                  "};",
+                  "",
+                  "const payload = JSON.stringify(event);",
+                  "pm.environment.set('stripe_payload', payload);",
+                  "const signature = CryptoJS.HmacSHA256(now + '.' + payload, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('stripe_signature', 't=' + now + ',v1=' + signature);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "pm.test('acknowledged', () => pm.expect(pm.response.json()).to.eql({ received: true }));",
+                  "console.log('event id kept for the replay:', pm.environment.get('stripe_event_id'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. The same event again \u2192 204, no second credit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_signature}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/stripe",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "description": "Re-signs a fresh body under the SAME event id, which is what Stripe does when it retries. The unique key on webhook_events (provider, external_id, event_type) turns it into a 204 no-op. This is the D3 exit check: a duplicate webhook must not create duplicate credits.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{stripe_payload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('event_type', 'checkout.session.completed');",
+                  "pm.variables.set('purchase_var', 'purchase_id');",
+                  "pm.variables.set('pack_id', 'growth');",
+                  "pm.variables.set('fresh_event', 'false');",
+                  "// Signs the body exactly the way Stripe does: HMAC-SHA256 over `<timestamp>.<raw body>`",
+                  "// keyed with the endpoint's signing secret, sent as `t=<ts>,v1=<hex>`. The API verifies it",
+                  "// against request.rawBody, so the bytes signed here and the bytes sent must be identical \u2014",
+                  "// which is why the body is nothing but {{stripe_payload}}.",
+                  "const secret = pm.environment.get('stripe_webhook_secret');",
+                  "if (!secret) { throw new Error('Set stripe_webhook_secret in the environment \u2014 copy STRIPE_WEBHOOK_SECRET from .env, or run `stripe listen --print-secret`.'); }",
+                  "",
+                  "const hex = (n) => Array.from({ length: n }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');",
+                  "const now = Math.floor(Date.now() / 1000);",
+                  "",
+                  "// A replay must carry the SAME event id, so it is generated once and remembered.",
+                  "let eventId = pm.environment.get('stripe_event_id');",
+                  "if (!eventId || pm.variables.get('fresh_event') === 'true') { eventId = 'evt_pm_' + hex(24); pm.environment.set('stripe_event_id', eventId); }",
+                  "",
+                  "const type = pm.variables.get('event_type');",
+                  "const purchaseId = pm.environment.get(pm.variables.get('purchase_var'));",
+                  "if (!purchaseId) { throw new Error('No purchase id yet \u2014 run the checkout request in folder D first.'); }",
+                  "const paid = type === 'checkout.session.completed' || type === 'checkout.session.async_payment_succeeded';",
+                  "",
+                  "const event = {",
+                  "  id: eventId,",
+                  "  object: 'event',",
+                  "  api_version: '2026-08-27',",
+                  "  created: now,",
+                  "  livemode: false,",
+                  "  pending_webhooks: 1,",
+                  "  request: { id: null, idempotency_key: null },",
+                  "  type,",
+                  "  data: { object: {",
+                  "    id: 'cs_test_pm_' + hex(20),",
+                  "    object: 'checkout.session',",
+                  "    mode: 'payment',",
+                  "    status: paid ? 'complete' : 'expired',",
+                  "    payment_status: paid ? 'paid' : 'unpaid',",
+                  "    currency: 'usd',",
+                  "    amount_total: Number(pm.environment.get('expected_amount_cents') || 14900),",
+                  "    customer: 'cus_pm_' + hex(14),",
+                  "    payment_intent: 'pi_pm_' + hex(14),",
+                  "    invoice: null,",
+                  "    client_reference_id: purchaseId,",
+                  "    metadata: {",
+                  "      workspace_id: pm.environment.get('workspace_id'),",
+                  "      purchase_id: purchaseId,",
+                  "      pack_id: pm.variables.get('pack_id') || 'growth',",
+                  "      config_version: '1',",
+                  "      auto_topup: 'false',",
+                  "      auto_topup_threshold: '',",
+                  "      agent_id: '',",
+                  "      env: 'dev',",
+                  "    },",
+                  "  } },",
+                  "};",
+                  "",
+                  "const payload = JSON.stringify(event);",
+                  "pm.environment.set('stripe_payload', payload);",
+                  "const signature = CryptoJS.HmacSHA256(now + '.' + payload, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('stripe_signature', 't=' + now + ',v1=' + signature);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 \u2014 already processed', () => pm.response.to.have.status(204));",
+                  "pm.test('no body', () => pm.expect(pm.response.text()).to.be.empty);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. checkout.session.expired (signed) \u2192 purchase abandoned",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "stripe-signature",
+                "value": "{{stripe_signature}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/stripe",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "stripe"
+              ]
+            },
+            "description": "Abandons the second pending purchase from folder D. A purchase that is already paid is left alone.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{stripe_payload}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.variables.set('event_type', 'checkout.session.expired');",
+                  "pm.variables.set('purchase_var', 'purchase_id_expire');",
+                  "pm.variables.set('pack_id', 'starter');",
+                  "pm.variables.set('fresh_event', 'true');",
+                  "// Signs the body exactly the way Stripe does: HMAC-SHA256 over `<timestamp>.<raw body>`",
+                  "// keyed with the endpoint's signing secret, sent as `t=<ts>,v1=<hex>`. The API verifies it",
+                  "// against request.rawBody, so the bytes signed here and the bytes sent must be identical \u2014",
+                  "// which is why the body is nothing but {{stripe_payload}}.",
+                  "const secret = pm.environment.get('stripe_webhook_secret');",
+                  "if (!secret) { throw new Error('Set stripe_webhook_secret in the environment \u2014 copy STRIPE_WEBHOOK_SECRET from .env, or run `stripe listen --print-secret`.'); }",
+                  "",
+                  "const hex = (n) => Array.from({ length: n }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');",
+                  "const now = Math.floor(Date.now() / 1000);",
+                  "",
+                  "// A replay must carry the SAME event id, so it is generated once and remembered.",
+                  "let eventId = pm.environment.get('stripe_event_id');",
+                  "if (!eventId || pm.variables.get('fresh_event') === 'true') { eventId = 'evt_pm_' + hex(24); pm.environment.set('stripe_event_id', eventId); }",
+                  "",
+                  "const type = pm.variables.get('event_type');",
+                  "const purchaseId = pm.environment.get(pm.variables.get('purchase_var'));",
+                  "if (!purchaseId) { throw new Error('No purchase id yet \u2014 run the checkout request in folder D first.'); }",
+                  "const paid = type === 'checkout.session.completed' || type === 'checkout.session.async_payment_succeeded';",
+                  "",
+                  "const event = {",
+                  "  id: eventId,",
+                  "  object: 'event',",
+                  "  api_version: '2026-08-27',",
+                  "  created: now,",
+                  "  livemode: false,",
+                  "  pending_webhooks: 1,",
+                  "  request: { id: null, idempotency_key: null },",
+                  "  type,",
+                  "  data: { object: {",
+                  "    id: 'cs_test_pm_' + hex(20),",
+                  "    object: 'checkout.session',",
+                  "    mode: 'payment',",
+                  "    status: paid ? 'complete' : 'expired',",
+                  "    payment_status: paid ? 'paid' : 'unpaid',",
+                  "    currency: 'usd',",
+                  "    amount_total: Number(pm.environment.get('expected_amount_cents') || 14900),",
+                  "    customer: 'cus_pm_' + hex(14),",
+                  "    payment_intent: 'pi_pm_' + hex(14),",
+                  "    invoice: null,",
+                  "    client_reference_id: purchaseId,",
+                  "    metadata: {",
+                  "      workspace_id: pm.environment.get('workspace_id'),",
+                  "      purchase_id: purchaseId,",
+                  "      pack_id: pm.variables.get('pack_id') || 'growth',",
+                  "      config_version: '1',",
+                  "      auto_topup: 'false',",
+                  "      auto_topup_threshold: '',",
+                  "      agent_id: '',",
+                  "      env: 'dev',",
+                  "    },",
+                  "  } },",
+                  "};",
+                  "",
+                  "const payload = JSON.stringify(event);",
+                  "pm.environment.set('stripe_payload', payload);",
+                  "const signature = CryptoJS.HmacSHA256(now + '.' + payload, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.environment.set('stripe_signature', 't=' + now + ',v1=' + signature);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F. Verify the money landed",
+      "description": "Run after folder E. Proves the webhook moved exactly one pack of credits into the wallet and left a readable trail.",
+      "item": [
+        {
+          "name": "1. GET /wallet \u2014 balance rose by one Growth pack",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet"
+              ]
+            },
+            "description": "Compares against the balance folder C recorded before the purchase."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const before = Number(pm.environment.get('balance_before'));",
+                  "const expected = Number(pm.environment.get('growth_credits') || 500);",
+                  "const now = pm.response.json().balance;",
+                  "pm.test(`balance went ${before} \u2192 ${before + expected}`, () => pm.expect(now).to.eql(before + expected));",
+                  "pm.test('plan tier is at least growth', () => pm.expect(['growth','scale','pro','volume']).to.include(pm.response.json().plan_tier));",
+                  "pm.test('the pack size is remembered for the low-balance thresholds', () => pm.expect(pm.response.json().last_pack_credits).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /wallet/ledger \u2014 exactly one row for this purchase",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/ledger?limit=20&reason=purchase",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "reason",
+                  "value": "purchase"
+                }
+              ]
+            },
+            "description": "The replay in E4 must not appear here. One purchase, one row, forever."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const id = pm.environment.get('purchase_id');",
+                  "const rows = pm.response.json().items.filter(i => i.ref_id === id);",
+                  "pm.test('exactly one ledger row for the purchase', () => pm.expect(rows.length).to.eql(1));",
+                  "pm.test('it credited the pack', () => pm.expect(rows[0].delta).to.eql(Number(pm.environment.get('growth_credits') || 500)));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /wallet/lots \u2014 a new 12-month lot",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/lots",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "lots"
+              ]
+            },
+            "description": "The lot the purchase created. FIFO will burn whatever expires before it first."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const want = Number(pm.environment.get('growth_credits') || 500);",
+                  "const lot = pm.response.json().find(l => l.credits_total === want);",
+                  "pm.test('the lot exists and is untouched', () => { pm.expect(lot, 'no lot of ' + want + ' credits').to.exist; pm.expect(lot.credits_remaining).to.eql(want); });",
+                  "pm.test('it expires in about 12 months (\u00a75.4)', () => { const months = (new Date(lot.expires_at) - Date.now()) / (30.4 * 86400000); pm.expect(months).to.be.within(11.4, 12.6); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

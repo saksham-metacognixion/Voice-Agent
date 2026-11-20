@@ -1,0 +1,17 @@
+# Build context for infra/Dockerfile (turbo prune copies only what @portal/api needs).
+**/node_modules
+**/dist
+**/dist-scripts
+**/.next
+**/out
+**/.turbo
+**/coverage
+.git
+.github
+docs
+infra/auth0/export
+**/*.log
+.env
+.env.*
+!.env.example
+**/*.tsbuildinfo

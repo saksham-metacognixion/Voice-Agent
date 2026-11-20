@@ -1,0 +1,64 @@
+{
+  "captured_at": "2026-09-15T05:31:53.286Z",
+  "provider": "retell",
+  "event_type": "call_inbound",
+  "path": "/webhooks/retell/inbound/spike_x1afrsrwgek?mode=allow&response=eyJjYWxsX2luYm91bmQiOnsib3ZlcnJpZGVfYWdlbnRfaWQiOiJhZ2VudF9jNzJhMjAwMzlkMTU1OWU4YzZlMzQ1YzAzYyIsImR5bmFtaWNfdmFyaWFibGVzIjp7ImJ1c2luZXNzX25hbWUiOiJNYXBsZSBEZW50YWwgT3ZlcnJpZGUiLCJhZ2VudF9uYW1lIjoiTWF5YSJ9LCJtZXRhZGF0YSI6eyJ0ZW5hbnRfaWQiOiJ3c19zcGlrZSIsIm51bWJlcl9pZCI6Im51bV9zcGlrZSIsInRpZXIiOiJzdGFuZGFyZCJ9LCJhZ2VudF9vdmVycmlkZSI6eyJhZ2VudCI6eyJtYXhfY2FsbF9kdXJhdGlvbl9tcyI6NjAwMDB9fX19",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "545",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=228a27075ea049478213740fe13514aa,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "228a27075ea049478213740fe13514aa-bd932fe6c97e8cff",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789450312788,d=2ddd76db8b96a9767aefb1384b8203ffeb706372f2f94cbb7fc71d4ce2c493e1"
+  },
+  "raw": "{\"event\":\"call_inbound\",\"event_timestamp\":1789450312788,\"call_inbound\":{\"call_id\":\"call_1d3267c6d47427b466beb1d1d1e\",\"agent_id\":\"agent_c72a20039d1559e8c6e345c03c\",\"agent_version\":1,\"from_number\":\"+19377293562\",\"to_number\":\"+16204459730\",\"custom_sip_headers\":{\"diversion\":\"<sip:+16204459730@twilio.com>;reason=unconditional\",\"p-asserted-identity\":\"<sip:+19377293562@sip.retellai.com>\",\"x-twilio-accountsid\":\"AC[redacted]\",\"x-twilio-callsid\":\"CA[redacted]\",\"x-twilio-verstat\":\"TN-Validation-Passed-B\"}}}",
+  "body": {
+    "event": "call_inbound",
+    "event_timestamp": 1789450312788,
+    "call_inbound": {
+      "call_id": "call_1d3267c6d47427b466beb1d1d1e",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 1,
+      "from_number": "+19377293562",
+      "to_number": "+16204459730",
+      "custom_sip_headers": {
+        "diversion": "<sip:+16204459730@twilio.com>;reason=unconditional",
+        "p-asserted-identity": "<sip:+19377293562@sip.retellai.com>",
+        "x-twilio-accountsid": "AC[redacted]",
+        "x-twilio-callsid": "CA[redacted]",
+        "x-twilio-verstat": "TN-Validation-Passed-B"
+      }
+    }
+  },
+  "signature_valid": true,
+  "response": {
+    "mode": "allow",
+    "body": {
+      "call_inbound": {
+        "override_agent_id": "agent_c72a20039d1559e8c6e345c03c",
+        "dynamic_variables": {
+          "business_name": "Maple Dental Override",
+          "agent_name": "Maya"
+        },
+        "metadata": {
+          "tenant_id": "ws_spike",
+          "number_id": "num_spike",
+          "tier": "standard"
+        },
+        "agent_override": {
+          "agent": {
+            "max_call_duration_ms": 60000
+          }
+        }
+      }
+    }
+  },
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_inbound-2026-09-15T05-31-53.286Z.json"
+}

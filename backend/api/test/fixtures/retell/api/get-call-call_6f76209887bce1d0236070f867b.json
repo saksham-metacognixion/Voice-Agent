@@ -1,0 +1,43 @@
+{
+  "captured_at": "2026-09-15T05:38:22.186Z",
+  "data": {
+    "call_id": "call_6f76209887bce1d0236070f867b",
+    "call_type": "phone_call",
+    "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+    "agent_version": 0,
+    "agent_name": "dev-spike-caller",
+    "contact_dynamic_variables": {},
+    "custom_sip_headers": {},
+    "call_status": "not_connected",
+    "start_timestamp": 1789450701227,
+    "end_timestamp": 1789450701227,
+    "duration_ms": 0,
+    "public_log_url": "[redacted-signed-url]",
+    "disconnection_reason": "dial_no_answer",
+    "latency": {},
+    "metadata": {
+      "source": "spike-outbound",
+      "test": true
+    },
+    "call_cost": {
+      "product_costs": [],
+      "combined_cost": 0,
+      "total_duration_seconds": 0,
+      "total_duration_unit_price": 0
+    },
+    "call_analysis": {
+      "in_voicemail": false,
+      "call_summary": "",
+      "user_sentiment": "Unknown",
+      "call_successful": false,
+      "custom_analysis_data": {}
+    },
+    "data_storage_setting": "everything",
+    "opt_in_signed_url": true,
+    "tool_calls": [],
+    "from_number": "+19377293562",
+    "to_number": "+16204459730",
+    "direction": "outbound",
+    "pcap_url": "https://d1d33audaiiiuu.cloudfront.net/79346dacf7de5f30ec1d798339ac7be87a8c33d8041dd1f8a097f15c0e9bccc4/call_6f76209887bce1d0236070f867b.pcap?Expires=1789537102&Key-Pair-Id=K3ETYG3FHFNIMP&Signature=exMchamTxJBYruP62sLXxcdYHBjEvgtd5AUjxJDBt9qJfD5~i-1--L7oF2PNy3wdM6MeyQeu1kTy3TpctMR4nr8B5tmOBBp64gDpE4R-QFB60CIvtjSCSJpsinbuomLSGRg4-hc5I9XrliTAVtRQIpr0Pg5gA81dCZl474uQRdH0E~m7r3VIEy9ORCtBW-ZYsyxLUL0J2-EPUkLFLB5QZwgEo7n7pOZy3UKc43AbV4X5~MQERcjByB6T6XA90Ipy9uefjFqax1z6wj02MM3Z5Wfw5pyxaJU1F8JrwSg5Fc-WL4YPQb6sFPqSPd9qgyLK1IpWriCL6CU7OBGPaZbJRw__"
+  }
+}

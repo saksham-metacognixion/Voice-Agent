@@ -1,0 +1,3731 @@
+{
+  "common": {
+    "appName": "Oraly",
+    "tagline": "Human conversations. Real outcomes.",
+    "loading": "Loading…",
+    "retry": "Try again",
+    "back": "Back",
+    "continue": "Continue",
+    "cancel": "Cancel",
+    "close": "Close",
+    "save": "Save",
+    "saved": "Saved",
+    "saving": "Saving…",
+    "unsaved": "Unsaved changes",
+    "saveFailed": "Could not save",
+    "optional": "Optional",
+    "signIn": "Sign in",
+    "signUp": "Create account",
+    "signOut": "Sign out",
+    "dashboard": "Dashboard",
+    "comingSoon": "Coming soon",
+    "unknownError": "Something went wrong.",
+    "play": "Play",
+    "pause": "Pause",
+    "sampleUnavailable": "Sample unavailable",
+    "remove": "Remove",
+    "add": "Add",
+    "premium": "Premium",
+    "standard": "Standard",
+    "premiumRate": "{rate}× credits",
+    "standardRate": "{rate}× credits",
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "toggle": "Change theme"
+    },
+    "stepOf": "Step {n} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "pageN": "Page {n}",
+    "copy": "Copy",
+    "copied": "Copied",
+    "show": "Show",
+    "hide": "Hide",
+    "yes": "Yes",
+    "no": "No",
+    "none": "None",
+    "actions": "Actions",
+    "open": "Open",
+    "unsavedChanges": "You have unsaved changes.",
+    "progress": "Progress",
+    "language": "Language",
+    "changeLanguage": "Change language",
+    "listSeparator": ", ",
+    "photo": "Photo",
+    "currency": {
+      "label": "Currency",
+      "USD": "US dollars (USD)",
+      "CAD": "Canadian dollars (CAD)",
+      "line": "Currency: {currency}",
+      "fixedLine": "Currency: {currency}. Your first purchase fixed it. Contact support to change it.",
+      "changeHint": "You can change this until your first purchase."
+    }
+  },
+  "nav": {
+    "home": "Home",
+    "calls": "Calls",
+    "agents": "Agents",
+    "numbers": "Phone numbers",
+    "wallet": "Wallet & billing",
+    "settings": "Settings",
+    "help": "Help",
+    "build": "Build",
+    "operate": "Operate",
+    "account": "Account",
+    "workspace": "Workspace",
+    "switchWorkspace": "Switch workspace",
+    "switchWorkspaceCurrent": "Switch workspace (current: {name})",
+    "createWorkspace": "New workspace",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "openNavigation": "Open navigation",
+    "signedInAs": "Signed in as",
+    "main": "Main",
+    "more": "More",
+    "moreHint": "The rest of the dashboard.",
+    "short": {
+      "home": "Home",
+      "calls": "Calls",
+      "agents": "Agents",
+      "numbers": "Numbers",
+      "wallet": "Wallet",
+      "settings": "Settings",
+      "help": "Help"
+    }
+  },
+  "shell": {
+    "balance": "{credits} credits",
+    "balanceTitle": "Credit balance",
+    "balanceUnavailable": "Balance unavailable",
+    "trial": "Free trial",
+    "planTier": "{tier} plan",
+    "pausedBanner": "This workspace is paused. Your agent is not answering calls.",
+    "pausedReason": "Reason: {reason}",
+    "finishSetup": "Your agent is not live yet.",
+    "finishSetupCta": "Continue setup",
+    "live": "Live",
+    "reconnecting": "Reconnecting…",
+    "dismiss": "Dismiss",
+    "role": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "editor": "Editor",
+      "viewer": "Viewer"
+    },
+    "tier": {
+      "trial": "Trial",
+      "starter": "Starter",
+      "growth": "Growth",
+      "scale": "Scale",
+      "pro": "Pro",
+      "volume": "Volume"
+    },
+    "balanceAria": "Balance: {credits} credits. Open the wallet.",
+    "mfaBanner": {
+      "title": "Two-factor verification needed",
+      "auto_topup": "Auto top-up is on, so owners and admins verify with an authenticator app before changing anything.",
+      "balance": "The balance is high, so owners and admins verify with an authenticator app before changing anything.",
+      "action": "Verify now"
+    },
+    "viewOnly": "You have view-only access to this workspace. Ask an owner or admin if you need to change something.",
+    "balanceWithMinutes": "{credits} credits · ≈ {minutes} min",
+    "balanceOutTopUp": "Agent paused — top up",
+    "balanceOut": "Agent paused — out of credits",
+    "approxMinutes": "≈ {minutes} min of calls",
+    "topUpHint": "Open the wallet to top up",
+    "pausedByStaffTicket": "Your account is paused — see ticket #{ticket}",
+    "pausedBody": "Our team paused this workspace. Your agent is not answering calls until it is resumed.",
+    "pausedOpenTicket": "Open Help",
+    "pausedContact": "Contact support",
+    "agentStatus": {
+      "live": "{n, plural, one {Agent live} other {# agents live}}",
+      "paused": "{n, plural, one {Agent paused} other {# agents paused}}"
+    },
+    "unpublished": {
+      "label": "{n, plural, one {# unpublished change} other {# unpublished changes}}"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "aria": "Notifications",
+      "ariaUnread": "Notifications, {n, plural, one {# unread} other {# unread}}",
+      "empty": "Nothing new yet. A low balance, a message taken, a number going live and a new member will show here.",
+      "loadFailed": "Notifications could not be loaded",
+      "kind": {
+        "low_balance": "Balance low: {balance} credits left",
+        "low_balance_plain": "Your balance is low",
+        "message_captured": "Message taken from {number}",
+        "message_captured_plain": "A caller left a message",
+        "number_active": "{number} is live and taking calls",
+        "number_active_plain": "Your number is live and taking calls",
+        "number_released": "{number} was released",
+        "number_released_plain": "A number was released",
+        "member_joined": "{email} joined the workspace",
+        "member_joined_plain": "A new member joined the workspace",
+        "rental_overdue": "A number’s monthly rental is overdue",
+        "auto_topup_failed": "Auto top-up failed: your card was declined"
+      }
+    }
+  },
+  "auth": {
+    "brand": "From conversation to action.",
+    "brandPoints": {
+      "one": "Describe your business in plain language.",
+      "two": "Hear your agent answer before you pay anything.",
+      "three": "Go live on a real phone number when you are ready."
+    },
+    "login": {
+      "title": "Welcome back",
+      "subtitle": "Sign in to your workspace.",
+      "cta": "Sign in",
+      "redirecting": "Taking you to the sign-in page…",
+      "noAccount": "New here?",
+      "createAccount": "Create an account",
+      "forgot": "Forgot your password?",
+      "sessionExpired": "Your session ended. Sign in again to continue.",
+      "failed": "Sign-in did not complete.",
+      "failedHint": "{reason}"
+    },
+    "signup": {
+      "title": "Create your account",
+      "subtitle": "Free to start: {credits, plural, one {# trial credit} other {# trial credits}}, no card needed.",
+      "subtitleNoAmount": "Free to start, no card needed.",
+      "cta": "Create account",
+      "haveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "terms": "You will read and accept the Terms of Service and Privacy Policy before you start."
+    },
+    "verify": {
+      "title": "Confirm your email",
+      "body": "We sent a confirmation link to {email}. Open it, then come back here.",
+      "bodyNoEmail": "We sent you a confirmation link. Open it, then come back here.",
+      "check": "I have confirmed it",
+      "checking": "Checking…",
+      "stillUnverified": "Your email is not confirmed yet. Give the link a moment, then try again.",
+      "spam": "Not in your inbox? Check the spam folder.",
+      "useAnother": "Use a different account",
+      "resend": "Resend email",
+      "resendIn": "Resend in {seconds} s",
+      "resent": "Sent. Check your inbox at {email}.",
+      "resendFailed": "We could not send the email. Try again in a moment.",
+      "resendLimited": "You have asked for several emails. You can ask again in {seconds} s.",
+      "alreadyVerified": "Your email is already confirmed.",
+      "expired": "Link expired or lost? Send a new one."
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "body": "Enter your email and we will send you a link to choose a new password.",
+      "email": "Email address",
+      "cta": "Send reset link",
+      "sent": "Check your inbox",
+      "sentBody": "If an account exists for {email}, a reset link is on its way. It expires in a few hours.",
+      "back": "Back to sign in",
+      "social": "Signed up with Google? Use the Google button on the sign-in page instead."
+    },
+    "reset": {
+      "title": "Choose a new password",
+      "body": "Password resets happen on our secure sign-in page. Open the link from your email to set a new password, then sign in below.",
+      "cta": "Go to sign in",
+      "requestAnother": "Request another link"
+    },
+    "mfa": {
+      "title": "Two-factor authentication",
+      "body": "Add a one-time code from an authenticator app to every sign-in.",
+      "status": "Status",
+      "enabled": "Enabled",
+      "notEnabled": "Not enabled",
+      "onHint": "Two-factor authentication is on. Every sign-in asks for a code from your authenticator app.",
+      "enable": "Set up two-factor",
+      "verifying": "You will be asked to sign in again and enrol an authenticator app.",
+      "done": "Two-factor authentication is on. You will be asked for a code from your authenticator app each time you sign in.",
+      "verifyNow": "Verify with two-factor now",
+      "verifyHint": "This session has not been verified with your authenticator app. Owners and admins need that while auto top-up is on or the balance is high.",
+      "rememberHint": "On the code screen you can tick “Remember this device” to skip the code on this browser for 30 days.",
+      "forgetTitle": "Remembered devices",
+      "forgetBody": "Devices you chose to remember skip the code for 30 days. Forget them all if one was lost or shared.",
+      "forget": "Forget remembered devices",
+      "forgetDone": "Done. Every remembered device will ask for a code at its next sign-in."
+    },
+    "callback": {
+      "title": "Signing you in…",
+      "error": "We could not complete sign-in.",
+      "retry": "Back to sign in"
+    },
+    "select": {
+      "title": "Choose a workspace",
+      "subtitle": "You belong to more than one. Pick where to work.",
+      "empty": "You are not a member of any workspace yet.",
+      "create": "Create a workspace",
+      "open": "Open"
+    },
+    "setup": {
+      "title": "Set up your workspace",
+      "subtitle": "A workspace is your business on Oraly. You can invite your team later.",
+      "name": "Business name",
+      "namePlaceholder": "e.g. Bright Smile Dental",
+      "country": "Country",
+      "countryPlaceholder": "Choose a country",
+      "timezone": "Time zone",
+      "timezoneHint": "Business hours and reports use this time zone.",
+      "timezoneMismatch": "This time zone is not one of {country}’s. Business hours and reports will run on it — check it is the one your business works in.",
+      "phone": "Business phone",
+      "phoneHint": "E.164 format, e.g. +14155550123. You can add this later.",
+      "website": "Website",
+      "cta": "Create workspace",
+      "creating": "Creating…",
+      "trialNote": "You start with {credits, plural, one {# free credit} other {# free credits}} for browser test calls.",
+      "trialNoteNoAmount": "You start with free credits for browser test calls.",
+      "comingSoon": "{country} (coming soon)",
+      "launchNote": "We are live in the United States and Canada first. Other countries are coming soon."
+    },
+    "invite": {
+      "title": "Join workspace",
+      "body": "You have been invited to a workspace. Sign in with the email address the invitation was sent to, then accept below.",
+      "accept": "Accept invitation",
+      "accepting": "Joining…",
+      "success": "You have joined {workspace} as {role}.",
+      "open": "Open workspace",
+      "missing": "This invitation link is missing its token. Ask the person who invited you to send it again.",
+      "invalid": "This invitation is not valid or has expired. Ask the person who invited you to send a new one.",
+      "expired": "This invitation has expired. Ask the person who invited you to send a new one.",
+      "used": "This invitation has already been used. Ask the person who invited you to send a new one.",
+      "wrongEmail": "This invitation was sent to a different email address than {email}. Sign out, then sign in with the address the invitation went to.",
+      "details": "{inviter} invited you to join {workspace} as {role}.",
+      "expires": "The invitation expires on {date}.",
+      "alreadyMemberHint": "You are already a member of this workspace.",
+      "alreadyMember": "You are already a member of this workspace.",
+      "wrongAccount": "Signed in as {email}. If the invitation went to another address, sign out and sign in with that one."
+    },
+    "brandKicker": "Human conversations. Real outcomes.",
+    "configMissing": {
+      "title": "Sign-in is not configured on this build",
+      "body": "{vars} must be set at build time."
+    },
+    "invited": {
+      "as": "Invited as {email}",
+      "hint": "This invitation is for {email}. Sign in or create your account with that address. Another address cannot accept it."
+    },
+    "terms": {
+      "title": "Before you start",
+      "body": "Read and accept our Terms of Service and Privacy Policy to use Oraly.",
+      "updated": "Our Terms of Service or Privacy Policy have changed. Read them and accept to continue.",
+      "checkbox": "I have read and agree to the Terms of Service and the Privacy Policy.",
+      "termsLink": "Terms of Service",
+      "privacyLink": "Privacy Policy",
+      "accept": "Continue",
+      "accepting": "Saving…",
+      "version": "Version {version}"
+    }
+  },
+  "legal": {
+    "title": {
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy"
+    },
+    "version": "Version {version}",
+    "draft": "Sample draft. This text has not been reviewed by a lawyer and is not the final agreement.",
+    "englishOnly": "This document is available in English only.",
+    "contents": "Contents",
+    "read": {
+      "terms": "Read the Terms of Service",
+      "privacy": "Read the Privacy Policy"
+    },
+    "questions": "Questions about this document? Write to",
+    "openInNewTab": "Open in a new tab"
+  },
+  "errors": {
+    "NETWORK": "We could not reach the server. Check your connection and try again.",
+    "UNAUTHENTICATED": "Your session ended. Sign in again to continue.",
+    "INVALID_TOKEN": "Your session ended. Sign in again to continue.",
+    "EMAIL_UNVERIFIED": "Confirm your email address first.",
+    "FORBIDDEN_ROLE": "Your role in this workspace does not allow that.",
+    "NOT_A_MEMBER": "You are not a member of that workspace.",
+    "OWNER_ONLY": "Only the workspace owner can do that.",
+    "WORKSPACE_PAUSED": "This workspace is paused. Contact support to resume it.",
+    "NOT_FOUND": "We could not find that.",
+    "CONFLICT": "That is already in progress.",
+    "GENERATION_PAUSED": "Agent generation is briefly paused for maintenance. Try again in a few minutes.",
+    "PURCHASES_PAUSED": "Purchases are briefly paused for maintenance.",
+    "VALIDATION_FAILED": "Some fields need attention.",
+    "BAD_REQUEST": "Some fields need attention.",
+    "BRIEF_INCOMPLETE": "Tell us a bit more about the business and what a good call achieves first.",
+    "GENERATION_FAILED": "We could not write the agent this time.",
+    "RATE_LIMITED": "Too many requests. Wait a moment and try again.",
+    "TEST_RATE_LIMIT": "Too many test calls. Wait a moment and try again.",
+    "NO_CREDITS": "You are out of credits.",
+    "INVITE_INVALID": "This invitation is not valid or has expired.",
+    "INVITE_EXPIRED": "This invitation has expired.",
+    "INVITE_USED": "This invitation has already been used.",
+    "INVITE_WRONG_EMAIL": "This invitation was sent to a different email address.",
+    "ALREADY_MEMBER": "That person is already a member of this workspace.",
+    "PLAN_LIMIT": "Your plan does not include that.",
+    "DOCUMENT_UNREADABLE": "We could not read any text in that file. For a photo, try a sharper, straight-on picture; for a scan, export it as text or PDF.",
+    "INTERNAL": "Something went wrong on our side. Try again.",
+    "UPSTREAM_UNAVAILABLE": "A service we depend on is unavailable. Try again shortly.",
+    "NOT_CONFIGURED": "This feature is not ready yet. Our team has been notified.",
+    "default": "Something went wrong.",
+    "title": "Something went wrong",
+    "loadFailed": "We could not load this.",
+    "TESTS_PAUSED": "Test calls are briefly paused for maintenance. Try again in a few minutes.",
+    "CONCURRENCY_LIMIT": "Every line your plan allows is on a call right now. Try again when one finishes.",
+    "ACTIVATION_IN_PROGRESS": "Your agent is already going live.",
+    "PACK_UNAVAILABLE": "That pack is not available. Choose another.",
+    "PROMO_INVALID": "That promo code cannot be used.",
+    "NO_PAYMENT_METHOD": "There is no saved card for this workspace yet.",
+    "LINT_FAILED": "Your agent's instructions need a fix before it can go live.",
+    "NUMBER_IN_USE": "That number is already in use.",
+    "IMPERSONATION_READ_ONLY": "This is a read-only staff view. Nothing can be changed here.",
+    "ACCOUNT_LOCKED": "This account has been locked. Contact support.",
+    "EMAIL_DISPOSABLE": "Temporary email addresses cannot be used. Sign up with your work or personal email instead.",
+    "ORIGIN_NOT_ALLOWED": "That request came from a page we do not recognise. Reload the portal and try again.",
+    "WORKSPACE_REQUIRED": "Choose a workspace and try again.",
+    "INVALID_CURSOR": "This page of results is out of date. Go back to the first page.",
+    "MFA_REQUIRED": "Owners and admins verify with two-factor authentication for this while auto top-up is on or the balance is high. Verify, then try again.",
+    "MFA_STILL_REQUIRED": "Two-step verification stays on while you are an owner or admin of a workspace with auto top-up on or a high balance.",
+    "AGENT_IN_USE": "A phone number still answers with this agent. Move or release the number first.",
+    "PUBLISH_IN_PROGRESS": "This agent is being published. Try again in a moment.",
+    "VERSION_IMMUTABLE": "This version is published and can no longer be changed. Your edit starts a new draft.",
+    "VERSION_SYNCING": "Your latest changes are still being prepared for calls. Try again in a few seconds.",
+    "VERSION_NOT_TESTABLE": "That version can no longer be tested. Restore it as the draft first, or pick another version.",
+    "AGENT_NOT_GENERATED": "Your agent has not been written yet. Generate it from the brief first.",
+    "AGENT_NOT_PUBLISHED": "Publish this agent first, then try again.",
+    "NO_DRAFT_CHANGES": "The draft is already the live version. There is nothing to discard.",
+    "stepUnavailable": "We could not open this step of the setup. Try again, and if it keeps happening, contact support.",
+    "serverReasons": {
+      "briefUnreadable": "We could not read your brief just now. Your answers are saved — try again in a minute.",
+      "noPrompt": "This version has no prompt to improve yet. Generate it first.",
+      "workspacePaused": "This workspace is paused. Contact support to continue.",
+      "agentMissing": "This agent no longer exists.",
+      "draftMissing": "The draft this job was about no longer exists.",
+      "generationInternal": "Something went wrong while writing your agent.",
+      "generationSlow": "Writing your agent took too long. Your brief is saved — try again.",
+      "generationRefused": "We could not write an agent from this brief. Try describing the business differently.",
+      "generationUnavailable": "Agent generation is unavailable right now. We have been notified.",
+      "generationDefault": "Couldn't generate — try again.",
+      "generationNotQueued": "We could not start the generation just now. Try again in a moment.",
+      "jobLost": "This job was interrupted before it finished. Your brief is saved — try again.",
+      "jobGeneric": "Something went wrong. Your brief is saved — try again.",
+      "jobCancelled": "This job was cancelled by support. Start it again when you are ready.",
+      "activationGeneric": "We could not put your agent on the phone. Nothing was charged for the number; try again or contact support.",
+      "activationNotQueued": "We could not start putting your agent live just now. Try again in a moment.",
+      "numberGeneric": "Something went wrong while setting up your number. We will try again shortly.",
+      "numberRejected": "Your phone number settings were not accepted. Check the number options and try again."
+    },
+    "SIP_VERIFY_IN_PROGRESS": "This number is already being checked. Wait for that check to finish.",
+    "NOT_SIP_NUMBER": "Only a number connected from your own phone system can be checked.",
+    "PURCHASE_REQUIRED": "Buy a pack first. The free trial is for browser test calls only.",
+    "DESTINATION_COUNTRY": "We can only ring a phone in your workspace’s country or your number’s country.",
+    "DESTINATION_TYPE": "That kind of number cannot be called for a test. Use a mobile or a landline.",
+    "DESTINATION_IS_AGENT": "That number is answered by an agent, directly or by forwarding. Use a mobile or landline that rings a person.",
+    "NO_NUMBER": "Your workspace has no live number to call from yet.",
+    "NOT_FORWARDING_NUMBER": "Only a number your existing line forwards to can be tested this way.",
+    "FORWARDING_TEST_IN_PROGRESS": "A forwarding test is already ringing for this number.",
+    "WIDGET_UNAVAILABLE": "This assistant is not available right now. Please try again later.",
+    "OUTBOUND_DISABLED": "Outbound calling is not available for this workspace yet.",
+    "KYC_REQUIRED": "Verify your business before your agent calls anyone back.",
+    "KYC_PENDING": "We are still reviewing your business details. Callbacks open once it is verified.",
+    "KYC_REJECTED": "Your business verification was not approved. See why in Settings, then submit it again.",
+    "OUTBOUND_NOT_CONFIGURED": "Your voicemail setting for callbacks needs a look. Review it in Settings.",
+    "CALLER_ID_REQUIRED": "You need a verified number to call from. Numbers you buy from us are verified automatically.",
+    "CALLER_ID_UNVERIFIED": "That number is not verified for outbound calls. Contact support to verify it.",
+    "NUMBER_PAUSED": "That number is paused, so no callback can come from it. Resume it in Numbers, or pick another verified number.",
+    "NUMBER_STAFF_PAUSED": "This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.",
+    "WORKSPACE_TIMEZONE_INVALID": "Your workspace time zone is not one we recognise, so calling hours cannot be checked. Correct it in Settings → Workspace → Time zone.",
+    "DESTINATION_INVALID": "This call has no phone number we can call back.",
+    "DNC_LISTED": "This number is on your do-not-call list.",
+    "NO_PRIOR_CONTACT": "Your agent can only call back someone who called you recently.",
+    "OUTSIDE_CALLING_WINDOW": "It is outside the legal calling hours where this person lives.",
+    "OUTBOUND_DAILY_CAP": "You have placed every callback your plan allows today. Try again tomorrow.",
+    "OUTBOUND_IN_PROGRESS": "A callback to this person is already in progress. Wait until it ends.",
+    "TERMS_NOT_ACCEPTED": "Accept the Terms of Service and Privacy Policy to continue.",
+    "TOKEN_EXPIRED": "Your session needed refreshing. Try again.",
+    "boundary": {
+      "title": "Something went wrong on this page",
+      "body": "The page could not be shown. Nothing you saved is lost. Try again, or go back to the dashboard.",
+      "bodyWithRef": "The page could not be shown. Nothing you saved is lost. Try again, or go back to the dashboard. Reference: {ref}.",
+      "retry": "Try again",
+      "home": "Go to the dashboard",
+      "support": "Contact support"
+    },
+    "NUMBER_LIMIT": "Every phone number your plan includes is already in use. Upgrade your plan to add another.",
+    "NUMBER_ON_CALL": "This number is on a call right now. You can release it once the call ends.",
+    "FORWARDING_NUMBER_INVALID": "Your existing line was saved without its country code, so we will not call it. Correct it under Your existing line, then test again.",
+    "PRICE_CHANGED": "The price has changed since this page loaded. Check the new price and confirm again.",
+    "CURRENCY_LOCKED": "Your currency was fixed by your first purchase. Contact support to change it.",
+    "CURRENCY_UNAVAILABLE": "Prices in that currency are not available right now. Try again in a little while."
+  },
+  "validation": {
+    "required": "Required",
+    "min": "At least {min} characters",
+    "max": "At most {max} characters",
+    "email": "Enter a valid email address",
+    "url": "Enter a full address, starting with https://",
+    "phone": "Use the international format, e.g. +14155550123",
+    "time": "Use HH:MM, 24-hour",
+    "name": "Between 2 and 80 characters",
+    "agentName": "Between 2 and 30 characters",
+    "transferNumber": "A transfer rule needs a number to transfer to",
+    "handoffMessage": "Write the message your agent should read to the caller",
+    "minReal": "At least {min} characters, not counting spaces"
+  },
+  "wizard": {
+    "title": "Set up your agent",
+    "steps": {
+      "template": "Template",
+      "brief": "Business",
+      "voice": "Voice",
+      "knowledge": "Knowledge",
+      "test": "Test",
+      "phone": "Phone",
+      "activate": "Go live"
+    },
+    "exit": "Save and exit",
+    "w1": {
+      "title": "What should your agent do?",
+      "subtitle": "Pick the closest fit. You can change every detail on the next step.",
+      "industry": "Your industry",
+      "industryHint": "Tailors the examples and placeholders you see next.",
+      "industryPlaceholder": "Choose an industry",
+      "industryOther": "Other",
+      "bestFor": "Best for",
+      "hearSample": "Hear a sample",
+      "select": "Select",
+      "selected": "Selected",
+      "continue": "Continue",
+      "creating": "Setting up your agent…",
+      "empty": "No templates are available right now.",
+      "existing": "You already started an agent from the {template} template. Continue with it, or pick another template to start over.",
+      "startOver": "Start over with this template",
+      "premiumHint": "Uses the Premium voice stack ({rate, plural, one {# credit} other {# credits}} per minute).",
+      "premiumHintNoRate": "Uses the Premium voice stack.",
+      "conflictTitle": "Check the template",
+      "conflictBody": "The {template} template is written for {industries}, and you chose {industry}. You can continue — the agent will still use what you write about your business — but a closer template gives a better first script.",
+      "conflictSuggest": "For {industry}, try: {templates}.",
+      "catalog": {
+        "names": {
+          "receptionist": "AI Receptionist",
+          "appointment": "Appointment Request",
+          "afterhours": "After-hours Answering",
+          "lead_qual": "Lead Qualification",
+          "faq_support": "FAQ / Support",
+          "restaurant": "Restaurant Reservations",
+          "custom": "Custom"
+        },
+        "taglines": {
+          "receptionist": "Answers calls, takes messages",
+          "appointment": "Books slots",
+          "afterhours": "Answers when you are closed",
+          "lead_qual": "Scores leads",
+          "faq_support": "Answers from your documents",
+          "restaurant": "Tables and hours",
+          "custom": "Start blank"
+        },
+        "bestFor": {
+          "receptionist": "Any service business",
+          "appointment": "Clinics, salons, trades",
+          "afterhours": "Any business with a forwarded line",
+          "lead_qual": "Real estate, agencies, B2B services",
+          "faq_support": "Product and support lines",
+          "restaurant": "Restaurants and cafés",
+          "custom": "Anything"
+        },
+        "industries": {
+          "dental": "Dental",
+          "plumbing": "Plumbing",
+          "auto": "Auto repair",
+          "legal": "Legal",
+          "salon": "Salon",
+          "real_estate": "Real estate",
+          "restaurant": "Restaurant",
+          "generic": "General",
+          "medical": "Medical clinic",
+          "physio": "Physiotherapy",
+          "chiropractic": "Chiropractic",
+          "optometry": "Optometry",
+          "veterinary": "Veterinary",
+          "pharmacy": "Pharmacy",
+          "mental_health": "Counselling and mental health",
+          "electrical": "Electrical",
+          "hvac": "Heating and cooling",
+          "roofing": "Roofing",
+          "landscaping": "Landscaping",
+          "cleaning": "Cleaning",
+          "pest_control": "Pest control",
+          "moving": "Moving",
+          "locksmith": "Locksmith",
+          "renovation": "Renovation and contracting",
+          "appliance_repair": "Appliance repair",
+          "barber": "Barber",
+          "spa": "Spa and massage",
+          "fitness": "Gym and fitness",
+          "tattoo": "Tattoo studio",
+          "pet_grooming": "Pet grooming",
+          "photography": "Photography",
+          "accounting": "Accounting",
+          "insurance": "Insurance",
+          "financial_advice": "Financial advice",
+          "marketing_agency": "Marketing agency",
+          "it_services": "IT services",
+          "consulting": "Consulting",
+          "recruiting": "Recruiting",
+          "property_management": "Property management",
+          "home_inspection": "Home inspection",
+          "auto_detailing": "Auto detailing",
+          "towing": "Towing",
+          "car_dealership": "Car dealership",
+          "catering": "Catering",
+          "hotel": "Hotel and lodging",
+          "event_venue": "Event venue",
+          "tutoring": "Tutoring",
+          "childcare": "Childcare",
+          "driving_school": "Driving school"
+        },
+        "examples": {
+          "plumbing": "We are a residential plumbing company covering the West Island. Drain cleaning, burst pipes, water heaters and bathroom renovations. We run a 24-hour emergency line.",
+          "dental": "We are a family dental clinic in Laval. We do check-ups, cleanings, fillings, crowns and emergency toothache appointments. Two dentists, one hygienist, open six days a week.",
+          "auto": "We are an independent garage doing maintenance, brakes, tyres and pre-purchase inspections on most makes. Courtesy car by arrangement.",
+          "legal": "We are a two-lawyer family law practice downtown. Divorce, custody and mediation. First consultation is thirty minutes and is paid.",
+          "salon": "We are a hair salon with four stylists. Cuts, colour, balayage and blowouts. Walk-ins when we can, but almost everything is by appointment.",
+          "real_estate": "We are a residential real estate team covering the South Shore. Listings, buyer representation and free home evaluations.",
+          "restaurant": "We are a forty-seat bistro. Lunch and dinner, closed Mondays. Reservations for parties up to eight; larger groups are arranged with the manager.",
+          "generic": "Describe what your business does, who you serve, and what makes a call worth taking."
+        }
+      },
+      "industrySearch": "Search industries",
+      "industryEmpty": "No industry matches that. Choose the closest one, or leave it blank.",
+      "pickFirst": "Pick a template to continue.",
+      "industryGroups": {
+        "health": "Health",
+        "home": "Home services",
+        "personal": "Personal care",
+        "professional": "Professional services",
+        "property": "Property",
+        "automotive": "Automotive",
+        "hospitality": "Hospitality",
+        "education": "Education and care"
+      }
+    },
+    "w2": {
+      "title": "Tell us about your business",
+      "hint": "Write like you would explain it to a new hire. Plain sentences work best — the agent turns them into a script.",
+      "generate": "Generate my agent",
+      "regenerate": "Regenerate",
+      "generateHint": "Fill in the first two fields to generate.",
+      "generating": "Writing your agent…",
+      "stage": {
+        "queued": "Getting started",
+        "started": "Reading your brief",
+        "writing": "Writing the conversation",
+        "done": "Setting up analysis"
+      },
+      "generatedTitle": "Your agent is ready",
+      "generatedBody": "Version {version} was written from your brief. Review the summary, then choose a voice.",
+      "failedTitle": "We could not write the agent",
+      "failedBody": "Nothing was lost — your answers are saved. Try again in a moment.",
+      "warnings": "Notes from the writer",
+      "scenarios": "How a call might go",
+      "continue": "Choose a voice",
+      "editAfter": "Changed something? Regenerate to update the script.",
+      "editScript": "Edit the script",
+      "scriptUnsaved": "Save or undo your script edits before continuing.",
+      "script": {
+        "title": "Your agent’s script",
+        "hint": "The instructions the agent follows on every call, written from your brief. Edit it here like a document, or regenerate it from the brief.",
+        "show": "Open the script",
+        "hide": "Hide the script",
+        "regenerateNote": "Regenerating rewrites the script from your brief and replaces any edits made here."
+      },
+      "restored": "Your saved answers were restored.",
+      "sections": {
+        "basics": "The basics",
+        "documents": "Menu, price list or photos",
+        "details": "Details callers ask about",
+        "rules": "Rules and hand-offs",
+        "personality": "Personality"
+      },
+      "card": {
+        "will": "{name} will:",
+        "wont": "{name} won’t:",
+        "handoff": "Hands off when:",
+        "empty": "Fill in the brief and this summary writes itself.",
+        "defaultName": "Your agent",
+        "preview": "Preview",
+        "fromGeneration": "From your generated agent",
+        "derived": {
+          "services": "Answer questions about {services}",
+          "servicesMore": "Answer questions about {services} and more",
+          "faqs": "{n, plural, one {Answer # common question} other {Answer # common questions}}",
+          "quoteListed": "Quote the prices you listed",
+          "quotePrices": "Quote prices",
+          "notHuman": "Claim to be human",
+          "listSeparator": ", ",
+          "handoff": "{condition} → {action}",
+          "handoffMessage": "{condition} → {action}: “{message}”",
+          "actions": {
+            "transfer": "transfer the call",
+            "take_message": "take a message",
+            "read_message": "read a message"
+          },
+          "presets": {
+            "no_prices": "Quote prices",
+            "no_medical_advice": "Give medical advice",
+            "no_time_promises": "Promise a time"
+          }
+        }
+      },
+      "fields": {
+        "about_business": {
+          "label": "About your business",
+          "hint": "What you do, who you serve, where you are. 20–1,000 characters.",
+          "placeholder": "We are a family dental practice in Toronto with three dentists. We see adults and children for check-ups, cleanings, fillings and emergencies."
+        },
+        "goal": {
+          "label": "What a good call achieves",
+          "hint": "The one thing the agent should get done on most calls.",
+          "placeholder": "Book the caller into the next free slot, or take a message with their name and number if the request needs a person."
+        },
+        "business_hours": {
+          "label": "Business hours",
+          "hint": "When a person is available. Outside these hours the agent takes messages."
+        },
+        "address": {
+          "label": "Address",
+          "hint": "What the agent says when someone asks where you are.",
+          "placeholder": "120 King St W, Toronto, ON"
+        },
+        "services": {
+          "label": "Services",
+          "hint": "Press Enter after each one. Up to 30.",
+          "placeholder": "Cleaning, whitening, emergency visit…"
+        },
+        "pricing": {
+          "label": "Pricing",
+          "hint": "Only what the agent may quote. Leave blank and it will never give a price.",
+          "placeholder": "Check-up and cleaning from $150. Emergency visit $95 plus treatment."
+        },
+        "faqs": {
+          "label": "Frequently asked questions",
+          "hint": "Questions callers ask, with the answer you want given.",
+          "question": "Question",
+          "answer": "Answer",
+          "add": "Add a question",
+          "questionPlaceholder": "Do you take walk-ins?",
+          "answerPlaceholder": "Yes, but appointments are seen first.",
+          "routing": {
+            "sourceName": "Frequently asked questions",
+            "moved": "{n, plural, one {# question moved to what your agent knows.} other {# questions moved to what your agent knows.}}",
+            "locked": "These answers go straight into the script. The {pack} pack adds a library your agent searches, for longer documents.",
+            "lockedGeneric": "These answers go straight into the script.",
+            "unlocked": "These answers go into the script. Move them to what your agent knows and they are searched when needed instead of read on every call.",
+            "move": "Move to what your agent knows"
+          }
+        },
+        "documents": {
+          "label": "Upload a file or a photo",
+          "hint": "A menu, a price list, a services sheet — a PDF, a Word file, or a photo taken on your phone. The agent reads it word for word on every call."
+        },
+        "never_do": {
+          "label": "Things the agent must never do",
+          "hint": "Hard rules. These override everything else.",
+          "placeholder": "Never give medical advice. Never confirm an appointment without a phone number.",
+          "presets": {
+            "label": "Common rules",
+            "no_prices": "Never quote prices",
+            "no_medical_advice": "Never give medical advice",
+            "no_time_promises": "Never promise a time"
+          }
+        },
+        "handoff_rules": {
+          "label": "When to hand off to a person",
+          "hint": "Up to five rules.",
+          "condition": "When the caller…",
+          "conditionPlaceholder": "says it is an emergency",
+          "action": "Then",
+          "add": "Add a rule",
+          "number": "Transfer to",
+          "message": "Message to read",
+          "messageHint": "Your agent reads this to the caller word for word. Up to 500 characters.",
+          "messagePlaceholder": "We're closed right now. Please call back during business hours and our team will be happy to help.",
+          "actions": {
+            "transfer": "Transfer the call",
+            "take_message": "Take a message",
+            "read_message": "Read a message to the caller"
+          }
+        },
+        "agent_name": {
+          "label": "Agent name",
+          "hint": "How it introduces itself. 2–30 characters.",
+          "placeholder": "Sophie"
+        },
+        "personality": {
+          "label": "Personality",
+          "hint": "Nudge the tone; the script does the rest.",
+          "formality": {
+            "label": "Tone",
+            "low": "Formal",
+            "high": "Friendly"
+          },
+          "brevity": {
+            "label": "Length",
+            "low": "Brief",
+            "high": "Chatty"
+          },
+          "energy": {
+            "label": "Energy",
+            "low": "Calm",
+            "high": "Upbeat"
+          },
+          "notes": "Anything else about the tone",
+          "notesPlaceholder": "Warm but efficient; never salesy."
+        },
+        "anything_else": {
+          "label": "Anything else",
+          "hint": "Parking, accessibility, languages spoken at the desk — anything a caller might ask.",
+          "placeholder": "Free parking behind the building. We speak French."
+        },
+        "ai_disclosure": {
+          "label": "Telling callers it is an AI",
+          "hint": "It will never claim to be human, whatever you choose.",
+          "always": {
+            "title": "Always say so",
+            "body": "Opens every call with a short note that it is an AI assistant."
+          },
+          "if_asked": {
+            "title": "Only if asked",
+            "body": "Answers honestly when a caller asks, otherwise gets on with the call."
+          },
+          "never_volunteer": {
+            "title": "Never volunteer it",
+            "body": "Same as above, but never brings it up on its own."
+          }
+        },
+        "services_notes": {
+          "label": "More about your services",
+          "hint": "What the chips cannot say: who each service is for, what it includes, what needs a visit.",
+          "placeholder": "Cleanings take 45 minutes. Whitening needs a check-up first. Emergencies are seen the same day."
+        }
+      },
+      "hours": {
+        "open": "Open",
+        "close": "Close",
+        "closed": "Closed",
+        "addInterval": "Add hours",
+        "copyToAll": "Apply Monday to all weekdays",
+        "days": {
+          "mon": "Mon",
+          "tue": "Tue",
+          "wed": "Wed",
+          "thu": "Thu",
+          "fri": "Fri",
+          "sat": "Sat",
+          "sun": "Sun"
+        },
+        "nextDay": "(next day)"
+      },
+      "slow": "This is taking longer than usual. Your answers are saved — leave this page open and it will finish on its own.",
+      "templateCopy": {
+        "restaurant": {
+          "goal": "Take reservation requests with party size, date and time, answer questions about the menu, prices and hours, and hand off parties over eight to the manager.",
+          "services": "Dine-in, takeout, private dining, catering…",
+          "pricing": "Mains $18–$34. Lunch prix fixe $22. Corkage $15. Say prices come from the menu and may change."
+        }
+      },
+      "documents": {
+        "none": "No documents yet. Upload a menu or price list — a file or a photo — and the agent will quote from it.",
+        "choose": "Choose a document",
+        "add": "Upload a file or photo",
+        "remove": "Remove",
+        "chars": "{n} characters",
+        "truncated": "Cut short",
+        "budget": "{used} / {max} characters used",
+        "full": "Document space is full. Remove one to add another.",
+        "accepts": "PDF, Word, text, CSV or a photo (JPEG, PNG, WebP), up to {mb} MB, up to {n} documents.",
+        "stage": {
+          "idle": "",
+          "reading": "Reading the file…",
+          "extracting": "Pulling out the text…",
+          "transcribing": "Reading the photo — this takes a few seconds…"
+        },
+        "errors": {
+          "fileType": "That file type is not supported. Upload PDF, Word, text, CSV, or a JPEG, PNG or WebP photo.",
+          "fileSize": "That file is larger than {mb} MB.",
+          "empty": "That file is empty.",
+          "budget": "There is no document space left for this file. Remove a document first."
+        }
+      },
+      "free": "Free. No credits used.",
+      "failedToast": "Couldn’t generate. Try again.",
+      "continueHint": "Generate your agent to continue.",
+      "regenerateConfirm": {
+        "title": "Rewrite the conversation?",
+        "body": "This rewrites the conversation from your brief; your test feedback is kept.",
+        "keepsFeedback": "Feedback you gave on test calls is kept.",
+        "replacesEdits": "Edits made to the script by hand are replaced."
+      },
+      "stepSaveToast": "Your script is saved, but your progress could not be recorded. Press Continue to try again.",
+      "guided": {
+        "title": "Rather answer a few questions?",
+        "body": "{total} short questions about your business. Speak or type your answers and we fill in the form below, ready for you to check.",
+        "speak": "Speak my answers",
+        "type": "Type my answers",
+        "resume": "Your earlier answers are saved. Carry on where you stopped.",
+        "micNote": "Your browser asks to use your microphone when you start speaking. It turns what you say into text that you can correct.",
+        "typeOnly": "Speaking your answers works in Chrome, Edge and Safari. In this browser you can type them.",
+        "progress": "Question {n} of {total}",
+        "mode": {
+          "label": "How you answer",
+          "speak": "Speak",
+          "type": "Type"
+        },
+        "close": "Close the questions",
+        "answer": "Your answer",
+        "answerPlaceholder": "Type your answer here",
+        "heard": "What we heard",
+        "heardHint": "Correct anything we got wrong before you go on.",
+        "heardPlaceholder": "Your words appear here as you speak",
+        "skip": "Skip this question",
+        "previous": "Previous question",
+        "toReview": "Check my answers",
+        "backToReview": "Back to my answers",
+        "questions": {
+          "business": {
+            "label": "Your business",
+            "title": "What is your business called, and what does it do?",
+            "hint": "The name, the kind of business, who you serve and your address."
+          },
+          "role": {
+            "label": "The agent’s job",
+            "title": "What should your agent do on a call?",
+            "hint": "Its main jobs, like booking appointments, answering questions or taking messages. Add a name for it if you have one."
+          },
+          "hours": {
+            "label": "Opening hours",
+            "title": "When are you open?",
+            "hint": "Your opening days and times. Say if they change from day to day."
+          },
+          "services": {
+            "label": "What you offer",
+            "title": "What do you offer?",
+            "hint": "The services or products callers ask about."
+          },
+          "pricing": {
+            "label": "Prices",
+            "title": "What should callers know about your prices?",
+            "hint": "Prices, packages and anything that changes what a caller pays."
+          },
+          "restrictions": {
+            "label": "Never say or do",
+            "title": "Is there anything your agent must never say, promise or do?",
+            "hint": "For example quoting prices, giving medical advice or promising a time."
+          },
+          "handoff": {
+            "label": "Passing to a person",
+            "title": "When should your agent pass a caller to a person?",
+            "hint": "The situations, and who to reach. Give a phone number with its area code if calls should be transferred."
+          },
+          "extra": {
+            "label": "Anything else",
+            "title": "Is there anything else your agent should know?",
+            "hint": "Parking, directions, busy seasons, and questions callers often ask with your answers."
+          }
+        },
+        "speech": {
+          "start": "Start speaking",
+          "more": "Add more by speaking",
+          "stop": "Stop",
+          "again": "Record again",
+          "idle": "Press Start speaking, then answer out loud.",
+          "idleAnswered": "Check the text below. You can edit it, add more by speaking, or record it again.",
+          "starting": "Allow the microphone when your browser asks.",
+          "listening": "Listening. Press Stop when you have finished.",
+          "processing": "Finishing what you said…",
+          "typeInstead": "Type this answer",
+          "errors": {
+            "denied": "You can also type this answer.",
+            "no_speech": {
+              "title": "We did not hear anything",
+              "body": "Check that your microphone is on and not muted, then try again."
+            },
+            "no_microphone": {
+              "title": "No microphone found",
+              "body": "Connect a microphone or headset, then try again. You can also type this answer."
+            },
+            "network": {
+              "title": "Your speech could not be turned into text",
+              "body": "Your browser needs an internet connection for this. Try again, or type this answer."
+            },
+            "unavailable": {
+              "title": "Speaking is not available in this browser",
+              "body": "Speech recognition is switched off in your browser. Type your answers instead."
+            },
+            "failed": {
+              "title": "The recording stopped",
+              "body": "Something went wrong while listening. Try again, or type this answer."
+            },
+            "deniedRetry": "Reload the page and press Start speaking again. Your answers are kept."
+          }
+        },
+        "review": {
+          "title": "Check your answers",
+          "body": "Edit anything that is not right. A skipped question leaves that part of your brief as it is.",
+          "skipped": "Skipped",
+          "edit": "Edit",
+          "editLabel": "Edit: {question}",
+          "submit": "Fill in my brief",
+          "sending": "Reading your answers…",
+          "none": "Answer at least one question to fill in your brief.",
+          "emptyTitle": "Nothing to add yet",
+          "emptyBody": "We could not find anything new to add from those answers. Add a little more detail, or fill in the form below.",
+          "failedTitle": "We could not read your answers",
+          "unavailable": "Your answers are still here. Try again in a moment, or fill in the form below.",
+          "rateLimited": "You have sent your answers many times this hour. Fill in the form below, or try again later.",
+          "back": "Back to the questions"
+        },
+        "done": {
+          "title": "Your brief is filled in",
+          "body": "We updated: {fields}. Check each one below and edit anything that is off before you generate.",
+          "stillEmpty": "Still empty: {fields}. Add them in the form below if your agent needs them.",
+          "undo": "Undo",
+          "again": "Answer the questions again",
+          "undone": "Your brief is back to how it was."
+        }
+      }
+    },
+    "w3": {
+      "title": "Choose a voice and languages",
+      "subtitle": "Every voice can say your greeting. Premium voices sound more natural.",
+      "premiumCost": "They cost {rate, plural, one {# credit} other {# credits}} a minute.",
+      "primaryLanguage": "Main language",
+      "primaryHint": "What most callers speak.",
+      "alsoSpeaks": "Also speaks",
+      "alsoSpeaksHint": "Up to four more. The agent switches when a caller does.",
+      "alsoSpeaksMax": "You can add up to four extra languages.",
+      "voices": "Voices",
+      "search": "Search voices",
+      "filters": {
+        "all": "All",
+        "gender": "Voice",
+        "male": "Male",
+        "female": "Female",
+        "neutral": "Neutral",
+        "tier": "Tier",
+        "clear": "Clear filters",
+        "native": "Native accents only",
+        "accent": "Accent"
+      },
+      "hearSample": "Hear this voice",
+      "previewFailed": "We could not play that voice right now.",
+      "previewLimited": "Too many previews. Give it a moment.",
+      "selected": "Selected voice",
+      "noneSelected": "Pick a voice to continue.",
+      "currentVoice": "Your current voice",
+      "empty": "No voices match those filters.",
+      "emptyAll": "The voice catalogue is being refreshed. Check back in a few minutes.",
+      "stale": "The voice list may be out of date. New voices appear after the next refresh.",
+      "speed": "Speed",
+      "temperature": "Expressiveness",
+      "advanced": "Fine-tune",
+      "advancedHint": "Most businesses leave these alone.",
+      "accent": "{accent} accent",
+      "continue": "Continue",
+      "saving": "Saving your choice…",
+      "tierChange": "This voice switches the agent to the {tier} tier.",
+      "showMore": "Show more ({count} more voices)",
+      "showing": "Showing {shown} of {total} voices",
+      "groups": {
+        "native": "Sounds native in {language}",
+        "alsoSpeaks": "Also speaks {language}, with its own accent"
+      },
+      "sampleHint": "Speed changes the clip too. Your agent says your own greeting on the test call.",
+      "temperatureHint": "Heard on calls, not in the clip.",
+      "rewrite": {
+        "title": "Your script is not in {language} yet",
+        "body": "It was written before you chose the language, so your agent would still greet callers in another one. Rewrite it from your answers in {language}. Changes you made to the script by hand are replaced.",
+        "action": "Rewrite in {language}",
+        "running": "Rewriting your script in {language}…",
+        "failed": "We could not rewrite the script. Try again in a moment."
+      },
+      "accents": {
+        "american": "American",
+        "british": "British",
+        "australian": "Australian",
+        "canadian": "Canadian",
+        "indian": "Indian",
+        "irish": "Irish",
+        "scottish": "Scottish",
+        "south_african": "South African",
+        "new_zealand": "New Zealand",
+        "french": "French",
+        "german": "German",
+        "spanish": "Spanish",
+        "mexican": "Mexican",
+        "latin_american": "Latin American",
+        "italian": "Italian",
+        "portuguese": "Portuguese",
+        "brazilian": "Brazilian",
+        "japanese": "Japanese",
+        "chinese": "Chinese",
+        "korean": "Korean",
+        "arabic": "Arabic",
+        "saudi": "Saudi",
+        "emirati": "Emirati",
+        "gulf": "Gulf",
+        "russian": "Russian",
+        "dutch": "Dutch",
+        "swedish": "Swedish",
+        "polish": "Polish",
+        "turkish": "Turkish",
+        "neutral": "Neutral"
+      },
+      "autoPicked": "{voice} was chosen for {language}. Pick another if you prefer.",
+      "autoPickedReplaced": "Your voice does not sound native in {language}, so {voice} was chosen instead. Pick another if you prefer.",
+      "speedHint": "0.8 to 1.2. 1.0 is the voice’s own pace."
+    },
+    "placeholder": {
+      "title": "{step} is next",
+      "body": "This step arrives in the next release. Your progress so far is saved.",
+      "dashboard": "Go to the dashboard"
+    },
+    "w4": {
+      "title": "Your agent is live. What else should it know?",
+      "subtitle": "Add your website pages, menus, price lists or FAQs and your agent answers from them on every call. You can skip this and add them later from your agent's Knowledge tab.",
+      "continue": "Continue",
+      "skip": "Skip for now",
+      "lockedTitle": "Included from a bigger pack",
+      "lockedBody": "Adding what your agent knows is part of the {pack} pack and up. Skip for now — once you buy that pack, add sources from your agent's Knowledge tab.",
+      "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack. Skip for now — once you buy one, add sources from your agent's Knowledge tab.",
+      "asideTitle": "Good sources",
+      "asideBody": "Short, factual pages work best: hours, services, prices, policies, directions.",
+      "asideLive": "Each source is read once it is added. Anything still being read when you go live is picked up the next time you publish.",
+      "full": "Your agent can know up to {max} sources. Remove one to add another.",
+      "listTitle": "Sources",
+      "checking": "Checking progress…",
+      "emptyTitle": "Nothing added yet",
+      "emptyBody": "Sources you add appear here with their progress.",
+      "failedDefault": "We could not read this source.",
+      "remove": "Remove {name}",
+      "status": {
+        "processing": "Processing",
+        "ready": "Ready",
+        "failed": "Failed",
+        "deleting": "Removing"
+      },
+      "addTitle": "Add a source",
+      "addBody": "One page, one file or a block of text at a time.",
+      "typeLabel": "Source type",
+      "types": {
+        "url": "Web page",
+        "urlHint": "A public page on your website.",
+        "file": "File",
+        "fileHint": "PDF, Word, text, CSV or a photo, up to {mb} MB.",
+        "text": "Text",
+        "textHint": "Paste anything: FAQs, a menu, a policy."
+      },
+      "fields": {
+        "url": "Page address",
+        "urlHint": "One page is read, not the whole site.",
+        "file": "File",
+        "fileHint": "The file is read once and not kept after that. A photo is read into text.",
+        "name": "Name",
+        "namePlaceholder": "e.g. Opening hours",
+        "text": "Text",
+        "textPlaceholder": "Q: Do you take walk-ins?\nA: Yes, until 4 pm on weekdays."
+      },
+      "errors": {
+        "url": "Enter a full web address starting with https://",
+        "name": "Give this text a name.",
+        "text": "Paste some text first.",
+        "file": "Choose a file first.",
+        "fileType": "That file type is not supported. Use PDF, Word, text, CSV or a JPEG, PNG or WebP photo.",
+        "fileSize": "That file is larger than {mb} MB."
+      },
+      "add": "Add source",
+      "adding": "Adding…",
+      "added": "Source added. We are reading it now.",
+      "menu": {
+        "title": "Your menu",
+        "body": "Upload the menu your agent should answer from: what is on it, what it costs, what is in it. Callers who ask for something that is not on it are told so — nothing is invented.",
+        "none": "No menu uploaded yet.",
+        "choose": "Choose a menu file",
+        "upload": "Upload menu",
+        "replace": "Replace menu",
+        "remove": "Remove",
+        "accepts": "PDF, Word, text, CSV or a photo of the menu, up to {mb} MB.",
+        "inUse": "In use",
+        "uploaded": "Menu uploaded. We are reading it now.",
+        "replaced": "Menu replaced. We are reading the new one now.",
+        "removed": "Menu removed.",
+        "failedDefault": "We could not read this menu.",
+        "liveHint": "Saved as soon as it is uploaded. Your agent uses it on the next test call, and on every call once you go live.",
+        "publishedHint": "Saved as soon as it is uploaded. Your live agent answers from it a few minutes after it is read; test calls use it right away.",
+        "removeTitle": "Remove the menu?",
+        "removeBody": "Your agent will stop answering menu questions from it.",
+        "removeConsequence": "Callers asking about dishes or prices will be told the agent does not have that information.",
+        "stage": {
+          "idle": "",
+          "reading": "Reading the file…",
+          "transcribing": "Reading the photo — this takes a few seconds…",
+          "replacing": "Removing the old menu…",
+          "uploading": "Uploading…"
+        },
+        "errors": {
+          "fileType": "That file type is not supported. Upload the menu as PDF, Word, text or CSV, or as a JPEG, PNG or WebP photo.",
+          "fileSize": "That file is larger than {mb} MB.",
+          "empty": "That file is empty."
+        }
+      },
+      "readingPhoto": "Reading the photo…",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "Your agent stops answering from this source on its next call.",
+      "removeConsequence": "Callers asking about what it covered are told the agent does not have that information.",
+      "removeConfirm": "Remove source",
+      "removed": "{name} removed.",
+      "addFaqs": "Add FAQs to the brief"
+    },
+    "w5": {
+      "title": "Test your agent",
+      "subtitle": "Talk to your agent in the browser, see what it captured, and tell it what to change. Test calls use your credits.",
+      "continue": "Continue",
+      "happy": "I’m happy with how my agent sounds",
+      "happyHint": "Tick this to continue.",
+      "skip": "Skip testing",
+      "skipTitle": "Continue without testing?",
+      "skipBody": "Your agent will answer real callers with a script you have not heard. A test call catches wrong hours, names or prices before a caller does. You can still test it from the dashboard later.",
+      "skipConfirm": "Skip and continue",
+      "call": {
+        "title": "Talk to your agent",
+        "subtitle": "You are testing draft version {version}. Nothing is live yet.",
+        "subtitleLive": "You are testing draft version {version}. Callers still reach live version {live}.",
+        "subtitlePaused": "You are testing draft version {version}. This agent is paused: phone calls are not answered, browser tests still work.",
+        "subtitleTestingLive": "You are testing live version {version}, the one callers reach.",
+        "subtitleEarlier": "You are testing earlier version {version}. Callers reach live version {live}.",
+        "version": "Version to test",
+        "versionKind": {
+          "draft": "v{n} · draft",
+          "live": "v{n} · live",
+          "published": "v{n} · published earlier"
+        },
+        "timer": "Time",
+        "rate": "Rate",
+        "perMin": "{credits}/min",
+        "used": "Used",
+        "balance": "Balance",
+        "left": "≈ {credits} left",
+        "noCreditsHint": "Choose a pack in the last step to keep testing.",
+        "start": "Start test call",
+        "again": "Call again",
+        "end": "Hang up",
+        "askingMic": "Allow the microphone…",
+        "connecting": "Connecting…",
+        "micHint": "Your browser will ask to use your microphone.",
+        "transcript": "Live transcript",
+        "listening": "Listening… say hello.",
+        "transcriptEmpty": "The conversation will appear here.",
+        "agent": "Agent",
+        "you": "You",
+        "tryThese": "Try saying",
+        "phoneOnly": "Phone calls only",
+        "transferNote": "Transfers to staff can only be tested on real phone calls. Here the agent can offer the transfer, but it will not connect.",
+        "status": {
+          "idle": "Ready",
+          "connecting": "Connecting",
+          "live": "On the call",
+          "agentTalking": "Agent speaking",
+          "ended": "Call ended",
+          "failed": "Could not connect"
+        },
+        "errors": {
+          "micDeniedTitle": "Microphone blocked",
+          "micDenied": "Allow microphone access for this site in your browser's address bar, then try again.",
+          "micMissingTitle": "No microphone found",
+          "micMissing": "Connect a microphone or headset, then try again.",
+          "noCreditsTitle": "Out of credits",
+          "apiTitle": "We could not start the call",
+          "connectionTitle": "The call could not connect",
+          "connection": "Check your connection and try again. If you are on a work network, it may block browser calls.",
+          "micHelpTitle": {
+            "chrome": "In Chrome",
+            "edge": "In Edge",
+            "safari": "In Safari",
+            "firefox": "In Firefox",
+            "other": "In your browser"
+          },
+          "micHelp": {
+            "chrome": [
+              "Click the icon at the left of the address bar.",
+              "Set Microphone to Allow.",
+              "Reload the page and start the call again."
+            ],
+            "edge": [
+              "Click the lock icon at the left of the address bar.",
+              "Under Permissions, set Microphone to Allow.",
+              "Reload the page and start the call again."
+            ],
+            "safari": [
+              "Open Safari ▸ Settings for this website (or Safari ▸ Settings ▸ Websites ▸ Microphone).",
+              "Set this site to Allow.",
+              "Reload the page and start the call again."
+            ],
+            "firefox": [
+              "Click the microphone icon with a line through it at the left of the address bar.",
+              "Remove the Blocked setting for this site.",
+              "Start the call again and choose Allow."
+            ],
+            "other": [
+              "Open your browser’s site settings for this page.",
+              "Allow the microphone.",
+              "Reload the page and start the call again."
+            ]
+          }
+        },
+        "trialUsedTitle": "You have used your free test minutes",
+        "trialUsedBody": "Choose a number and a pack to keep testing. Your agent and its script are kept.",
+        "activateCta": "Choose a number and pack",
+        "trySaying": "Try saying:",
+        "pickScenario": "Pick one to see what to say."
+      },
+      "after": {
+        "title": "After the call",
+        "subtitle": "What your agent took away from the conversation.",
+        "ready": "Ready",
+        "analysing": "Analysing",
+        "notRecorded": "We have no record of this call yet. If you hung up within a second or two, nothing was charged.",
+        "duration": "Duration",
+        "seconds": "{s, plural, one {# second} other {# seconds}}",
+        "charged": "Credits charged",
+        "pending": "Calculating…",
+        "sentiment": "Caller mood",
+        "outcome": "Outcome",
+        "successful": "Goal reached",
+        "unsuccessful": "Goal not reached",
+        "summary": "Summary",
+        "waiting": "The summary usually arrives within a minute of hanging up.",
+        "late": "This is taking longer than usual. The results will appear here as soon as they arrive.",
+        "unavailable": "No summary came back for this call. Very short calls sometimes have none.",
+        "captured": "What it captured",
+        "fullTranscript": "Full transcript",
+        "yes": "Yes",
+        "no": "No"
+      },
+      "improve": {
+        "title": "Tell it what to change",
+        "subtitle": "Describe the change in your own words. We write a new draft version; the old one is kept.",
+        "label": "What should change?",
+        "placeholder": "e.g. Ask for the caller's phone number before ending the call, and don't mention prices.",
+        "tooShort": "Write at least {min} characters.",
+        "submit": "Update my agent",
+        "working": "Updating your agent…",
+        "workingHint": "This usually takes 10 to 20 seconds.",
+        "failedTitle": "We could not update your agent",
+        "failedBody": "Nothing was changed. Try again, or rephrase the request.",
+        "refusedTitle": "Nothing changed",
+        "refusedBody": "That request goes against a rule every agent follows, so your agent is unchanged.",
+        "doneTitle": "Version {version} is ready",
+        "doneBody": "Your agent was updated.",
+        "testAgain": "Call again to hear the difference.",
+        "keep": "Keep",
+        "undo": "Undo (back to version {version})",
+        "whatChanged": "What changed"
+      },
+      "callMyPhone": {
+        "title": "Call my phone",
+        "body": "Hear your agent on a real phone. We ring the number you enter from one of your numbers. It uses credits like any call.",
+        "placeholder": "+1 416 555 0123",
+        "call": "Call my phone",
+        "placed": "Calling {to} from {from}. Answer it to talk to your agent.",
+        "invalid": "Enter your own mobile or landline, for example +1 416 555 0123."
+      },
+      "happyShort": "Happy with it",
+      "leave": {
+        "title": "End your test call?",
+        "body": "Leaving this page hangs up the call. Credits are charged for the time on the line so far.",
+        "stay": "Stay on the call",
+        "leave": "End the call and leave"
+      }
+    },
+    "w6": {
+      "title": "How will callers reach your agent?",
+      "subtitle": "Choose a number now. It is set up when you go live in the next step; nothing is bought yet.",
+      "continue": "Continue",
+      "fixErrors": "Some fields need attention.",
+      "options": {
+        "label": "Phone number option",
+        "rental": "{credits, plural, one {# credit} other {# credits}} a month.",
+        "new": {
+          "title": "A new number",
+          "body": "Get a local or toll-free number that your agent answers."
+        },
+        "forward": {
+          "title": "Keep your number",
+          "body": "We give you a new number and you forward your existing line to it."
+        },
+        "sip": {
+          "title": "Bring your own line",
+          "body": "Connect a phone system you already have over SIP.",
+          "free": "No monthly number fee.",
+          "locked": "Part of the {pack} pack and up.",
+          "lockedGeneric": "Part of a bigger pack."
+        }
+      },
+      "details": {
+        "new": {
+          "title": "Your new number",
+          "body": "Pick a country and, if you like, an area code. We choose the closest available number."
+        },
+        "forward": {
+          "title": "Forward your existing number",
+          "body": "Callers keep dialling the number they know. We give your agent a new number and you forward your line to it."
+        },
+        "sip": {
+          "title": "Your SIP connection",
+          "body": "The number your system delivers and where to reach it. Your password is encrypted the moment it arrives and never shown again."
+        }
+      },
+      "fields": {
+        "country": "Country",
+        "countries": {
+          "US": "United States",
+          "CA": "Canada"
+        },
+        "areaCode": "Area code",
+        "areaCodeHint": "Three digits, e.g. 514.",
+        "tollFree": "Toll-free",
+        "tollFreeHint": "An 8XX number instead of a local one.",
+        "existingNumber": "Your current number",
+        "existingNumberHint": "The line callers dial today, with the country code, e.g. +14505550123.",
+        "sipNumber": "Phone number",
+        "sipHost": "SIP address",
+        "sipHostHint": "e.g. sip.example.com or sip:pbx.example.com:5060",
+        "sipUsername": "Username",
+        "sipPassword": "Password",
+        "sipPasswordHint": "Only if your system needs one.",
+        "sipPasswordAgain": "A password is saved. Enter it again to keep it; saving without one removes it.",
+        "areaCodeSuggested": {
+          "timezone": "Suggested from your workspace’s time zone. Change it if you like.",
+          "country": "A common code for this country. Change it to your own area."
+        },
+        "areaCodeTollFree": "Not needed for a toll-free number.",
+        "suggest": "Suggest",
+        "sipProvider": "Provider",
+        "sipProviderHint": "Who runs your phone system. It picks the right set-up instructions.",
+        "sipProviders": {
+          "twilio": "Twilio",
+          "telnyx": "Telnyx",
+          "vonage": "Vonage",
+          "other": "Other SIP provider"
+        },
+        "sipTransport": "Transport",
+        "sipTransportHint": "TCP unless your provider says otherwise.",
+        "sipConsent": "I understand that calls only reach my agent once I set up my phone system to send them here. We show you how after you go live."
+      },
+      "routing": {
+        "title": "Answering and hand-off",
+        "body": "When the agent answers, and who it can pass a caller to.",
+        "hours": "When to answer",
+        "modes": {
+          "always": "Around the clock",
+          "business": "During business hours",
+          "outside_hours": "Only outside business hours",
+          "unanswered": "Only when I don’t answer",
+          "custom": "On a schedule for this number"
+        },
+        "hoursHint": {
+          "always": "Your agent answers every call, day and night.",
+          "business": "Your agent answers during the business hours you gave in step 2.",
+          "outside_hours": "During the hours you gave in step 2 your own phone rings; the agent answers once you are closed.",
+          "unanswered": "Set your phone company to forward only the calls you miss. The agent answers everything that reaches it.",
+          "custom": "Your agent answers during the schedule set for this number in the dashboard."
+        },
+        "setHours": "Set business hours",
+        "noHours": "You have not given business hours yet, so there is no closed time. Until you do, your agent answers every call.",
+        "unansweredNote": "This works with a forwarded line. With a new number, every call that reaches it is answered.",
+        "legacyNote": "This option was saved from the dashboard and is kept as it is."
+      },
+      "transfer": {
+        "title": "Transfer to a person",
+        "body": "Up to five people or lines the agent may hand a caller to when asked.",
+        "empty": "No one yet. The agent will take a message instead.",
+        "label": "Name",
+        "labelPlaceholder": "e.g. Front desk",
+        "number": "Phone number",
+        "remove": "Remove person {n}",
+        "add": "Add a person",
+        "max": "That is the most you can add ({max}).",
+        "errors": {
+          "label": "Give this person a name.",
+          "number": "Enter the number with its country code, e.g. +14505550123."
+        }
+      },
+      "errors": {
+        "country": "Choose the United States or Canada.",
+        "areaCode": "An area code is three digits and does not start with 0 or 1.",
+        "e164": "Enter the number with its country code, e.g. +14505550123.",
+        "sipHost": "Enter an address such as sip.example.com.",
+        "generic": "Check this field.",
+        "areaCodeRequired": "Enter an area code, or press Suggest.",
+        "sipConsent": "Tick the box to continue with your own phone system.",
+        "areaCodeUnknown": "{code} is not an area code in {country}."
+      },
+      "guide": {
+        "carrier": "Your phone company",
+        "carriers": {
+          "bell": "Bell",
+          "rogers": "Rogers",
+          "telus": "TELUS",
+          "videotron": "Vidéotron",
+          "att": "AT&T",
+          "verizon": "Verizon",
+          "tmobile": "T-Mobile",
+          "other": "Another carrier"
+        },
+        "turnOn": "To turn forwarding on",
+        "turnOff": "To turn it off",
+        "whenLive": "Do this once your agent is live — we show your new number on the next screens.",
+        "content": {
+          "bell": {
+            "steps": [
+              "Lift the handset and dial *72.",
+              "Dial {destination}.",
+              "Wait for the confirmation tone, then hang up."
+            ],
+            "disable_steps": [
+              "Dial *73 and wait for the confirmation tone."
+            ],
+            "notes": [
+              "Call Forwarding must be on your Bell plan. Conditional forwarding (busy / no answer) uses *90 and *92."
+            ]
+          },
+          "rogers": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination} and wait for the confirmation.",
+              "Hang up."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "On Rogers wireless, forwarding can also be set under Settings → Calls → Call forwarding."
+            ]
+          },
+          "telus": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination}.",
+              "Hang up after the confirmation tone."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "TELUS charges airtime for forwarded calls on some wireless plans."
+            ]
+          },
+          "videotron": {
+            "steps": [
+              "Composez *72.",
+              "Composez {destination}.",
+              "Raccrochez après la tonalité de confirmation."
+            ],
+            "disable_steps": [
+              "Composez *73."
+            ],
+            "notes": [
+              "Le renvoi conditionnel (occupé / sans réponse) utilise *90 et *92."
+            ]
+          },
+          "att": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination}.",
+              "Hang up when you hear the confirmation tone."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "Wireless: dial *21*{destination}# to forward all calls, ##21# to cancel."
+            ]
+          },
+          "verizon": {
+            "steps": [
+              "Dial *72.",
+              "Dial {destination}.",
+              "Wait for the confirmation tone and hang up."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "Busy / no-answer forwarding: *71 + {destination}; cancel with *73."
+            ]
+          },
+          "tmobile": {
+            "steps": [
+              "Dial **21*{destination}# and press call.",
+              "Wait for the confirmation message."
+            ],
+            "disable_steps": [
+              "Dial ##21# and press call."
+            ],
+            "notes": [
+              "Conditional forwarding: **61* (no answer), **67* (busy), **62* (unreachable)."
+            ]
+          },
+          "other": {
+            "steps": [
+              "Dial *72 (most North American carriers).",
+              "Dial {destination}.",
+              "Wait for the confirmation tone and hang up."
+            ],
+            "disable_steps": [
+              "Dial *73."
+            ],
+            "notes": [
+              "Codes vary by carrier and plan. If *72 does not work, search \"call forwarding\" with your carrier name or ask their support to forward to {destination}.",
+              "Test by calling your business line from another phone: your agent should answer."
+            ]
+          }
+        },
+        "yourNewNumber": "your new number"
+      },
+      "forward": {
+        "title": "When will you forward calls?",
+        "body": "Forwarding is set on your phone company’s side. This tells us which codes to show you.",
+        "modes": {
+          "always": "Always",
+          "busy_no_answer": "When busy or no answer",
+          "outside_hours": "Outside business hours"
+        },
+        "hints": {
+          "always": "Every call goes to your agent.",
+          "busy_no_answer": "You answer first; the agent takes what you miss.",
+          "outside_hours": "You forward when you close and cancel when you open."
+        }
+      },
+      "callers": {
+        "title": "Allowed caller countries",
+        "body": "Calls from anywhere else are refused before they ring. Add a country to allow it.",
+        "empty": "No restriction: callers from any country are answered.",
+        "add": "Add a country",
+        "remove": "Remove {country}",
+        "max": "That is the most you can add ({max})."
+      }
+    },
+    "w7": {
+      "title": "Choose a pack and go live",
+      "subtitle": "Credits pay for calls: 1 credit is 1 minute with a Standard voice. Your agent goes live as soon as payment clears.",
+      "progressTitle": "Going live",
+      "progressSubtitle": "This usually takes under a minute. You can leave this page; we email you when it is done.",
+      "cancelledTitle": "Checkout cancelled",
+      "cancelledBody": "Nothing was charged. Choose a pack when you are ready.",
+      "confirm": {
+        "title": "Confirming your payment…",
+        "body": "We are waiting for the payment confirmation. This normally takes a few seconds.",
+        "slowTitle": "Still waiting for the payment confirmation",
+        "slowBody": "Some payments take longer to clear. If you completed checkout, you can start going live now — we check the payment first.",
+        "start": "Start going live",
+        "check": "Check again",
+        "paidTitle": "Payment confirmed",
+        "paidBody": "Your credits are in. Starting the go-live steps now.",
+        "notPaid": "There is no completed payment for this checkout. If you paid, wait a moment and check again; otherwise choose a pack below.",
+        "refunded": "This payment was refunded, so it added no credits. Choose a pack below to go live."
+      },
+      "otherPack": "Need a different pack?",
+      "otherPackAction": "Choose again",
+      "packs": {
+        "label": "Packs",
+        "none": "No packs are on sale right now. Please try again later.",
+        "roleTitle": "Ask the workspace owner",
+        "roleBody": "Only an owner or admin can buy credits and put the agent live.",
+        "linkUnavailable": "The pack from your link is not available. You can buy one of these instead.",
+        "credits": "{credits} credits",
+        "bonus": "+{credits} bonus",
+        "concurrency": "{n, plural, one {# call at a time} other {# calls at a time}}",
+        "knowledge": "{n, plural, one {What your agent knows for # agent} other {What your agent knows for # agents}}",
+        "noKnowledge": "No knowledge sources",
+        "summaryTitle": "{pack} pack",
+        "summaryBody": "{credits} credits, valid for {months} months.",
+        "topup": "Top up automatically",
+        "topupHint": "Buy another {pack} pack when your balance falls to {threshold} credits, so your agent never stops answering.",
+        "pay": "Pay {price} and go live",
+        "redirecting": "Opening secure checkout…",
+        "secure": "Secure checkout by Stripe",
+        "reviewTitle": "Your purchase is being reviewed",
+        "reviewBody": "We review some first purchases before taking payment. Nothing has been charged. We will email you, usually within one business day.",
+        "mfaTitle": "Verify with two-factor first",
+        "mfaBody": "This purchase puts money at risk, so owners and admins verify with an authenticator app first.",
+        "mfaAction": "Verify now",
+        "topupWhen": "Top up when the balance falls to",
+        "topupPct": "{pct}% of the pack ({credits} credits)",
+        "minutes": "≈ {n, plural, one {# minute} other {# minutes}} with a Standard voice",
+        "minutesPremium": "{n, number} with Premium",
+        "currencyUnavailableTitle": "{currency}: prices are not available right now",
+        "currencyUnavailableBody": "We could not get today’s exchange rate, so nothing can be paid in this currency yet. The prices below are in US dollars for reference. Try again in a little while.",
+        "fxNote": "{currency} prices are our {base} prices converted at the Bank of Canada rate for {date} ({rate}). They can change when the rate does. You pay the amount on the button.",
+        "fxNoteNoSource": "{currency} prices are our {base} prices converted at the exchange rate for {date} ({rate}). They can change when the rate does. You pay the amount on the button.",
+        "fxTopupNote": "Automatic top-ups are charged in {currency} at the price on that day.",
+        "priceChangedTitle": "The price has changed",
+        "priceChangedBody": "It is now {price}. Nothing was charged. Check the new price, then pay."
+      },
+      "progress": {
+        "connecting": "Connecting…",
+        "status": {
+          "pending": "Getting started",
+          "publishing": "Publishing your agent",
+          "provisioning": "Setting up your number",
+          "binding": "Connecting your number",
+          "marking_live": "Going live",
+          "live": "Your agent is live",
+          "failed": "We could not finish"
+        },
+        "badgeLive": "Live",
+        "badgeFailed": "Stopped",
+        "badgeWorking": "Working",
+        "workingBody": "Each step is saved as it finishes, so nothing is done twice.",
+        "liveBody": "Taking you to your new number…",
+        "failedBody": "Your payment is safe. Try again, and if it keeps failing we will help.",
+        "progressLabel": "{pct}% done",
+        "attempt": "Attempt {n} of {max}",
+        "steps": {
+          "publish": "Publish the agent",
+          "provision": "Get the number",
+          "bind": "Connect the number to the agent",
+          "mark_live": "Switch on",
+          "notify": "Send the confirmation email"
+        },
+        "skipped": "Not needed",
+        "number": "Your number: {number}",
+        "failedTitle": "Going live stopped",
+        "failedDefault": "Something went wrong while going live.",
+        "changeNumber": "Change phone number",
+        "polling": "Live updates paused — checking every few seconds."
+      },
+      "packCopy": {
+        "mostPopular": "Most popular",
+        "starterNote": "One agent on one number. FAQ text goes in the brief."
+      },
+      "footerHint": "Choose a pack above to go live.",
+      "summary": {
+        "title": "What goes live",
+        "body": "Everything you set up so far. Change anything before you pay.",
+        "change": "Change",
+        "rows": {
+          "agent": "Agent",
+          "voice": "Voice",
+          "languages": "Speaks",
+          "number": "Number",
+          "answering": "Answers",
+          "forwarding": "Forwarding",
+          "documents": "Documents",
+          "knowledge": "Knowledge",
+          "tested": "Tested"
+        },
+        "values": {
+          "agent": {
+            "standard": "{name} · Standard voice",
+            "premium": "{name} · Premium voice"
+          },
+          "voice": "{name}",
+          "voiceUnknown": "Not chosen yet",
+          "languages": "{list}",
+          "languagesUnknown": "Not set",
+          "noPlan": "No number chosen yet",
+          "sip": "Your own line {number} via {host}",
+          "new": {
+            "areaCode": "New {code} number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "tollFree": "New toll-free number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "anyArea": "New local number, {country} · {rental, plural, one {# credit} other {# credits}} a month"
+          },
+          "forward": {
+            "areaCode": "{from} forwarded to a new {code} number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "tollFree": "{from} forwarded to a new toll-free number, {country} · {rental, plural, one {# credit} other {# credits}} a month",
+            "anyArea": "{from} forwarded to a new local number, {country} · {rental, plural, one {# credit} other {# credits}} a month"
+          },
+          "answering": {
+            "always": "Around the clock",
+            "outside_hours": "Only outside business hours",
+            "unanswered": "Only the calls you don’t answer",
+            "business": "During business hours",
+            "custom": "On this number’s own schedule"
+          },
+          "forwarding": {
+            "always": "You forward every call",
+            "busy_no_answer": "You forward when busy or unanswered",
+            "outside_hours": "You forward outside business hours"
+          },
+          "documents": "{n, plural, one {# document} other {# documents}} attached to the brief",
+          "noDocuments": "None attached",
+          "knowledgeLater": "Add web pages and files once you are live",
+          "tested": "{n, plural, one {# test call} other {# test calls}}",
+          "untested": "No test call yet",
+          "testedUnknown": "Checking…"
+        }
+      },
+      "support": {
+        "subject": "Help going live with {agent} (activation {activation})",
+        "link": "Contact support"
+      }
+    },
+    "live": {
+      "title": "{name} is live",
+      "subtitle": "Your agent is answering calls now. Call the number below to hear it.",
+      "numberTitle": "Your agent's number",
+      "numberBody": "Calls to this number reach your agent.",
+      "numberPending": "Your number is being finalised. It appears here and in Numbers shortly.",
+      "areaCodeNote": "No numbers were available in area code {requested}, so we chose the closest we could get: {bought}.",
+      "dashboard": "Go to the dashboard",
+      "calls": "See calls",
+      "forwarding": {
+        "title": "One more step: forward {from}",
+        "body": "Your agent already answers {to}. Forward your existing line to it with the codes below.",
+        "confirm": "I have turned forwarding on",
+        "confirmed": "Thanks — forwarding is marked as on.",
+        "ready": "Calls to {from} are forwarded to your agent.",
+        "mode": {
+          "always": "You chose to forward every call.",
+          "busy_no_answer": "You chose to forward only when busy or unanswered: use your carrier’s conditional codes from the notes below.",
+          "outside_hours": "You chose to forward outside business hours: turn forwarding on when you close and off when you open."
+        }
+      },
+      "copy": "Copy number",
+      "copied": "Copied",
+      "copyFailed": "Could not copy. Select the number and copy it by hand.",
+      "callNow": "Call it now",
+      "sip": {
+        "title": "Connect your {provider} line",
+        "body": "Your agent is ready. Calls reach it once your phone system sends them to the address below.",
+        "missing": "We could not read the connection details for this number.",
+        "origination": "Send calls to",
+        "originationUnknown": "the address support gives you",
+        "copyOrigination": "Copy address",
+        "copied": "Copied",
+        "copyFailed": "Could not copy. Select the address and copy it by hand.",
+        "number": "Your number",
+        "transport": "Transport",
+        "host": "Your SIP address",
+        "username": "Username",
+        "showUsername": "Show username",
+        "hideUsername": "Hide username",
+        "passwordStored": "Password stored encrypted",
+        "passwordNone": "No password",
+        "askSupport": "The inbound address for your region is not set up yet. Contact support and we will send it to you.",
+        "steps": {
+          "named": {
+            "open_trunk": "In your {provider} account, open the SIP trunk that carries {number}.",
+            "origination": "Set its origination (inbound) destination to {origination}.",
+            "transport": "Set the transport to {transport}, the same as you chose here.",
+            "number": "Make sure {number} is assigned to that trunk.",
+            "test": "Call {number} from another phone. Your agent should answer; the call then shows under Calls."
+          },
+          "other": {
+            "open_trunk": "In your phone system, open the trunk or route that carries {number}.",
+            "origination": "Send inbound calls for it to {origination}.",
+            "transport": "Use {transport} for the connection, the same as you chose here.",
+            "number": "Make sure {number} is routed through that trunk.",
+            "test": "Call {number} from another phone. Your agent should answer; the call then shows under Calls."
+          }
+        }
+      },
+      "next": {
+        "title": "Next steps",
+        "checking": "Checking what is done…",
+        "progress": "{done} of {total} done",
+        "items": {
+          "forwarding": {
+            "title": "Test forwarding",
+            "body": "Turn forwarding on at your phone company, then test it from Numbers.",
+            "done": "Forwarding is on."
+          },
+          "invite_team": {
+            "title": "Invite a teammate",
+            "body": "Let someone else see calls and messages.",
+            "done": "Your team has more than one member."
+          },
+          "daily_digest": {
+            "title": "Turn on the daily digest",
+            "body": "One email each morning with yesterday’s messages and requests.",
+            "done": "You get the daily digest."
+          },
+          "website_widget": {
+            "title": "Add your website widget",
+            "body": "A “Talk to us” button that calls your agent from your website.",
+            "done": "The widget is switched on."
+          }
+        }
+      }
+    },
+    "context": {
+      "building": "Building a {template} agent for {business}."
+    },
+    "stepSaveFailed": "Your progress could not be saved"
+  },
+  "dashboard": {
+    "planGate": {
+      "lockedPack": "Included from the {pack} pack.",
+      "lockedGeneric": "Included in a bigger pack."
+    },
+    "home": {
+      "title": "Home",
+      "welcome": "Welcome to {workspace}",
+      "body": "Live calls, credits and your agent’s day will appear here once you go live.",
+      "credits": {
+        "title": "Credits",
+        "buy": "Buy credits",
+        "credits": "credits",
+        "ofPack": "of a {pack}-credit pack",
+        "remaining": "Credits remaining from your last pack",
+        "usedToday": "Used today",
+        "expiring": "Expiring next",
+        "expiringValue": "{credits} on {date}",
+        "nothingExpiring": "Nothing expiring",
+        "autoTopupOn": "Auto top-up is on: refills below {threshold} credits.",
+        "approxMinutes": "≈ {minutes} min at Standard",
+        "approxDays": "≈ {days, plural, one {# day} other {# days}} left",
+        "noUsage": "No calls in the last 7 days",
+        "outOfCredits": "Out of credits",
+        "approxHint": "Estimates from the published rate and the last 7 days’ use",
+        "autoTopupOff": "Auto top-up is off."
+      },
+      "today": {
+        "title": "Today",
+        "timezone": "Your day in {tz}",
+        "calls": "Calls",
+        "ofWhichTests": "{n} test",
+        "missed": "Missed",
+        "minutes": "Minutes",
+        "credits": "Credits used",
+        "avgDuration": "Avg. length",
+        "answered": "Answered",
+        "phoneCalls": "Phone",
+        "websiteCalls": "Website",
+        "channelMinutes": "{minutes} min",
+        "messages": "Messages taken",
+        "sentiment": "Positive callers",
+        "sentimentValue": "{pct}%",
+        "sentimentHint": "{positive} positive · {neutral} neutral · {negative} negative",
+        "sentimentNone": "No rated calls yet"
+      },
+      "agents": {
+        "title": "Agents",
+        "all": "All agents",
+        "test": "Test",
+        "publish": "Publish",
+        "edit": "Edit",
+        "view": "View",
+        "seeChecks": "See the checks",
+        "pausedByStaffTicket": "Paused by Oraly support · ticket #{ticket}",
+        "pausedByStaff": "Paused by Oraly support",
+        "pausedByYou": "Paused by your team",
+        "pausedPlain": "Paused",
+        "publishTitle": "Publish {name} v{n}?",
+        "publishBodyLive": "Version {live} is live now. The draft replaces it on your numbers once the checks pass.",
+        "publishBodyFirst": "This puts the agent on your numbers once the checks pass.",
+        "publishChecks": "The script is checked first; an error stops the publish.",
+        "publishNumbers": "Numbers pointed at this agent use the new version from their next call."
+      },
+      "checklist": {
+        "title": "Set-up checklist",
+        "progress": "{done} of {total} done",
+        "steps": {
+          "workspace_created": "Create your workspace",
+          "agent_created": "Start an agent",
+          "agent_generated": "Write the agent from your brief",
+          "agent_published": "Publish the agent",
+          "credits_purchased": "Buy your first credits",
+          "number_attached": "Attach a phone number",
+          "forwarding_tested": "Test call forwarding",
+          "team_invited": "Invite your team"
+        }
+      },
+      "recent": {
+        "title": "Recent calls",
+        "all": "All calls"
+      },
+      "activity": {
+        "title": "Last 30 days",
+        "total": "{value} {metric} in the last 30 days",
+        "metricLabel": "Show",
+        "metric": {
+          "calls": "Calls",
+          "minutes": "Minutes",
+          "credits": "Credits"
+        },
+        "empty": "No calls in the last 30 days.",
+        "emptyHint": "Once your agent answers a call, each day shows up here.",
+        "table": "View as a table",
+        "day": "Day",
+        "missed": "Missed",
+        "tooltip": "{calls, plural, one {# call} other {# calls}} · {missed} missed · {minutes} min · {credits} credits"
+      }
+    },
+    "calls": {
+      "title": "Calls",
+      "empty": "No calls yet. Once your agent is live, every call shows up here with a transcript and summary.",
+      "count": "{n, plural, one {# call} other {# calls}}",
+      "loadFailed": "Unable to load calls. Try again.",
+      "emptyFiltered": "No calls match these filters.",
+      "browserTest": "Browser test",
+      "unknownCaller": "Unknown caller",
+      "test": "test",
+      "creditsShort": "{n} cr",
+      "perMin": "{n}/min",
+      "selectAll": "Select all calls on this page",
+      "selectAllShort": "Select all",
+      "sortBy": "Sort calls",
+      "sortOptions": {
+        "started_at_desc": "Newest first",
+        "started_at_asc": "Oldest first",
+        "duration_s_desc": "Longest first",
+        "duration_s_asc": "Shortest first",
+        "credits_charged_desc": "Most credits first",
+        "credits_charged_asc": "Fewest credits first"
+      },
+      "selectOne": "Select this call",
+      "handledYes": "Handled",
+      "showing": "Showing {first}–{last} of {total}",
+      "showingPage": "Showing {first}–{last}",
+      "previous": "Previous",
+      "next": "Next",
+      "status": {
+        "registered": "Ringing",
+        "in_progress": "Live",
+        "ended": "Ended",
+        "analyzed": "Done",
+        "missed": "Missed"
+      },
+      "sentiment": {
+        "positive": "Positive",
+        "neutral": "Neutral",
+        "negative": "Negative",
+        "unknown": "Unknown"
+      },
+      "direction": {
+        "inbound": "Inbound",
+        "outbound": "Outbound"
+      },
+      "channel": {
+        "phone": "Phone",
+        "web": "Website"
+      },
+      "declineReason": {
+        "balance": "Declined: the balance was too low.",
+        "cap": "Declined: every line was busy.",
+        "blocked": "Declined: this caller is blocked.",
+        "country": "Declined: the caller's country is not allowed on this number.",
+        "hours": "Declined: outside business hours.",
+        "paused": "Declined: the agent or workspace was paused."
+      },
+      "columns": {
+        "when": "When",
+        "caller": "Caller",
+        "agent": "Agent",
+        "duration": "Length",
+        "mood": "Mood",
+        "credits": "Credits",
+        "status": "Status",
+        "handled": "Handled"
+      },
+      "filters": {
+        "range": "Period",
+        "ranges": {
+          "all": "All time",
+          "today": "Today",
+          "7d": "Last 7 days",
+          "30d": "Last 30 days"
+        },
+        "status": "Status",
+        "anyStatus": "Any status",
+        "agent": "Agent",
+        "anyAgent": "Any agent",
+        "channel": "Channel",
+        "anyChannel": "Phone and website",
+        "phone": "Phone",
+        "web": "Website",
+        "test": "Test calls",
+        "testAny": "Include tests",
+        "testHide": "Hide tests",
+        "testOnly": "Tests only",
+        "handled": "Handled",
+        "handledAny": "Handled or not",
+        "handledNo": "To handle",
+        "handledYes": "Handled",
+        "clear": "Clear filters"
+      },
+      "bulk": {
+        "selected": "{n} selected",
+        "markHandled": "Mark handled",
+        "export": "Export selected",
+        "clear": "Clear",
+        "done": "{n, plural, one {# call marked handled} other {# calls marked handled}}"
+      },
+      "export": {
+        "button": "Export CSV",
+        "done": "Your export is downloading."
+      },
+      "recording": {
+        "none": "No recording for this call.",
+        "load": "Load recording",
+        "unavailable": "The recording is not available.",
+        "expired": "The recording link expired. Load it again.",
+        "playbackError": "The recording could not be played.",
+        "noAudioSupport": "Your browser cannot play audio here.",
+        "download": "Download recording"
+      },
+      "transcript": {
+        "agent": "Agent",
+        "caller": "Caller",
+        "unavailable": "No transcript for this call.",
+        "showAll": "Show {n} more"
+      },
+      "detail": {
+        "title": "Call",
+        "notFound": "This call is not in your workspace.",
+        "missedTitle": "The caller did not reach your agent",
+        "summary": "Summary",
+        "summaryPending": "The summary arrives a minute or so after the call ends.",
+        "summaryUnavailable": "No summary came back for this call.",
+        "sentiment": "Caller mood",
+        "outcome": "Outcome",
+        "goalReached": "Goal reached",
+        "goalNotReached": "Goal not reached",
+        "voicemail": "Voicemail",
+        "captured": "What it captured",
+        "capturedPending": "Captured fields arrive with the summary.",
+        "capturedNone": "Nothing was captured on this call.",
+        "transcript": "Transcript",
+        "recording": "Recording",
+        "details": "Details",
+        "duration": "Length",
+        "charged": "Credits charged",
+        "rate": "Rate",
+        "tier": "Tier",
+        "direction": "Direction",
+        "channel": "Channel",
+        "from": "From",
+        "to": "To",
+        "agentVersion": "Agent version",
+        "started": "Started",
+        "ended": "Ended",
+        "disconnection": "How it ended",
+        "callId": "Call ID",
+        "handled": "Handled",
+        "handledAt": "Marked handled {when}",
+        "handledHint": "Tick once someone has followed up.",
+        "markedHandled": "Marked handled",
+        "markedUnhandled": "Marked not handled",
+        "note": "Note",
+        "notePlaceholder": "What happened next?",
+        "noteViewer": "No note.",
+        "noteSaved": "Note saved",
+        "copyNumber": "Copy number",
+        "numberCopied": "Number copied.",
+        "callFromPhone": "Call from your phone",
+        "callFromPhoneHint": "Opens your phone app so you can call {number} yourself.",
+        "copyTranscript": "Copy transcript",
+        "transcriptCopied": "Transcript copied.",
+        "copyFailed": "Could not copy. Select the text and copy it instead.",
+        "reportProblem": "Report a problem",
+        "chargedAgentLeg": "Credits charged (agent)",
+        "chargedTotal": "Total credits",
+        "transfer": {
+          "title": "Transferred call",
+          "endedBody": "After your agent handed the caller over, this part of the call was billed on its own at {rate} credits a minute.",
+          "liveBody": "Your agent handed the caller over. This part of the call is billed on its own once it ends.",
+          "cancelledBody": "Your agent tried to hand the caller over, but nobody answered. Nothing extra was charged.",
+          "status": "Status",
+          "statuses": {
+            "started": "Ringing",
+            "bridged": "Connected",
+            "cancelled": "Not answered",
+            "ended": "Finished"
+          },
+          "duration": "Length",
+          "charged": "Credits charged",
+          "rate": "Rate",
+          "answered": "Answered",
+          "ended": "Ended",
+          "inProgress": "In progress"
+        },
+        "knowledge": {
+          "title": "What your agent knows",
+          "summary": "Your agent looked something up {lookups, plural, one {# time} other {# times}} and found an answer {hits, plural, one {# time} other {# times}}.",
+          "nothingFound": "Your agent looked something up {lookups, plural, one {# time} other {# times}} but found nothing.",
+          "countOnly": "Your agent looked something up {lookups, plural, one {# time} other {# times}}. Which sources answered is not available for this call.",
+          "sourceHits": "{hits, plural, one {# answer} other {# answers}}",
+          "website": "A website page",
+          "removed": "A source since removed"
+        },
+        "callback": {
+          "title": "Call back",
+          "body": "Your agent calls <num>{number}</num> back from <num>{from}</num>.",
+          "button": "Call back <num>{number}</num>",
+          "voicemail": {
+            "hang_up": "If voicemail answers, your agent hangs up.",
+            "leave_message": "If voicemail answers, your agent leaves your message.",
+            "off": "Your agent talks to whatever answers, voicemail included."
+          },
+          "usage": "Callbacks today: {used} of {cap}",
+          "viewerNote": "Only an owner, admin or editor can place a callback.",
+          "placed": "Calling {number} now.",
+          "view": "Open the call",
+          "earliest": "Earliest time allowed for this number: {when}, in your workspace’s time zone.",
+          "openSettings": "Open outbound settings",
+          "openWorkspaceSettings": "Open workspace settings",
+          "openNumbers": "Go to numbers",
+          "openWallet": "Go to wallet",
+          "rule": "Callbacks go only to someone who called you in the last {days, plural, one {# day} other {# days}}, within the legal calling hours where they live.",
+          "dnc": {
+            "add": "Add to do-not-call list",
+            "title": "Add <num>{number}</num> to your do-not-call list?",
+            "body": "Your agents will not call this number back. An owner or admin can take it off the list in Settings.",
+            "confirm": "Add to list",
+            "added": "{number} is on your do-not-call list."
+          },
+          "reasons": {
+            "DESTINATION_COUNTRY": "We cannot call numbers in this country yet.",
+            "DESTINATION_IS_AGENT": "This number is answered by an agent, not a person.",
+            "BAD_REQUEST": "The call could not be placed: the number or the caller ID was not accepted. Check them, or contact support."
+          }
+        }
+      },
+      "fields": {
+        "is_emergency": "Is emergency",
+        "caller_name": "Caller name",
+        "callback_number": "Callback number",
+        "message": "Message",
+        "service": "Service",
+        "preferred_slots": "Preferred slots",
+        "is_new_client": "Is new client",
+        "reason": "Reason",
+        "topic": "Topic",
+        "resolved": "Resolved",
+        "follow_up_required": "Follow up required",
+        "email": "Email",
+        "need": "Need",
+        "budget": "Budget",
+        "timeline": "Timeline",
+        "qualified": "Qualified",
+        "score": "Score",
+        "urgency": "Urgency",
+        "message_taken": "Message taken",
+        "party_size": "Party size",
+        "date_time": "Date time",
+        "special_requests": "Special requests"
+      },
+      "disconnect": {
+        "user_hangup": "Caller hung up",
+        "agent_hangup": "Agent ended the call",
+        "call_transfer": "Transferred",
+        "voicemail_reached": "Reached voicemail",
+        "inactivity": "No one spoke",
+        "max_duration_reached": "Reached the time limit",
+        "concurrency_limit_reached": "Too many calls at once",
+        "no_valid_payment": "No credits",
+        "dial_busy": "Line busy",
+        "dial_failed": "Could not connect",
+        "dial_no_answer": "No answer",
+        "registered_call_timeout": "Never connected",
+        "not_connected": "Not connected",
+        "error_user_not_joined": "Caller never joined",
+        "sip_routing_error": "Phone routing error",
+        "error": "Technical error",
+        "transfer_bridged": "Handed over to a person",
+        "transfer_cancelled": "Hand-over not answered"
+      },
+      "phoneCheck": {
+        "mismatch": "This is not the number the caller said. Check the transcript before calling back.",
+        "invalid": "This number looks incomplete ({digits} digits). Check the transcript before calling back.",
+        "heard": "The caller said: <num>{numbers}</num>",
+        "summary": "The summary may repeat a phone number the caller did not say. Use the checked number under “{captured}”."
+      },
+      "websiteVisitor": "Website visitor"
+    },
+    "agents": {
+      "title": "Agents",
+      "empty": "No agents yet.",
+      "count": "{n, plural, one {# agent} other {# agents}}",
+      "emptyHint": "Start one from a template and it will be ready to test in minutes.",
+      "version": "Version {n}",
+      "notPublished": "Not published yet",
+      "numbers": "{n, plural, one {# number} other {# numbers}}",
+      "numbersLabel": "Numbers",
+      "unpublished": "Unpublished changes",
+      "live": "Live",
+      "draft": "Draft",
+      "max": "max",
+      "created": "Created {when}",
+      "status": {
+        "live": "Live",
+        "paused": "Paused",
+        "draft": "Draft",
+        "noNumber": "No number"
+      },
+      "noNumber": {
+        "title": "This agent has no phone number",
+        "body": "Callers cannot reach it yet.",
+        "askAdmin": "Callers cannot reach it yet. Ask an owner or admin to add a number.",
+        "add": "Add a number"
+      },
+      "templates": {
+        "receptionist": "Receptionist",
+        "appointment": "Appointment booking",
+        "afterhours": "After-hours",
+        "lead_qual": "Lead qualification",
+        "faq_support": "FAQ and support",
+        "restaurant": "Restaurant",
+        "custom": "Custom"
+      },
+      "tabs": {
+        "overview": "Overview",
+        "brief": "Brief",
+        "prompt": "Advanced",
+        "voice": "Voice",
+        "knowledge": "Knowledge",
+        "test": "Test",
+        "versions": "Versions",
+        "settings": "Settings",
+        "website": "Website"
+      },
+      "detail": {
+        "back": "All agents",
+        "missing": "No agent was chosen.",
+        "notFound": "This agent is not in your workspace.",
+        "subtitle": "Live {live} · Draft {draft}",
+        "tabs": "Agent sections"
+      },
+      "new": {
+        "button": "New agent",
+        "title": "New agent",
+        "body": "Pick the closest template. Everything can be changed afterwards.",
+        "name": "Name",
+        "nameHint": "How it appears in your dashboard, 2–60 characters.",
+        "namePlaceholder": "Front desk",
+        "template": "Template",
+        "create": "Create agent",
+        "planLimit": "Your plan includes one agent. Choose a bigger pack to add another."
+      },
+      "publish": {
+        "title": "Draft v{n} has changes that are not live (live: v{live})",
+        "firstTitle": "Draft v{n} is ready to publish",
+        "hint": "Publishing runs the checks and puts this version on your numbers.",
+        "pausedHint": "This agent is paused. Publishing updates it but does not resume it.",
+        "hintNoNumber": "Publishing runs the checks. This agent has no phone number, so callers cannot reach it until you add one.",
+        "button": "Publish v{n}",
+        "done": "Version {n} is live.",
+        "doneNoNumber": "Version {n} is published. The agent has no phone number yet.",
+        "alreadyLive": "Version {n} was already live.",
+        "blocked": "Fix these before publishing",
+        "warnings": "Published with warnings",
+        "saveFirst": "Save your script edits first. Publishing sends the last saved version, not what is in the editor.",
+        "discard": "Discard draft",
+        "discardTitle": "Discard draft v{n}?",
+        "discardBody": "The draft goes back to the live version, v{live}. Nothing changes on your numbers.",
+        "discardEdits": "Changes made since v{live} went live will no longer be in the draft.",
+        "discardKept": "Draft v{n} stays in the Versions tab, so you can restore it later.",
+        "discarded": "Draft discarded. The draft is v{n} again."
+      },
+      "menu": {
+        "label": "More actions for {name}",
+        "duplicate": "Duplicate",
+        "copyName": "{name} (copy)",
+        "duplicated": "{name} created. It stays a draft until you publish it.",
+        "limit": "Your plan has no room for another agent. Buy a larger pack, or delete an agent first."
+      },
+      "overview": {
+        "configuration": "Configuration",
+        "liveVsDraft": "What callers hear now, next to what the draft would change.",
+        "draftOnly": "Nothing is live yet. These are the draft's settings.",
+        "setting": "Setting",
+        "tier": "Tier",
+        "voice": "Voice",
+        "language": "Languages",
+        "maxDuration": "Max call length",
+        "recording": "Recording",
+        "on": "On",
+        "off": "Off",
+        "greeting": "Greeting",
+        "recentCalls": "Recent calls",
+        "allCalls": "All calls",
+        "noCalls": "No calls for this agent yet.",
+        "status": "Status",
+        "statusLabel": "Status",
+        "numbers": "Phone numbers",
+        "noNumbers": "None attached",
+        "template": "Template",
+        "created": "Created",
+        "publishedAt": "Published",
+        "draftUpdated": "Draft updated",
+        "finishBrief": "Finish the brief"
+      },
+      "brief": {
+        "hint": "Edits save automatically into draft v{n}. Regenerate to rewrite the script from them.",
+        "viewerHint": "You can read the brief; editing needs the editor role.",
+        "regenerateTitle": "Rewrite the script",
+        "regenerateBody": "Turns the brief into a new draft version. The current version is kept.",
+        "regenerated": "Version {n} was written from your brief.",
+        "saveVersion": "Save as new version",
+        "versionSaved": "Saved as version {saved}. Your edits now go into version {draft}.",
+        "versionAlreadySaved": "Version {n} is already saved. Your next edit starts a new draft.",
+        "fields": {
+          "title": "What the agent captures",
+          "body": "After every call, these details are taken from the conversation and shown on the call's page. Changes go live at the next publish. Once saved here, rewriting the script keeps them.",
+          "empty": "Nothing is captured yet. Add a field.",
+          "name": "Field name",
+          "namePlaceholder": "e.g. preferred_date",
+          "nameRule": "Lowercase letters, digits and underscores, starting with a letter.",
+          "duplicate": "Another field already has this name.",
+          "type": "Type",
+          "types": {
+            "text": "Text",
+            "number": "Number",
+            "boolean": "Yes or no",
+            "enum": "One of a list"
+          },
+          "description": "What to capture",
+          "descriptionPlaceholder": "e.g. The day the caller would like to come in.",
+          "choices": "Choices",
+          "choicesPlaceholder": "Choices, separated by commas",
+          "remove": "Remove {name}",
+          "add": "Add a field",
+          "save": "Save fields",
+          "saved": "Fields saved to the draft.",
+          "max": "An agent can capture up to {n} fields.",
+          "phoneHint": "Captured digit for digit, exactly as the caller said it."
+        }
+      },
+      "prompt": {
+        "hint": "Editing the script of draft v{n}. Saving creates a new version; the old one is kept.",
+        "viewerHint": "Reading the script of v{n}. Editing needs the editor role.",
+        "save": "Save as new version",
+        "saved": "Saved as version {n}.",
+        "greeting": "Greeting",
+        "greetingHint": "The first thing the caller hears.",
+        "prompt": "Script",
+        "promptHint": "Plain instructions work best. The platform rules below are always added.",
+        "closing": "Closing",
+        "closingHint": "How the agent ends a call.",
+        "tooShort": "Write at least {min} characters.",
+        "tooLong": "The script is too long.",
+        "guardrails": "Platform rules (always applied)",
+        "guardrailsHint": "These are appended to every agent and cannot be edited.",
+        "lintTitle": "Checks",
+        "linting": "Checking…",
+        "lintHint": "Run as you type. Errors block publishing; warnings are advice.",
+        "lintNone": "Start typing to run the checks.",
+        "lintClean": "All checks pass.",
+        "publishable": "No errors. This version can be published.",
+        "notPublishable": "Errors must be fixed before publishing.",
+        "field": "in {field}",
+        "versionNote": "Every save is a new immutable version. Restore any earlier one from the Versions tab.",
+        "noVersion": "This agent has no version yet.",
+        "noPrompt": "Generate the script from the Brief tab first.",
+        "greetingRequired": "Every agent needs a greeting: without one the caller hears silence when the call connects.",
+        "leaveConfirm": "You have script edits that are not saved. Leave and lose them?",
+        "ruleFallback": "Check",
+        "rules": {
+          "prompt_empty": "Empty script",
+          "prompt_too_long": "Script length",
+          "no_greeting": "Missing greeting",
+          "greeting_too_long": "Greeting length",
+          "handoff_rule_missing": "No hand-off rule",
+          "transfer_tool_missing": "Transfer the agent cannot make",
+          "transfer_number_invalid": "Invalid transfer number",
+          "handoff_message_missing": "Hand-off message not in the script",
+          "absolute_language": "Absolute language",
+          "language_mismatch": "Language mismatch",
+          "guardrails_missing": "Platform rules missing",
+          "platform_named": "Platform named"
+        },
+        "findings": {
+          "prompt_empty": "This version has no script yet. Generate one before publishing.",
+          "prompt_too_long": "The script is long enough to slow down every call. Shorten it.",
+          "no_greeting": "There is no greeting, so the caller hears silence when the call connects.",
+          "greeting_too_long": "The greeting is long. Shorten it so the caller can speak sooner.",
+          "handoff_rule_missing": "A transfer number is set but the script never says when to transfer, so the agent will not use it.",
+          "transfer_tool_missing": "A transfer is set up that the agent cannot make, so callers are not transferred there. Check the hand-off rules, the script and the phone number’s own transfer number.",
+          "transfer_number_invalid": "A hand-off rule transfers to a number that is not a real phone number, so the transfer would fail. Correct it under “When to hand off to a person”.",
+          "handoff_message_missing": "The script does not contain one of your hand-off messages, so the agent may say something else. Regenerate, or paste the message into the script.",
+          "absolute_language": "The script makes a promise about prices or availability. Soften it — the business, not the agent, guarantees things.",
+          "language_mismatch": "The script is written in a different language from the agent’s main language.",
+          "guardrails_missing": "The platform rules are missing from this script.",
+          "platform_named": "The script names the voice platform behind your agent. Your agent should only ever speak for your business; regenerate it or remove the name under Advanced."
+        }
+      },
+      "voice": {
+        "hint": "Changes save to the draft and go live at the next publish.",
+        "viewerHint": "Voice settings can be changed by editors and above."
+      },
+      "knowledge": {
+        "lockedBody": "Adding what your agent knows is part of the {pack} pack and up.",
+        "lockedBodyGeneric": "Adding what your agent knows is part of a bigger pack.",
+        "publishedHint": "A source added now reaches your live agent a few minutes after it is read.",
+        "usage": {
+          "title": "How often it is used",
+          "body": "From real callers’ calls; test calls are left out.",
+          "window": "Period",
+          "lastDays": "Last {days} days",
+          "noCalls": "No calls in this period yet.",
+          "notUsed": "{calls, plural, one {# call} other {# calls}} in this period, and none needed what your agent knows.",
+          "callsUsed": "Calls that used it",
+          "callsOf": "{used} of {calls}",
+          "lookups": "Look-ups",
+          "answered": "Found an answer",
+          "answeredValue": "{hits} ({pct}%)",
+          "bySource": "By source",
+          "unused": "Not used yet",
+          "sourceValue": "{hits, plural, one {# answer} other {# answers}} in {calls, plural, one {# call} other {# calls}}",
+          "other": "{hits, plural, one {# answer} other {# answers}} came from a website page or a source since removed."
+        }
+      },
+      "test": {
+        "hint": "Test calls run in the browser and use credits.",
+        "viewerHint": "Test calls can be made by editors and above.",
+        "noPrompt": "Generate the script from the Brief tab before testing.",
+        "topUp": "Buy credits"
+      },
+      "versions": {
+        "hint": "Every version is kept. Pick two to compare.",
+        "compare": "Compare two versions",
+        "compareThese": "Compare v{a} and v{b}",
+        "pick": "Pick",
+        "pickVersion": "Pick version {n} to compare",
+        "version": "Version",
+        "source": "Source",
+        "created": "Created",
+        "changes": "Changes",
+        "actions": "Actions",
+        "live": "Live",
+        "draft": "Draft",
+        "noPrompt": "No script",
+        "publishedAt": "Published {when}",
+        "moreChanges": "{n} more",
+        "view": "View",
+        "restore": "Restore as draft",
+        "publish": "Publish",
+        "restored": "Version {n} is now the draft.",
+        "published": "Version {n} is live.",
+        "alreadyLive": "Version {n} was already live.",
+        "lintBlocked": "That version has errors and cannot be published.",
+        "empty": "No versions yet.",
+        "viewTitle": "Version {n}",
+        "greeting": "Greeting",
+        "prompt": "Script",
+        "feedback": "Feedback that produced it",
+        "lintOk": "Checks pass",
+        "lintErrors": "Has errors",
+        "diffTitle": "v{a} → v{b}",
+        "diffSummary": "{added, plural, one {# line} other {# lines}} added, {removed} removed",
+        "sources": {
+          "generated": "Generated",
+          "feedback": "Feedback",
+          "manual": "Manual edit",
+          "regenerate": "Regenerated"
+        }
+      },
+      "settings": {
+        "general": "General",
+        "generalHint": "Labels for your dashboard. Callers never hear these.",
+        "name": "Name",
+        "nameHint": "2–60 characters.",
+        "industry": "Industry",
+        "calls": "Calls",
+        "callsHint": "These apply to the draft and go live at the next publish.",
+        "tier": "Tier",
+        "tierHint": "Premium uses the more natural voice stack.",
+        "standardBody": "{rate}. Good for most businesses.",
+        "premiumBody": "{rate}. Most natural voices.",
+        "maxDuration": "Max call length",
+        "maxDurationHint": "Calls end at this point. 3 to 30 minutes.",
+        "recording": "Record calls",
+        "recordingHint": "Recordings appear on each call's page.",
+        "on": "on",
+        "off": "off",
+        "liveNow": "Live now: {tier}, {duration} max, recording {recording}.",
+        "saved": "Settings saved.",
+        "danger": "Pause or delete",
+        "dangerHint": "Owners and admins only.",
+        "pause": "Pause agent",
+        "pauseHint": "Callers on its numbers hear a busy tone until you resume.",
+        "resume": "Resume agent",
+        "resumeHint": "Answers again on every number.",
+        "paused": "Agent paused.",
+        "resumed": "Agent resumed.",
+        "delete": "Delete agent",
+        "deleteHint": "Removes the agent. Its calls stay in your history.",
+        "deleteTitle": "Delete {name}?",
+        "deleteBody": "This cannot be undone. Calls it took stay in your history.",
+        "deleted": "Agent deleted.",
+        "inUse": "Release its phone numbers first.",
+        "adminOnly": "Your role cannot pause or delete agents.",
+        "denoise": "Filter background noise",
+        "denoiseHint": "Stronger filtering that also drops voices in the background, for callers in a shop, a car or on the street.",
+        "pii": "Remove sensitive details",
+        "piiHint": "After each call, card and bank numbers, ID and account numbers, passwords, PINs and dates of birth are removed from the transcript and the recording. Names and phone numbers are kept.",
+        "voicemail": "Voicemail detection applies to callbacks you place. Set it in <link>Settings → Outbound calling</link>."
+      },
+      "website": {
+        "title": "Website button",
+        "body": "Add a “Talk to us” button to your website. Visitors talk to your live agent in their browser, with no phone needed. Calls use credits like phone calls and show in Calls as Website.",
+        "notLive": "Your agent is not live yet. Until it is, the button tells visitors it is unavailable.",
+        "enabled": "Show the button",
+        "enabledHint": "Turn it off to hide the button everywhere it is installed.",
+        "adminOnly": "Only owners and admins can change these settings.",
+        "turnedOn": "The website button is on.",
+        "turnedOff": "The website button is off.",
+        "snippet": {
+          "title": "Add it to your site",
+          "body": "Paste this line into your website’s HTML, just before the closing body tag, on every page where the button should appear.",
+          "preview": "Preview",
+          "rotate": "New key",
+          "off": "The button is off, so the snippet shows nothing until you turn it back on."
+        },
+        "origins": {
+          "title": "Where it may appear",
+          "body": "List your website addresses so nobody can put your button on another site. Leave it empty to allow any site.",
+          "placeholder": "https://example.com",
+          "any": "Any website can show this button.",
+          "invalid": "Not a website address: {sites}",
+          "saved": "Saved."
+        },
+        "rotate": {
+          "title": "Replace the key?",
+          "body": "You will get a new snippet to paste on your site.",
+          "consequence": "The button stops working on every site that uses the old snippet until you paste the new one.",
+          "confirm": "Replace key",
+          "done": "New key ready. Paste the new snippet on your site."
+        }
+      }
+    },
+    "numbers": {
+      "title": "Phone numbers",
+      "subtitle": "The numbers callers dial to reach your agents.",
+      "empty": "No phone numbers yet.",
+      "emptyHint": "Add a number and point it at a live agent to start taking calls.",
+      "emptyViewer": "An owner or admin can add one.",
+      "add": "Add number",
+      "settingUp": "Setting up…",
+      "back": "All numbers",
+      "loadFailed": "We could not load your numbers.",
+      "notFound": "This number is not in this workspace.",
+      "rename": "Rename",
+      "changeAgent": "Change agent",
+      "release": "Release",
+      "openNumber": "Open",
+      "moreActions": "More actions for {number}",
+      "listLabel": "Phone numbers",
+      "columns": {
+        "number": "Number",
+        "label": "Label",
+        "type": "Type",
+        "country": "Country",
+        "agent": "Agent",
+        "status": "Status",
+        "calls7d": "Calls (7 days)",
+        "rental": "Rental"
+      },
+      "type": {
+        "new": "New",
+        "forward": "Forward target",
+        "sip": "SIP"
+      },
+      "status": {
+        "provisioning": "Provisioning",
+        "active": "Active",
+        "paused": "Paused",
+        "releasing": "Releasing",
+        "released": "Released",
+        "failed": "Failed"
+      },
+      "rentalValue": "{credits} cr/mo",
+      "rentalNone": "—",
+      "nextRental": "Next rental {date}",
+      "areaCodeNote": "No numbers were available in area code {requested}, so we chose the closest we could get: {bought}.",
+      "noAgent": "No agent",
+      "unknownAgent": "Removed agent",
+      "releasedNote": "This number was released. It no longer answers calls and nothing is charged for it.",
+      "failedNote": "Setting up this number failed: {reason}",
+      "renameDialog": {
+        "title": "Rename number",
+        "label": "Label",
+        "hint": "Only you see this, for example “Front desk”.",
+        "save": "Save label",
+        "saved": "Label saved.",
+        "clear": "Remove label"
+      },
+      "tabs": {
+        "label": "Number settings",
+        "routing": "Routing",
+        "handoff": "Hand-off",
+        "callers": "Callers",
+        "forwarding": "Forwarding",
+        "sip": "SIP",
+        "danger": "Danger zone"
+      },
+      "readOnly": "You can view this number. An owner, admin or editor can change it.",
+      "saved": "Saved.",
+      "routing": {
+        "title": "Routing",
+        "body": "Which agent answers this number, and when.",
+        "agent": "Agent",
+        "agentHint": "Only published agents can answer calls.",
+        "agentNone": "Publish an agent first — none is live yet.",
+        "active": "Answer calls on this number",
+        "activeHint": "Off pauses this number: callers hear a busy tone and nothing is charged.",
+        "staffPaused": "This number has been paused by our support team. You cannot reactivate it from your dashboard. Please contact support for assistance.",
+        "staffPausedTicket": "Support ticket #{id}",
+        "staffPausedContact": "Contact support: {email}",
+        "staffPausedHint": "Only our support team can turn this number back on.",
+        "hours": "When to answer",
+        "modes": {
+          "always": "Around the clock",
+          "business": "During business hours",
+          "custom": "On a schedule for this number",
+          "outside_hours": "Only outside business hours",
+          "unanswered": "Only when I don’t answer"
+        },
+        "modeHints": {
+          "always": "Your agent answers every call, day and night.",
+          "business": "Your agent answers during the workspace’s business hours. Outside them callers hear a busy tone and the call shows as missed.",
+          "custom": "Your agent answers during the hours below. Outside them callers hear a busy tone and the call shows as missed.",
+          "outside_hours": "During the workspace’s business hours your own phone rings (the call is declined here); once you are closed, your agent answers.",
+          "unanswered": "For a forwarded line set to busy / no answer: your agent answers every call that reaches this number."
+        },
+        "noBusinessHours": "The workspace has no business hours yet, so this number answers around the clock until you set them.",
+        "setBusinessHours": "Set business hours",
+        "customEmpty": "Open at least one day, or this number never answers.",
+        "save": "Save routing"
+      },
+      "handoff": {
+        "title": "Hand-off",
+        "body": "The people your agent can transfer a caller to when they ask for a person or the agent cannot help.",
+        "save": "Save hand-off",
+        "fix": "Fix the highlighted rows first.",
+        "failLabel": "Message if the transfer fails",
+        "failHint": "Your agent reads this word for word when a transfer does not go through. Leave it empty and your agent says the team cannot take the call right now, then offers to take a message.",
+        "failPlaceholder": "Sorry, nobody can take your call right now. Leave your name and number and we will call you back.",
+        "failCount": "{used} / {max}"
+      },
+      "callers": {
+        "countriesTitle": "Allowed caller countries",
+        "countriesBody": "Calls from anywhere else are refused. Leave empty to accept what your plan allows.",
+        "countriesAdd": "Add a country",
+        "countriesEmpty": "Any country your plan allows.",
+        "countriesMax": "Up to {max} countries.",
+        "removeCountry": "Remove {country}",
+        "blockTitle": "Blocked callers",
+        "blockBody": "Calls from these numbers are declined before your agent answers and cost nothing.",
+        "blockPlaceholder": "+15145550123, then Enter",
+        "blockInvalid": "Not a phone number in international format: {entries}",
+        "blockMax": "Up to {max} numbers.",
+        "save": "Save callers",
+        "recentTitle": "Recent callers",
+        "recentBody": "Who called this number, newest first.",
+        "recentEmpty": "Nobody has called this number yet.",
+        "recentLabel": "Recent callers on this number",
+        "columns": {
+          "caller": "Caller",
+          "when": "When",
+          "status": "Status",
+          "length": "Length",
+          "action": "Action"
+        },
+        "block": "Block",
+        "blocked": "Blocked",
+        "blockedToast": "{number} is blocked on this number.",
+        "unknown": "Unknown caller",
+        "misread": "These were saved without their country code, so they block nobody:",
+        "misreadRow": "{entry} → {suggestion}",
+        "misreadUse": "Use the corrected numbers"
+      },
+      "forwarding": {
+        "title": "Forward your existing line",
+        "body": "Callers keep dialling {from}. Your carrier forwards those calls to {to}, which your agent answers.",
+        "bodyPending": "Callers keep dialling {from}. Your carrier forwards those calls to this number once it is set up.",
+        "status": {
+          "waiting_for_customer": "Waiting for you",
+          "ready": "Forwarding on",
+          "failed": "Needs attention"
+        },
+        "confirm": "I have switched forwarding on",
+        "confirmHint": "Tell us once your carrier forwards the calls, so we stop reminding you.",
+        "confirmed": "Marked as forwarding.",
+        "unconfirm": "Mark as not forwarding yet",
+        "test": {
+          "title": "Test forwarding",
+          "body": "We call {from} from this number. If your carrier forwards it, the call comes straight back here and we know it works.",
+          "start": "Test forwarding",
+          "again": "Test again",
+          "calling": "Calling…",
+          "ringing": "Calling your line. This takes up to a minute and a half.",
+          "never": "Not tested yet.",
+          "testedAt": "Tested {when}",
+          "status": {
+            "calling": "Calling",
+            "landed": "Working",
+            "not_landed": "Not forwarded",
+            "failed": "Could not call"
+          },
+          "notLandedHint": "The call did not come back. Check the forwarding code for your carrier above, and that neither you nor your voicemail answered first, then test again.",
+          "callerIdOriginal": "Your carrier shows forwarded calls with your own line as the caller, so the real caller may not appear in your call log.",
+          "cost": "If someone or your voicemail answers your phone during the test, the agent talks for up to a minute, which uses credits.",
+          "toast": {
+            "landed": "Forwarding works: the call reached your agent.",
+            "notLanded": "The test call was not forwarded."
+          }
+        },
+        "line": {
+          "label": "Your existing line",
+          "hint": "The number your callers dial today, with its country code. After a change, turn forwarding on from that line and test again.",
+          "save": "Save line",
+          "saved": "Line saved. Turn forwarding on from it, then test again."
+        }
+      },
+      "sip": {
+        "title": "SIP connection",
+        "body": "The phone system this number arrives from.",
+        "number": "Number",
+        "host": "Termination URI",
+        "username": "Username",
+        "password": "Password",
+        "passwordStored": "Stored encrypted",
+        "passwordNone": "None",
+        "showUsername": "Show username",
+        "hideUsername": "Hide username",
+        "missing": "We could not read the connection details for this number.",
+        "change": "To change the host or credentials, use Update details. We check new details first and keep the current ones if the check fails.",
+        "inbound": "For calls to reach your agent, your phone system must send them for this number to the address our team gives you. Ask support if you do not have it yet.",
+        "verify": {
+          "title": "Connection check",
+          "check": "Check connection",
+          "update": "Update details",
+          "never": "Not checked yet.",
+          "running": "Checking your phone system…",
+          "checkedAt": "Checked {when}",
+          "updated": "New details saved.",
+          "adminOnly": "An owner or admin can check the connection.",
+          "status": {
+            "pending": "Checking",
+            "verified": "Working",
+            "warning": "Reachable",
+            "failed": "Not working"
+          },
+          "toast": {
+            "verified": "Your phone system answered and accepted the details.",
+            "warning": "Your phone system answered, but we could not confirm the password.",
+            "failed": "The check failed. See why below."
+          },
+          "reasons": {
+            "auth_rejected": "Your phone system refused the username or password. Check them with your provider and update them here.",
+            "auth_required": "Your phone system asks for a username and password, and none is saved for this number. Add them with Update details.",
+            "unreachable": "We could not connect to your phone system at that address. Check the address, and that it accepts connections from the internet.",
+            "timeout": "Your phone system did not answer in time. Check the address and any firewall in front of it.",
+            "dns_failed": "That address does not exist. Check the spelling.",
+            "non_public": "That address points to a private network, which calls cannot reach. Use your phone system’s public address.",
+            "port_not_allowed": "That port is not one phone systems use. Use 5060, 5061 or your provider’s SIP port.",
+            "tls_failed": "A secure connection to your phone system could not be set up. Check its certificate, or use port 5060.",
+            "not_sip": "Something answered at that address, but it is not a phone system.",
+            "answered": "Your phone system answered without asking for a password, so we could not confirm it. Calls should still go through.",
+            "forbidden": "Your phone system answered but turned our check away — it probably only accepts known addresses. If calls do not go through, contact support.",
+            "not_on_platform": "This number is no longer connected on our side. Contact support.",
+            "provider_error": "We could not save the details on our side just now. Try again in a few minutes."
+          },
+          "dialog": {
+            "title": "Update connection details",
+            "body": "New details for {number}. Leave a field blank to keep what is saved.",
+            "bodyGeneric": "Leave a field blank to keep what is saved.",
+            "keepHint": "Currently {current}.",
+            "keepBlank": "Leave blank to keep the saved one.",
+            "safety": "We check the new details with your phone system first. If the check fails, nothing changes.",
+            "submit": "Check and save",
+            "failed": "The check failed, so nothing was changed."
+          }
+        },
+        "provider": "Provider",
+        "transport": "Transport",
+        "origination": "Inbound address",
+        "originationUnknown": "Not set up yet. Ask support.",
+        "copyOrigination": "Copy inbound address",
+        "copied": "Copied",
+        "copyFailed": "Could not copy. Select the address and copy it by hand.",
+        "inboundSet": "For calls to reach your agent, your phone system must send calls for this number to the inbound address above."
+      },
+      "danger": {
+        "title": "Release this number",
+        "body": "Releasing gives the number back. It stops answering at once and its monthly rental stops.",
+        "consequences": [
+          "Callers who dial it will no longer reach your agent.",
+          "There is no undo — we cannot get the same number back for you.",
+          "Past calls stay in your call history."
+        ],
+        "consequencesSip": [
+          "Calls from your phone system will no longer reach your agent.",
+          "You can import the same SIP number again later.",
+          "Past calls stay in your call history."
+        ],
+        "button": "Release number",
+        "confirmTitle": "Release {number}?",
+        "typeLabel": "Type {number} to confirm",
+        "done": "{number} was released.",
+        "adminOnly": "Only an owner or admin can release a number.",
+        "released": "This number has already been released."
+      },
+      "addDialog": {
+        "title": "Add a phone number",
+        "body": "Choose how callers will reach your agent.",
+        "agent": "Agent that answers",
+        "agentNone": "Publish an agent before adding a number.",
+        "submitNew": "Get this number",
+        "submitSip": "Connect this line",
+        "balanceLow": "A number costs {credits} credits a month and your balance is {balance}. Buy credits first.",
+        "buyCredits": "Buy credits",
+        "adminOnly": "Only an owner or admin can add a number.",
+        "started": "We are setting up your number. It appears here as soon as it is ready.",
+        "sipLocked": "Bringing your own line is part of a bigger pack.",
+        "purchaseRequired": "Buy a credit pack before adding a phone number. Free trial credits are for browser test calls only.",
+        "limitReached": "Your {plan} plan includes {max, plural, one {one phone number} other {# phone numbers}}. Upgrade your plan to add another.",
+        "upgrade": "Upgrade plan"
+      },
+      "fixNotice": {
+        "title": "Some phone numbers need fixing",
+        "body": "These were saved without their country code. Until they’re corrected, a hand-off goes to the wrong number and a blocked caller still gets through.",
+        "handoff": "{count, plural, one {Fix # hand-off number} other {Fix # hand-off numbers}}",
+        "blocked": "{count, plural, one {Fix # blocked caller} other {Fix # blocked callers}}",
+        "dismiss": "Hide"
+      }
+    },
+    "wallet": {
+      "title": "Wallet & billing",
+      "subtitle": "Credits, what they paid for, and how you pay.",
+      "empty": "Your credit history will appear here.",
+      "paused": {
+        "banner": "Purchases are paused right now."
+      },
+      "viewerNote": "You can see the balance and history. An owner or admin manages payments.",
+      "balance": {
+        "title": "Balance",
+        "credits": "credits",
+        "plan": "{tier} plan · {concurrency, plural, one {# call} other {# calls}} at once · {kb, plural, =0 {no agent knowledge} one {knowledge for # agent} other {knowledge for # agents}}",
+        "expiring": "Expiring next: {credits} on {date}",
+        "nothingExpiring": "Nothing expiring soon.",
+        "minutes": "About {minutes, plural, one {# minute} other {# minutes}} on a standard agent",
+        "buy": "Buy credits",
+        "live": "Updates live"
+      },
+      "buy": {
+        "title": "Buy credits",
+        "body": "Credits are added as soon as the payment clears.",
+        "linkNeedsAdmin": "This link offers a credit pack. Ask an owner or admin of this workspace to open it."
+      },
+      "checkout": {
+        "confirming": "Confirming your payment…",
+        "credited": "Payment received. Your credits are in.",
+        "pending": "Payment received. Credits appear here within a minute.",
+        "cancelled": "Checkout was cancelled. Nothing was charged.",
+        "failed": "We could not confirm the payment yet. If you paid, the credits arrive shortly."
+      },
+      "autoTopup": {
+        "title": "Auto top-up",
+        "body": "Buy a pack automatically when the balance runs low, so your agent never stops mid-day.",
+        "enabled": "Auto top-up",
+        "on": "On",
+        "off": "Off",
+        "pack": "Pack",
+        "packPlaceholder": "Choose a pack",
+        "threshold": "When the balance falls below",
+        "thresholdHint": "In credits, at least 10.",
+        "thresholdError": "Enter at least 10 credits.",
+        "packError": "Choose the pack to buy.",
+        "packGone": "The pack auto top-up was set to buy is no longer sold. Nothing is bought until you choose another pack and save.",
+        "card": "Card",
+        "cardValue": "•••• {last4}",
+        "noCard": "No saved card yet. A card is saved when you buy a pack with auto top-up switched on.",
+        "addCard": "Add a card",
+        "save": "Save auto top-up",
+        "saved": "Auto top-up saved.",
+        "summaryOn": "Buys {pack} when the balance falls below {threshold} credits.",
+        "summaryOff": "Off. Your agent stops answering when the credits run out.",
+        "fxHint": "Charged in {currency} at the price on the day of the top-up."
+      },
+      "expiring": {
+        "title": "Expiring soon",
+        "body": "Credits expire {months} months after purchase and the oldest are used first.",
+        "empty": "Nothing expires in the next 60 days.",
+        "row": "{credits} credits on {date}",
+        "bodyNoPolicy": "The oldest credits are used first."
+      },
+      "usage": {
+        "title": "Usage",
+        "subtitle": "Credits used by calls per day, last 30 days",
+        "summary": "{total} cr used · {perDay}/day",
+        "empty": "No credits used in the last 30 days.",
+        "emptyHint": "Each day with calls shows up here."
+      },
+      "ledger": {
+        "title": "Credit history",
+        "body": "Every credit in and out of the wallet, newest first.",
+        "filter": "Show",
+        "all": "Everything",
+        "empty": "Nothing here yet.",
+        "emptyFiltered": "No movements of this kind.",
+        "label": "Credit history",
+        "columns": {
+          "date": "Date",
+          "type": "Type",
+          "description": "Description",
+          "amount": "Amount",
+          "balance": "Balance"
+        },
+        "reason": {
+          "trial": "Free trial",
+          "purchase": "Pack purchase",
+          "call": "Call",
+          "rental": "Number rental",
+          "kb": "Agent knowledge",
+          "adjustment": "Adjustment",
+          "expiry": "Expired credits",
+          "refund": "Refund",
+          "topup": "Auto top-up",
+          "transfer": "Transferred call"
+        },
+        "describe": {
+          "trial": "Welcome credits",
+          "purchase": "Credits added",
+          "call": "Call charge",
+          "rental": "Monthly number rental",
+          "kb": "Monthly charge for what an agent knows",
+          "adjustment": "Adjusted by our team",
+          "expiry": "Credits reached their expiry",
+          "refund": "Refunded",
+          "topup": "Automatic top-up",
+          "transfer": "Charge for a transferred call"
+        },
+        "viewCall": "View call",
+        "export": "Export CSV",
+        "exportDone": "Your export is downloading."
+      },
+      "invoices": {
+        "title": "Invoices",
+        "body": "Receipts for every payment, hosted by our payment provider.",
+        "empty": "No invoices yet. One is issued for every pack you buy.",
+        "label": "Invoices",
+        "columns": {
+          "date": "Date",
+          "number": "Invoice",
+          "amount": "Amount",
+          "status": "Status",
+          "actions": "Actions"
+        },
+        "status": {
+          "draft": "Draft",
+          "open": "Open",
+          "paid": "Paid",
+          "payment_failed": "Payment failed",
+          "void": "Void",
+          "uncollectible": "Uncollectible"
+        },
+        "view": "View",
+        "pdf": "PDF",
+        "noNumber": "—"
+      },
+      "payment": {
+        "title": "Payment methods",
+        "body": "Cards, billing address and tax ID are managed securely on our payment provider’s page.",
+        "card": "Card on file",
+        "none": "No saved card.",
+        "manage": "Manage payment methods",
+        "opening": "Opening…",
+        "needPurchase": "Buy a pack first — that is what creates your billing account."
+      }
+    },
+    "settings": {
+      "title": "Settings",
+      "theme": "Appearance",
+      "themeHint": "Choose how Oraly looks to you on this device.",
+      "workspace": "Workspace",
+      "security": "Security",
+      "members": "Team",
+      "tabs": {
+        "label": "Settings sections",
+        "workspace": "Workspace",
+        "team": "Team",
+        "notifications": "Notifications",
+        "security": "Security",
+        "privacy": "Data & privacy",
+        "outbound": "Outbound calling",
+        "audit": "Audit log"
+      },
+      "adminOnly": "Only an owner or admin can change this.",
+      "saved": "Settings saved.",
+      "ws": {
+        "title": "Business details",
+        "body": "Used by your agents and in every date and time we show you.",
+        "name": "Business name",
+        "nameError": "Between 2 and 80 characters.",
+        "country": "Country",
+        "countryHint": "Fixed once the workspace exists.",
+        "timezone": "Time zone",
+        "timezoneHint": "“Today”, business hours and the daily digest follow this zone.",
+        "website": "Website",
+        "websiteError": "Enter a full address, like https://example.com.",
+        "hoursTitle": "Default business hours",
+        "hoursBody": "Numbers set to “during business hours” answer on this schedule.",
+        "hoursClear": "No business hours",
+        "save": "Save workspace",
+        "currency": "Currency",
+        "currencyHint": "What your packs and top-ups are charged in. You can change it until your first purchase.",
+        "currencyLockedHint": "Fixed by your first purchase. Contact support to change it."
+      },
+      "team": {
+        "title": "Members",
+        "body": "Everyone who can open this workspace.",
+        "label": "Workspace members",
+        "you": "You",
+        "neverActive": "Not yet",
+        "mfaOn": "On",
+        "mfaOff": "Off",
+        "columns": {
+          "name": "Name",
+          "email": "Email",
+          "role": "Role",
+          "lastActive": "Last active",
+          "mfa": "Two-factor",
+          "joined": "Joined",
+          "actions": "Actions"
+        },
+        "roleLabel": "Role for {name}",
+        "roleChanged": "{name} is now {role}.",
+        "remove": "Remove",
+        "removeTitle": "Remove {name}?",
+        "removeBody": "They lose access to this workspace at once. Their past activity stays in the audit log.",
+        "removed": "{name} was removed.",
+        "transfer": "Make owner",
+        "transferTitle": "Make {name} the owner?",
+        "transferBody": "There is exactly one owner. You become an admin and {name} can then change or remove you.",
+        "transferType": "Type {email} to confirm",
+        "transferred": "{name} is now the owner.",
+        "invitesTitle": "Pending invitations",
+        "invitesEmpty": "No pending invitations.",
+        "invitesLabel": "Pending invitations",
+        "inviteColumns": {
+          "email": "Email",
+          "role": "Role",
+          "status": "Status",
+          "expires": "Expires",
+          "actions": "Actions"
+        },
+        "inviteStatus": {
+          "pending": "Pending",
+          "expired": "Expired"
+        },
+        "revoke": "Revoke",
+        "revoked": "Invitation revoked.",
+        "resend": "Resend",
+        "resent": "New invitation link created for {email}. The old link no longer works.",
+        "resentEmailed": "A new invitation was emailed to {email}. The old link no longer works.",
+        "resendTitle": "Send {email} a new invitation?",
+        "resendBody": "This creates a new link and emails it. The link sent before stops working at once.",
+        "expiredOn": "Expired {date}",
+        "inviteTitle": "Invite someone",
+        "inviteBody": "We email them a link to join with this role.",
+        "email": "Email",
+        "emailError": "Enter a valid email address.",
+        "role": "Role",
+        "invite": "Send invite",
+        "invited": "Invitation created for {email}.",
+        "invitedEmailed": "Invitation emailed to {email}.",
+        "emailFailed": "We could not email {email}. Copy the link below and send it yourself.",
+        "linkTitle": "Share this link with {email}",
+        "linkBody": "Only its holder can join, and only when signed in as {email}. It is shown once and expires on {date}.",
+        "linkBodyEmailed": "We emailed this link to {email}; you can also copy it and send it yourself. Only its holder can join, and only when signed in as {email}. It is shown once and expires on {date}.",
+        "roles": {
+          "owner": "Owner",
+          "admin": "Admin",
+          "editor": "Editor",
+          "viewer": "Viewer"
+        },
+        "roleHints": {
+          "admin": "Everything except transferring ownership.",
+          "editor": "Builds agents, edits routing, reads calls.",
+          "viewer": "Reads calls and agents; changes nothing."
+        }
+      },
+      "notifications": {
+        "title": "Your notifications",
+        "body": "These are your own preferences; each member sets theirs.",
+        "defaultNote": "You are on the workspace defaults. Saving creates your own preferences.",
+        "newMessage": "When a caller leaves a message",
+        "newMessageHint": "A message is anything a caller asked your agent to pass on.",
+        "modes": {
+          "instant": "Email me right away",
+          "daily": "One daily digest",
+          "off": "Don’t email me"
+        },
+        "lowBalance": "Low balance emails",
+        "lowBalanceHint": "At 20 %, 5 % and 0 of your last pack.",
+        "save": "Save notifications"
+      },
+      "sec": {
+        "mfaTitle": "Two-step verification",
+        "passwordTitle": "Password",
+        "passwordBody": "We email you a link to choose a new password.",
+        "passwordButton": "Email me a reset link",
+        "passwordSent": "Check {email} for the reset link.",
+        "passwordSocial": "If you sign in with Google, your password is managed by Google.",
+        "signOutTitle": "Sign out",
+        "signOutBody": "Signs you out of Oraly on this device.",
+        "signOut": "Sign out",
+        "sessionsTitle": "Where you are signed in",
+        "sessionsBody": "Every browser signed in to your account, whichever workspace it was opened in. Sign out any you do not recognise.",
+        "sessionsUnavailable": "Your sign-ins cannot be listed in this environment.",
+        "sessionsNone": "No sign-ins found.",
+        "thisDevice": "This device",
+        "device": "{browser} on {os}",
+        "deviceUnknown": "Unknown device",
+        "lastActive": "Last active {when}",
+        "ip": "IP address {ip}",
+        "endSession": "Sign out",
+        "endTitle": "Sign out {device}?",
+        "endBody": "Anyone using it will have to sign in again.",
+        "endWindow": "It can keep working for up to 15 minutes, until the access it already holds expires.",
+        "endConfirm": "Sign out device",
+        "ended": "Device signed out",
+        "mfaOff": "Turn off",
+        "mfaOffTitle": "Turn off two-step verification?",
+        "mfaOffBody": "You confirm with a code from your authenticator app first.",
+        "mfaOffPassword": "Signing in will ask for your password only.",
+        "mfaOffDevices": "Browsers you chose to remember are forgotten.",
+        "mfaOffConfirm": "Turn off two-step verification",
+        "mfaOffDone": "Two-step verification is off.",
+        "methodsTitle": "Ways you sign in",
+        "methodsBody": "The accounts you can use to sign in to Oraly.",
+        "methodsUnavailable": "Your sign-in methods cannot be listed in this environment.",
+        "methodsNone": "No sign-in methods found.",
+        "methods": {
+          "password": "Email and password",
+          "google": "Google",
+          "microsoft": "Microsoft",
+          "other": "Other ({connection})"
+        }
+      },
+      "dataRequests": {
+        "exportTitle": "Export your data",
+        "exportBody": "Download a zip file of this workspace: its settings, team, agents with every version of their script, numbers, calls, credit history, purchases, invoices, what your agents know and the activity log. A very long history is cut to its most recent rows.",
+        "exportCta": "Export all data",
+        "exportDone": "Your export is downloading.",
+        "exportAdminOnly": "Only an owner or admin can export this workspace's data.",
+        "deleteTitle": "Delete workspace",
+        "deleteBody": "Deleting closes this workspace for good. Our team completes it within {days, plural, one {# day} other {# days}} of your request, and you can withdraw the request until then.",
+        "deleteCta": "Delete workspace",
+        "deleteOwnerOnly": "Only the workspace owner can delete it.",
+        "confirmTitle": "Delete {workspace}?",
+        "confirmDescription": "This sends a deletion request to our team. Nothing is deleted today.",
+        "consequenceNumbers": "Every phone number is released and can't be recovered.",
+        "consequenceCredits": "Remaining credits are forfeited, not refunded.",
+        "consequenceData": "Agents, calls, recordings and team access are removed for good. Billing records we must keep are anonymised.",
+        "consequenceWhen": "Our team completes it within {days, plural, one {# day} other {# days}}. Until then you can withdraw the request here.",
+        "typeLabel": "Type {workspace} to confirm",
+        "confirmCta": "Request deletion",
+        "requestedToast": "Deletion requested. We opened a support ticket for it.",
+        "requestedTitle": "Deletion requested",
+        "requestedBy": "{who} asked for this workspace to be deleted on {date}. Our team will complete it by {due}.",
+        "requestedAnon": "Deletion of this workspace was requested on {date}. Our team will complete it by {due}.",
+        "followTicket": "Follow it in My tickets",
+        "withdraw": "Withdraw request",
+        "withdrawTitle": "Withdraw the deletion request?",
+        "withdrawDescription": "The workspace stays as it is. We let our team know on the same ticket.",
+        "withdrawn": "Deletion request withdrawn."
+      },
+      "privacy": {
+        "recordingTitle": "Recordings",
+        "recording": "Record calls on new agents",
+        "recordingHint": "Each agent can still switch recording on or off in its own settings.",
+        "retention": "Keep recordings and transcripts for",
+        "retentionHint": "Older recordings and transcripts are deleted automatically.",
+        "days": "{n, plural, one {# day} other {# days}}",
+        "save": "Save privacy settings",
+        "notice": "Tell callers the call is recorded",
+        "noticeHint": "An agent that records says a short notice before its greeting. Changes reach each agent the next time it is published.",
+        "noticeText": "Your own wording",
+        "noticeTextHint": "Used as written for every agent. Leave it empty for ours, in each agent's language.",
+        "noticePlaceholder": "Just so you know, this call is recorded.",
+        "pii": "Remove sensitive details on new agents",
+        "piiHint": "New agents start with sensitive-detail removal on. Each agent can still change it in its own settings."
+      },
+      "audit": {
+        "title": "Audit log",
+        "body": "What changed in this workspace, who did it and from where.",
+        "area": "Area",
+        "allAreas": "Everything",
+        "areas": {
+          "agent": "Agents",
+          "number": "Numbers",
+          "knowledge": "Knowledge",
+          "member": "Members",
+          "invite": "Invitations",
+          "workspace": "Workspace",
+          "phone_plan": "Phone plans",
+          "billing": "Billing",
+          "auto_topup": "Auto top-up",
+          "credits": "Credits",
+          "purchase": "Purchases",
+          "user": "Sign-in and security",
+          "support": "Support"
+        },
+        "empty": "Nothing recorded yet.",
+        "emptyFiltered": "Nothing in this area yet.",
+        "label": "Audit log",
+        "columns": {
+          "time": "Time",
+          "actor": "Who",
+          "action": "What",
+          "details": "Details",
+          "ip": "IP address"
+        },
+        "system": "Oraly",
+        "staff": "Support team",
+        "formerMember": "Former member",
+        "adminOnly": "Only an owner or admin can see the audit log.",
+        "actions": {
+          "agent_created": "Created an agent",
+          "agent_deleted": "Deleted an agent",
+          "agent_draft_selected": "Restored a version as the draft",
+          "agent_paused": "Paused an agent",
+          "agent_prompt_edited": "Edited an agent’s instructions",
+          "agent_published": "Published an agent",
+          "agent_resumed": "Resumed an agent",
+          "agent_activated": "Took an agent live",
+          "number_buy_requested": "Requested a new number",
+          "number_import_requested": "Connected a SIP number",
+          "number_updated": "Changed a number’s settings",
+          "number_release_requested": "Released a number",
+          "number_released_unpaid": "Released a number after unpaid rental",
+          "knowledge_added": "Added to what an agent knows",
+          "knowledge_removed": "Removed from what an agent knows",
+          "knowledge_removal_requested": "Asked to remove knowledge",
+          "member_role_changed": "Changed a member’s role",
+          "member_removed": "Removed a member",
+          "invite_created": "Invited someone",
+          "invite_revoked": "Revoked an invitation",
+          "invite_accepted": "Joined the workspace",
+          "workspace_created": "Created the workspace",
+          "workspace_updated": "Changed workspace settings",
+          "workspace_ownership_transferred": "Transferred ownership of the workspace",
+          "phone_plan_created": "Chose a phone number option",
+          "phone_plan_updated": "Changed the phone number option",
+          "billing_portal_session": "Opened payment settings",
+          "auto_topup_enabled": "Turned auto top-up on",
+          "auto_topup_disabled": "Turned auto top-up off",
+          "workspace_paused": "Paused the workspace",
+          "workspace_resumed": "Resumed the workspace",
+          "number_paused": "Paused a number",
+          "number_resumed": "Resumed a number",
+          "credits_adjusted": "Adjusted the credit balance",
+          "purchase_refunded": "Refunded a purchase",
+          "user_email_verified": "Verified a member’s email",
+          "user_mfa_reset": "Reset a member’s two-step sign-in",
+          "user_locked": "Locked a member’s account",
+          "user_unlocked": "Unlocked a member’s account",
+          "user_force_logout": "Signed a member out everywhere",
+          "support_ticket_opened": "Opened a support ticket"
+        },
+        "meta": {
+          "agent_id": "Agent",
+          "version_no": "Version",
+          "name": "Name",
+          "role": "Role",
+          "email": "Email",
+          "user_id": "Member",
+          "number_id": "Number",
+          "e164": "Number",
+          "has_password": "Password set",
+          "has_sip_password": "Password set",
+          "host": "SIP host",
+          "from_user_id": "From",
+          "to_user_id": "To",
+          "paused": "Paused",
+          "toll_free": "Toll-free",
+          "country": "Country",
+          "area_code": "Area code",
+          "forward_from": "Forwarded from",
+          "template_id": "Template",
+          "industry": "Industry",
+          "type": "Type",
+          "size_bytes": "Size (bytes)",
+          "status": "Status",
+          "status_before": "Previous status",
+          "was": "Was",
+          "fields": "Changed",
+          "option": "Option",
+          "days_overdue": "Days overdue",
+          "overdue_since": "Overdue since",
+          "timezone": "Timezone",
+          "trial_credits": "Trial credits",
+          "lint_warnings": "Warnings",
+          "existing_agents": "Agents before",
+          "from": "From",
+          "to": "To",
+          "pack_id": "Pack",
+          "threshold": "When the balance falls below",
+          "card_last4": "Card ending",
+          "reason_code": "Reason",
+          "delta": "Credits",
+          "credits_reversed": "Credits reversed",
+          "text": "Message",
+          "subject": "Subject"
+        },
+        "reasons": {
+          "goodwill": "Goodwill",
+          "service_issue": "Service issue",
+          "billing_error": "Billing error",
+          "promo": "Promotion",
+          "partner_deal": "Partner agreement",
+          "fraud_suspected": "Suspected fraud",
+          "abuse_policy": "Acceptable use policy",
+          "customer_request": "At your request",
+          "chargeback": "Chargeback",
+          "expiry_extension": "Expiry extension",
+          "testing_internal": "Internal testing",
+          "support_investigation": "Support investigation",
+          "legal_request": "Legal request",
+          "other": "Other"
+        }
+      },
+      "language": "Language",
+      "languageHint": "The language the portal is shown in on this browser. Your agent keeps its own languages, set on its Voice tab.",
+      "outbound": {
+        "notEnabled": "Outbound calling is not available for this workspace yet. You can verify your business now so it is ready when it opens.",
+        "kyc": {
+          "title": "Business verification",
+          "body": "Before your agent calls anyone, we check that your business is real. Our team reviews what you send.",
+          "status": {
+            "none": "Not submitted",
+            "pending": "In review",
+            "verified": "Verified",
+            "rejected": "Not approved"
+          },
+          "pending": "Submitted {date}. Our team is reviewing it.",
+          "verified": "Verified {date}.",
+          "rejectedTitle": "Not approved",
+          "rejectedNoReason": "Check the details below and submit them again.",
+          "fields": {
+            "legal_name": "Legal business name",
+            "registration_number": "Business registration number",
+            "registration_numberHint": "As it appears on your registration or incorporation papers.",
+            "registration_country": "Country of registration",
+            "address": "Registered address",
+            "contact_name": "Contact person",
+            "dnc_registration": "National do-not-call registration",
+            "dnc_registrationHint": "Your registration number with your country’s national do-not-call list, if you have one."
+          },
+          "errors": {
+            "legal_name": "Between 2 and 200 characters.",
+            "registration_number": "Between 2 and 60 characters.",
+            "registration_country": "Choose a country.",
+            "address": "Between 5 and 300 characters.",
+            "contact_name": "Between 2 and 120 characters.",
+            "dnc_registration": "At most 60 characters."
+          },
+          "submit": "Submit for verification",
+          "resubmit": "Submit again",
+          "submitted": "Sent. Our team will review your business."
+        },
+        "voicemail": {
+          "title": "Voicemail",
+          "body": "What your agent does when a callback reaches a voicemail box.",
+          "options": {
+            "hang_up": {
+              "title": "Hang up",
+              "description": "Recommended. A voicemail box is not the person who asked to be called back, and every second is billed."
+            },
+            "leave_message": {
+              "title": "Leave a message",
+              "description": "Your agent reads your message after the beep, then hangs up."
+            },
+            "off": {
+              "title": "Don’t check",
+              "description": "Your agent talks to whatever answers, voicemail included."
+            }
+          },
+          "message": "Message",
+          "messageHint": "Read word for word. Say who is calling and how to reach you.",
+          "messagePlaceholder": "Hello, we are returning your call. Please call us back when it suits you.",
+          "count": "{n}/{max}",
+          "messageError": "Write the message your agent leaves.",
+          "save": "Save voicemail setting",
+          "saved": "Voicemail setting saved."
+        },
+        "callerIds": {
+          "title": "Caller IDs",
+          "body": "The numbers a callback can come from. Numbers you buy from us are verified automatically; numbers from your own phone system are verified by our team.",
+          "label": "Caller IDs",
+          "empty": "No numbers yet. Buy one or bring your own from Numbers.",
+          "columns": {
+            "number": "Number",
+            "status": "Status",
+            "via": "Verification"
+          },
+          "verified": "Verified",
+          "unverified": "Not verified",
+          "paused": "Paused",
+          "via": {
+            "purchase": "Bought from us",
+            "staff": "Verified by our team",
+            "contactSupport": "Contact support to verify this number.",
+            "paused": "Paused — resume it in Numbers to call from it."
+          }
+        },
+        "today": {
+          "title": "Today",
+          "usage": "Callbacks today: {used} of {cap}",
+          "capNote": "Your plan allows {cap, plural, one {# callback} other {# callbacks}} a day, counted in your workspace’s time zone.",
+          "capZero": "Callbacks start with your first pack.",
+          "rule": "Your agent only calls back someone who called you in the last {days, plural, one {# day} other {# days}}, and only within the legal calling hours where they live, in every time zone of their country.",
+          "countries": "Countries you can call: {list}",
+          "countriesNone": "No countries are open for callbacks yet."
+        },
+        "dnc": {
+          "title": "Do-not-call list",
+          "body": "Numbers your agents never call back. You can also add the other party of a call from its details.",
+          "label": "Do-not-call list",
+          "empty": "No numbers on the list.",
+          "columns": {
+            "number": "Number",
+            "added": "Added",
+            "source": "Added from",
+            "reason": "Reason",
+            "actions": "Actions"
+          },
+          "by": "by {name}",
+          "source": {
+            "call": "A call",
+            "manual": "Typed in"
+          },
+          "remove": "Remove",
+          "removeTitle": "Take {number} off the list?",
+          "removeBody": "Your agents may call this number back again, within the usual rules.",
+          "removed": "{number} is off the list.",
+          "numberLabel": "Phone number",
+          "numberError": "Enter a phone number we can recognise.",
+          "reasonLabel": "Reason",
+          "reasonPlaceholder": "Asked not to be called",
+          "add": "Add to list",
+          "added": "{number} added to the list."
+        }
+      }
+    },
+    "help": {
+      "title": "Help",
+      "subtitle": "Guides, support and the state of the service.",
+      "body": "Guides and support are on the way. For now, email support@oraly.ai.",
+      "guidesTitle": "Guides",
+      "guides": {
+        "forwarding": {
+          "title": "Forward your existing number",
+          "body": "The codes to dial on your carrier to send calls to your agent’s number."
+        },
+        "sip": {
+          "title": "Connect your own phone system (SIP)",
+          "body": "What to have ready before you import a SIP line.",
+          "steps": [
+            "The phone number your system delivers, in international format (+1…).",
+            "The termination URI of your trunk, for example sip.example.com or sip:pbx.example.com:5060.",
+            "A username and password if your trunk uses them. The password is encrypted as soon as it arrives and never shown again.",
+            "A pack that includes bringing your own line."
+          ],
+          "cta": "Add a SIP number"
+        },
+        "billing": {
+          "title": "Credits and billing",
+          "body": "How credits are charged."
+        }
+      },
+      "faq": {
+        "rate": "A minute on a standard agent costs {standard} credits; on a premium agent, {premium}. Calls are metered per second.",
+        "missed": "Calls that never connect — busy, no answer, declined — cost nothing.",
+        "expiry": "Credits expire {months} months after purchase and the oldest are used first.",
+        "rental": "Each phone number costs {credits} credits a month. A number on your own SIP line costs nothing.",
+        "grace": "Your balance can dip {grace} credits below zero so a call is never cut off mid-sentence.",
+        "refund": "Credits are non-refundable."
+      },
+      "faqUnavailable": "Pricing could not be loaded right now.",
+      "reportTitle": "Report a call",
+      "reportBody": "Something went wrong on a call? Pick it and we get its details straight away.",
+      "reportEmpty": "No calls to report yet.",
+      "report": "Report",
+      "reportSubject": "Call report {id}",
+      "reportLine": "Call {id} at {when} from {caller}.",
+      "reportPrompt": "What went wrong:",
+      "reportDialog": {
+        "title": "Report a problem with this call",
+        "body": "Tell us what went wrong. Support gets this call with your message and answers under My tickets on the Help page.",
+        "message": "What went wrong?",
+        "placeholder": "For example: the agent gave the wrong opening hours.",
+        "send": "Send report",
+        "sent": "Report sent as ticket #{id}."
+      },
+      "allCalls": "All calls",
+      "statusTitle": "Service status",
+      "status": {
+        "ok": "All systems operational",
+        "degraded": "Some systems are degraded",
+        "unknown": "Status unavailable",
+        "checked": "Checked {time}",
+        "calls": "Answering calls",
+        "background": "Background tasks (numbers, emails, agent writing)",
+        "up": "Operational",
+        "down": "Degraded",
+        "refresh": "Check again",
+        "page": "Open the status page"
+      },
+      "contact": {
+        "title": "Contact support",
+        "body": "Open a ticket and a person answers, usually within one business day. Replies show up here and by email.",
+        "subject": "Subject",
+        "category": "What is it about?",
+        "categoryNone": "Not sure",
+        "categories": {
+          "billing": "Credits and billing",
+          "calls": "A call",
+          "agent": "My agent",
+          "numbers": "Phone numbers",
+          "account": "Account and team",
+          "other": "Something else"
+        },
+        "message": "Message",
+        "send": "Send to support",
+        "invalid": "Please fill this in.",
+        "opened": "Ticket #{id} is open. We will answer here and by email.",
+        "viewer": "Ask an editor, admin or the owner of this workspace to contact support.",
+        "orEmail": "Prefer email?"
+      },
+      "tickets": {
+        "title": "My tickets",
+        "body": "Everything this workspace has asked us, with our answers.",
+        "empty": "No tickets yet.",
+        "unavailable": "Tickets could not be loaded right now.",
+        "updated": "{when} · {who}",
+        "status": {
+          "open": "Open",
+          "pending": "Answered",
+          "resolved": "Resolved",
+          "closed": "Closed"
+        },
+        "reply": "Reply",
+        "replyPlaceholder": "Add to this ticket…",
+        "closedNote": "This ticket is closed. Open a new one if you need more help.",
+        "support": "Support",
+        "system": "Update",
+        "you": "You"
+      }
+    },
+    "comingSoon": "This page arrives in the next release.",
+    "live": {
+      "newCall": "New inbound call",
+      "missedCall": "Missed call",
+      "from": "From {number}",
+      "view": "View",
+      "fromWebsite": "From your website"
+    },
+    "alerts": {
+      "loadFailed": "Alerts could not be loaded",
+      "lowBalance": {
+        "title": "Your balance is below {pct}% of your last pack",
+        "outTitle": "You are out of credits",
+        "body": "{balance} credits left. Calls stop once the balance runs out.",
+        "outBody": "Your agent will stop answering until you add credits.",
+        "cta": "Buy credits"
+      },
+      "rentalOverdue": {
+        "title": "The rental for {number} is overdue",
+        "body": "{days, plural, one {# day} other {# days}} overdue. Add credits to keep the number."
+      },
+      "numberReleased": {
+        "title": "{number} was released",
+        "body": "The number's rental went unpaid for too long and it was released. Attach a new number to take calls.",
+        "cta": "Phone numbers"
+      },
+      "concurrency": {
+        "title": "Callers are hitting your concurrency limit",
+        "body": "{live, plural, one {# call} other {# calls}} at once against a limit of {cap}. A bigger pack raises the limit.",
+        "cta": "See packs"
+      },
+      "autoTopupFailed": {
+        "title": "Auto top-up failed",
+        "body": "Your saved card was declined. Update it to keep the balance topped up.",
+        "cta": "Update card"
+      }
+    },
+    "hours": {
+      "zone": "Time zone",
+      "zoneHint": "The clock these hours are read on.",
+      "zoneWorkspace": "Same as the workspace ({zone})",
+      "datesTitle": "Holidays and special dates",
+      "datesBody": "A date listed here replaces that day’s usual hours.",
+      "addDate": "Add a date",
+      "datesEmpty": "No special dates.",
+      "date": "Date",
+      "kind": "Hours on this date",
+      "closedAllDay": "Closed all day",
+      "specialHours": "Special hours",
+      "past": "Past",
+      "removeHours": "Remove these hours",
+      "removeDate": "Remove this date",
+      "problemsTitle": "Fix these before saving",
+      "problems": {
+        "zone": "The time zone is not one we recognise.",
+        "too_many": "{where}: at most 4 openings a day.",
+        "overlap": "{where}: the opening times overlap.",
+        "bad_date": "{where} is not a real date.",
+        "duplicate_date": "{where} is listed twice.",
+        "already_closed": "{where} is already closed all day.",
+        "too_many_dates": "There are too many special dates. Remove some past ones."
+      },
+      "openNow": "Open now — it is {time} ({zone}).",
+      "closedNow": "Closed now — it is {time} ({zone}). Opens {when}.",
+      "closedNowNoOpening": "Closed now — it is {time} ({zone}), and it does not open in the next week.",
+      "today": "today at {time}",
+      "tomorrow": "tomorrow at {time}",
+      "onDay": "{day} at {time}"
+    },
+    "announcements": {
+      "title": "From the Oraly team",
+      "dismiss": "Hide",
+      "until": "Until {date}",
+      "posted": "Posted {date}"
+    }
+  },
+  "impersonation": {
+    "title": "Staff view",
+    "invalidLink": "This view-as link is not valid. Start it again from the console.",
+    "expiredLink": "This view-as link has expired. Start it again from the console.",
+    "opening": "Opening the workspace…",
+    "banner": "Viewing {tenant} as read-only",
+    "bannerNoName": "Viewing a workspace as read-only",
+    "staff": "Staff: {email}",
+    "expires": "Ends {time}",
+    "hint": "Nothing can be changed from this view.",
+    "exit": "Exit view",
+    "exiting": "Ending…",
+    "ended": "The view-as session has ended."
+  },
+  "embed": {
+    "talk": "Talk to {business}",
+    "connecting": "Connecting…",
+    "live": "On the call with {business}",
+    "speaking": "{agent} is speaking",
+    "hangUp": "Hang up",
+    "ended": "Call ended. Thank you!",
+    "again": "Call again",
+    "preview": "Preview: this is the button visitors see on your website. Calls start only from your website; to talk to your agent, use the Test tab.",
+    "missing": "This button is not set up.",
+    "errors": {
+      "micDenied": "Allow the microphone to talk.",
+      "micMissing": "No microphone found.",
+      "busy": "Too many calls just now. Try again soon.",
+      "unavailable": "Not available right now. Try again later.",
+      "connection": "Could not connect. Try again."
+    }
+  }
+}

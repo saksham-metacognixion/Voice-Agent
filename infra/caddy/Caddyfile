@@ -1,0 +1,57 @@
+# TLS termination and reverse proxy for api.<domain> (ADR 0004). Caddy issues and renews
+# the Let's Encrypt certificate itself; nothing to rotate by hand. Webhooks and SSE hit
+# this host directly — never the frontend CDN.
+{
+	email {$ACME_EMAIL}
+	# Retell and Stripe deliver over HTTPS only; plain HTTP exists for the ACME challenge and
+	# the compose healthcheck, and redirects everything else.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+http://{$API_DOMAIN}, http://localhost, http://127.0.0.1 {
+	# Local liveness for Caddy's own healthcheck, then redirect the public hostname.
+	@health path /health
+	handle @health {
+		reverse_proxy api:4000
+	}
+	handle {
+		redir https://{$API_DOMAIN}{uri} permanent
+	}
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# SSE: GET /events holds the connection open; no buffering, generous idle timeouts.
+	@sse path /events
+	handle @sse {
+		reverse_proxy api:4000 {
+			flush_interval -1
+			transport http {
+				read_timeout 0
+				response_header_timeout 0
+			}
+		}
+	}
+
+	# Webhook bodies are verified over the raw bytes by the API; Caddy passes them through untouched.
+	handle {
+		reverse_proxy api:4000 {
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

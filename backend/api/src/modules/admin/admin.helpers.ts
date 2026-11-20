@@ -1,0 +1,145 @@
+import { createHash } from 'node:crypto';
+import { Prisma } from '@portal/db';
+import type { AdminCustomerStatus } from '@portal/schemas';
+import { AppError } from '../../common/errors/app-error';
+
+/*
+ * Small pure helpers every admin service shares: shape conversions and the one
+ * classification the console repeats on every list (SA2 "Status").
+ */
+
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A path id that is not a uuid is a 404 before it reaches a Postgres cast (a 500). */
+export function uuidParam(value: string, what: string): string {
+  if (!UUID_RE.test(value)) throw AppError.notFound(what);
+  return value;
+}
+
+/** A `where` fragment matching a uuid column on a full uuid, and nothing on anything shorter (Prisma has no prefix match on `@db.Uuid`). */
+export function idMatch(q: string): Array<{ id: string }> {
+  return UUID_RE.test(q) ? [{ id: q.toLowerCase() }] : [];
+}
+
+/**
+ * The digits to match a phone number on, or null when the query is not one (QA-045):
+ * "Dental 1" used to match every number containing a 1. A phone query has no letters
+ * and at least four digits; spaces, dashes, dots, brackets and a leading + are allowed.
+ */
+export function phoneQuery(q: string): string | null {
+  if (/[^\d\s+().-]/.test(q)) return null;
+  const digits = q.replace(/[^\d+]/g, '');
+  return digits.replace(/\D/g, '').length >= 4 ? digits : null;
+}
+
+export function num(value: Prisma.Decimal | number | null | undefined): number {
+  if (value === null || value === undefined) return 0;
+  return typeof value === 'number' ? value : value.toNumber();
+}
+
+export function numOrNull(value: Prisma.Decimal | number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  return typeof value === 'number' ? value : value.toNumber();
+}
+
+export function iso(value: Date | null | undefined): string | null {
+  return value ? value.toISOString() : null;
+}
+
+/** JSON columns as a record, or an empty one; never throws on a scalar. */
+export function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+export const DAY_MS = 86_400_000;
+/** SA2: "At risk (0 balance > 3 d)". */
+export const AT_RISK_AFTER_MS = 3 * DAY_MS;
+/** SA2 "Churned": nothing for 60 days on a workspace that had gone live. */
+export const CHURNED_AFTER_MS = 60 * DAY_MS;
+
+/**
+ * SA2 "Status", in precedence order: paused wins, then a wizard that never finished,
+ * then an empty wallet that has stayed empty, then silence, else active.
+ */
+export function customerStatusOf(input: {
+  pausedAt: Date | null;
+  onboardingCompletedAt: Date | null;
+  balance: number;
+  /** When the balance last moved (the newest ledger row), or null. */
+  balanceSince: Date | null;
+  lastActivityAt: Date | null;
+  now?: Date;
+}): AdminCustomerStatus {
+  const now = input.now ?? new Date();
+  if (input.pausedAt) return 'paused';
+  if (!input.onboardingCompletedAt) return 'onboarding';
+  if (
+    input.balance <= 0 &&
+    input.balanceSince &&
+    now.getTime() - input.balanceSince.getTime() > AT_RISK_AFTER_MS
+  )
+    return 'at_risk';
+  if (input.lastActivityAt && now.getTime() - input.lastActivityAt.getTime() > CHURNED_AFTER_MS)
+    return 'churned';
+  if (
+    !input.lastActivityAt &&
+    now.getTime() - input.onboardingCompletedAt.getTime() > CHURNED_AFTER_MS
+  )
+    return 'churned';
+  return 'active';
+}
+
+/**
+ * `customerStatusOf` as a SQL expression, for the SA2 list's Status filter: the same
+ * branches in the same order, over the caller's own balance / last-movement / last-activity
+ * expressions. Without the facts joined (`withFacts: false`) only the two statuses read
+ * from the tenant row can be told apart, which is all a `paused` or `onboarding` filter
+ * needs; everything else answers `other`. `test/qa-18nov-pricing.e2e.test.ts` holds the two together.
+ */
+export function customerStatusSql(input: { balance: Prisma.Sql; balanceSince: Prisma.Sql; lastActivity: Prisma.Sql; now: Date; withFacts: boolean }): Prisma.Sql {
+  const head = Prisma.sql`CASE WHEN t.paused_at IS NOT NULL THEN 'paused' WHEN t.onboarding_completed_at IS NULL THEN 'onboarding'`;
+  if (!input.withFacts) return Prisma.sql`${head} ELSE 'other' END`;
+  const atRiskBefore = new Date(input.now.getTime() - AT_RISK_AFTER_MS);
+  const churnedBefore = new Date(input.now.getTime() - CHURNED_AFTER_MS);
+  return Prisma.sql`${head}
+    WHEN ${input.balance} <= 0 AND ${input.balanceSince} IS NOT NULL AND ${input.balanceSince} < ${atRiskBefore} THEN 'at_risk'
+    WHEN ${input.lastActivity} IS NOT NULL AND ${input.lastActivity} < ${churnedBefore} THEN 'churned'
+    WHEN ${input.lastActivity} IS NULL AND t.onboarding_completed_at < ${churnedBefore} THEN 'churned'
+    ELSE 'active' END`;
+}
+
+/** The median of a sample (two middle values averaged when even), null when empty. Sorts a copy. */
+export function median(values: readonly number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
+}
+
+/** The trailing window for a range key. */
+export function rangeWindow(
+  range: '7d' | '30d' | '90d',
+  now = new Date(),
+): { from: Date; to: Date; days: number } {
+  const days = range === '7d' ? 7 : range === '30d' ? 30 : 90;
+  return { from: new Date(now.getTime() - days * DAY_MS), to: now, days };
+}
+
+export function jsonValue(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
+}
+
+/**
+ * A uuid derived from a seed, so a macro's idempotency key is scoped to its ticket: the
+ * same client key on two tickets is two adjustments, and a refund is one per (ticket, call).
+ * `credit_adjustments.id` is a uuid column, which is why the seed cannot be the id itself.
+ */
+export function derivedUuid(seed: string): string {
+  const h = createHash('sha256').update(seed).digest('hex').slice(0, 32).split('');
+  h[12] = '4';
+  h[16] = '89ab'[parseInt(h[16] as string, 16) % 4] as string;
+  const s = h.join('');
+  return `${s.slice(0, 8)}-${s.slice(8, 12)}-${s.slice(12, 16)}-${s.slice(16, 20)}-${s.slice(20)}`;
+}

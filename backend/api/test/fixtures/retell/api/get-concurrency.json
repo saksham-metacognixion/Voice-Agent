@@ -1,0 +1,13 @@
+{
+  "captured_at": "2026-09-15T05:24:29.666Z",
+  "data": {
+    "current_concurrency": 0,
+    "concurrency_limit": 20,
+    "base_concurrency": 20,
+    "purchased_concurrency": 0,
+    "concurrency_purchase_limit": 180,
+    "remaining_purchase_limit": 180,
+    "concurrency_burst_enabled": false,
+    "concurrency_burst_limit": 0
+  }
+}

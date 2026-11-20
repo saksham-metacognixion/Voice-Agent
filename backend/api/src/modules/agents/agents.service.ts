@@ -1,0 +1,1296 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Prisma, withWorkspace, type VersionSource, type WorkspaceDb } from '@portal/db';
+import {
+  type AgentDetail,
+  type AgentDraftPatch,
+  type AgentSettings,
+  type AgentSummary,
+  type AgentVersionDetail,
+  type AgentVersionSummary,
+  type AgentsQuery,
+  type AnalysisField,
+  type Brief,
+  type BriefPatch,
+  type CreateAgentRequest,
+  type DuplicateAgentRequest,
+  type LintRequest,
+  type LintResult,
+  type Page,
+  type PromptUpdate,
+  type SaveVersionResponse,
+  type Scenario,
+  agentSettings as agentSettingsSchema,
+  analysisField,
+  agentLanguage,
+  brief as briefSchema,
+  briefDocument as briefDocumentSchema,
+  handoffRule as handoffRuleSchema,
+  briefCard as briefCardSchema,
+  copyAgentName,
+  defaultAgentLanguage,
+  defaultAgentSettings,
+  lintResult as lintResultSchema,
+  scenario as scenarioSchema,
+} from '@portal/schemas';
+import { AppError } from '../../common/errors/app-error';
+import { cursorArgs, toPage } from '../../common/pagination';
+import type { WorkspaceContext } from '../auth';
+import { PlatformConfigService } from '../config';
+import { EventsService } from '../events';
+import { applyGuardrails, stripGuardrails } from '../prompting/guardrails';
+import { lintPrompt } from '../prompting/lint';
+import { agentNumberTransferTargets } from '../prompting/staff-transfer';
+import { RuntimeCacheService } from '../runtime-cache';
+import { AgentStackService } from './agent-stack.service';
+import { AgentEvents } from './agent-events';
+import { TemplatesService } from './templates.service';
+
+/**
+ * Agents and their versions (§9.9, §13.3, §16) — everything except the LLM (that is
+ * `prompting`) and Retell (that is `AgentPublishService`).
+ *
+ * Three rules shape every method here:
+ *
+ *   **Versions are immutable.** A generation, a feedback patch or a manual prompt edit
+ *   appends a row; nothing is rewritten. The single exception the spec asks for is the
+ *   W2 autosave, which writes into the draft — and "the draft" is defined narrowly as
+ *   *the newest version of the agent that has not been published*. A patch against
+ *   anything else forks a new version instead. The database enforces the same line
+ *   (`agent_versions_immutable`), so a service that got it wrong would fail loudly
+ *   rather than quietly rewrite history.
+ *
+ *   **A draft never changes what is live.** Tier, voice, languages, the duration ceiling
+ *   and recording travel *with the version* (`agent_versions.settings_json`); the copy on
+ *   `agents` is what the phone runs and what a call is billed at, and only a publish
+ *   writes it. The D3 Voice tab can flip a live Premium agent's draft to Standard all
+ *   afternoon and every call that afternoon still bills at Premium — because that is
+ *   what is answering. The one agent-level field this route does write live is the
+ *   name, which is a label, and even that refreshes the runtime cache (it appears in
+ *   `num:{e164}` as `agent_name`).
+ *
+ *   **Tenancy is the workspace, always.** Every read and write goes through
+ *   `withWorkspace(ctx)`, so RLS is the second guard and an agent id from another
+ *   workspace is a 404 rather than a leak (ADR 0006). There is no method here that takes
+ *   an agent id without a context.
+ */
+@Injectable()
+export class AgentsService {
+  private readonly log = new Logger(AgentsService.name);
+
+  constructor(
+    private readonly templates: TemplatesService,
+    private readonly stack: AgentStackService,
+    private readonly events: EventsService,
+    private readonly runtimeCache: RuntimeCacheService,
+    private readonly config: PlatformConfigService,
+  ) {}
+
+  // ------------------------------------------------------------------ create (W1)
+
+  /**
+   * POST /agents {template_id, industry} — W1 Continue.
+   *
+   * One transaction: the agent, its v1 draft pre-filled from the template, and the audit
+   * row. A failure anywhere rolls all three back; there is no state in which an agent
+   * exists without a version, which every later method would have to defend against.
+   *
+   * The template is loaded *before* the transaction opens. It is a database read and a
+   * file read, and neither belongs inside a transaction that holds a pooled connection
+   * (CLAUDE.md, "No network I/O inside withWorkspace" — the same reasoning).
+   *
+   * The agent's live columns start from the same defaults as the draft. Nothing bills
+   * against them until a publish: a draft agent is never `live`, so `num:{e164}` declines
+   * for it and the rate on `agents.tier` is never read for a call.
+   */
+  async create(ctx: WorkspaceContext, input: CreateAgentRequest): Promise<AgentDetail> {
+    const template = await this.templates.require(input.template_id);
+    const caps = await this.config.capsFor(ctx.workspaceId);
+
+    const prefill = briefSchema.parse(template.brief_prefill);
+    const settings = await this.newAgentSettings(ctx, template.default_tier, input.primary_language);
+    const name = input.name?.trim() || template.name;
+
+    const agentId = await withWorkspace(ctx, async (db) => {
+      // W1 creates a new agent each time the person picks another template, so the
+      // plan's `max_agents` counts only once onboarding is done; a paused workspace
+      // creates nothing at any stage (QA-078).
+      const existing = await this.assertRoomForAgent(db, ctx, caps.max_agents, { duringOnboarding: false });
+      const agent = await db.agent.create({
+        data: {
+          tenantId: ctx.workspaceId,
+          name,
+          templateId: template.id,
+          industry: input.industry,
+          ...liveColumnsFrom(settings),
+          draftVersion: 1,
+          status: 'draft',
+        },
+      });
+
+      await db.agentVersion.create({
+        data: {
+          agentId: agent.id,
+          versionNo: 1,
+          source: 'manual',
+          briefJson: prefill as unknown as Prisma.InputJsonValue,
+          analysisSchemaJson: template.analysis_fields as unknown as Prisma.InputJsonValue,
+          settingsJson: settings as unknown as Prisma.InputJsonValue,
+          createdBy: ctx.userId,
+        },
+      });
+
+      await this.audit(db, ctx, 'agent.created', agent.id, {
+        template_id: template.id,
+        template_version: template.version,
+        industry: input.industry ?? null,
+        existing_agents: existing,
+      });
+
+      return agent.id;
+    });
+
+    this.log.log(`agent ${agentId} created from ${template.id} in workspace ${ctx.workspaceId}`);
+    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.created, {
+      agent_id: agentId,
+      template_id: template.id,
+    });
+    return this.get(ctx, agentId);
+  }
+
+  // ------------------------------------------------------------------ duplicate (D3)
+
+  /**
+   * POST /agents/:id/duplicate {name?} — D3's list menu "Duplicate" (QA-078): a second
+   * location's agent without writing the brief again or waiting for a generation.
+   *
+   * The copy is a new agent whose v1 holds the source's **draft** (what D3 shows, and
+   * what Publish would send) — brief, documents included, analysis fields, settings,
+   * script, greeting, closing, brief card, scenarios and lint — so it can be tested and
+   * published straight away. Not the newest row: "Discard draft" is a pointer move, and
+   * the newest row of an agent whose draft was discarded is the draft that was thrown
+   * away. The row is `source = manual`, as W1's v1 is: no model wrote it here, and
+   * `generated` / `regenerate` are what a generation job writes.
+   *
+   * What stays with the source: phone numbers (a number routes to one agent), knowledge
+   * sources (one platform base per agent, counted against `kb_allowance`), the website
+   * widget (its public key is the source's), the version history and the platform
+   * objects. Those are created the way W1's are — lazily, by the first test call or
+   * publish of the copy (`AgentDraftSyncService` / `AgentPublishService`), so this route
+   * makes no platform request.
+   *
+   * Room for the copy is checked as W1 would need it: not while the workspace is paused,
+   * and not past the plan's `max_agents` (`assertRoomForAgent`).
+   */
+  async duplicate(ctx: WorkspaceContext, sourceId: string, input: DuplicateAgentRequest): Promise<AgentDetail> {
+    const caps = await this.config.capsFor(ctx.workspaceId);
+
+    const { agentId, sourceVersion, templateId } = await withWorkspace(ctx, async (db) => {
+      const source = await this.loadAgent(db, ctx, sourceId);
+      const existing = await this.assertRoomForAgent(db, ctx, caps.max_agents);
+
+      const baseNo = source.draftVersion ?? source.publishedVersion;
+      const base = baseNo
+        ? await db.agentVersion.findUnique({ where: { agentId_versionNo: { agentId: source.id, versionNo: baseNo } } })
+        : await db.agentVersion.findFirst({ where: { agentId: source.id }, orderBy: { versionNo: 'desc' } });
+      if (!base) throw AppError.notFound('Draft version');
+
+      const settings = settingsOf(base, source);
+      // `agents.voice_id` is a foreign key into the catalogue. A draft's voice that has
+      // since left it stays on the version (publish refuses it with a field error, as for
+      // the source); the copy's live column, which nothing reads before a publish, does
+      // not carry it.
+      const voice = settings.voice_id
+        ? await db.voice.findUnique({ where: { retellVoiceId: settings.voice_id }, select: { retellVoiceId: true } })
+        : null;
+      const agent = await db.agent.create({
+        data: {
+          tenantId: ctx.workspaceId,
+          name: input.name ?? copyAgentName(source.name),
+          templateId: source.templateId,
+          industry: source.industry,
+          ...liveColumnsFrom(settings),
+          voiceId: voice?.retellVoiceId ?? null,
+          draftVersion: 1,
+          status: 'draft',
+        },
+      });
+
+      await db.agentVersion.create({
+        data: {
+          agentId: agent.id,
+          versionNo: 1,
+          source: 'manual',
+          briefJson: parseBrief(base.briefJson) as unknown as Prisma.InputJsonValue,
+          promptText: base.promptText,
+          greeting: base.greeting,
+          closing: base.closing,
+          analysisSchemaJson: parseAnalysisFields(base.analysisSchemaJson) as unknown as Prisma.InputJsonValue,
+          settingsJson: settings as unknown as Prisma.InputJsonValue,
+          briefCardJson: (base.briefCardJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          scenariosJson: (base.scenariosJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          lintJson: (base.lintJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          stackVersion: base.stackVersion,
+          createdBy: ctx.userId,
+        },
+      });
+
+      await this.audit(db, ctx, 'agent.duplicated', agent.id, {
+        source_agent_id: source.id,
+        source_version: base.versionNo,
+        template_id: source.templateId,
+        existing_agents: existing,
+      });
+      return { agentId: agent.id, sourceVersion: base.versionNo, templateId: source.templateId };
+    });
+
+    this.log.log(`agent ${agentId} duplicated from ${sourceId} v${sourceVersion} in workspace ${ctx.workspaceId}`);
+    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.created, {
+      agent_id: agentId,
+      template_id: templateId,
+      duplicated_from: sourceId,
+    });
+    return this.get(ctx, agentId);
+  }
+
+  /**
+   * Room for one more agent: the workspace is not paused, and it holds fewer live
+   * (not deleted) agents than its plan's `max_agents` (§5.2 caps, tenant overrides
+   * included). Inside the transaction that inserts the agent and under a per-workspace
+   * advisory lock, so two presses at once cannot both take the last slot. Returns the
+   * count it saw, for the audit row. `duringOnboarding: false` lifts the cap until
+   * `onboarding_completed_at` (W1's re-picks); the pause still applies.
+   */
+  private async assertRoomForAgent(
+    db: WorkspaceDb,
+    ctx: WorkspaceContext,
+    maxAgents: number,
+    opts: { duringOnboarding?: boolean } = {},
+  ): Promise<number> {
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'agents:' + ctx.workspaceId}))`;
+    const tenant = await db.tenant.findUniqueOrThrow({
+      where: { id: ctx.workspaceId },
+      select: { pausedAt: true, onboardingCompletedAt: true },
+    });
+    if (tenant.pausedAt) throw new AppError('WORKSPACE_PAUSED', 'This workspace is paused. Contact support to resume it.');
+    const existing = await db.agent.count({ where: { tenantId: ctx.workspaceId, deletedAt: null } });
+    const capped = opts.duringOnboarding !== false || tenant.onboardingCompletedAt !== null;
+    if (capped && existing >= maxAgents) {
+      throw new AppError(
+        'PLAN_LIMIT',
+        `Your plan includes ${maxAgents} agent${maxAgents === 1 ? '' : 's'}. Buy a larger pack or delete an agent to add another.`,
+      );
+    }
+    return existing;
+  }
+
+  // ------------------------------------------------------------------ read
+
+  async list(ctx: WorkspaceContext, query: AgentsQuery): Promise<Page<AgentSummary>> {
+    const rows = await withWorkspace(ctx, (db) =>
+      db.agent.findMany({
+        ...cursorArgs(query),
+        where: {
+          tenantId: ctx.workspaceId,
+          deletedAt: null,
+          ...(query.status ? { status: query.status } : {}),
+        },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: {
+          _count: { select: { phoneNumbers: true } },
+          // D1's card shows the line the agent answers on: the first active number, by age.
+          phoneNumbers: { where: { status: { in: ['active', 'paused'] }, e164: { not: null } }, orderBy: { createdAt: 'asc' }, take: 1, select: { e164: true } },
+        },
+      }),
+    );
+    const page = toPage(rows, query);
+    // Whether each draft has a script, so D1 can offer Publish without opening the agent.
+    const drafts = page.items.filter((r) => r.draftVersion !== null);
+    const withPrompt = drafts.length
+      ? await withWorkspace(ctx, (db) =>
+          db.agentVersion.findMany({
+            where: { OR: drafts.map((r) => ({ agentId: r.id, versionNo: r.draftVersion! })), promptText: { not: null } },
+            select: { agentId: true },
+          }),
+        )
+      : [];
+    const hasPrompt = new Set(withPrompt.map((v) => v.agentId));
+    return {
+      next_cursor: page.next_cursor,
+      items: page.items.map((row) =>
+        toSummary(row, { numbersAttached: row._count.phoneNumbers, numberE164: row.phoneNumbers[0]?.e164 ?? null, draftHasPrompt: hasPrompt.has(row.id) }),
+      ),
+    };
+  }
+
+  async get(ctx: WorkspaceContext, agentId: string): Promise<AgentDetail> {
+    const { agent, versions, numbers, first } = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const wanted = [agent.draftVersion, agent.publishedVersion].filter(
+        (v): v is number => v !== null,
+      );
+      const [versions, numbers, first] = await Promise.all([
+        wanted.length
+          ? db.agentVersion.findMany({ where: { agentId, versionNo: { in: wanted } } })
+          : Promise.resolve([]),
+        db.phoneNumber.count({ where: { agentId, tenantId: ctx.workspaceId } }),
+        db.phoneNumber.findFirst({ where: { agentId, tenantId: ctx.workspaceId, status: { in: ['active', 'paused'] }, e164: { not: null } }, orderBy: { createdAt: 'asc' }, select: { e164: true } }),
+      ]);
+      return { agent, versions, numbers, first };
+    });
+
+    const find = (no: number | null) => versions.find((v) => v.versionNo === no) ?? null;
+    const draft = find(agent.draftVersion);
+    const published = find(agent.publishedVersion);
+
+    return {
+      ...toSummary(agent, { numbersAttached: numbers, numberE164: first?.e164 ?? null, draftHasPrompt: draft?.promptText !== null && draft?.promptText !== undefined }),
+      draft: draft ? toVersionDetail(draft, agent) : null,
+      published: published ? toVersionDetail(published, agent) : null,
+    };
+  }
+
+  async listVersions(ctx: WorkspaceContext, agentId: string): Promise<AgentVersionSummary[]> {
+    const { agent, rows } = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const rows = await db.agentVersion.findMany({
+        where: { agentId },
+        orderBy: { versionNo: 'desc' },
+      });
+      return { agent, rows };
+    });
+    return rows.map((row) => toVersionSummary(row, agent));
+  }
+
+  async getVersion(
+    ctx: WorkspaceContext,
+    agentId: string,
+    versionNo: number,
+  ): Promise<AgentVersionDetail> {
+    const { agent, row } = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const row = await db.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId, versionNo } },
+      });
+      if (!row) throw AppError.notFound(`Version ${versionNo}`);
+      return { agent, row };
+    });
+    return toVersionDetail(row, agent);
+  }
+
+  // ------------------------------------------------------------------ draft (W2, W3, D3)
+
+  /**
+   * PATCH /agents/:id/draft — the wizard's autosave and the D3 Brief/Voice tabs.
+   *
+   * Three kinds of field, three destinations:
+   *
+   *   - `name`, `industry`        labels; written to `agents` now. A name shows up in
+   *                               `num:{e164}`, so the runtime cache is refreshed.
+   *   - `brief`, `analysis_fields` the version's content.
+   *   - everything else           `agentSettings` — tier, voice, languages, duration,
+   *                               recording — also the version's content. **Not** written
+   *                               to `agents`: those columns are live and bill.
+   *
+   * Content goes to the draft version — or, when that version is frozen (published, or
+   * overtaken by a newer one), to a fresh version forked from it, so an edit after a
+   * publish never rewrites what is live.
+   */
+  async patchDraft(
+    ctx: WorkspaceContext,
+    agentId: string,
+    patch: AgentDraftPatch,
+  ): Promise<AgentDetail> {
+    await this.assertDraftGates(ctx, patch);
+    const stack = await this.stack.current();
+    const settingsPatch = settingsPatchOf(patch);
+    // An edited list is the customer's from now on: a regenerate keeps it as it is
+    // rather than rebuilding it from the template and the model's additions (QA-079).
+    if (patch.analysis_fields !== undefined) settingsPatch.analysis_fields_edited = true;
+    const touchesVersion =
+      patch.brief !== undefined ||
+      patch.analysis_fields !== undefined ||
+      Object.keys(settingsPatch).length > 0;
+
+    const renamed = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+
+      const agentData: Prisma.AgentUncheckedUpdateInput = {};
+      if (patch.name !== undefined) agentData.name = patch.name.trim();
+      if (patch.industry !== undefined) agentData.industry = patch.industry;
+
+      if (settingsPatch.voice_id !== undefined && settingsPatch.voice_id !== null) {
+        // `agents.voice_id` is a foreign key into the cached catalogue, and a publish will
+        // copy this value there. An id that is not in `voices` would be a constraint
+        // violation and a 500 at publish time; the customer picked it from `GET /voices`,
+        // so "we do not have that voice" is the honest answer now — and the one W3 can act
+        // on by re-filtering the list.
+        const voice = await db.voice.findUnique({
+          where: { retellVoiceId: settingsPatch.voice_id },
+          select: { retellVoiceId: true },
+        });
+        if (!voice) {
+          throw new AppError('BAD_REQUEST', 'We do not have that voice. Pick one from the list.', [
+            { field: 'voice_id', message: 'Unknown voice' },
+          ]);
+        }
+      }
+
+      if (Object.keys(agentData).length > 0) {
+        await db.agent.update({ where: { id: agentId }, data: agentData });
+      }
+      if (!touchesVersion) return patch.name !== undefined;
+
+      const draft = await this.loadDraftForWrite(db, agent);
+      const merged = patch.brief
+        ? mergeBrief(parseBrief(draft.briefJson), patch.brief)
+        : parseBrief(draft.briefJson);
+      const fields = patch.analysis_fields ?? parseAnalysisFields(draft.analysisSchemaJson);
+      const settings = mergeSettings(settingsOf(draft, agent), settingsPatch);
+
+      // The brief changed, so the prompt that was generated from it is stale. It is kept
+      // (the customer may still test the version) but re-linted against the new brief, so
+      // "a transfer number with no hand-off rule" appears the moment it becomes true.
+      // Linted as it would run — current platform rules applied, as publish does — so a
+      // prompt stored before a rule was added is not reported as missing them.
+      const lint = draft.promptText
+        ? lintPrompt(
+            {
+              prompt: applyGuardrails(draft.promptText, stack.guardrails),
+              greeting: draft.greeting,
+              brief: merged,
+              primaryLanguage: settings.primary_language,
+              numberTransferTargets: await agentNumberTransferTargets(db, agentId),
+            },
+            stack.lint,
+          )
+        : null;
+
+      if (draft.frozen) {
+        await this.appendVersion(db, {
+          agentId,
+          source: 'manual',
+          brief: merged,
+          promptText: draft.promptText,
+          greeting: draft.greeting,
+          closing: draft.closing,
+          analysisFields: fields,
+          settings,
+          briefCard: draft.briefCardJson,
+          scenarios: draft.scenariosJson,
+          lint,
+          createdBy: ctx.userId,
+        });
+      } else {
+        await db.agentVersion.update({
+          where: { agentId_versionNo: { agentId, versionNo: draft.versionNo } },
+          data: {
+            briefJson: merged as unknown as Prisma.InputJsonValue,
+            analysisSchemaJson: fields as unknown as Prisma.InputJsonValue,
+            settingsJson: settings as unknown as Prisma.InputJsonValue,
+            ...(lint ? { lintJson: lint as unknown as Prisma.InputJsonValue } : {}),
+          },
+        });
+      }
+      return patch.name !== undefined;
+    });
+
+    if (renamed) {
+      // The only live field this route writes. `agent_name` rides in `num:{e164}`
+      // (CLAUDE.md: refresh from every mutating path). Never allowed to fail the save.
+      await this.runtimeCache
+        .refresh(ctx.workspaceId)
+        .catch((error: unknown) =>
+          this.log.warn(`runtime-cache refresh after rename failed: ${message(error)}`),
+        );
+    }
+
+    await this.events.publish(
+      ctx.workspaceId,
+      AgentEvents.topic(agentId),
+      AgentEvents.draftUpdated,
+      {
+        agent_id: agentId,
+      },
+    );
+    return this.get(ctx, agentId);
+  }
+
+  /**
+   * PUT /agents/:id/versions/:v/prompt — the Advanced editor's "Save as new version"
+   * (D3 Brief tab), source `manual`.
+   *
+   * The submitted text is the *body*: whatever guardrail block it contains is stripped and
+   * the canonical one appended (§9.4). There is no request shape through which a customer
+   * can remove, reword or replace the platform rules, which is why this method takes the
+   * prompt and never a "guardrails" field. The settings are the base version's, carried
+   * forward unchanged.
+   */
+  /**
+   * `POST /agents/:id/versions/:v/lint` — the same rules `saveManualPrompt` applies, on
+   * the same text it would store (guardrails appended), against version `v`'s brief and
+   * language. Nothing is written and nothing is published on the event stream.
+   */
+  async lintDraftPrompt(
+    ctx: WorkspaceContext,
+    agentId: string,
+    baseVersionNo: number,
+    body: LintRequest,
+  ): Promise<LintResult> {
+    const stack = await this.stack.current();
+    const { base, agent, numberTransferTargets } = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const base = await db.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } },
+      });
+      if (!base) throw AppError.notFound(`Version ${baseVersionNo}`);
+      return { base, agent, numberTransferTargets: await agentNumberTransferTargets(db, agentId) };
+    });
+    const settings = settingsOf(base, agent);
+    const prompt = body.prompt.trim() ? applyGuardrails(body.prompt, stack.guardrails) : '';
+    const greeting = body.greeting === undefined ? base.greeting : body.greeting;
+    return lintPrompt(
+      {
+        prompt,
+        greeting,
+        brief: parseBrief(base.briefJson),
+        primaryLanguage: settings.primary_language,
+        numberTransferTargets,
+      },
+      stack.lint,
+    );
+  }
+
+  async saveManualPrompt(
+    ctx: WorkspaceContext,
+    agentId: string,
+    baseVersionNo: number,
+    update: PromptUpdate,
+  ): Promise<AgentVersionDetail> {
+    const stack = await this.stack.current();
+
+    const versionNo = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const base = await db.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId, versionNo: baseVersionNo } },
+      });
+      if (!base) throw AppError.notFound(`Version ${baseVersionNo}`);
+
+      const briefValue = parseBrief(base.briefJson);
+      const settings = settingsOf(base, agent);
+      const promptText = applyGuardrails(update.prompt, stack.guardrails);
+      const greeting = update.greeting ?? base.greeting;
+
+      const lint = lintPrompt(
+        {
+          prompt: promptText,
+          greeting,
+          brief: briefValue,
+          primaryLanguage: settings.primary_language,
+          numberTransferTargets: await agentNumberTransferTargets(db, agentId),
+        },
+        stack.lint,
+      );
+
+      const versionNo = await this.appendVersion(db, {
+        agentId,
+        source: 'manual',
+        brief: briefValue,
+        promptText,
+        greeting,
+        // Omitted keeps the base version's closing; null or blank clears it (QA-023). The
+        // greeting has no such case: it is mandatory, and `promptUpdate` refuses a blank one.
+        closing: update.closing === undefined ? base.closing : update.closing || null,
+        analysisFields: parseAnalysisFields(base.analysisSchemaJson),
+        settings,
+        briefCard: base.briefCardJson,
+        scenarios: base.scenariosJson,
+        lint,
+        createdBy: ctx.userId,
+      });
+
+      await this.audit(db, ctx, 'agent.prompt_edited', agentId, {
+        version_no: versionNo,
+        base_version: baseVersionNo,
+      });
+      return versionNo;
+    });
+
+    await this.events.publish(
+      ctx.workspaceId,
+      AgentEvents.topic(agentId),
+      AgentEvents.versionCreated,
+      {
+        agent_id: agentId,
+        version_no: versionNo,
+        source: 'manual',
+      },
+    );
+    this.log.log(`agent ${agentId}: manual version ${versionNo} from ${baseVersionNo}`);
+    return this.getVersion(ctx, agentId, versionNo);
+  }
+
+  /**
+   * POST /agents/:id/draft/select {version_no} — §13.5 Undo, and "Restore as draft" in D3.
+   *
+   * A pointer move and nothing else: no LLM call, no new row. The selected version stays
+   * immutable — the database refuses a content write to anything but the newest version —
+   * so a later autosave forks rather than rewriting the history the customer just came
+   * back to.
+   */
+  async selectDraft(
+    ctx: WorkspaceContext,
+    agentId: string,
+    versionNo: number,
+  ): Promise<AgentDetail> {
+    await withWorkspace(ctx, async (db) => {
+      await this.loadAgent(db, ctx, agentId);
+      const exists = await db.agentVersion.findUnique({
+        where: { agentId_versionNo: { agentId, versionNo } },
+        select: { versionNo: true },
+      });
+      if (!exists) throw AppError.notFound(`Version ${versionNo}`);
+
+      await db.agent.update({ where: { id: agentId }, data: { draftVersion: versionNo } });
+      await this.audit(db, ctx, 'agent.draft_selected', agentId, { version_no: versionNo });
+    });
+
+    await this.events.publish(
+      ctx.workspaceId,
+      AgentEvents.topic(agentId),
+      AgentEvents.draftSelected,
+      {
+        agent_id: agentId,
+        version_no: versionNo,
+      },
+    );
+    return this.get(ctx, agentId);
+  }
+
+  /**
+   * POST /agents/:id/draft/discard — D3 Overview "Discard draft" (QA-078).
+   *
+   * The draft goes back to the published version through the same pointer move
+   * "Restore as draft" makes (`selectDraft`): no row is written or deleted, the discarded
+   * draft stays in the Versions tab (immutable, restorable), and the next edit forks a
+   * fresh draft from the published version because that one is frozen. Nothing to
+   * discard is a 409: `AGENT_NOT_PUBLISHED` when there is no published version to go
+   * back to, `NO_DRAFT_CHANGES` when the draft already is it (`discardTarget`).
+   *
+   * No platform request: numbers run the published version, and a test call of the
+   * draft now rings the published version's platform copy.
+   */
+  async discardDraft(ctx: WorkspaceContext, agentId: string): Promise<AgentDetail> {
+    const target = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const target = discardTarget(agent);
+      if (!target.ok) {
+        throw target.code === 'AGENT_NOT_PUBLISHED'
+          ? new AppError('AGENT_NOT_PUBLISHED', 'This agent has never been published, so there is no live version to go back to.')
+          : new AppError('NO_DRAFT_CHANGES', 'The draft is already the live version. There is nothing to discard.');
+      }
+
+      await db.agent.update({ where: { id: agentId }, data: { draftVersion: target.restore } });
+      await this.audit(db, ctx, 'agent.draft_discarded', agentId, {
+        discarded_version: target.discarded,
+        version_no: target.restore,
+      });
+      return target;
+    });
+
+    await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.draftSelected, {
+      agent_id: agentId,
+      version_no: target.restore,
+      discarded_version: target.discarded,
+    });
+    this.log.log(`agent ${agentId}: draft v${target.discarded} discarded, back to v${target.restore}`);
+    return this.get(ctx, agentId);
+  }
+
+  /**
+   * POST /agents/:id/versions — the D3 Brief tab's "Save as new version" (QA-079).
+   *
+   * The draft is the one version the autosave writes into in place, so saving it means
+   * freezing it: a copy is appended as the new draft, and the old row — no longer the
+   * newest — is immutable from then on (the `agent_versions_immutable` trigger, the same
+   * line every fork relies on). It stays in Versions, can be brought back with "Restore
+   * as draft" and published by number. Brief, analysis fields, settings, script, brief
+   * card, scenarios and lint are copied as they are; no LLM call and no platform request
+   * (the next test call syncs the copy, as it does any draft).
+   *
+   * A draft that is already frozen — the published version, or an older one restored as
+   * the draft — is already saved, so nothing is written and `created` is false: the next
+   * edit forks a new draft from it anyway.
+   */
+  async saveVersion(ctx: WorkspaceContext, agentId: string): Promise<SaveVersionResponse> {
+    const result = await withWorkspace(ctx, async (db) => {
+      const agent = await this.loadAgent(db, ctx, agentId);
+      const draft = await this.loadDraftForWrite(db, agent);
+      if (draft.frozen) return { saved_version: draft.versionNo, draft_version: draft.versionNo, created: false };
+
+      const next = await this.appendVersion(db, {
+        agentId,
+        source: 'manual',
+        brief: parseBrief(draft.briefJson),
+        promptText: draft.promptText,
+        greeting: draft.greeting,
+        closing: draft.closing,
+        analysisFields: parseAnalysisFields(draft.analysisSchemaJson),
+        settings: settingsOf(draft, agent),
+        briefCard: draft.briefCardJson,
+        scenarios: draft.scenariosJson,
+        lint: lintResultSchema.safeParse(draft.lintJson).data ?? null,
+        createdBy: ctx.userId,
+        stackVersion: draft.stackVersion ?? undefined,
+      });
+      await this.audit(db, ctx, 'agent.version_saved', agentId, { version_no: draft.versionNo, draft_version: next });
+      return { saved_version: draft.versionNo, draft_version: next, created: true };
+    });
+
+    if (result.created) {
+      await this.events.publish(ctx.workspaceId, AgentEvents.topic(agentId), AgentEvents.versionCreated, {
+        agent_id: agentId,
+        version_no: result.draft_version,
+        source: 'manual',
+      });
+    }
+    return result;
+  }
+
+  // ------------------------------------------------------------------ helpers shared with prompting
+
+  /** Everything a generation job needs, read in one transaction and then let go. */
+  async generationContext(workspaceId: string, agentId: string) {
+    return withWorkspace(workspaceId, async (db) => {
+      const agent = await db.agent.findFirst({
+        where: { id: agentId, tenantId: workspaceId, deletedAt: null },
+      });
+      if (!agent) throw AppError.notFound('Agent');
+      const tenant = await db.tenant.findUniqueOrThrow({
+        where: { id: workspaceId },
+        select: { name: true, timezone: true },
+      });
+      const versions = await db.agentVersion.findMany({
+        where: { agentId },
+        orderBy: { versionNo: 'desc' },
+        take: 20,
+      });
+      return { agent, tenant, versions };
+    });
+  }
+
+  /**
+   * Appends a version inside an existing transaction and points the agent's draft at it.
+   * The `(agent_id, version_no)` unique key is what makes two concurrent writers safe:
+   * the loser gets a unique violation rather than silently overwriting.
+   */
+  async appendVersion(
+    db: WorkspaceDb | Prisma.TransactionClient,
+    input: {
+      agentId: string;
+      source: VersionSource;
+      brief: Brief;
+      promptText: string | null;
+      greeting: string | null;
+      closing: string | null;
+      analysisFields: AnalysisField[];
+      settings: AgentSettings;
+      briefCard?: unknown;
+      scenarios?: unknown;
+      changes?: string[] | null;
+      feedbackText?: string | null;
+      lint: LintResult | null;
+      createdBy: string | null;
+      stackVersion?: number;
+    },
+  ): Promise<number> {
+    const latest = await db.agentVersion.aggregate({
+      where: { agentId: input.agentId },
+      _max: { versionNo: true },
+    });
+    const versionNo = (latest._max.versionNo ?? 0) + 1;
+
+    await db.agentVersion.create({
+      data: {
+        agentId: input.agentId,
+        versionNo,
+        source: input.source,
+        briefJson: input.brief as unknown as Prisma.InputJsonValue,
+        promptText: input.promptText,
+        greeting: input.greeting,
+        closing: input.closing,
+        analysisSchemaJson: input.analysisFields as unknown as Prisma.InputJsonValue,
+        settingsJson: input.settings as unknown as Prisma.InputJsonValue,
+        briefCardJson: (input.briefCard ?? undefined) as Prisma.InputJsonValue | undefined,
+        scenariosJson: (input.scenarios ?? undefined) as Prisma.InputJsonValue | undefined,
+        changesJson: (input.changes ?? undefined) as Prisma.InputJsonValue | undefined,
+        feedbackText: input.feedbackText ?? null,
+        lintJson: (input.lint ?? undefined) as unknown as Prisma.InputJsonValue | undefined,
+        stackVersion: input.stackVersion,
+        createdBy: input.createdBy,
+      },
+    });
+
+    await db.agent.update({ where: { id: input.agentId }, data: { draftVersion: versionNo } });
+    return versionNo;
+  }
+
+  /** An `audit_log` row. Append-only in Postgres; never updated, never deleted (§6.2). */
+  async audit(
+    db: WorkspaceDb | Prisma.TransactionClient,
+    ctx: Pick<WorkspaceContext, 'workspaceId' | 'userId' | 'ip'>,
+    action: string,
+    targetId: string,
+    meta: Record<string, unknown> = {},
+  ): Promise<void> {
+    await db.auditLog.create({
+      data: {
+        tenantId: ctx.workspaceId,
+        actorUserId: ctx.userId,
+        action,
+        targetType: 'agent',
+        targetId,
+        ip: ctx.ip ?? null,
+        metaJson: meta as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  /**
+   * A new agent's v1 settings (W1): the template's tier, and the workspace's D6 privacy
+   * defaults — recording, and PII removal when the plan includes it (QA-081). Read
+   * before the create transaction opens, like the template.
+   */
+  /**
+   * A new agent's draft settings: the template's tier, the workspace's privacy defaults,
+   * and the main language from the workspace country (W3 "default: from workspace
+   * country", `defaultAgentLanguage`) unless W1 sent one it knows better.
+   */
+  private async newAgentSettings(ctx: WorkspaceContext, tier: AgentSettings['tier'], primaryLanguage?: AgentSettings['primary_language']): Promise<AgentSettings> {
+    const [flags, tenant] = await Promise.all([
+      this.config.flagsFor(ctx.workspaceId),
+      withWorkspace(ctx, (db) =>
+        db.tenant.findUniqueOrThrow({
+          where: { id: ctx.workspaceId },
+          select: { recordingDefault: true, piiRemovalDefault: true, country: true },
+        }),
+      ),
+    ]);
+    const privacy = tenant;
+    return {
+      ...defaultAgentSettings(tier),
+      primary_language: primaryLanguage ?? defaultAgentLanguage(tenant.country),
+      recording_enabled: privacy.recordingDefault,
+      pii_removal: privacy.piiRemovalDefault && flags.gates.pii_removal === true,
+    };
+  }
+
+  /**
+   * The plan gates on a draft edit (QA-079): turning denoise or PII removal **on**, and
+   * editing the analysis fields at all, need the plan's gate — the same `PLAN_LIMIT` the
+   * knowledge and SIP routes answer. Turning an add-on off never does, so a workspace
+   * that lost the gate can still clear what it set. The sync applies the gate again
+   * (`runtimeAddOns`), so a version that kept `true` past a downgrade sends it off.
+   */
+  private async assertDraftGates(ctx: WorkspaceContext, patch: AgentDraftPatch): Promise<void> {
+    const wanted: Array<'denoise' | 'pii_removal' | 'analysis_fields'> = [];
+    if (patch.denoise === true) wanted.push('denoise');
+    if (patch.pii_removal === true) wanted.push('pii_removal');
+    if (patch.analysis_fields !== undefined) wanted.push('analysis_fields');
+    if (wanted.length === 0) return;
+    const flags = await this.config.flagsFor(ctx.workspaceId);
+    const missing = wanted.filter((gate) => flags.gates[gate] !== true);
+    if (missing.length > 0) {
+      throw new AppError(
+        'PLAN_LIMIT',
+        'Your plan does not include this yet. Buy a pack that does to unlock it.',
+        missing.map((gate) => ({ field: gate, message: `${gate} gate is off` })),
+      );
+    }
+  }
+
+  /**
+   * The agent, or a 404. Scoped by `tenantId` **and** run under RLS: the explicit filter
+   * is what stops an id from another workspace becoming a 500 from a null dereference,
+   * and RLS is what stops it being readable at all.
+   */
+  private async loadAgent(db: WorkspaceDb, ctx: WorkspaceContext, agentId: string) {
+    const agent = await db.agent.findFirst({
+      where: { id: agentId, tenantId: ctx.workspaceId, deletedAt: null },
+    });
+    if (!agent) throw AppError.notFound('Agent');
+    return agent;
+  }
+
+  /**
+   * The version an autosave should write to, and whether it is frozen.
+   *
+   * Frozen means published, or no longer the newest — the same two conditions the
+   * `agent_versions_immutable` trigger enforces, expressed here so the service forks
+   * deliberately instead of catching a database error.
+   */
+  private async loadDraftForWrite(
+    db: WorkspaceDb,
+    agent: { id: string; draftVersion: number | null },
+  ) {
+    const [draft, latest] = await Promise.all([
+      agent.draftVersion
+        ? db.agentVersion.findUnique({
+            where: { agentId_versionNo: { agentId: agent.id, versionNo: agent.draftVersion } },
+          })
+        : Promise.resolve(null),
+      db.agentVersion.aggregate({ where: { agentId: agent.id }, _max: { versionNo: true } }),
+    ]);
+
+    if (!draft) {
+      // An agent always has a v1 (created in the same transaction as the agent), so this
+      // is a pointer at a version that never existed — repair by pointing at the newest.
+      const newest = await db.agentVersion.findFirst({
+        where: { agentId: agent.id },
+        orderBy: { versionNo: 'desc' },
+      });
+      if (!newest) throw AppError.notFound('Draft version');
+      return { ...newest, frozen: newest.publishedAt !== null };
+    }
+
+    const frozen =
+      draft.publishedAt !== null || draft.versionNo !== (latest._max.versionNo ?? draft.versionNo);
+    return { ...draft, frozen };
+  }
+}
+
+/**
+ * What "Discard draft" would do to an agent (QA-078): point the draft back at the
+ * published version — or why there is nothing to discard. The same test as
+ * `has_unpublished_changes` (`toSummary`), so the button and the route cannot disagree.
+ */
+export function discardTarget(agent: {
+  draftVersion: number | null;
+  publishedVersion: number | null;
+}):
+  | { ok: true; discarded: number; restore: number }
+  | { ok: false; code: 'AGENT_NOT_PUBLISHED' | 'NO_DRAFT_CHANGES' } {
+  if (agent.publishedVersion === null) return { ok: false, code: 'AGENT_NOT_PUBLISHED' };
+  if (agent.draftVersion === null || agent.draftVersion === agent.publishedVersion) {
+    return { ok: false, code: 'NO_DRAFT_CHANGES' };
+  }
+  return { ok: true, discarded: agent.draftVersion, restore: agent.publishedVersion };
+}
+
+// ---------------------------------------------------------------------------
+// Settings: the version's copy and the live copy
+// ---------------------------------------------------------------------------
+
+/** The live columns on `agents` a version's settings map onto. */
+export interface LiveSettingsColumns {
+  tier: string;
+  primaryLanguage: string;
+  languages: string[];
+  voiceId: string | null;
+  voiceSpeed: Prisma.Decimal | null;
+  voiceTemperature: Prisma.Decimal | null;
+  maxCallDurationS: number;
+  recordingEnabled: boolean;
+}
+
+/**
+ * A version's settings. `settings_json` when the row has one; for a row written before
+ * the column existed, the agent's own columns — which is exactly what those rows meant.
+ */
+export function settingsOf(
+  row: { settingsJson: unknown },
+  agent: LiveSettingsColumns,
+): AgentSettings {
+  const parsed = agentSettingsSchema.safeParse(row.settingsJson);
+  if (parsed.success) return parsed.data;
+  return liveSettingsOf(agent);
+}
+
+/** The live settings, read back from the `agents` columns a publish wrote. */
+export function liveSettingsOf(agent: LiveSettingsColumns): AgentSettings {
+  const raw = {
+    tier: agent.tier,
+    primary_language: agent.primaryLanguage,
+    languages: agent.languages,
+    voice_id: agent.voiceId,
+    voice_speed: agent.voiceSpeed === null ? null : Number(agent.voiceSpeed),
+    voice_temperature: agent.voiceTemperature === null ? null : Number(agent.voiceTemperature),
+    max_call_duration_s: agent.maxCallDurationS,
+    recording_enabled: agent.recordingEnabled,
+  };
+  const parsed = agentSettingsSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  // The columns carry defaults and no check constraints where the schema has ranges (an
+  // old row could hold a 60 s ceiling). Keep what is valid, clamp the rest, never fail a
+  // read over it.
+  const defaults = defaultAgentSettings(agent.tier === 'premium' ? 'premium' : 'standard');
+  const repaired = agentSettingsSchema.safeParse({
+    ...defaults,
+    voice_id: raw.voice_id,
+    // `primary_language` is a plain column with no check constraint, and the schema now
+    // holds it to our locale list (`agentLanguage`). Keep it when it is one, fall back to
+    // the default when it is not, rather than throwing away the voice and the ceiling too.
+    primary_language: agentLanguage.safeParse(raw.primary_language).success
+      ? raw.primary_language
+      : defaults.primary_language,
+    languages: raw.languages.filter((code) => agentLanguage.safeParse(code).success).slice(0, 4),
+    max_call_duration_s: Math.min(
+      1_800,
+      Math.max(180, raw.max_call_duration_s || defaults.max_call_duration_s),
+    ),
+    recording_enabled: raw.recording_enabled,
+  });
+  return repaired.success ? repaired.data : defaults;
+}
+
+/**
+ * The `agents` columns a publish writes from a version's settings. This is the **only**
+ * path from a customer's choice of tier, voice or duration to the live row
+ * (`AgentPublishService.publish`), and therefore the only path to the billing rate.
+ */
+export function liveColumnsFrom(
+  settings: AgentSettings,
+): Pick<
+  Prisma.AgentUncheckedCreateInput,
+  | 'tier'
+  | 'primaryLanguage'
+  | 'languages'
+  | 'voiceId'
+  | 'voiceSpeed'
+  | 'voiceTemperature'
+  | 'maxCallDurationS'
+  | 'recordingEnabled'
+> {
+  return {
+    tier: settings.tier,
+    primaryLanguage: settings.primary_language,
+    languages: settings.languages,
+    voiceId: settings.voice_id,
+    voiceSpeed: settings.voice_speed === null ? null : new Prisma.Decimal(settings.voice_speed),
+    voiceTemperature:
+      settings.voice_temperature === null ? null : new Prisma.Decimal(settings.voice_temperature),
+    maxCallDurationS: settings.max_call_duration_s,
+    recordingEnabled: settings.recording_enabled,
+  };
+}
+
+/** The settings fields of a draft patch, and nothing else. `undefined` means "not sent". */
+export function settingsPatchOf(patch: AgentDraftPatch): Partial<AgentSettings> {
+  const out: Partial<AgentSettings> = {};
+  if (patch.tier !== undefined) out.tier = patch.tier;
+  if (patch.primary_language !== undefined) out.primary_language = patch.primary_language;
+  if (patch.languages !== undefined) out.languages = patch.languages;
+  if (patch.voice_id !== undefined) out.voice_id = patch.voice_id;
+  if (patch.voice_speed !== undefined) out.voice_speed = patch.voice_speed;
+  if (patch.voice_temperature !== undefined) out.voice_temperature = patch.voice_temperature;
+  if (patch.max_call_duration_s !== undefined) out.max_call_duration_s = patch.max_call_duration_s;
+  if (patch.recording_enabled !== undefined) out.recording_enabled = patch.recording_enabled;
+  if (patch.denoise !== undefined) out.denoise = patch.denoise;
+  if (patch.pii_removal !== undefined) out.pii_removal = patch.pii_removal;
+  return out;
+}
+
+export function mergeSettings(
+  current: AgentSettings,
+  patch: Partial<AgentSettings>,
+): AgentSettings {
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) merged[key] = value;
+  }
+  return agentSettingsSchema.parse(merged);
+}
+
+// ---------------------------------------------------------------------------
+// Row → response
+// ---------------------------------------------------------------------------
+
+type AgentRow = LiveSettingsColumns & {
+  id: string;
+  name: string;
+  templateId: string | null;
+  industry: string | null;
+  status: string;
+  draftVersion: number | null;
+  publishedVersion: number | null;
+  createdAt: Date;
+  /** Optional so the tests' bare rows and a row read before the columns existed still build (ADR 0041). */
+  pausedBy?: string | null;
+  pausedTicketId?: number | null;
+};
+
+/** What the list and the detail know beside the row: the numbers and whether the draft has a script (D1 card, ADR 0041). */
+export interface SummaryFacts {
+  numbersAttached: number;
+  numberE164?: string | null;
+  draftHasPrompt?: boolean;
+}
+
+/** The live values: what is on the phone and what a call bills at (see `agentSummary`). */
+export function toSummary(agent: AgentRow, facts: number | SummaryFacts): AgentSummary {
+  const f: SummaryFacts = typeof facts === 'number' ? { numbersAttached: facts } : facts;
+  const paused = agent.status === 'paused';
+  return {
+    id: agent.id,
+    name: agent.name,
+    template_id: agent.templateId as AgentSummary['template_id'],
+    industry: agent.industry,
+    status: agent.status as AgentSummary['status'],
+    tier: agent.tier as AgentSummary['tier'],
+    primary_language: agent.primaryLanguage,
+    languages: agent.languages,
+    voice_id: agent.voiceId,
+    draft_version: agent.draftVersion,
+    published_version: agent.publishedVersion,
+    has_unpublished_changes:
+      agent.draftVersion !== null && agent.draftVersion !== agent.publishedVersion,
+    draft_has_prompt: f.draftHasPrompt ?? false,
+    numbers_attached: f.numbersAttached,
+    number_e164: f.numberE164 ?? null,
+    paused_by: paused && (agent.pausedBy === 'customer' || agent.pausedBy === 'staff') ? agent.pausedBy : null,
+    paused_ticket_id: paused && agent.pausedBy === 'staff' ? (agent.pausedTicketId ?? null) : null,
+    max_call_duration_s: agent.maxCallDurationS,
+    recording_enabled: agent.recordingEnabled,
+    created_at: agent.createdAt.toISOString(),
+  };
+}
+
+type VersionRow = {
+  versionNo: number;
+  source: string;
+  briefJson: unknown;
+  promptText: string | null;
+  greeting: string | null;
+  closing: string | null;
+  analysisSchemaJson: unknown;
+  briefCardJson: unknown;
+  scenariosJson: unknown;
+  changesJson: unknown;
+  feedbackText: string | null;
+  lintJson: unknown;
+  settingsJson: unknown;
+  createdBy: string | null;
+  publishedAt: Date | null;
+  createdAt: Date;
+};
+
+export function toVersionSummary(
+  row: VersionRow,
+  agent: { draftVersion: number | null; publishedVersion: number | null },
+): AgentVersionSummary {
+  return {
+    version_no: row.versionNo,
+    source: row.source as AgentVersionSummary['source'],
+    created_by: row.createdBy,
+    created_at: row.createdAt.toISOString(),
+    published_at: row.publishedAt?.toISOString() ?? null,
+    is_published: agent.publishedVersion === row.versionNo,
+    is_draft: agent.draftVersion === row.versionNo,
+    changes: Array.isArray(row.changesJson) ? (row.changesJson as string[]) : null,
+    has_prompt: Boolean(row.promptText),
+  };
+}
+
+/**
+ * `editable_prompt` is the whole point of the split: the Advanced editor gets the body,
+ * `prompt_text` shows what Retell actually runs. A client that PUTs the editable text
+ * back gets the guardrails re-appended, so the round trip cannot lose them.
+ *
+ * Nothing here names the provider: which Retell version a row was published as is
+ * bookkeeping on the row, not part of what a customer sees.
+ */
+export function toVersionDetail(
+  row: VersionRow,
+  agent: LiveSettingsColumns & { draftVersion: number | null; publishedVersion: number | null },
+): AgentVersionDetail {
+  return {
+    ...toVersionSummary(row, agent),
+    brief: parseBrief(row.briefJson),
+    prompt_text: row.promptText,
+    editable_prompt: row.promptText ? stripGuardrails(row.promptText) : null,
+    greeting: row.greeting,
+    closing: row.closing,
+    brief_card: briefCardSchema.safeParse(row.briefCardJson).data ?? null,
+    scenarios: parseScenarios(row.scenariosJson),
+    analysis_fields: row.analysisSchemaJson ? parseAnalysisFields(row.analysisSchemaJson) : null,
+    feedback_text: row.feedbackText,
+    lint: lintResultSchema.safeParse(row.lintJson).data ?? null,
+    settings: settingsOf(row, agent),
+  };
+}
+
+/**
+ * A stored brief that no longer matches the schema — an older shape, a field we tightened,
+ * or a newer shape read by a process that has not been redeployed yet — must not make the
+ * agent unreadable, and must not cost the customer the rest of their brief.
+ *
+ * So the repair is per field, and per entry for `documents` and `handoff_rules` (a
+ * `read_message` rule stored before it carried its message fails now): whatever fails is dropped and
+ * everything else is kept. This used to fall back to an *empty* brief on any failure, and
+ * on 29 Sep a worker started before the image document types existed read one
+ * `image/jpeg` document as invalid, got `{}`, generated a script from nothing and stored
+ * it as a new version with an empty brief (ADR 0023). An array field loses only its bad
+ * entries; a field that still fails is dropped; `{}` is the last resort for input that is
+ * not an object at all.
+ */
+export function parseBrief(value: unknown): Brief {
+  const whole = briefSchema.safeParse(value ?? {});
+  if (whole.success) return whole.data;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return briefSchema.parse({});
+
+  const repaired: Record<string, unknown> = { ...(value as Record<string, unknown>) };
+  if (Array.isArray(repaired.documents)) {
+    repaired.documents = repaired.documents.filter((doc) => briefDocumentSchema.safeParse(doc).success);
+  }
+  if (Array.isArray(repaired.handoff_rules)) {
+    repaired.handoff_rules = repaired.handoff_rules.filter((rule) => handoffRuleSchema.safeParse(rule).success);
+  }
+  for (let pass = 0; pass < 3; pass++) {
+    const attempt = briefSchema.safeParse(repaired);
+    if (attempt.success) return attempt.data;
+    for (const issue of attempt.error.issues) delete repaired[String(issue.path[0])];
+  }
+  return briefSchema.parse({});
+}
+
+/**
+ * Per entry, not per array, and deliberately so.
+ *
+ * `analysisField` got stricter (an enum field must carry non-empty choices), and this
+ * function is on every read path including publish. A whole-array parse would mean one
+ * unparseable legacy field silently costing a version *all fifteen* of its analysis
+ * fields — the agent would publish and quietly stop capturing anything. Filtering per
+ * entry keeps the fourteen good ones and drops the one that cannot be sent, which is the
+ * same thing `parseScenarios` below does and the same thing the §9.8 gate does on the
+ * way in. Verified against the dev database before the schema was tightened: zero stored
+ * fields fail it today, so this is a guard, not a migration.
+ */
+export function parseAnalysisFields(value: unknown): AnalysisField[] {
+  if (!Array.isArray(value)) return [];
+  const parsed = value.map((entry) => analysisField.safeParse(entry)).filter((r) => r.success);
+  return parsed.map((r) => r.data!).slice(0, 15);
+}
+
+function parseScenarios(value: unknown): Scenario[] | null {
+  if (!Array.isArray(value)) return null;
+  const parsed = value.map((entry) => scenarioSchema.safeParse(entry)).filter((r) => r.success);
+  return parsed.map((r) => r.data!);
+}
+
+/**
+ * Field-by-field merge. An autosave sends the field that changed, so a `PATCH` carrying
+ * `{about_business}` must not blank the twelve fields it did not mention. `undefined`
+ * means "not sent"; `null` means "clear it" (`briefPatch`): an emptied agent name or
+ * address is removed from the brief rather than silently kept (QA-006).
+ */
+export function mergeBrief(current: Brief, patch: BriefPatch): Brief {
+  const merged: Record<string, unknown> = { ...current };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete merged[key];
+    else if (value !== undefined) merged[key] = value;
+  }
+  return briefSchema.parse(merged);
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}

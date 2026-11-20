@@ -1,0 +1,66 @@
+{
+  "captured_at": "2026-09-15T05:26:43.423Z",
+  "data": {
+    "items": [
+      {
+        "version": 1,
+        "is_published": false,
+        "base_version": 0,
+        "last_modification_timestamp": 1789450001528,
+        "custom_analysis_fields": [
+          {
+            "name": "caller_name",
+            "type": "string"
+          },
+          {
+            "name": "call_reason",
+            "type": "enum",
+            "choices": [
+              "appointment",
+              "question",
+              "other"
+            ]
+          },
+          {
+            "name": "callback_requested",
+            "type": "boolean"
+          },
+          {
+            "name": "party_size",
+            "type": "number"
+          }
+        ]
+      },
+      {
+        "version": 0,
+        "is_published": true,
+        "version_title": "spike v0",
+        "last_modification_timestamp": 1789449866682,
+        "custom_analysis_fields": [
+          {
+            "name": "caller_name",
+            "type": "string"
+          },
+          {
+            "name": "call_reason",
+            "type": "enum",
+            "choices": [
+              "appointment",
+              "question",
+              "other"
+            ]
+          },
+          {
+            "name": "callback_requested",
+            "type": "boolean"
+          },
+          {
+            "name": "party_size",
+            "type": "number"
+          }
+        ]
+      }
+    ],
+    "has_more": false
+  }
+}

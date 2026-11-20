@@ -1,0 +1,27 @@
+{
+  "info": {
+    "_postman_id": "f8cb4415-6d50-4944-9f98-8a49eb9783aa",
+    "name": "ZZ Import Smoke Test",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:4000/health",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "4000",
+          "path": [
+            "health"
+          ]
+        }
+      }
+    }
+  ]
+}

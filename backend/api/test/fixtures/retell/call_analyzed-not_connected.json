@@ -1,0 +1,70 @@
+{
+  "captured_at": "2026-09-15T05:34:07.464Z",
+  "provider": "retell",
+  "event_type": "call_analyzed",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "1497",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=7b848de38dae481bbc4e86caf9a32149,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "7b848de38dae481bbc4e86caf9a32149-a7e9982a0f2e4d70",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789450447037,d=b0baf80eda15ad6f5ab7cd10604f97b9161cb3e5185f3d5f986bc1a8e415a52d"
+  },
+  "raw": "{\"event\":\"call_analyzed\",\"call\":{\"call_id\":\"call_d46832b71bcd83010f4a9e2f142\",\"call_type\":\"phone_call\",\"agent_id\":\"agent_0c2f94391111e5aaac72b2d49f\",\"agent_version\":0,\"agent_name\":\"dev-spike-caller\",\"contact_dynamic_variables\":{},\"custom_sip_headers\":{},\"call_status\":\"not_connected\",\"start_timestamp\":1789450446096,\"end_timestamp\":1789450446096,\"duration_ms\":0,\"transcript\":\"\",\"transcript_object\":[],\"transcript_with_tool_calls\":[],\"public_log_url\":\"[redacted-signed-url]\",\"disconnection_reason\":\"dial_busy\",\"latency\":{},\"metadata\":{\"test\":true,\"source\":\"spike-outbound\"},\"call_cost\":{\"product_costs\":[],\"total_duration_seconds\":0,\"total_duration_unit_price\":0,\"combined_cost\":0},\"call_analysis\":{\"call_summary\":\"\",\"in_voicemail\":false,\"user_sentiment\":\"Unknown\",\"call_successful\":false,\"custom_analysis_data\":{}},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":true,\"tool_calls\":[],\"from_number\":\"+19377293562\",\"to_number\":\"+16204459730\",\"direction\":\"outbound\"},\"event_timestamp\":1789450447037}",
+  "body": {
+    "event": "call_analyzed",
+    "call": {
+      "call_id": "call_d46832b71bcd83010f4a9e2f142",
+      "call_type": "phone_call",
+      "agent_id": "agent_0c2f94391111e5aaac72b2d49f",
+      "agent_version": 0,
+      "agent_name": "dev-spike-caller",
+      "contact_dynamic_variables": {},
+      "custom_sip_headers": {},
+      "call_status": "not_connected",
+      "start_timestamp": 1789450446096,
+      "end_timestamp": 1789450446096,
+      "duration_ms": 0,
+      "transcript": "",
+      "transcript_object": [],
+      "transcript_with_tool_calls": [],
+      "public_log_url": "[redacted-signed-url]",
+      "disconnection_reason": "dial_busy",
+      "latency": {},
+      "metadata": {
+        "test": true,
+        "source": "spike-outbound"
+      },
+      "call_cost": {
+        "product_costs": [],
+        "total_duration_seconds": 0,
+        "total_duration_unit_price": 0,
+        "combined_cost": 0
+      },
+      "call_analysis": {
+        "call_summary": "",
+        "in_voicemail": false,
+        "user_sentiment": "Unknown",
+        "call_successful": false,
+        "custom_analysis_data": {}
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": true,
+      "tool_calls": [],
+      "from_number": "+19377293562",
+      "to_number": "+16204459730",
+      "direction": "outbound"
+    },
+    "event_timestamp": 1789450447037
+  },
+  "signature_valid": true,
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_analyzed-2026-09-15T05-34-07.464Z.json"
+}

@@ -8,7 +8,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev dev:worker",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
@@ -18,9 +18,28 @@
     "db:generate": "pnpm --filter @portal/db generate",
     "db:migrate": "pnpm --filter @portal/db migrate:dev",
     "infra:up": "docker compose -f infra/docker-compose.yml up -d",
-    "infra:down": "docker compose -f infra/docker-compose.yml down"
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "test:e2e": "turbo run test:e2e",
+    "db:deploy": "pnpm --filter @portal/db migrate:deploy",
+    "db:status": "pnpm --filter @portal/db migrate:status",
+    "db:roles": "pnpm --filter @portal/db roles",
+    "db:seed": "pnpm --filter @portal/db seed",
+    "db:reset": "pnpm --filter @portal/db reset",
+    "db:studio": "pnpm --filter @portal/db studio",
+    "doctor": "node infra/scripts/doctor.mjs",
+    "auth0:validate": "node infra/scripts/auth0.mjs validate",
+    "auth0:check": "node infra/scripts/auth0.mjs check",
+    "auth0:export": "node infra/scripts/auth0.mjs export",
+    "auth0:plan": "node infra/scripts/auth0.mjs plan",
+    "auth0:deploy": "node infra/scripts/auth0.mjs deploy",
+    "auth0:google-picker": "node infra/scripts/auth0.mjs google-picker",
+    "verify:auth0": "pnpm --filter @portal/api verify:auth0",
+    "dev:issuer": "node infra/scripts/local-issuer.mjs",
+    "dev:issuer:staff": "LOCAL_ISSUER_MODE=staff node infra/scripts/local-issuer.mjs",
+    "dev:stripe": "stripe listen --forward-to localhost:4000/webhooks/stripe"
   },
   "devDependencies": {
+    "auth0-deploy-cli": "^9.0.0",
     "prettier": "^3.6.0",
     "turbo": "^2.5.0",
     "typescript": "^5.8.0"

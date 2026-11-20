@@ -1,0 +1,391 @@
+import { describe, expect, it } from 'vitest';
+import { denoisingModeFor, piiConfigFor, type RetellGateway, type TierStack } from '../retell';
+import { AgentRetellService, PHONE_FIELD_RULE, toRetellAnalysisFields, type RetellSyncInput } from './agent-retell.service';
+
+/*
+ * D5 review finding 8: no compiled-in model, voice or plan ceiling. The tier stack is
+ * required, every Retell-bound value comes from it, and a missing one fails loudly.
+ */
+
+const stack: TierStack = {
+  model: 'model-from-sa6',
+  default_voice_id: '11labs-voice-from-sa6',
+  voice_model: 'eleven_multilingual_v2',
+  max_call_duration_ms: 900_000,
+};
+
+function gateway(published = false) {
+  const calls: Array<{ method: string; args: unknown[] }> = [];
+  const record =
+    (method: string) =>
+    async (...args: unknown[]) => {
+      calls.push({ method, args });
+      if (method === 'createLlm') return { llm_id: 'llm_1' };
+      if (method === 'createAgent') return { agent_id: 'agent_1', version: 0 };
+      if (method === 'getAgent') return { agent_id: 'agent_1', version: published ? 3 : 3, is_published: published };
+      if (method === 'createAgentVersion') return { agent_id: 'agent_1', version: 4 };
+      return {};
+    };
+  const fake = {
+    calls,
+    createLlm: record('createLlm'),
+    updateLlm: record('updateLlm'),
+    createAgent: record('createAgent'),
+    updateAgent: record('updateAgent'),
+    getAgent: record('getAgent'),
+    createAgentVersion: record('createAgentVersion'),
+    publishAgent: record('publishAgent'),
+    deleteAgent: record('deleteAgent'),
+    deleteLlm: record('deleteLlm'),
+  };
+  return fake as unknown as RetellGateway & { calls: typeof calls };
+}
+
+function input(over: Partial<RetellSyncInput> = {}): RetellSyncInput {
+  return {
+    agentId: '11111111-1111-4111-8111-111111111111',
+    agentName: 'Sophie',
+    retellAgentId: null,
+    retellLlmId: null,
+    retellKbId: null,
+    promptText:
+      'You are Sophie, the receptionist. Greet the caller and take a message for the team.',
+    greeting: 'Hello',
+    brief: { services: [], faqs: [], never_do_presets: [], handoff_rules: [], ai_disclosure: 'if_asked', documents: [] },
+    analysisFields: [],
+    voiceId: null,
+    voiceSpeed: null,
+    voiceTemperature: null,
+    primaryLanguage: 'en-US',
+    languages: [],
+    recording: true,
+    retentionDays: 90,
+    maxCallDurationS: 1_500,
+    timezone: 'America/Toronto',
+    businessName: 'Maple Dental',
+    stack,
+    guardrails: ['Never claim to be human.'],
+    denoise: false,
+    piiRemoval: false,
+    recordingNotice: null,
+    ...over,
+  };
+}
+
+describe('AgentRetellService.syncDraft', () => {
+  it('refuses without a tier stack and sends nothing to Retell', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await expect(
+      service.syncDraft(input({ stack: null as unknown as TierStack })),
+    ).rejects.toMatchObject({ code: 'NOT_CONFIGURED' });
+    expect(gw.calls).toEqual([]);
+  });
+
+  it('takes the model, the default voice and the plan ceiling from the stack, never from code', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input());
+
+    const llm = gw.calls.find((c) => c.method === 'createLlm')!.args[0] as { model: string };
+    expect(llm.model).toBe('model-from-sa6');
+
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as {
+      voiceId: string;
+      voiceModel: string;
+      maxCallDurationMs: number;
+    };
+    expect(agent.voiceId).toBe('11labs-voice-from-sa6');
+    expect(agent.voiceModel).toBe('eleven_multilingual_v2');
+    // min(agent 1500 s, plan 900 s) — the plan ceiling is configuration.
+    expect(agent.maxCallDurationMs).toBe(900_000);
+  });
+
+  it("sends the tier's TTS model only with a voice of its provider (a Cartesia voice gets its own default)", async () => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft({ ...input(), voiceId: 'cartesia-Adrian' });
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as { voiceId: string; voiceModel?: string | null };
+    expect(agent.voiceId).toBe('cartesia-Adrian');
+    expect(agent.voiceModel).toBeNull();
+  });
+
+  it('prefers the version’s own voice and ceiling when they are within the plan', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input({ voiceId: 'cartesia-Cleo', maxCallDurationS: 600 }));
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as {
+      voiceId: string;
+      maxCallDurationMs: number;
+    };
+    expect(agent).toMatchObject({ voiceId: 'cartesia-Cleo', maxCallDurationMs: 600_000 });
+  });
+});
+
+describe('toRetellAnalysisFields', () => {
+  it('maps our types onto Retell’s, including enum choices', () => {
+    expect(
+      toRetellAnalysisFields([
+        { name: 'reason', type: 'text', description: 'Why they rang.' },
+        { name: 'urgency', type: 'enum', description: 'How urgent.', enum: ['low', 'high'] },
+        { name: 'party_size', type: 'number', description: 'How many.' },
+        { name: 'callback', type: 'boolean', description: 'Wants a call back.' },
+      ]),
+    ).toEqual([
+      { type: 'string', name: 'reason', description: 'Why they rang.' },
+      { type: 'enum', name: 'urgency', description: 'How urgent.', choices: ['low', 'high'] },
+      { type: 'number', name: 'party_size', description: 'How many.' },
+      { type: 'boolean', name: 'callback', description: 'Wants a call back.' },
+    ]);
+  });
+
+  /*
+   * The regression this change exists for: `choices: field.enum ?? []` used to
+   * manufacture the one array shape Retell documents as illegal ("must be non empty
+   * array"), and an `as unknown as` cast at the call site hid it from the compiler.
+   * `analysisField` now makes that input unrepresentable, so the fallback has no reason
+   * to exist — this asserts it is gone.
+   */
+  it('never emits an empty choices array', () => {
+    const mapped = toRetellAnalysisFields([
+      { name: 'urgency', type: 'enum', description: 'How urgent.', enum: ['low'] },
+    ]);
+    for (const field of mapped) {
+      if (field.type === 'enum') expect(field.choices.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('carries no choices key on a non-enum field', () => {
+    const [mapped] = toRetellAnalysisFields([{ name: 'reason', type: 'text', description: 'Why.' }]);
+    expect(mapped && 'choices' in mapped).toBe(false);
+  });
+
+  it('tells the analysis to copy a phone field from the caller, never the read-back (26 Oct)', () => {
+    const [phone, name] = toRetellAnalysisFields([
+      { name: 'callback_number', type: 'text', description: 'The number to call back on.' },
+      { name: 'caller_name', type: 'text', description: 'The name the booking is under.' },
+    ]);
+    expect(phone?.description).toBe(`The number to call back on. ${PHONE_FIELD_RULE}`);
+    expect(phone?.description).toMatch(/not from the agent's read-back/);
+    expect(name?.description).toBe('The name the booking is under.');
+  });
+});
+
+/*
+ * The order `syncDraft` calls Retell in, which is not cosmetic.
+ *
+ * The Retell LLM is versioned with the agent (`response_engine.version`), so while the
+ * latest agent version is published the LLM is too, and `update-retell-llm` answers
+ * 400 "Cannot update published LLM". ADR 0003 §7 wrote the order down —
+ * `create-agent-version` → `update-retell-llm` → `update-agent` — and the implementation
+ * had the first two the other way round, so **every republish of a published agent
+ * failed**. Confirmed against the live API on 17 Sep (`scripts/d5-retell-verify.ts`).
+ */
+describe('AgentRetellService.syncDraft ordering (ADR 0003 §7)', () => {
+  it('branches the published version before touching the LLM', async () => {
+    const gw = gateway(true);
+    const service = new AgentRetellService(gw);
+    const result = await service.syncDraft(
+      input({ retellAgentId: 'agent_1', retellLlmId: 'llm_1' }),
+    );
+
+    const order = gw.calls.map((c) => c.method);
+    expect(order).toEqual(['getAgent', 'createAgentVersion', 'updateLlm', 'updateAgent']);
+    expect(order.indexOf('createAgentVersion')).toBeLessThan(order.indexOf('updateLlm'));
+    expect(result.draftVersion).toBe(4);
+  });
+
+  it('skips the branch when the latest version is already a draft, and still edits the LLM', async () => {
+    const gw = gateway(false);
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input({ retellAgentId: 'agent_1', retellLlmId: 'llm_1' }));
+    expect(gw.calls.map((c) => c.method)).toEqual(['getAgent', 'updateLlm', 'updateAgent']);
+  });
+
+  it('does not update an LLM it just created', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input());
+    expect(gw.calls.map((c) => c.method)).toEqual(['createLlm', 'createAgent']);
+  });
+});
+
+/*
+ * W3 offers a language picker and two voice dials. Both were reaching the database and
+ * neither was reaching Retell: `language: "multi"` expands to a fixed ten that excludes
+ * fr-CA, and voice speed/temperature were simply never sent.
+ *
+ * §W3's text says `multi`; ADR 0003 §6 is the decision to send the array instead, and
+ * these tests pin that decision on purpose (reviewed 21 Sep 2026). Flipping the branch
+ * in `agentSpec` must fail here first.
+ */
+describe('AgentRetellService: what W3 promises actually reaches Retell', () => {
+  it('sends the customer’s own locales, not Retell’s fixed `multi` set', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input({ primaryLanguage: 'fr-CA', languages: ['en-US'] }));
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as { language: unknown };
+    expect(agent.language).toEqual(['fr-CA', 'en-US']);
+  });
+
+  it('sends a plain locale when there is no also-speaks language', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input({ primaryLanguage: 'fr-CA', languages: [] }));
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as { language: unknown };
+    expect(agent.language).toBe('fr-CA');
+  });
+
+  it('never repeats the primary language in the list', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input({ primaryLanguage: 'en-US', languages: ['en-US', 'fr-CA'] }));
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as { language: unknown };
+    expect(agent.language).toEqual(['en-US', 'fr-CA']);
+  });
+
+  it('carries the voice dials through', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input({ voiceSpeed: 1.05, voiceTemperature: 0.7 }));
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as Record<string, unknown>;
+    expect(agent.voiceSpeed).toBe(1.05);
+    expect(agent.voiceTemperature).toBe(0.7);
+  });
+
+  it('leaves the dials to Retell’s default when the customer has not set them', async () => {
+    const gw = gateway();
+    const service = new AgentRetellService(gw);
+    await service.syncDraft(input());
+    const agent = gw.calls.find((c) => c.method === 'createAgent')!.args[0] as Record<string, unknown>;
+    expect(agent.voiceSpeed).toBeUndefined();
+    expect(agent.voiceTemperature).toBeUndefined();
+  });
+});
+
+describe('AgentRetellService: Arabic agents (ADR 0027)', () => {
+  const sync = async (over: Partial<RetellSyncInput>) => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft(input(over));
+    return {
+      agent: gw.calls.find((c) => c.method === 'createAgent')!.args[0] as Record<string, unknown>,
+      llm: gw.calls.find((c) => c.method === 'createLlm')!.args[0] as { prompt: string },
+    };
+  };
+
+  it('runs an Emirati agent on the platform\'s Arabic, ar-SA', async () => {
+    expect((await sync({ primaryLanguage: 'ar-AE' })).agent.language).toBe('ar-SA');
+  });
+
+  it('maps the extra languages too, and two Arabics become one', async () => {
+    expect((await sync({ primaryLanguage: 'ar-AE', languages: ['en-US'] })).agent.language).toEqual(['ar-SA', 'en-US']);
+    expect((await sync({ primaryLanguage: 'ar-AE', languages: ['ar-SA'] })).agent.language).toBe('ar-SA');
+  });
+
+  it('transcribes Arabic accurately whatever the tier says, and leaves other languages alone', async () => {
+    const fast = { ...stack, stt_mode: 'fast' as const };
+    expect((await sync({ primaryLanguage: 'ar-SA', stack: fast })).agent.sttMode).toBe('accurate');
+    expect((await sync({ primaryLanguage: 'en-US', stack: fast })).agent.sttMode).toBe('fast');
+  });
+
+  it('appends the dialect block before the platform rules, and only for Arabic', async () => {
+    const { llm } = await sync({ primaryLanguage: 'ar-AE' });
+    expect(llm.prompt).toContain('## Language (fixed)');
+    expect(llm.prompt).toContain('Emirati Arabic');
+    expect(llm.prompt.indexOf('## Language (fixed)')).toBeLessThan(llm.prompt.indexOf('## Platform rules (fixed)'));
+    expect((await sync({ primaryLanguage: 'en-US' })).llm.prompt).not.toContain('## Language (fixed)');
+  });
+});
+
+// BUG-005: the platform dials the staff number; the model never reads it.
+describe('AgentRetellService staff transfers', () => {
+  const brief = {
+    services: [],
+    faqs: [],
+    never_do_presets: [],
+    handoff_rules: [{ condition: 'Asks for the manager', action: 'transfer' as const, transfer_number: '+14165550142' }],
+    ai_disclosure: 'if_asked' as const,
+    documents: [],
+  };
+
+  it('sends the number as a transfer destination and keeps it out of the prompt and greeting', async () => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft(
+      input({
+        brief,
+        promptText: 'You are Sophie. If they ask for the manager, transfer them to +1 416 555 0142.',
+        greeting: 'Hi! For the manager dial 416-555-0142.',
+      }),
+    );
+    const llm = gw.calls.find((c) => c.method === 'createLlm')!.args[0] as {
+      prompt: string;
+      beginMessage: string;
+      transfers: Array<{ number: string; conditions: string[] }>;
+      defaultDynamicVariables: Record<string, string>;
+    };
+    expect(llm.transfers).toEqual([{ number: '+14165550142', conditions: ['Asks for the manager'] }]);
+    expect(llm.prompt).not.toMatch(/555.?0142/);
+    expect(llm.prompt).toContain('transfer them to our staff.');
+    expect(llm.beginMessage).toBe('Hi! For the manager dial our staff.');
+    // §9.7: the variable stays for the platform; nothing in the prompt references it.
+    expect(llm.defaultDynamicVariables.transfer_number_1).toBe('+14165550142');
+    // QA-083: always supplied, empty by default, so the rule's `{{transfer_fail_message}}`
+    // never reaches a browser test call as literal braces.
+    expect(llm.defaultDynamicVariables.transfer_fail_message).toBe('');
+    expect(llm.prompt).toContain('{{transfer_fail_message}}');
+    // ADR 0038: every §9.7 name has a default, so none is ever read out as braces.
+    expect(Object.keys(llm.defaultDynamicVariables)).toEqual(
+      expect.arrayContaining(['business_name', 'agent_name', 'caller_number', 'current_time', 'business_open', 'next_open_time', 'primary_language']),
+    );
+    expect(llm.defaultDynamicVariables.caller_number).toBe('');
+    expect(llm.prompt).toContain('{{business_open}}');
+  });
+});
+
+// QA-079 / QA-081: the add-ons and the recording notice reach the platform at every sync.
+describe('AgentRetellService add-ons', () => {
+  const sync = async (over: Partial<RetellSyncInput>) => {
+    const gw = gateway();
+    await new AgentRetellService(gw).syncDraft(input(over));
+    return {
+      agent: gw.calls.find((c) => c.method === 'createAgent')!.args[0] as Record<string, unknown>,
+      llm: gw.calls.find((c) => c.method === 'createLlm')!.args[0] as { prompt: string; beginMessage: string | null },
+    };
+  };
+
+  it('runs the strongest noise filter when denoise is on, the tier’s otherwise', async () => {
+    const tier = { ...stack, denoising_mode: 'noise-cancellation' as const };
+    expect((await sync({ stack: tier, denoise: true })).agent.denoisingMode).toBe('noise-and-background-speech-cancellation');
+    expect((await sync({ stack: tier, denoise: false })).agent.denoisingMode).toBe('noise-cancellation');
+  });
+
+  it('always sends the PII switch, so turning it off clears a stored config', async () => {
+    expect((await sync({ piiRemoval: true })).agent.piiRemoval).toBe(true);
+    expect((await sync({ piiRemoval: false })).agent.piiRemoval).toBe(false);
+  });
+
+  it('says the recording notice before the greeting, and stores nothing', async () => {
+    const { llm } = await sync({ greeting: 'Thank you for calling Maple Dental.', recordingNotice: 'Just so you know, this call is recorded.' });
+    expect(llm.beginMessage).toBe('Just so you know, this call is recorded. Thank you for calling Maple Dental.');
+    expect(llm.prompt).not.toContain('this call is recorded');
+    expect((await sync({ greeting: 'Hello', recordingNotice: null })).llm.beginMessage).toBe('Hello');
+  });
+});
+
+describe('piiConfigFor / denoisingModeFor', () => {
+  it('maps PII removal onto post-call scrubbing of identifiers, never names or phone numbers', () => {
+    const config = piiConfigFor(true)!;
+    expect(config.mode).toBe('post_call');
+    expect(config.categories).toEqual(expect.arrayContaining(['credit_card', 'bank_account', 'ssn', 'date_of_birth']));
+    expect(config.categories).not.toEqual(expect.arrayContaining(['person_name']));
+    expect(config.categories).not.toContain('phone_number');
+    expect(config.categories).not.toContain('email');
+    expect(config.categories).not.toContain('address');
+    expect(piiConfigFor(false)).toEqual({ mode: 'post_call', categories: [] });
+    expect(piiConfigFor(undefined)).toBeUndefined();
+  });
+
+  it('keeps the tier’s mode, including none, unless denoise is on', () => {
+    expect(denoisingModeFor(false, undefined)).toBeUndefined();
+    expect(denoisingModeFor(true, undefined)).toBe('noise-and-background-speech-cancellation');
+  });
+});

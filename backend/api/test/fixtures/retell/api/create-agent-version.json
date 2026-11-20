@@ -1,0 +1,78 @@
+{
+  "captured_at": "2026-09-15T05:26:39.950Z",
+  "data": {
+    "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+    "channel": "voice",
+    "last_modification_timestamp": 1789449999176,
+    "agent_name": "dev-spike-receptionist",
+    "response_engine": {
+      "type": "retell-llm",
+      "llm_id": "llm_018bb52247f187b5c8da04568fc1",
+      "version": 1
+    },
+    "webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell",
+    "webhook_timeout_ms": 10000,
+    "language": [
+      "en-US",
+      "fr-CA"
+    ],
+    "data_storage_setting": "everything",
+    "contact_memory_config": {
+      "enable_update": false,
+      "enable_read": true
+    },
+    "opt_in_signed_url": true,
+    "version": 1,
+    "base_version": 0,
+    "assigned_tags": [],
+    "is_published": false,
+    "post_call_analysis_model": "gpt-5.6-terra",
+    "pii_config": {
+      "categories": [],
+      "mode": "post_call"
+    },
+    "timezone": "America/Toronto",
+    "post_call_analysis_data": [
+      {
+        "name": "caller_name",
+        "type": "string",
+        "description": "The caller’s name if given.",
+        "examples": [
+          "Jane Doe"
+        ]
+      },
+      {
+        "choices": [
+          "appointment",
+          "question",
+          "other"
+        ],
+        "description": "Why they called.",
+        "type": "enum",
+        "name": "call_reason"
+      },
+      {
+        "description": "True if the caller asked to be called back.",
+        "name": "callback_requested",
+        "type": "boolean"
+      },
+      {
+        "description": "Number of people the appointment is for, if stated.",
+        "name": "party_size",
+        "type": "number"
+      }
+    ],
+    "voice_id": "11labs-Adrian",
+    "voice_model": "eleven_flash_v2_5",
+    "max_call_duration_ms": 600000,
+    "allow_user_dtmf": true,
+    "user_dtmf_options": {},
+    "webhook_events": [
+      "call_started",
+      "call_ended",
+      "call_analyzed",
+      "transfer_started",
+      "transfer_ended"
+    ]
+  }
+}

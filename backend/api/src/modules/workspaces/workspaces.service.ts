@@ -1,0 +1,482 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { Prisma, adminDb, withWorkspace } from '@portal/db';
+import {
+  type AuditEntryResponse,
+  type AuditLogQuery,
+  type CreateWorkspaceRequest,
+  type Page,
+  type UpdateWorkspaceRequest,
+  type WorkspaceChecklist,
+  type WorkspaceResponse,
+  businessHours as businessHoursSchema,
+} from '@portal/schemas';
+import { AppError } from '../../common/errors/app-error';
+import { decodeCursor, invalidCursor, toPage } from '../../common/pagination';
+import { type AuthenticatedUser, type WorkspaceContext, WorkspaceMfaService, assertTermsAccepted } from '../auth';
+import { BASE_CURRENCY, defaultCurrencyForCountry, workspaceCurrency } from '@portal/schemas';
+import { ExchangeRatesService, PlatformConfigService } from '../config';
+import { RuntimeCacheService } from '../runtime-cache';
+import { WalletService } from '../wallet';
+
+/**
+ * §13.2 — sign-up and workspace creation, and the D6 workspace settings behind it.
+ *
+ *     POST /workspaces → transaction: tenants row (plan trial), memberships (Owner),
+ *       credit_ledger +20 (reason trial, expires +30 days), default notification_settings,
+ *       audit_log → response includes the workspace id.
+ *
+ * Every one of those five is in **one** transaction, including the trial grant. That last
+ * one is the reason `WalletService.withWalletTx` exists: the wallet is still the only
+ * thing that writes `credit_ledger`, but here it writes inside a transaction it did not
+ * open, so a failure anywhere — a duplicate name, a bad timezone, a wallet policy that
+ * cannot be read — leaves no workspace at all rather than one with no credits, or credits
+ * with no owner.
+ *
+ * On `adminDb`, deliberately and unavoidably: RLS scopes every query to
+ * `app.tenant_id`, and at this point the workspace does not exist yet. ADR 0006 names
+ * workspace creation as one of the four legitimate admin-connection cases.
+ */
+@Injectable()
+export class WorkspacesService {
+  private readonly log = new Logger(WorkspacesService.name);
+
+  constructor(
+    private readonly wallet: WalletService,
+    private readonly config: PlatformConfigService,
+    private readonly runtimeCache: RuntimeCacheService,
+    private readonly mfa: WorkspaceMfaService,
+    private readonly fx: ExchangeRatesService,
+  ) {}
+
+  /**
+   * POST /workspaces (A4 "Continue").
+   *
+   * Duplicate submission is handled the way a double-clicked button should be: the same
+   * user creating the same-named workspace twice gets the first one back, not a second
+   * workspace with a second trial grant. The check runs under an advisory lock keyed on
+   * (user, normalised name), so two requests in flight at once cannot both pass it —
+   * this is a real serialisation point, not a `if (!exists) create()`.
+   */
+  async create(user: AuthenticatedUser, input: CreateWorkspaceRequest, ip?: string): Promise<WorkspaceResponse> {
+    assertTimezone(input.timezone);
+    await assertTermsAccepted(user.userId);
+    const { policy, configVersion } = await this.config.walletPolicy();
+
+    const { workspaceId, reused, writes } = await adminDb.$transaction(
+      async (tx) => {
+        await lockCreation(tx, user.userId, input.name);
+
+        const existing = await tx.tenant.findFirst({
+          where: {
+            name: { equals: input.name.trim(), mode: 'insensitive' },
+            memberships: { some: { userId: user.userId, role: 'owner' } },
+          },
+          select: { id: true },
+        });
+        if (existing) {
+          return { workspaceId: existing.id, reused: true, writes: [] };
+        }
+
+        const tenant = await tx.tenant.create({
+          data: {
+            name: input.name.trim(),
+            country: input.country,
+            // ADR 0049: CAD for a Canadian business, USD for any other; theirs to change until the first purchase.
+            currency: defaultCurrencyForCountry(input.country),
+            timezone: input.timezone,
+            website: input.website,
+            planTier: 'trial',
+            onboardingStep: 1,
+            ...(input.phone ? { addressJson: { phone: input.phone } as Prisma.InputJsonValue } : {}),
+          },
+        });
+
+        await tx.membership.create({ data: { tenantId: tenant.id, userId: user.userId, role: 'owner' } });
+
+        // §15: user_id NULL is the workspace-level default row. The partial unique index
+        // in the RLS migration is what keeps there being exactly one.
+        await tx.notificationSetting.create({ data: { tenantId: tenant.id, userId: null } });
+
+        const { writes } = await this.wallet.withWalletTx(tx, tenant.id, (wallet) =>
+          this.wallet.trialGrant(tx, wallet, tenant.id, policy.trial_credits, policy.trial_validity_days, configVersion),
+        );
+
+        await tx.auditLog.create({
+          data: {
+            tenantId: tenant.id,
+            actorUserId: user.userId,
+            action: 'workspace.created',
+            targetType: 'workspace',
+            targetId: tenant.id,
+            ip: ip ?? null,
+            metaJson: {
+              country: input.country,
+              currency: defaultCurrencyForCountry(input.country),
+              timezone: input.timezone,
+              trial_credits: policy.trial_credits,
+              config_version: configVersion,
+            } as Prisma.InputJsonValue,
+          },
+        });
+
+        return { workspaceId: tenant.id, reused: false, writes };
+      },
+      { timeout: 15_000, maxWait: 5_000 },
+    );
+
+    if (reused) {
+      this.log.warn(`user ${user.userId} re-submitted "${input.name}"; returning the existing workspace ${workspaceId}`);
+      return this.get({ userId: user.userId, workspaceId, role: 'owner', mfa: user.mfa });
+    }
+
+    // After the commit: a `wallet` SSE frame for a balance that then rolled back would be
+    // a number the customer can see and the database cannot.
+    await this.wallet.notify(workspaceId, writes);
+    // Fills `caps:{ws}` and `bal:{ws}` so the first inbound call does not meet a cold
+    // cache (CLAUDE.md: refresh from every mutating path). Never fatal — the 5-minute
+    // schedule is the backstop.
+    await this.runtimeCache
+      .refresh(workspaceId)
+      .catch((error: unknown) => this.log.warn(`runtime-cache warm for the new workspace failed: ${String(error)}`));
+
+    this.log.log(`workspace ${workspaceId} created by ${user.userId} with ${policy.trial_credits} trial credits`);
+    return this.get({ userId: user.userId, workspaceId, role: 'owner', mfa: user.mfa });
+  }
+
+  /** GET /workspace — the signed-in workspace, with the caller's own role. */
+  async get(ctx: WorkspaceContext): Promise<WorkspaceResponse> {
+    const tenant = await withWorkspace(ctx, (db) => db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId } }));
+    return this.respond(tenant, ctx);
+  }
+
+  /**
+   * POST /workspace/onboarding-step — moves the §6.4 resume pointer forward, never back:
+   * the conditional update is the rule, so two tabs or a stale page cannot rewind it.
+   * Not audited — it is a wizard bookmark, not a setting.
+   */
+  async advanceOnboarding(ctx: WorkspaceContext, step: number): Promise<WorkspaceResponse> {
+    const tenant = await withWorkspace(ctx, async (db) => {
+      await db.tenant.updateMany({ where: { id: ctx.workspaceId, onboardingStep: { lt: step } }, data: { onboardingStep: step } });
+      return db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId } });
+    });
+    return this.respond(tenant, ctx);
+  }
+
+  /**
+   * POST /workspace/onboarding-dismiss — "Save and exit" (§7.3, §6.4 "onboarding not
+   * dismissed"). Writes the timestamp once; a second press keeps the first. Like the
+   * step pointer it is a bookmark, not a setting, so it is not audited.
+   */
+  async dismissOnboarding(ctx: WorkspaceContext): Promise<WorkspaceResponse> {
+    const tenant = await withWorkspace(ctx, async (db) => {
+      await db.tenant.updateMany({ where: { id: ctx.workspaceId, onboardingDismissedAt: null }, data: { onboardingDismissedAt: new Date() } });
+      return db.tenant.findUniqueOrThrow({ where: { id: ctx.workspaceId } });
+    });
+    return this.respond(tenant, ctx);
+  }
+
+  /** PATCH /workspace — D6 Settings. Owner or admin (§6.1 "change workspace settings"). */
+  async update(ctx: WorkspaceContext, input: UpdateWorkspaceRequest, ip?: string): Promise<WorkspaceResponse> {
+    if (input.timezone) assertTimezone(input.timezone);
+    // Only turning the PII default on needs the plan (QA-081); turning it off never does.
+    if (input.pii_removal_default === true && (await this.config.flagsFor(ctx.workspaceId)).gates.pii_removal !== true) {
+      throw new AppError('PLAN_LIMIT', 'Your plan does not include PII removal yet. Buy a pack that does to unlock it.', [
+        { field: 'pii_removal_default', message: 'pii_removal gate is off' },
+      ]);
+    }
+
+    const data: Prisma.TenantUpdateInput = {};
+    if (input.name !== undefined) data.name = input.name.trim();
+    if (input.timezone !== undefined) data.timezone = input.timezone;
+    if (input.website !== undefined) data.website = input.website;
+    if (input.recording_default !== undefined) data.recordingDefault = input.recording_default;
+    if (input.retention_days !== undefined) data.retentionDays = input.retention_days;
+    if (input.pii_removal_default !== undefined) data.piiRemovalDefault = input.pii_removal_default;
+    if (input.recording_notice !== undefined) data.recordingNotice = input.recording_notice;
+    if (input.recording_notice_text !== undefined) data.recordingNoticeText = input.recording_notice_text;
+    if (input.business_hours !== undefined) {
+      data.businessHoursJson =
+        input.business_hours === null
+          ? Prisma.DbNull
+          : (businessHoursSchema.parse(input.business_hours) as unknown as Prisma.InputJsonValue);
+    }
+
+    // ADR 0049: a currency that cannot be priced is not offered (no rate stored yet).
+    if (input.currency !== undefined && input.currency !== BASE_CURRENCY && !(await this.fx.current())) {
+      throw new AppError('CURRENCY_UNAVAILABLE', `Prices in ${input.currency} are not available right now. Please try again later.`, [
+        { field: 'currency', message: 'No exchange rate is stored yet' },
+      ]);
+    }
+
+    const tenant = await withWorkspace(ctx, async (db) => {
+      let currencyChange: { from: string; to: string } | null = null;
+      if (input.currency !== undefined) {
+        // The row is locked first, so a purchase being credited at this moment either
+        // commits before the count below (and the change is refused) or after this
+        // transaction (and `settleWorkspaceCurrency` puts the currency back to what was
+        // charged). The trigger `guard_tenant_currency` refuses the same thing again.
+        const rows = await db.$queryRaw<Array<{ currency: string }>>`SELECT currency FROM tenants WHERE id = ${ctx.workspaceId}::uuid FOR UPDATE`;
+        const from = workspaceCurrency(rows[0]?.currency);
+        if (from !== input.currency) {
+          const paid = await db.purchase.count({ where: { tenantId: ctx.workspaceId, status: { in: ['paid', 'refunded'] } } });
+          if (paid > 0) {
+            throw new AppError('CURRENCY_LOCKED', 'Your currency was fixed by your first purchase. Contact support to change it.', [
+              { field: 'currency', message: 'Locked after the first purchase' },
+            ]);
+          }
+          data.currency = input.currency;
+          currencyChange = { from, to: input.currency };
+        }
+      }
+      const updated = await db.tenant.update({ where: { id: ctx.workspaceId }, data });
+      await db.auditLog.create({
+        data: {
+          tenantId: ctx.workspaceId,
+          actorUserId: ctx.userId,
+          action: 'workspace.updated',
+          targetType: 'workspace',
+          targetId: ctx.workspaceId,
+          ip: ip ?? null,
+          metaJson: { fields: Object.keys(data), ...(currencyChange ? { currency: currencyChange } : {}) } as Prisma.InputJsonValue,
+        },
+      });
+      return updated;
+    });
+
+    // Business hours and the timezone are both baked into `num:{e164}`, which the §13.9
+    // hours check reads without touching Postgres. A settings save that did not refresh
+    // would leave the agent answering on yesterday's opening times for five minutes.
+    if (input.business_hours !== undefined || input.timezone !== undefined || input.name !== undefined) {
+      await this.runtimeCache
+        .refresh(ctx.workspaceId)
+        .catch((error: unknown) => this.log.warn(`runtime-cache refresh after a settings change failed: ${String(error)}`));
+    }
+    return this.respond(tenant, ctx);
+  }
+
+  /**
+   * GET /workspace/checklist — §6.4 onboarding gating, answered by the server so the
+   * portal's route guards and the backend cannot disagree about whether onboarding is done.
+   */
+  async checklist(ctx: WorkspaceContext): Promise<WorkspaceChecklist> {
+    const state = await withWorkspace(ctx, async (db) => {
+      const [tenant, agents, published, generated, purchases, numbers, forwarding, members, invites] = await Promise.all([
+        db.tenant.findUniqueOrThrow({
+          where: { id: ctx.workspaceId },
+          select: { onboardingStep: true, onboardingCompletedAt: true },
+        }),
+        db.agent.count({ where: { tenantId: ctx.workspaceId, deletedAt: null } }),
+        db.agent.count({ where: { tenantId: ctx.workspaceId, deletedAt: null, publishedVersion: { not: null } } }),
+        db.agentVersion.count({ where: { agent: { tenantId: ctx.workspaceId }, promptText: { not: null } } }),
+        db.purchase.count({ where: { tenantId: ctx.workspaceId, status: 'paid' } }),
+        db.phoneNumber.count({ where: { tenantId: ctx.workspaceId, status: { in: ['active', 'provisioning'] } } }),
+        // D1 "Forwarding tested" (ADR 0041): the Option B numbers, and whether any test landed or the customer confirmed.
+        db.phoneNumber.findMany({
+          where: { tenantId: ctx.workspaceId, forwardingFrom: { not: null }, status: { in: ['active', 'paused', 'provisioning'] } },
+          select: { forwardingStatus: true, forwardingTestJson: true },
+        }),
+        db.membership.count({ where: { tenantId: ctx.workspaceId } }),
+        db.invite.count({ where: { tenantId: ctx.workspaceId } }),
+      ]);
+      return { tenant, agents, published, generated, purchases, numbers, forwarding, members, invites };
+    });
+
+    const checklist = {
+      workspace_created: true,
+      agent_created: state.agents > 0,
+      agent_generated: state.generated > 0,
+      agent_published: state.published > 0,
+      credits_purchased: state.purchases > 0,
+      number_attached: state.numbers > 0,
+      forwarding_tested: forwardingTested(state.forwarding),
+      // A second member, or an invitation sent: the row is "Invite your team", and sending one is the act.
+      team_invited: state.members > 1 || state.invites > 0,
+      onboarding_step: state.tenant.onboardingStep,
+    };
+    const rows = [checklist.agent_created, checklist.agent_generated, checklist.agent_published, checklist.credits_purchased, checklist.number_attached, checklist.team_invited, ...(checklist.forwarding_tested === null ? [] : [checklist.forwarding_tested])];
+    return {
+      ...checklist,
+      // §6.4 redirects to /onboarding/* until there is a published agent; the rest of the
+      // list is progress, not a gate.
+      complete: Boolean(state.tenant.onboardingCompletedAt) || checklist.agent_published,
+      all_done: rows.every(Boolean),
+    };
+  }
+
+  /** Every workspace the signed-in user belongs to — the A7 switcher. */
+  /**
+   * D6 Audit log (§6.2, §16 `GET /audit-log`), newest first. Read under RLS like every
+   * customer read; the actor comes through `users_read_co_members`, so someone who has
+   * left the workspace reads as no actor rather than leaking their profile.
+   */
+  async auditLog(ctx: WorkspaceContext, query: AuditLogQuery): Promise<Page<AuditEntryResponse>> {
+    // The cursor is an explicit keyset predicate, like `GET /calls` (ADR 0018): Prisma's
+    // `cursor` answers a malformed id with a P2023 (a 500) and an id this workspace cannot
+    // see — or one the area filter no longer includes — with a silent empty page. The
+    // position row is read under RLS, so a foreign id is "not there" and the page link
+    // is refused, never a leak; a value that is not a UUID never reaches Postgres.
+    const cursorId = query.cursor ? decodeCursor(query.cursor).id : null;
+    if (cursorId !== null && !UUID_RE.test(cursorId)) throw invalidCursor();
+    const filter: Prisma.AuditLogWhereInput = { tenantId: ctx.workspaceId, ...(query.area ? { action: { startsWith: `${query.area}.` } } : {}) };
+    const rows = await withWorkspace(ctx, async (db) => {
+      const position = cursorId ? await db.auditLog.findFirst({ where: { id: cursorId, tenantId: ctx.workspaceId }, select: { id: true, createdAt: true } }) : null;
+      if (cursorId && !position) throw invalidCursor();
+      const after: Prisma.AuditLogWhereInput | null = position ? { OR: [{ createdAt: { lt: position.createdAt } }, { createdAt: position.createdAt, id: { lt: position.id } }] } : null;
+      return db.auditLog.findMany({
+        take: query.limit + 1,
+        where: after ? { AND: [filter, after] } : filter,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        include: { actor: { select: { id: true, email: true, name: true } } },
+      });
+    });
+    const page = toPage(rows, query);
+    return {
+      next_cursor: page.next_cursor,
+      items: page.items.map((row) => ({
+        id: row.id,
+        action: row.action,
+        target_type: row.targetType,
+        target_id: row.targetId,
+        actor: row.actor ? { user_id: row.actor.id, email: row.actor.email, name: row.actor.name } : null,
+        ip: row.ip,
+        meta: row.metaJson && typeof row.metaJson === 'object' && !Array.isArray(row.metaJson) ? (row.metaJson as Record<string, unknown>) : null,
+        created_at: row.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * A7 switcher (§6.3): name, role and the balance pill for each membership. Each balance
+   * is that workspace's own `bal:{ws}` (rebuilt from its ledger on a miss), read for this
+   * request — never the active workspace's number carried over. One that cannot be read is
+   * `null`, and the pill is left out rather than showing a wrong figure.
+   */
+  async listForUser(userId: string): Promise<Array<{ id: string; name: string; role: string; balance: number | null }>> {
+    const rows = await adminDb.membership.findMany({
+      where: { userId },
+      include: { tenant: { select: { id: true, name: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+    return Promise.all(
+      rows.map(async (row) => ({
+        id: row.tenant.id,
+        name: row.tenant.name,
+        role: row.role,
+        balance: await this.wallet.balance(row.tenant.id).catch(() => null),
+      })),
+    );
+  }
+
+  /** The §6.2 MFA rule for the caller rides on every workspace response (ADR 0036). */
+  private async respond(tenant: Parameters<typeof toResponse>[0], ctx: WorkspaceContext): Promise<WorkspaceResponse> {
+    const [mfa, paid] = await Promise.all([
+      this.mfa.describe(tenant.id, ctx.role, ctx.mfa ?? false),
+      // ADR 0049: a paid purchase is what locks the currency for the customer. Asked on
+      // every workspace read, so it is one row of this workspace's own, not a count.
+      withWorkspace(ctx, (db) => db.purchase.findFirst({ where: { tenantId: tenant.id, status: { in: ['paid', 'refunded'] } }, select: { id: true } })),
+    ]);
+    return toResponse(tenant, ctx.role, mfa, paid !== null);
+  }
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function toResponse(
+  tenant: {
+    id: string;
+    name: string;
+    country: string;
+    timezone: string;
+    website: string | null;
+    planTier: string;
+    concurrencyCap: number;
+    kbAllowance: number;
+    currency: string;
+    businessHoursJson: unknown;
+    recordingDefault: boolean;
+    retentionDays: number;
+    piiRemovalDefault: boolean;
+    recordingNotice: boolean;
+    recordingNoticeText: string | null;
+    onboardingStep: number;
+    onboardingCompletedAt: Date | null;
+    onboardingDismissedAt: Date | null;
+    pausedAt: Date | null;
+    pausedReason: string | null;
+    pausedTicketId: number | null;
+    createdAt: Date;
+  },
+  role: WorkspaceContext['role'],
+  mfa: WorkspaceResponse['mfa'],
+  currencyLocked: boolean,
+): WorkspaceResponse {
+  return {
+    id: tenant.id,
+    name: tenant.name,
+    country: tenant.country,
+    timezone: tenant.timezone,
+    website: tenant.website,
+    plan_tier: tenant.planTier as WorkspaceResponse['plan_tier'],
+    concurrency_cap: tenant.concurrencyCap,
+    kb_allowance: tenant.kbAllowance,
+    currency: workspaceCurrency(tenant.currency),
+    currency_locked: currencyLocked,
+    business_hours: businessHoursSchema.safeParse(tenant.businessHoursJson).data ?? null,
+    recording_default: tenant.recordingDefault,
+    retention_days: tenant.retentionDays,
+    pii_removal_default: tenant.piiRemovalDefault,
+    recording_notice: tenant.recordingNotice,
+    recording_notice_text: tenant.recordingNoticeText,
+    onboarding_step: tenant.onboardingStep,
+    onboarding_completed_at: tenant.onboardingCompletedAt?.toISOString() ?? null,
+    onboarding_dismissed_at: tenant.onboardingDismissedAt?.toISOString() ?? null,
+    paused: tenant.pausedAt !== null,
+    paused_reason: tenant.pausedReason,
+    paused_ticket_id: tenant.pausedAt !== null ? tenant.pausedTicketId : null,
+    role,
+    mfa,
+    created_at: tenant.createdAt.toISOString(),
+  };
+}
+
+/**
+ * A transaction-scoped advisory lock on (user, normalised name).
+ *
+ * It is what makes the duplicate check above a real one. Two simultaneous POSTs would
+ * otherwise both find nothing and both create a workspace — the classic
+ * check-then-act race, and the one that costs two trial grants. Transaction-scoped, so
+ * it is released by the commit or the rollback and never leaks with a pooled connection.
+ */
+async function lockCreation(tx: Prisma.TransactionClient, userId: string, name: string): Promise<void> {
+  const key = `workspace:create:${userId}:${name.trim().toLowerCase()}`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+}
+
+/**
+ * The timezone reaches Retell (`agent.timezone`) and drives the §13.9 hours check, so a
+ * typo here is an agent that answers at the wrong time of day. Node's own tz database is
+ * the cheapest possible check and needs no dependency.
+ */
+function assertTimezone(timezone: string): void {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: timezone });
+  } catch {
+    throw new AppError('BAD_REQUEST', `"${timezone}" is not a time zone we recognise.`, [
+      { field: 'timezone', message: 'Pick a time zone from the list' },
+    ]);
+  }
+}
+
+/**
+ * D1 "Forwarding tested" (ADR 0041). Null when nothing forwards to the agent — there is
+ * nothing to test, and the card leaves the row out. Done when a forwarding number's last
+ * "Test forwarding" landed (D17) or the customer confirmed the forwarding on the live page.
+ */
+export function forwardingTested(numbers: Array<{ forwardingStatus: string | null; forwardingTestJson: unknown }>): boolean | null {
+  if (numbers.length === 0) return null;
+  return numbers.some((n) => {
+    if (n.forwardingStatus === 'ready') return true;
+    const test = n.forwardingTestJson;
+    return Boolean(test && typeof test === 'object' && (test as { status?: unknown }).status === 'landed');
+  });
+}

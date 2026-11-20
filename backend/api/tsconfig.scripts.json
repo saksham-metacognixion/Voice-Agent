@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist-scripts",
+    "rootDir": "./",
+    "noEmit": false,
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": [
+    "src",
+    "test",
+    "scripts/d6-staging-verify.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-scripts",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "Version": "2012-10-17",
+  "Comment": [
+    "Voice Agent — the permissions boundary for every identity the stack creates.",
+    "Policy name: voice-agent-boundary. ADR 0015.",
+    "",
+    "A boundary is a ceiling, not a grant: an identity's effective permissions are the",
+    "intersection of its own policy and this. The instance role and the CI user stay scoped by",
+    "their own policies; this only caps what they could ever become.",
+    "",
+    "It exists so that iam:CreateRole + iam:PutRolePolicy in operator-bootstrap-policy-strict.json",
+    "cannot be used to mint a voice-agent-* role with Action:* and assume it. A boundaried role",
+    "cannot hold an IAM permission however its inline policy is written.",
+    "",
+    "Remove the Comment key before pasting: IAM rejects unknown top-level keys."
+  ],
+  "Statement": [
+    {
+      "Sid": "TheCeilingForTheInstanceRoleAndTheCiUser",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:*",
+        "ssmmessages:*",
+        "ec2messages:*",
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret",
+        "s3:GetObject",
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogStreams",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "ec2:DescribeTags",
+        "cloudwatch:PutMetricData"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "NothingBoundariedMayEverTouchIdentity",
+      "Effect": "Deny",
+      "Action": ["iam:*", "organizations:*", "account:*", "sts:AssumeRole"],
+      "Resource": "*"
+    }
+  ]
+}

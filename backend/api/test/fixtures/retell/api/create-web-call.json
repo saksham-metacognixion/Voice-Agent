@@ -1,0 +1,27 @@
+{
+  "captured_at": "2026-09-15T05:27:01.456Z",
+  "data": {
+    "call_id": "call_8bfb0d0c57baabcb2f24fa6c0a7",
+    "access_token": "[redacted]",
+    "transport": "gateway",
+    "ice_servers": [
+      {
+        "urls": "turn:turn.retellai.com:3478?transport=udp",
+        "username": "1789457821:call_8bfb0d0c57baabcb2f24fa6c0a7",
+        "credential": "BrzUtuf/IcoRgYAFK3stDubnMp4="
+      },
+      {
+        "urls": "turns:turn.retellai.com:443",
+        "username": "1789457821:call_8bfb0d0c57baabcb2f24fa6c0a7",
+        "credential": "BrzUtuf/IcoRgYAFK3stDubnMp4="
+      },
+      {
+        "urls": "stun:stun.l.google.com:19302"
+      },
+      {
+        "urls": "stun:stun.cloudflare.com:3478"
+      }
+    ],
+    "expires_at": 1789457821000
+  }
+}

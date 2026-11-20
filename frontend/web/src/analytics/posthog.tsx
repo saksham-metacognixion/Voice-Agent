@@ -1,0 +1,194 @@
+'use client';
+
+import posthog from 'posthog-js';
+import * as React from 'react';
+import { usePathname } from 'next/navigation';
+import { config } from '../config';
+import { workspaceStore } from '../workspace/store';
+import { sanitizeCapture, sanitizeUrl } from './sanitize';
+
+/**
+ * PostHog (spec §12.1). Off when no key is set, so a dev box sends nothing. Identity is
+ * the Auth0 `sub` — pseudonymous — and event properties are ids, step names and counts,
+ * never brief text, email addresses or phone numbers. Page views are captured by hand on
+ * route change (the static export has no server to count them).
+ *
+ * No URL leaves with its query string or fragment (QA-008): those carry the Auth0 code
+ * and state, invite tokens, view-as keys and Stripe session ids. `sanitizeCapture` runs
+ * as `before_send` on every event, ours and the SDK's. Three things carry URLs that
+ * `before_send` never sees, so they are off: session replay and heatmaps (URLs inside
+ * their payloads), and the `/flags` request, which posts the person's properties —
+ * `$initial_current_url` included — to evaluate feature flags. The portal's flags are
+ * `GET /flags` on our API; PostHog's are not used.
+ */
+let initialised = false;
+
+export function initAnalytics(): boolean {
+  if (initialised) return true;
+  if (!config.posthog.key || typeof window === 'undefined') return false;
+  posthog.init(config.posthog.key, {
+    api_host: config.posthog.host,
+    capture_pageview: false,
+    capture_pageleave: true,
+    autocapture: false,
+    persistence: 'localStorage+cookie',
+    person_profiles: 'identified_only',
+    before_send: sanitizeCapture,
+    disable_session_recording: true,
+    enable_heatmaps: false,
+    advanced_disable_flags: true,
+  });
+  posthog.register({ app: 'portal', app_env: config.appEnv });
+  initialised = true;
+  return true;
+}
+
+export type AnalyticsEvent =
+  | 'signup_completed'
+  | 'login_completed'
+  | 'workspace_created'
+  | 'workspace_switched'
+  | 'invite_accepted'
+  | 'onboarding_step_viewed'
+  | 'onboarding_step_completed'
+  | 'onboarding_exited'
+  | 'template_selected'
+  | 'template_sample_played'
+  | 'brief_field_saved'
+  | 'brief_completed'
+  | 'generate_clicked'
+  | 'generation_started'
+  | 'generation_completed'
+  | 'generation_failed'
+  | 'script_editor_opened'
+  | 'guided_brief_started'
+  | 'guided_brief_applied'
+  | 'voice_selected'
+  | 'voice_auto_selected'
+  | 'faq_moved_to_knowledge'
+  | 'language_selected'
+  | 'script_rewrite_clicked'
+  // The portal's own language (en / ar), not the agent's.
+  | 'language_changed'
+  | 'voice_preview_played'
+  // W4–W7 (D9). §12 names test_call_started/ended, pack_selected, checkout_completed.
+  | 'knowledge_added'
+  | 'knowledge_removed'
+  | 'menu_uploaded'
+  | 'menu_replaced'
+  | 'menu_removed'
+  | 'document_added'
+  | 'document_removed'
+  | 'test_call_started'
+  | 'test_call_ended'
+  | 'test_call_failed'
+  // W5 soft gate and version selector (QA-082) — ids and counts only
+  | 'test_version_selected'
+  | 'w5_happy'
+  | 'w5_skipped'
+  // D17: "Call my phone" (W5), "Test forwarding" (D4), the website widget (D3 Website)
+  | 'test_phone_call_started'
+  | 'test_phone_call_failed'
+  | 'forwarding_test_started'
+  | 'forwarding_test_finished'
+  | 'widget_toggled'
+  // D18: outbound callbacks from D2 and the D6 Outbound tab — codes and counts, never a number
+  | 'callback_placed'
+  | 'callback_refused'
+  | 'dnc_added'
+  | 'dnc_removed'
+  | 'kyc_submitted'
+  | 'outbound_settings_saved'
+  | 'feedback_submitted'
+  | 'feedback_applied'
+  | 'feedback_failed'
+  | 'phone_option_selected'
+  | 'pack_selected'
+  | 'checkout_returned'
+  | 'checkout_confirmed'
+  | 'checkout_cancelled'
+  | 'checkout_completed'
+  | 'agent_live'
+  | 'onboarding_live_viewed'
+  | 'forwarding_confirmed'
+  | 'live_number_copied'
+  | 'area_code_suggested'
+  | 'scenario_chip_opened'
+  | 'feedback_undone'
+  | 'mfa_enrol_started'
+  // ADR 0036: the step-up an owner/admin takes when money is at risk, the Terms checkbox, a first purchase over the review limit.
+  | 'mfa_step_up_started'
+  | 'terms_accepted'
+  | 'purchase_review_requested'
+  | 'password_reset_requested'
+  | 'session_ended'
+  | 'mfa_disable_reauth'
+  | 'mfa_disabled'
+  | 'theme_changed'
+  // D10 dashboard
+  | 'calls_filtered'
+  | 'calls_bulk_handled'
+  | 'calls_exported'
+  // QA-080 / QA-081: the D5 credit-history CSV, the D6 data export and deletion request
+  | 'ledger_exported'
+  | 'workspace_data_exported'
+  | 'workspace_deletion_requested'
+  | 'workspace_deletion_withdrawn'
+  | 'agent_created'
+  | 'agent_published'
+  | 'agent_settings_saved'
+  // D3 Brief (QA-079) — ids and counts only
+  | 'agent_analysis_fields_saved'
+  | 'agent_version_saved'
+  | 'agent_deleted'
+  | 'prompt_saved'
+  | 'version_restored'
+  | 'agent_duplicated'
+  | 'agent_draft_discarded'
+  // D11 dashboard
+  | 'number_added'
+  | 'number_updated'
+  | 'number_released'
+  | 'auto_topup_saved'
+  | 'payment_portal_opened'
+  | 'workspace_settings_saved'
+  | 'workspace_currency_changed'
+  | 'member_invited'
+  | 'member_role_changed'
+  | 'member_removed'
+  | 'ownership_transferred'
+  | 'notification_settings_saved'
+  | 'call_reported'
+  | 'support_ticket_opened'
+  | 'support_ticket_replied';
+
+export function track(event: AnalyticsEvent, props: Record<string, string | number | boolean | null | undefined> = {}) {
+  if (!initialised) return;
+  posthog.capture(event, { workspace_id: workspaceStore.get(), ...props });
+}
+
+export function identify(userId: string, props: Record<string, string | number | boolean> = {}) {
+  if (!initialised) return;
+  posthog.identify(userId, props);
+}
+
+export function resetAnalytics() {
+  if (initialised) posthog.reset();
+}
+
+/** The hand-made page view: path and workspace, and the URL without its query or fragment. */
+export function capturePageview(pathname: string) {
+  if (!initialised || !pathname) return;
+  posthog.capture('$pageview', { $current_url: sanitizeUrl(window.location.href), path: pathname, workspace_id: workspaceStore.get() });
+}
+
+export function AnalyticsProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  React.useEffect(() => {
+    initAnalytics();
+  }, []);
+  React.useEffect(() => {
+    capturePageview(pathname);
+  }, [pathname]);
+  return <>{children}</>;
+}

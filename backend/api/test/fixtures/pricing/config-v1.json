@@ -1,0 +1,19 @@
+{
+  "currency_default": "USD",
+  "packs": [
+    { "id": "starter", "name": "Starter", "price_cents": 4900, "currency": "USD", "credits": 150, "bonus_credits": 0, "plan_tier": "starter", "concurrency_cap": 2, "kb_allowance": 0, "max_agents": 1, "max_numbers": 1, "feature_gates": ["call_my_phone"], "badge": null, "description": "Get one agent on one number.", "sort_order": 1, "visibility": "public", "regions": [], "active": true },
+    { "id": "growth", "name": "Growth", "price_cents": 14900, "currency": "USD", "credits": 500, "bonus_credits": 0, "plan_tier": "growth", "concurrency_cap": 3, "kb_allowance": 1, "max_agents": 3, "max_numbers": 3, "feature_gates": ["knowledge_base", "call_my_phone", "auto_topup", "analysis_fields"], "badge": "Most popular", "description": null, "sort_order": 2, "visibility": "public", "regions": [], "active": true },
+    { "id": "scale", "name": "Scale", "price_cents": 39900, "currency": "USD", "credits": 1500, "bonus_credits": 0, "plan_tier": "scale", "concurrency_cap": 5, "kb_allowance": 3, "max_agents": 10, "max_numbers": 10, "feature_gates": ["knowledge_base", "premium_voices", "multi_agent", "pii_removal", "denoise", "call_my_phone", "web_widget", "analysis_fields", "auto_topup", "sip_import"], "badge": null, "description": null, "sort_order": 3, "visibility": "public", "regions": [], "active": true },
+    { "id": "pro", "name": "Pro", "price_cents": 99900, "currency": "USD", "credits": 4500, "bonus_credits": 0, "plan_tier": "pro", "concurrency_cap": 10, "kb_allowance": 5, "max_agents": 25, "max_numbers": 25, "feature_gates": ["knowledge_base", "premium_voices", "multi_agent", "pii_removal", "denoise", "call_my_phone", "web_widget", "analysis_fields", "auto_topup", "sip_import"], "badge": null, "description": null, "sort_order": 4, "visibility": "public", "regions": [], "active": true },
+    { "id": "ca_only", "name": "Canada launch", "price_cents": 9900, "currency": "CAD", "credits": 300, "bonus_credits": 50, "plan_tier": "growth", "concurrency_cap": 3, "kb_allowance": 1, "max_agents": 3, "max_numbers": 3, "feature_gates": ["knowledge_base"], "badge": null, "description": null, "sort_order": 9, "visibility": "public", "regions": ["CA"], "active": true },
+    { "id": "partner_hidden", "name": "Partner", "price_cents": 100, "currency": "USD", "credits": 10000, "bonus_credits": 0, "plan_tier": "volume", "concurrency_cap": 20, "kb_allowance": 10, "max_agents": 100, "max_numbers": 100, "feature_gates": ["knowledge_base", "premium_voices", "multi_agent"], "badge": null, "description": null, "sort_order": 99, "visibility": "hidden", "regions": [], "active": true }
+  ],
+  "rates": { "standard_per_min": 1.0, "premium_per_min": 1.5, "web_call_per_min": null, "toll_free_surcharge_per_min": 0.25, "transferred_leg_per_min": 0.25, "rounding_dp": 2 },
+  "recurring": { "number_rental_credits": 15, "extra_kb_credits": 30, "release_after_days_at_zero_balance": 30, "rental_warning_days": [7, 14, 21] },
+  "wallet_policy": {
+    "trial_credits": 20, "trial_validity_days": 30, "trial_channel": "web", "credit_expiry_months": 12, "grace_overdraft_credits": 10,
+    "low_balance_thresholds_pct": [20, 5, 0], "auto_topup_default_on": true, "auto_topup_threshold_pct": 10,
+    "max_first_purchase_cents_without_review": 100000, "mfa_required_above_balance": 1000
+  },
+  "trial": { "concurrency_cap": 1, "kb_allowance": 0, "max_agents": 1, "max_numbers": 0, "feature_gates": [] }
+}

@@ -23,20 +23,20 @@ Three constraints shaped every choice:
 
 ## Decision
 
-| Layer          | Decision                                                                                                                                                                         |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                      |
-| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand, React Hook Form + zod, next-intl, PostHog, `retell-client-js-sdk`, `@microsoft/fetch-event-source` |
-| API            | NestJS on the Fastify adapter, `nestjs-zod` for validation                                                                                                                       |
-| Worker         | Same codebase, separate entrypoint. BullMQ processors + Job Schedulers                                                                                                           |
-| Database       | Postgres on Neon + Prisma. RLS on `workspace_id`, two DB roles, append-only ledger                                                                                               |
-| Cache / queue  | Redis on Railway, TCP                                                                                                                                                            |
-| Auth           | Clerk, two separate applications                                                                                                                                                 |
-| Payments       | Stripe Checkout + Customer Portal                                                                                                                                                |
-| Voice          | Retell Node SDK behind `RetellGateway`                                                                                                                                           |
-| LLM            | Anthropic SDK, `claude-sonnet-5`, structured output                                                                                                                              |
-| Hosting        | Vercel ×2 + Railway + Neon                                                                                                                                                       |
-| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack                                                                                                                                     |
+| Layer          | Decision                                                                                                                                                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo       | pnpm workspaces + Turborepo                                                                                                                                                                                |
+| Portal & admin | Next.js App Router, TypeScript, Tailwind, shadcn/ui, TanStack Query, Zustand, React Hook Form + zod, next-intl, PostHog, `retell-client-js-sdk`, `@microsoft/fetch-event-source`                           |
+| API            | NestJS on the Fastify adapter, `nestjs-zod` for validation                                                                                                                                                 |
+| Worker         | Same codebase, separate entrypoint. BullMQ processors + Job Schedulers                                                                                                                                     |
+| Database       | Postgres on Neon + Prisma. RLS on `workspace_id`, two DB roles, append-only ledger                                                                                                                         |
+| Cache / queue  | Redis on Railway, TCP                                                                                                                                                                                      |
+| Auth           | ~~Clerk, two separate applications~~ → **Auth0, two tenants**. Superseded by [ADR 0002](0002-auth-provider-auth0.md) on 2026-09-11                                                                         |
+| Payments       | Stripe Checkout + Customer Portal                                                                                                                                                                          |
+| Voice          | Retell Node SDK behind `RetellGateway`                                                                                                                                                                     |
+| LLM            | ~~Anthropic SDK, `claude-sonnet-5`~~ → ~~OpenAI SDK, `gpt-5`~~ → **Anthropic SDK, `claude-sonnet-5`** (back to the original), structured output. Superseded by [ADR 0007](0007-llm-provider-openai.md) on 2026-09-14, then [ADR 0009](0009-llm-provider-anthropic.md) on 2026-09-15                                                     |
+| Hosting        | ~~Vercel ×2 + Railway + Neon~~ → ~~AWS Amplify Hosting~~ → **S3 + CloudFront (ADR 0008) ×2 + AWS EC2 + Neon**. Superseded by [ADR 0004](0004-backend-hosting-aws-ec2.md) and [ADR 0005](0005-frontend-hosting-aws-amplify.md) on 2026-09-11 |
+| Observability  | OpenTelemetry → Grafana Cloud, Sentry, Slack                                                                                                                                                               |
 
 ## Alternatives considered
 
@@ -66,17 +66,17 @@ Fly.io's Redis is Upstash-backed and carries the same problem.
 **Railway Postgres.** Rejected: snapshots only. §17 requires 7-day point-in-time recovery, which Neon
 provides on its paid tier. Render is a reasonable single-vendor fallback if the two-bill setup annoys.
 
-**Clerk Organizations for workspaces.** Rejected: `tenants` and `memberships` stay the source of truth
-for authorisation. Clerk supplies identity only.
+**Identity-provider organisations (Clerk Organizations, Auth0 Organizations) for workspaces.** Rejected:
+`tenants` and `memberships` stay the source of truth for authorisation. The provider supplies identity only.
 
 ## Consequences
 
 - One language across four deployables; a schema change is one edit.
-- Two Clerk applications mean two JWKS endpoints. The API picks the issuer by route namespace and
+- Two identity tenants (see ADR 0002) mean two JWKS endpoints. The API picks the issuer by route namespace and
   asserts on boot that the two issuers differ.
 - Prisma RLS costs an interactive transaction per tenant request. Index `workspace_id` on every
   RLS-guarded table so `current_setting()` policies stay cheap.
 - Ledger immutability needs SQL that Prisma does not model. Those migrations are hand-written and must
   not be regenerated away.
-- SSE and webhooks bypass Vercel entirely and address `api.<domain>`. The portal must never proxy them.
+- SSE and webhooks bypass the frontend host entirely and address `api.<domain>`. The portal must never proxy them.
 - Two hosting vendors plus Neon means three bills and three status pages to watch.

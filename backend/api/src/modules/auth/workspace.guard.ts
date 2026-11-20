@@ -1,0 +1,144 @@
+import { type CanActivate, type ExecutionContext, Injectable } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
+import type { FastifyRequest } from 'fastify';
+import { adminDb } from '@portal/db';
+import { MFA_PROTECTED_ROLES, type MemberRole, WORKSPACE_HEADER } from '@portal/schemas';
+import { AppError } from '../../common/errors/app-error';
+import { ALLOW_IMPERSONATION_WRITE, ALLOW_WITHOUT_MFA, IS_PUBLIC, NO_WORKSPACE, REQUIRED_ROLES } from './auth.decorators';
+import { namespaceForPath } from './auth.guard';
+import { WorkspaceMfaService } from './workspace-mfa.service';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Tenancy, second of the two global guards. Spec §6.2:
+ *   verify JWT → load user → load membership for (user, workspace) → deny if missing
+ *   → attach ctx = {userId, workspaceId, role}
+ *
+ * The membership lookup runs on the admin connection, because at this point we have not
+ * established that this user may see this workspace — that is precisely the question.
+ * Everything downstream runs through withWorkspace(ctx.workspaceId), where RLS takes
+ * over as the second guard.
+ *
+ * Staff routes skip this entirely: staff have no membership, and their access to a
+ * customer's data is governed by the role matrix and the audit log instead.
+ */
+@Injectable()
+export class WorkspaceGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly mfa: WorkspaceMfaService,
+  ) {}
+
+  async canActivate(host: ExecutionContext): Promise<boolean> {
+    if (host.getType() !== 'http') return true;
+
+    const skip = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
+      host.getHandler(),
+      host.getClass(),
+    ]);
+    if (skip) return true;
+
+    const request = host.switchToHttp().getRequest<FastifyRequest>();
+    if (namespaceForPath(request.url) === 'staff') return true;
+
+    const noWorkspace = this.reflector.getAllAndOverride<boolean>(NO_WORKSPACE, [
+      host.getHandler(),
+      host.getClass(),
+    ]);
+
+    if (request.impersonation) return this.impersonated(host, request, noWorkspace);
+    if (noWorkspace) return true;
+
+    const auth = request.auth;
+    if (!auth) throw new AppError('UNAUTHENTICATED', 'Sign in to continue.');
+
+    const workspaceId = headerValue(request, WORKSPACE_HEADER);
+    if (!workspaceId) {
+      throw new AppError('WORKSPACE_REQUIRED', 'Choose a workspace to continue.');
+    }
+    if (!UUID_RE.test(workspaceId)) {
+      // Fail before this reaches a uuid cast in Postgres, where it would be a 500.
+      throw new AppError('NOT_A_MEMBER', 'You do not have access to that workspace.');
+    }
+
+    const membership = await adminDb.membership.findUnique({
+      where: { tenantId_userId: { tenantId: workspaceId, userId: auth.userId } },
+      select: { role: true },
+    });
+
+    // Same answer whether the workspace is someone else's or does not exist: a 404 here
+    // would let anyone probe for valid workspace ids.
+    if (!membership) {
+      throw new AppError('NOT_A_MEMBER', 'You do not have access to that workspace.');
+    }
+
+    request.ctx = { userId: auth.userId, workspaceId, role: membership.role, mfa: auth.mfa, ip: request.ip ?? null, requestId: String(request.id) };
+
+    this.assertRole(host, membership.role);
+    await this.assertMfa(host, request, membership.role);
+    return true;
+  }
+
+  /**
+   * §6.2 (ADR 0036): an owner or admin of a workspace with money at risk changes nothing
+   * from a session that did not pass a second factor. Reads stay open, so the dashboard
+   * still renders and can say why — and editors and viewers are never asked. Evaluated on
+   * every write, so a session that was fine before a top-up or before auto top-up went on
+   * is refused from that moment, with no token to revoke.
+   */
+  private async assertMfa(host: ExecutionContext, request: FastifyRequest, role: MemberRole): Promise<void> {
+    if (['GET', 'HEAD', 'OPTIONS'].includes(request.method.toUpperCase())) return;
+    if (!MFA_PROTECTED_ROLES.includes(role) || request.auth?.mfa) return;
+    const exempt = this.reflector.getAllAndOverride<boolean>(ALLOW_WITHOUT_MFA, [host.getHandler(), host.getClass()]) === true;
+    if (exempt) return;
+    await this.mfa.assert({ workspaceId: request.ctx!.workspaceId, role, mfa: false });
+  }
+
+  /**
+   * Admin §7.4 view-as (D12). Two rules, both server-side so the banner's "read-only" is
+   * a fact and not a UI convention: every mutating method is refused (the one exception
+   * is the route that ends the session), and the workspace is the session's — a header
+   * naming another one of the owner's workspaces is refused, not followed. Recordings
+   * are refused too: access to a recording is logged with a staff id and a ticket
+   * (admin §10), and the view-as path carries neither.
+   */
+  private impersonated(host: ExecutionContext, request: FastifyRequest, noWorkspace: boolean): boolean {
+    const imp = request.impersonation!;
+    const method = request.method.toUpperCase();
+    const allowWrite = this.reflector.getAllAndOverride<boolean>(ALLOW_IMPERSONATION_WRITE, [host.getHandler(), host.getClass()]) === true;
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && !allowWrite) {
+      throw new AppError('IMPERSONATION_READ_ONLY', 'You are viewing this workspace read-only. Nothing can be changed from a view-as session.');
+    }
+    if (/\/recording(\/|\?|$)/.test(request.url)) {
+      throw new AppError('IMPERSONATION_READ_ONLY', 'Recordings are not available in a view-as session.');
+    }
+    if (noWorkspace) return true;
+
+    const workspaceId = headerValue(request, WORKSPACE_HEADER);
+    if (workspaceId && workspaceId !== imp.tenantId) {
+      throw new AppError('NOT_A_MEMBER', 'This view-as session is limited to one workspace.');
+    }
+    request.ctx = { userId: request.auth!.userId, workspaceId: imp.tenantId, role: 'owner', ip: request.ip ?? null, requestId: String(request.id) };
+    this.assertRole(host, 'owner');
+    return true;
+  }
+
+  private assertRole(host: ExecutionContext, role: MemberRole): void {
+    const allowed = this.reflector.getAllAndOverride<MemberRole[]>(REQUIRED_ROLES, [
+      host.getHandler(),
+      host.getClass(),
+    ]);
+    if (!allowed?.length) return;
+
+    if (!allowed.includes(role)) {
+      throw new AppError('FORBIDDEN_ROLE', `This action needs the ${allowed.join(' or ')} role.`);
+    }
+  }
+}
+
+function headerValue(request: FastifyRequest, name: string): string | undefined {
+  const raw = request.headers[name];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value?.trim() || undefined;
+}

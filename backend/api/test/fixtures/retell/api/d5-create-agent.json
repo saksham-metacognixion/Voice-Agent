@@ -1,0 +1,88 @@
+{
+  "captured_at": "2026-09-21T07:11:09.084Z",
+  "data": {
+    "agent_id": "agent_ecaf4be304c68852139d73e334",
+    "channel": "voice",
+    "last_modification_timestamp": 1789974668583,
+    "agent_name": "dev-d5-verify",
+    "response_engine": {
+      "type": "retell-llm",
+      "version": 0,
+      "llm_id": "llm_5a391351c1604c8e0f941b3c13c2"
+    },
+    "webhook_url": "https://chest-escapist-slip.ngrok-free.dev/webhooks/retell",
+    "webhook_timeout_ms": 10000,
+    "language": [
+      "fr-CA",
+      "en-US"
+    ],
+    "data_storage_setting": "everything",
+    "contact_memory_config": {
+      "enable_read": true,
+      "enable_update": false
+    },
+    "opt_in_signed_url": true,
+    "version": 0,
+    "assigned_tags": [],
+    "is_published": false,
+    "post_call_analysis_model": "gpt-5.6-terra",
+    "pii_config": {
+      "categories": [],
+      "mode": "post_call"
+    },
+    "timezone": "America/Toronto",
+    "post_call_analysis_data": [
+      {
+        "type": "string",
+        "name": "caller_name",
+        "description": "The caller’s name if they give it."
+      },
+      {
+        "name": "call_reason",
+        "type": "enum",
+        "choices": [
+          "appointment",
+          "question",
+          "complaint"
+        ],
+        "description": "Why they rang."
+      },
+      {
+        "name": "party_size",
+        "type": "number",
+        "description": "How many people the booking is for."
+      },
+      {
+        "description": "True when they asked to be called back.",
+        "type": "boolean",
+        "name": "callback_requested"
+      },
+      {
+        "name": "caller_intent",
+        "description": "What the caller wanted, in one short phrase.",
+        "type": "string"
+      },
+      {
+        "name": "follow_up_required",
+        "type": "boolean",
+        "description": "True when a person still needs to act."
+      }
+    ],
+    "voice_id": "11labs-Adrian",
+    "voice_model": "eleven_multilingual_v2",
+    "voice_temperature": 0.7,
+    "voice_speed": 1.05,
+    "max_call_duration_ms": 900000,
+    "stt_mode": "accurate",
+    "allow_user_dtmf": true,
+    "user_dtmf_options": {},
+    "denoising_mode": "noise-cancellation",
+    "webhook_events": [
+      "call_started",
+      "call_ended",
+      "call_analyzed",
+      "transfer_started",
+      "transfer_ended"
+    ]
+  }
+}

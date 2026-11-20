@@ -8,6 +8,8 @@ node_modules/
 dist/
 build/
 .next/
+# `next dev` writes here, so a build never clobbers a running dev server
+.next-dev/
 out/
 .turbo/
 *.tsbuildinfo
@@ -39,6 +41,28 @@ docs/spec-extract/render/
 npm-debug.log*
 pnpm-debug.log*
 
+# auth0 tenant exports — a snapshot of the live tenant for diffing, with tenant-specific
+# ids and placeholder secrets in it. The source of truth is infra/auth0/tenant.*.yaml.
+infra/auth0/export/
+
 # prisma
 packages/db/prisma/*.db
 packages/db/prisma/*.db-journal
+.retell-spike.json
+.d6-verify.json
+backend/api/dist-scripts/
+backend/api/dist-worker/
+
+# raw webhook captures (FixtureWriter names them <event>-<ISO timestamp>.json).
+# Curated fixtures are named by behaviour and have no timestamp, so they stay tracked.
+# Keep one file per behaviour, rename it, delete the rest — see backend/api/test/fixtures/README.md.
+backend/api/test/fixtures/*/*-20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*.json
+
+# wizard end-to-end run output (frontend/web/scripts/e2e-wizard.mjs)
+frontend/web/.e2e/
+
+# scratch output written into the repo by mistake (a relative /tmp path)
+tmp/
+
+# git worktrees Claude Code creates for isolated agents (`git worktree list` is the record)
+.claude/worktrees/

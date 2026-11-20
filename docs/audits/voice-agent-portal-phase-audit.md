@@ -1,0 +1,933 @@
+# Voice Agent Portal — specification and phase audit
+
+|                   |                                                                                                                                                                                                                                      |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Specification** | `voice-agent-portal-spec.md` v0.4 (10 Sep 2026, owner Pramod), with `super-admin-spec.md` and `docs/oraly-crm-spec.md` where v0.4 points to them                                                                                     |
+| **Code**          | `develop` at `8199b2b` (28 Oct 2026) plus the uncommitted working tree (ADR 0034, infra changes, CRM docs)                                                                                                                           |
+| **Audited**       | Thu 29 Oct 2026                                                                                                                                                                                                                      |
+| **Method**        | Requirement-by-requirement read of code, schema, migrations, tests, ADRs and runbooks; full local test run; read-only probe of the staging and production hosts. Nothing was modified, deployed or written to any shared environment |
+
+---
+
+## 1. Executive summary
+
+**We are not yet meeting the specification, and no phase meets the strict completion bar.**
+
+- **P0 (spike)** is complete (updated 4 Nov 2026, ADR 0037). The in-call benchmark ran and decided §20 #3 for GPT-4.1 mini, and a real call was priced against the pricing page. The toll-free rate stays unverified until the first invoice. At the 29 Oct audit the benchmark had never run and the tier stack was seeded without it.
+- **P1 (MVP)** is the phase in progress. Of 286 requirements, 141 pass with evidence, and code exists for 252 of them. The core money and call paths are strong: metering, the ledger, inbound authorisation, webhooks, activation and Checkout all pass with tests and live fixtures. What holds P1 open is a set of privacy and fraud controls that do not work, a revenue rule that is not applied, a long tail of missing UI detail, and P1 exit criteria with no evidence at all.
+- **P1b (Leads module)** has not started. Only the compliance pieces delivered by D18 exist, and outbound is switched off pending legal sign-off.
+- **P2** is mostly built ahead of P1 closing: seven of ten scope items have code, but the calendar tool, multi-agent numbers and the admin P2 screens are absent.
+- **P3** has not started, as planned.
+- **Companion specs** are audited line by line in [super-admin-spec-audit.md](super-admin-spec-audit.md) (684 requirements; admin P1 51 % verified, 81 % with code; three FAILs, including an audit export any staff role can download) and [oraly-crm-spec-audit.md](oraly-crm-spec-audit.md) (485 requirements; 2 % verified; the Leads module has not been started and is blocked on legal sign-off and two ADR changes). The P1 admin and P1b rows in this report are summaries of those.
+
+**The four findings that matter most** (detail in §6):
+
+1. **A customer cannot actually turn recording off.** Every agent is synced with platform storage set to "everything" whatever the setting says (`backend/api/src/modules/retell/retell.gateway.ts:188`).
+2. **Retention is promised and never enforced.** The 30/90/365-day setting is saved and the copy promises deletion, but no purge job exists and the platform call-delete method has no caller.
+3. **Allowed caller countries are not enforced.** The portal never collects the list, an empty list reaches the platform as "no restriction", and the inbound checks do not look at it, while D4 copy tells the customer those calls are refused.
+4. **The first month's number rental is never charged.** Activation stamps the next rental a month out and takes no debit, so every new number's first month is free (§13.8 says charge now).
+
+**Test health is good.** Build, typecheck, lint and the OpenAPI contract check pass. All 1,236 unit tests pass. The API end-to-end suite passed 690 of 691; the one failure is a test-fixture flake, not a product defect. The database end-to-end suite passed 74 of 74. Staging is up and healthy. Production does not exist yet.
+
+## 2. Overall implementation and verification status
+
+### 2.1 How statuses were assigned
+
+- **PASS** means the code exists **and** a test that ran in this audit, or a documented live verification (ADR, fixture captured from the live platform, staging go-live record), shows the behaviour.
+- **PARTIAL** means part of the requirement is built, or it is built with a gap against the spec that no ADR covers.
+- **FAIL** means it is built but does not meet the spec, or contradicts it.
+- **NOT IMPLEMENTED** means no meaningful code exists.
+- **UNVERIFIED** means the code exists but the behaviour depends on an external service (Auth0, Stripe, the voice platform, a SIP trunk) or a measurement that nobody has recorded, and the tests only exercise a stub.
+- Where an ADR in `docs/decisions/` deliberately changed a requirement, the row is judged against the ADR and marked "Amended by ADR nnnn". That follows the repo's own rule that a decision overrides the spec. Amended rows are listed again in §8 so the scope change stays visible.
+- The four browser end-to-end scripts in `frontend/web/scripts/` need a running stack, the local issuer and, for the wizard, the live voice platform. They were **not run** in this audit, and no record of their last passing run exists. UI conclusions therefore rest on reading the code and those scripts' assertions, backed by the API end-to-end suites that did run.
+- Percentages below are counted from the 363 rows in §4 by script. They are counts of requirements, not effort.
+
+### 2.2 Test and validation results (run 29 Oct 2026, 09:21–09:27 IST)
+
+| Check               | Command                                                                                             | Result                                                                                                 |
+| ------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Build               | `pnpm build`                                                                                        | Pass, 5 packages                                                                                       |
+| Type check          | `pnpm typecheck`                                                                                    | Pass                                                                                                   |
+| Lint                | `pnpm lint`                                                                                         | Pass, 9 tasks                                                                                          |
+| API contract        | `pnpm --filter @portal/api openapi:check`                                                           | Pass, 227 operations, generated files current                                                          |
+| Unit tests          | `pnpm test`                                                                                         | **1,236 / 1,236 pass** in 136 files (api 857, web 293, schemas 58, admin 17, db 5, ui 3, api-client 3) |
+| API end-to-end      | `pnpm --filter @portal/api test:e2e`                                                                | **690 / 691 pass** in 35 files. One failure, explained in §6.2                                         |
+| Database end-to-end | `pnpm --filter @portal/db test:e2e`                                                                 | **74 / 74 pass** (RLS matrix, append-only triggers, version immutability, role assertions)             |
+| Environment         | `pnpm doctor`                                                                                       | All required variables set; Postgres and Redis reachable                                               |
+| Staging             | `GET https://api-staging.oraly.ai/health/ready`                                                     | 200: Postgres, Redis and worker healthy, 14 schedulers registered; app and admin staging hosts 200     |
+| Production          | `api.oraly.ai`, `app.oraly.ai`, `admin.oraly.ai`                                                    | Unreachable; no production environment exists                                                          |
+| Not run             | browser e2e scripts, k6 inbound load test, generation benchmark, `verify:auth0`, `verify:d5-retell` | Need a live stack or external accounts; existing recorded figures are cited instead                    |
+
+## 3. Phase-by-phase completion
+
+| Phase (spec §19)                 | Requirements | PASS    | PARTIAL | FAIL   | NOT IMPL. | UNVERIFIED | Verified (PASS %) | Code present* | Status                                         |
+| -------------------------------- | ------------ | ------- | ------- | ------ | --------- | ---------- | ----------------- | ------------- | ---------------------------------------------- |
+| **P0** Spike                     | 16           | 15      | 1       | 0      | 0         | 0          | **94 %**          | 100 %         | COMPLETE (4 Nov, ADR 0037)                     |
+| **P1** MVP (portal)              | 286          | 141     | 79      | 12     | 34        | 20         | **49 %**          | 88 %          | PARTIALLY COMPLETE                             |
+| P1 admin subset (companion spec) | 19           | 12      | 3       | 0      | 2         | 2          | **63 %**          | 89 %          | PARTIALLY COMPLETE                             |
+| **P1b** Leads module             | 21           | 1       | 5       | 0      | 14        | 1          | **5 %**           | 33 %          | NOT STARTED (compliance gate BLOCKED on legal) |
+| **P2**                           | 14           | 5       | 2       | 0      | 5         | 2          | **36 %**          | 64 %          | PARTIALLY COMPLETE                             |
+| **P3**                           | 7            | 0       | 0       | 0      | 7         | 0          | **0 %**           | 0 %           | NOT STARTED (future phase)                     |
+| **All**                          | **363**      | **174** | **90**  | **12** | **62**    | **25**     | **48 %**          | 83 %          | —                                              |
+
+\* Code present = every row except NOT IMPLEMENTED, i.e. some implementation exists whether or not it is verified.
+
+**Critical missing requirements per phase**
+
+- **P0:** toll-free rate (P0-09). The benchmark (P0-05) and the priced call (P0-07) closed on 4 Nov, ADR 0037.
+- **P1:** recording off (SEC-03); retention purge (SEC-11); caller-country enforcement (SEC-07, Z-45); first-month rental (F-04); `{{business_open}}` constant (G-15); MFA rule (A-12); > $1,000 review (SEC-10); generation p95 15.5 s (Z-14); 15-min JWT (A-14); production environment (ENV-03); all four exit criteria without evidence (EXIT-01..04).
+- **P1 admin:** staff recording access with reason (AD-14); Support PII masking (AD-19); live Stripe refund and price sync unverified (AD-06, AD-11).
+- **P1b:** everything except the D18 compliance gate (L-01..L-11, L-16, L-20, L-21).
+- **P2:** calendar tool (P2-08), multi-agent per number (P2-09), admin P2 screens (P2-10).
+
+**Readiness:** P0 is signed off as of 4 Nov (ADR 0037). P1 needs the §6 fixes, the exit evidence and a production environment.
+
+## 4. Detailed requirement-by-requirement audit
+
+Paths are relative to the repo root unless they start with a module name (`backend/api/src/modules/…`). "e2e" means a test in `backend/api/test/` or `backend/db/test/` that ran and passed in this audit, unless noted.
+
+### 4.1 P0 — Spike (§19 P0, §21)
+
+| ID    | Phase | Spec           | Requirement                                                                              | Status          | Evidence                                                                                                                                                                                                                                                      | Gap / next action                           |
+| ----- | ----- | -------------- | ---------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| P0-01 | P0    | §19 P0         | Agent via API, browser web call, inbound number, all webhooks and the inbound round trip | PASS            | `docs/decisions/0003-retell-findings.md` (15 Sep, 7 phone + 1 browser call); `backend/api/scripts/retell-spike.ts`; 23 webhook + 37 API fixtures in `backend/api/test/fixtures/retell/`                                                                       | —                                           |
+| P0-02 | P0    | §19, §21       | `call_cost` shape and units confirmed                                                    | PASS            | ADR 0003 §3; `call_analyzed-*.json`; `metering.test.ts`                                                                                                                                                                                                       | —                                           |
+| P0-03 | P0    | §19, §21       | Decline mechanism confirmed, decline costs nothing                                       | PASS            | ADR 0003 §1; `call_inbound-decline_*.json`; `inbound.decide.test.ts`                                                                                                                                                                                          | —                                           |
+| P0-04 | P0    | §19, §21       | `max_call_duration_ms` override honoured                                                 | PASS            | ADR 0003 §2; `call_ended-inbound-max_duration_reached.json`                                                                                                                                                                                                   | —                                           |
+| P0-05 | P0    | §19 P0, §20 #3 | Benchmark GPT-5 mini vs GPT-4.1 mini on the receptionist template | PASS (4 Nov) | ADR 0037 §1: `bench:incall`, 10 English scenarios plus a French caller, 3 runs each per model, through `playground.completion` on the production prompt assembly; `docs/evidence/2026-11-04-p0-close/incall-bench.json` + transcripts | Full Scope 05 applies the decision (GPT-4.1 mini) to the stack row |
+| P0-06 | P0    | §19 P0         | Stripe Checkout + webhook in test mode                                                   | PASS            | `backend/api/scripts/checkout-spike.ts`; `test/fixtures/stripe/*`; `billing.e2e` with real signatures (passed in this audit)                                                                                                                                  | —                                           |
+| P0-07 | P0    | §19 exit       | Cost per test call within ±5 % of the pricing page | PASS (4 Nov) | ADR 0037 §2: `call_5b1b1fe1…` (Standard, US number) billed every published Retell rate at 0.0 %; flat 2.08 ¢ analysis line not on the page; `call-costs.json` | Enter the measured cost inputs in SA5 |
+| P0-08 | P0    | §19 exit       | Brief → live number end to end by hand                                                   | PASS            | ADR 0003 spike; staging go-live 24 Sep (ADR 0013 §9, CLAUDE.md) covers Checkout → credit → activation                                                                                                                                                         | —                                           |
+| P0-09 | P0    | §21 #4         | Toll-free and non-US telephony rates | PARTIAL (4 Nov) | Canada measured: `canada_twilio_telephony` $0.030/min on four calls, against the page's $0.015 (ADR 0037 §2) | Toll-free: confirm on first invoice |
+| P0-10 | P0    | §21 #5         | Retell sub-accounts evaluated                                                            | PASS            | ADR 0003: dashboard-only, one workspace per environment                                                                                                                                                                                                       | —                                           |
+| P0-11 | P0    | §21 #6         | `language: multi` behaviour, locale list, multilingual voices                            | PASS            | ADR 0003 §6 + D8 addendum; `agent-retell.test.ts:220`; `voice-languages.ts`                                                                                                                                                                                   | —                                           |
+| P0-12 | P0    | §21 #7         | Version tags and publish API                                                             | PASS            | ADR 0003 §7; `api/update-phone-number-bind-latest_published.json`; `verify:d5-retell`                                                                                                                                                                         | —                                           |
+| P0-13 | P0    | §21 #8         | Knowledge base limits and refresh                                                        | PASS            | ADR 0003 + D6/D9 addenda; KB fixtures                                                                                                                                                                                                                         | Size limits are docs-only                   |
+| P0-14 | P0    | §21 #9         | TTS preview endpoint                                                                     | PASS            | ADR 0003 §9: none exists; own clips via `samples:voices`                                                                                                                                                                                                      | Negative finding, mitigated                 |
+| P0-15 | P0    | §21 #10        | Website widget and concurrency                                                           | PASS            | ADR 0003 §10; `d17-channels.e2e` widget cases                                                                                                                                                                                                                 | —                                           |
+| P0-16 | P0    | §21 #11        | `post_call_analysis_data` types                                                          | PASS            | `call_analyzed-inbound.json`; `agent-retell.test.ts:123-155`                                                                                                                                                                                                  | —                                           |
+
+### 4.2 P1 — MVP: auth, accounts, workspaces (§6, §13.2)
+
+| ID   | Phase | Spec           | Requirement                                                                                                  | Status          | Evidence                                                                                                                                 | Gap / next action                                       |
+| ---- | ----- | -------------- | ------------------------------------------------------------------------------------------------------------ | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| A-01 | P1    | §6.1           | User / workspace / membership model; billables on the workspace                                              | PASS            | `schema.prisma:354-493`; `workspaces.e2e.test.ts:150`; `rls.e2e.test.ts`                                                                 | —                                                       |
+| A-02 | P1    | §6.1           | Exactly one owner; the sign-up user is owner                                                                 | PASS            | `memberships_one_owner_idx`; `workspaces.e2e.test.ts:449-531`                                                                            | —                                                       |
+| A-03 | P1    | §6.1           | Role matrix for money, members, ownership, agents, calls, settings                                           | PASS            | `@Roles` on wallet/billing/workspaces/agents controllers; `auth.e2e.test.ts:293-316`                                                     | —                                                       |
+| A-04 | P1    | §6.1           | Configure numbers is owner/admin only                                                                        | PARTIAL         | `PATCH /numbers/:id` is editor+ (`numbers.controller.ts`)                                                                                | Deviation recorded only in CLAUDE.md; add ADR or revert |
+| A-05 | P1    | §6.2           | Managed auth provider                                                                                        | PASS            | Auth0, ADR 0002; `infra/auth0/tenant.customer.yaml`                                                                                      | —                                                       |
+| A-06 | P1    | §6.2           | Email + password sign-in                                                                                     | UNVERIFIED      | Configured in tenant yaml; `verify:auth0` exists, no recorded run                                                                        | Run `pnpm verify:auth0` and record                      |
+| A-07 | P1    | §6.2           | Magic link                                                                                                   | Amended by ADR 0036 | Retired for the MVP, ADR 0036 §11: New Universal Login offers codes, not links; no link-based UI exists or is offered | Spec-owner sign-off |
+| A-08 | P1    | §6.2           | Google sign-in                                                                                               | UNVERIFIED      | Dashboard-managed connection; customer tenant still on Auth0 dev keys (CLAUDE.md)                                                        | Production Google keys; live check                      |
+| A-09 | P1    | §6.2           | Microsoft sign-in                                                                                            | Amended by ADR 0036 | Retired for the MVP, ADR 0036 §12: no Azure registration; unverified Microsoft emails vs `SecondIdentityRefused`; no Microsoft UI exists | Spec-owner sign-off; P2 with verified-email linking |
+| A-10 | P1    | §6.2           | Email verified before test call or purchase                                                                  | PASS | `@RequireEmailVerified()`; `backend/api/test/d20-auth-money.e2e.test.ts` "email verification before a test call or a purchase" (no mint, no purchase row, no Stripe call); `frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov) | — |
+| A-11 | P1    | §6.2           | Optional TOTP MFA with recovery codes                                                                        | UNVERIFIED | `customer-post-login.js` MFA branch unit-tested (`modules/auth/customer-actions.test.ts`, 9 cases); `/mfa` page; live enrolment not run | Live enrolment after `auth0:deploy customer` |
+| A-12 | P1    | §6.2, D5       | MFA required for owner/admin once auto top-up is on or balance > 1,000                                       | PASS | `mfaRequiredFor()` (`shared/schemas/src/security.test.ts`); `WorkspaceGuard.assertMfa` + `WorkspaceMfaService`; prospective checks in `AutoTopupService.update`, `BillingService.createCheckout`; `backend/api/test/d20-auth-money.e2e.test.ts` (9 cases: each trigger, both, editor/viewer, open session, step-up); `frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov) banner → step-up → change accepted | Redeploy the Post-Login Action (claim) at D15 |
+| A-13 | P1    | §6.2           | 30-day sliding session, revocable                                                                            | Amended by ADR 0036 | ADR 0036 §1: SPA refresh token is the session — 30 d idle / 90 d absolute, rotating (`tenant.customer.yaml`); per-device revoke `GET/DELETE /sessions` | `auth0:deploy customer` |
+| A-14 | P1    | §6.2           | Backend JWT lifetime ≤ 15 min                                                                                | PASS | API refuses `iat` > 15 min (`JwtVerifier`, `AUTH_CUSTOMER_MAX_TOKEN_AGE_S`); client re-mints once (`api-client/src/client.test.ts`); `backend/api/test/d20-auth-money.e2e.test.ts` "§6.2 a backend token lives at most 15 minutes"; `frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov) "token" step; tenant `token_lifetime_for_web: 900` | `auth0:deploy customer` |
+| A-15 | P1    | §6.2, §16      | Per-device session list and revoke (`GET/DELETE /sessions`)                                                  | UNVERIFIED | `sessions.controller.ts`; `auth0-management.sessions.test.ts` against a stub (ADR 0033 §8); ending a session now audited (`auth.session_ended`) | Live check of Management API scopes |
+| A-16 | P1    | §6.2           | `X-Workspace-Id` → membership → `ctx`                                                                        | PASS            | `workspace.guard.ts:49-75`; `auth.e2e.test.ts:243-291`                                                                                   | —                                                       |
+| A-17 | P1    | §6.2           | CSRF origin check                                                                                            | PASS            | `common/http/request-limits.ts:64-75`; `request-limits.test.ts`                                                                          | —                                                       |
+| A-18 | P1    | §6.2           | Login 5 failures / 15 min then CAPTCHA                                                                       | Amended by ADR 0036 | ADR 0036 §8 (keeps ADR 0025 §2): Auth0 brute force per email+IP blocks at 5, now with the unblock email; no CAPTCHA (Bot Detection not on plan), no 15-min auto-expiry; sign-in never reaches our API, so no Redis throttle exists or is needed | Spec-owner sign-off; `auth0:plan` live check |
+| A-19 | P1    | §6.2           | Sign-up 3 / hour / IP                                                                                        | UNVERIFIED      | `suspiciousIpThrottling` pre-registration in yaml; untested                                                                              | Live check                                              |
+| A-20 | P1    | §6.2           | Disposable email domains blocked                                                                             | PASS            | Pre-registration Action + `users.service.ts:99-102`; `disposable-email.test.ts`, `auth-provisioning.e2e.test.ts:254-286`                 | —                                                       |
+| A-21 | P1    | §6.2           | Audit log: member, role, publish, number, auto top-up, deletion events                                       | PASS            | `members.service.ts`, `agent-publish.service.ts:235`, `numbers.service.ts:98,220`, `auto-topup.service.ts:166`; `workspaces.e2e.test.ts` | —                                                       |
+| A-22 | P1    | §6.2           | Audit log: login and purchase events                                                                         | UNVERIFIED | Purchases PASS: `purchase.checkout_started|review_requested|review_approved|review_rejected|completed|abandoned` (`backend/api/test/d20-auth-money.e2e.test.ts`, once per purchase under webhook replay). Sign-ins: `POST /webhooks/auth/logs` → `AUTH_LOG_ACTIONS` → one row per workspace, deduped on `log_id` (`backend/api/test/d20-auth-money.e2e.test.ts`); the tenant log stream itself is not deployed | `auth0:deploy customer` (log stream); confirm plan includes log streams |
+| A-23 | P1    | §6.2           | Audit log visible to owner/admin                                                                             | PASS            | `GET /audit-log`; `workspaces.e2e.test.ts:861-960`                                                                                       | —                                                       |
+| A-24 | P1    | §6.3 A1        | Sign-up fields: password ≥ 10 + breach block, ToS timestamp                                                  | Amended by ADR 0036 | ToS PASS: `/terms/` after sign-in, `terms_acceptances` + `users.tos_version`, API refuses workspace/join/checkout (`backend/api/test/d20-auth-money.e2e.test.ts`; `frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov)). Password `min_length: 10` + breached-password block in `tenant.customer.yaml`, not yet deployed | `auth0:deploy customer` |
+| A-25 | P1    | §6.3 A2        | 6-digit code, resend with cooldown                                                                           | Amended by ADR 0036 | Link, not a 6-digit code (ADR 0017 §1, ADR 0036 §8). Resend PASS: `POST /me/verification-email`, 60 s cooldown + 5/h atomic in Redis (`backend/api/test/d20-auth-money.e2e.test.ts` incl. two tabs at once; `account.service.test.ts`); A2 shows address, countdown, success/failure (`frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov)) | M2M `update:users` scope for live sends |
+| A-26 | P1    | §6.3 A3, §13.2 | Workspace setup creates tenant, owner, +20 trial (30 d), notification defaults, audit row in one transaction | PASS            | `workspaces.service.ts:61-118`; `workspaces.e2e.test.ts:60-148`                                                                          | —                                                       |
+| A-27 | P1    | §6.3 A3        | Country list US/CA (others "coming soon"), default from IP                                                   | Amended by ADR 0036 | A3 offers US/CA, others listed "coming soon" and disabled (`LAUNCH_COUNTRIES`; `countries.launch.test.ts`; `frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov)). Default from the browser zone, not IP; API does not refuse other countries (§20 #4 open, ADR 0036 §10) | Decide §20 #4 |
+| A-28 | P1    | §6.3 A4        | Post-login routing by MFA / workspace count                                                                  | PASS            | `session-gate.ts:39-67`; `routes.test.ts`                                                                                                | —                                                       |
+| A-29 | P1    | §6.3 A4        | "Remember this device" 30 days                                                                               | UNVERIFIED | `allowRememberBrowser: true` on ordinary enrolled sign-ins, never on step-up (`customer-actions.test.ts`); `POST /me/devices/forget` ({E}); forgotten after password change ({E}) and staff MFA reset/lock | Live check of the 30-day cookie after deploy |
+| A-30 | P1    | §6.3 A5        | MFA challenge with 5-attempt lockout                                                                         | Amended by ADR 0036 | ADR 0036 §13: Auth0 Guardian's own challenge rate limit; not tenant-configurable | Spec-owner sign-off |
+| A-31 | P1    | §6.3 A6        | Reset link 15-min TTL, other sessions revoked                                                                | PARTIAL | Sessions revoked on password change: `customer-post-change-password` Action (unit-tested) → `sessions_revoked_at`, provider sessions, remembered devices (`backend/api/test/d20-auth-money.e2e.test.ts`). 15-min link TTL not set — needs a custom email provider (ADR 0036 §5) | Configure email provider + template URL lifetime at D15 |
+| A-32 | P1    | §6.3 A7        | Switcher shows name, role, balance pill                                                                      | PASS | `GET /workspaces` answers each workspace's own balance (`backend/api/test/d20-auth-money.e2e.test.ts`); `/select-workspace` pills, re-read on open and switch (`frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov)); `ws` cookie replaced by localStorage (ADR 0008/0017) | — |
+| A-33 | P1    | §6.3 A8        | Invite single-use, 7-day, wrong-email error                                                                  | PASS            | `members.service.ts:318-410`; `workspaces.e2e.test.ts:533-831` (19 cases)                                                                | —                                                       |
+| A-34 | P1    | §6.3 A8        | Invitee email pre-filled and locked at sign-in                                                               | Amended by ADR 0036 | `GET /invites/:token/hint` (public, uniform refusal) → "Invited as …" + `login_hint` on login and sign-up (`backend/api/test/d20-auth-money.e2e.test.ts`; `frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov)). Hosted field stays editable; the lock is `acceptInvite`'s `INVITE_WRONG_EMAIL` (`backend/api/test/d20-auth-money.e2e.test.ts`; `workspaces.e2e.test.ts`) | — |
+| A-35 | P1    | §6.4           | Route guards: unauthenticated, unverified, no workspace, resume onboarding                                   | PASS            | `guards.tsx`; `routes.test.ts:104-131`; `workspaces.e2e.test.ts:256-320`                                                                 | Dashboard opens only after go-live (ADR 0017 §2, 0024)  |
+| A-36 | P1    | §6.4           | Viewer on a write route → `/app` + toast                                                                     | PASS | One "view-only" toast on any refused non-GET (`providers.tsx` `onError`); viewer on W4 after go-live → `/app` + toast (`frontend/web/scripts/e2e-auth-d20.mjs` (22/22, 3 Nov)); API role matrix unchanged | — |
+
+### 4.3 P1 — Shell, design system, wizard, frontend (§7, §8, §12)
+
+| ID   | Phase | Spec             | Requirement                                                            | Status          | Evidence                                                                                              | Gap / next action                                   |
+| ---- | ----- | ---------------- | ---------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| S-01 | P1    | §7.1             | Sitemap routes                                                         | PASS            | `frontend/web/src/routes.ts:5-44`; `[id]` segments flattened to query strings                         | Amended by ADR 0008 / ADR 0018                      |
+| S-02 | P1    | §7.2             | Balance pill: ≈ minutes, amber < 20 %, red ≤ 0 "Agent paused — top up" | **PASS** (16 Nov) | `balance-pill.tsx`: ≈ minutes from `GET /pricing` `rates.standard_per_min` via `creditsOutlook()`, "Agent paused — top up" at ≤ 0 for owner/admin ("out of credits" otherwise); `home-view.test.ts`; `e2e-dashboard` "shell balance pill" | ADR 0041 §3 |
+| S-03 | P1    | §7.2             | Shell "unpublished changes" chip                                       | **PASS** (16 Nov) | `unpublished-chip.tsx` over `listAgents` + `unpublishedSummary()`; one agent → its Test tab (the publish bar is on it now), several → the list; `home-view.test.ts`; `e2e-dashboard` "shell unpublished-changes chip" | ADR 0041 §1 |
+| S-04 | P1    | §7.2             | Notifications bell                                                     | **PASS** (16 Nov) | `notifications-bell.tsx` over `GET /notifications` (the D7 outbox + `in_app` rows for message captured / number active / member joined), `POST /notifications/seen` per member, SSE topic `notifications`; `d21-home.e2e.test.ts`, `notifications-feed.rules.test.ts`, `notifications-view.test.ts`; `e2e-dashboard` "shell bell …" | ADR 0041 §2 |
+| S-04b | P1    | §7.2             | Top bar "● Agent live" (wireframe only; no row in the 29 Oct audit)     | **PASS** (16 Nov) | `agent-live-indicator.tsx` over `agentLiveStatus()`: live = a live agent, workspace not paused, balance > 0; else paused; nothing for drafts only. `home-view.test.ts`, `e2e:dashboard` row. ADR 0041 addendum |
+| S-05 | P1    | §7.2             | Mobile bottom tab bar                                                  | PASS            | `portal-shell.tsx:100-158`; `e2e-dashboard-d11.mjs` at 390 px                                         | Amended by ADR 0019 (Numbers replaces Wallet)       |
+| S-06 | P1    | §7.3             | Every field has label, helper/example, inline validation               | PASS            | `frontend/ui/src/components/field.tsx`; `brief-form.tsx`                                              | Validates on change, not blur                       |
+| S-07 | P1    | §7.3             | One primary button, bottom-right / sticky bottom on mobile             | **PASS** (5 Nov)         | `WizardFooter`: Back + the one primary at the bottom, sticky below `sm`, on W1–W3, W5–W7 (ADR 0039 §2)                                                                 | —                                     |
+| S-08 | P1    | §7.3             | Wizard stepper with done / current / future, jump back                 | PASS            | `wizard-shell.tsx:41-63`; `routes.test.ts`                                                            | Amended by ADR 0024                                 |
+| S-09 | P1    | §7.3             | "Save & exit" during the wizard                                        | **PASS** (5 Nov)            | On every step; the §6.4 dismissal (`onboarding_dismissed_at`, `POST /workspace/onboarding-dismiss`); `e2e-wizard` W1 + W3 | —    |
+| S-10 | P1    | §7.3             | Back and Continue at the bottom of each step                           | **PASS** (5 Nov) | `WizardFooter` Back link on W2, W3, W5, W6, W7; `e2e-wizard` asserts the hrefs                                                                     | —                                            |
+| S-11 | P1    | §7.3             | Plain-language copy, vendor never named                                | PASS            | `messages.test.ts:68`                                                                                 | —                                                   |
+| S-12 | P1    | §7.3, §12.1      | fr-CA from launch                                                      | PASS            | `messages/{en,ar,fr-CA}.json`, key parity in `messages.test.ts`                                       | Arabic added (ADR 0026/0030)                        |
+| S-13 | P1    | §7.3, §18        | WCAG 2.1 AA                                                            | PASS            | ADR 0025: axe 148/148 views clean                                                                     | One-off run; no repeatable script                   |
+| Z-01 | P1    | §8 W1            | Template cards, selection highlighted                                  | PASS            | `template-picker.tsx:189-258`; `e2e-wizard.mjs`                                                       | —                                                   |
+| Z-02 | P1 | §8 W1 | "Hear sample" static clip, no credits | **PASS** (5 Nov) | `e2e-wizard`: plays, pauses, a second clip stops the first, no card without a clip | — |
+| Z-03 | P1 | §8 W1 | Searchable industry select (~40 options) | **PASS** (5 Nov) | `INDUSTRY_GROUPS` (48) in `@portal/schemas`, `Combobox` with search; e2e asserts ≥ 40 and the search (ADR 0039 §3) | — |
+| Z-04 | P1    | §8 W1            | Continue → `POST /agents` → draft v1, step 2                           | PASS            | `template/page.tsx:97-102`; `agents.e2e.test.ts:80-113`                                               | —                                                   |
+| Z-05 | P1    | §8 W2            | Brief fields 1, 2, 4, 6, 10, 12, 13 with spec limits and defaults      | PASS            | `brief-form.tsx`; `shared/schemas/src/agents.ts:160-204`; `e2e-wizard.mjs`                            | —                                                   |
+| Z-06 | P1 | §8 W2 #3 | Business hours editor with "same every day", default Mon–Fri 9–5 | **PASS** (5 Nov) | templates prefill Mon–Fri 09:00–17:00; `e2e-wizard` asserts the seven switches and ten times | — |
+| Z-07 | P1 | §8 W2 #5 | Services chips plus free text | **PASS** (5 Nov) | `brief.services_notes` beside the chips, sent to the model (`prompt-builder.test.ts`); e2e saves and restores it | — |
+| Z-08 | P1 | §8 W2 #7 | FAQ ≤ 20 pairs; Starter injected, Growth+ optionally to KB | **PASS** (5 Nov) | `FaqRouting` on the `knowledge_base` gate: into the script, or moved to one text source (ADR 0039 §5); e2e sees the trial note | — |
+| Z-09 | P1 | §8 W2 #8 | "Must never" preset checkboxes | **PASS** (5 Nov) | `brief.never_do_presets` checkboxes, template defaults ticked, sentences for the model; e2e ticks and restores | — |
+| Z-10 | P1    | §8 W2 #9         | Hand-off rules ≤ 5 with validated transfer number                      | PASS            | `brief-editors.tsx:205-251`; `handoffRule`; lint `transfer_number_invalid`                            | —                                                   |
+| Z-11 | P1 | §8 W2 #11 | Personality sliders + free text | **PASS** (5 Nov) | `e2e-wizard` asserts three 0–100 sliders at 50 | — |
+| Z-12 | P1    | §8 W2            | Autosave 1.5 s debounced, Saved/Saving                                 | PASS            | `use-brief-autosave.ts:60-116`; `brief-patch.test.ts`; `e2e-wizard.mjs`                               | —                                                   |
+| Z-13 | P1 | §8 W2 | Generate gated on fields 1–2, three-stage progress | **PASS** (5 Nov) | the spec’s three names on the worker’s frames (ADR 0039 §6); e2e asserts the list | — |
+| Z-14 | P1    | §8 W2, §9.3, §18 | Generation p95 < 10 s                                                  | ADR-AMENDED (4 Nov) | 45 samples on `claude-sonnet-5`: p95 16.7 s before, 16.4 s after, 15.2 s with thinking off; none under 10 s (`docs/evidence/2026-11-04-prompt-gaps/generation-*.json`) | ADR 0038 §5: target p95 ≤ 16 s, thinking off by default; spec owner sign-off pending |
+| Z-15 | P1 | §8 W2 | Regenerate with confirm dialog | **PASS** (5 Nov) | `ConfirmDialog` with the spec’s sentence; e2e opens it and cancels | — |
+| Z-16 | P1 | §8 W2 | Advanced ▸ view prompt | PASS | Editable `PromptTab` on W2 (`brief/page.tsx`) | Recorded in ADR 0039 |
+| Z-17 | P1 | §8 W2 | "Free — no credits used" note on Generate | **PASS** (5 Nov) | "Free. No credits used." under Generate; e2e asserts it | — |
+| Z-18 | P1    | §8 W2            | Continue enabled only after a successful generate                      | PASS            | `generate-panel.tsx:277-279`; `e2e-wizard.mjs`                                                        | —                                                   |
+| Z-19 | P1    | §8 W3            | Main language + up to 4 more                                           | PASS            | `language-picker.tsx`; `languages.test.ts`                                                            | Amended by ADR 0003 §6 (explicit locales), ADR 0027 |
+| Z-20 | P1 | §8 W3 | Main language defaults from workspace country | **PASS** (5 Nov) | `defaultAgentLanguage` at `POST /agents` + `startingLanguage` from W1 (ADR 0039 §7); `languages.test.ts` | — |
+| Z-21 | P1 | §8 W3 | Voice filters: gender, accent, tier, only multilingual | **PASS** (5 Nov) | gender, tier, accent, search, native; "only multilingual" replaced, recorded in ADR 0039 §7 | — |
+| Z-22 | P1    | §8 W3            | Voice cards with tier and credit rate, premium confirm strip           | PASS            | `voice-picker.tsx:472-519`; `e2e-wizard.mjs`                                                          | —                                                   |
+| Z-23 | P1 | §8 W3 | Speed and warmth sliders | **PASS** (5 Nov) | `e2e-wizard`: 80–120 at 100, 0–100 at 50, Home/End, steps, saved and restored | — |
+| Z-24 | P1 | §8 W3, §16 | "Hear my greeting" (`POST /voices/:id/preview {text}`) | **ADR-AMENDED** | Route returns a stock clip, text ignored (`voices.service.ts`) | ADR 0003 §9 (no TTS exists); restated in ADR 0039 |
+| Z-25 | P1 | §8 W3 | Language change regenerates greeting | **ADR-AMENDED** | Manual "Rewrite in <language>" (ADR 0027) | ADR 0027; restated in ADR 0039 |
+| Z-26 | P1    | §8 W3, §13.11    | Voice list cached daily, stale banner                                  | PASS            | `voices.service.ts:184-226`; `voices.e2e.test.ts`                                                     | —                                                   |
+| Z-27 | P1    | §8 W4            | Knowledge step position                                                | PASS            | `/onboarding/knowledge` after go-live behind `LiveGuard`                                              | Amended by ADR 0024 (after payment)                 |
+| Z-28 | P1    | §8 W4            | URL / file / text sources, status polling                              | PASS            | `knowledge-sources.tsx`; `d6-knowledge.e2e.test.ts`; KB fixtures                                      | —                                                   |
+| Z-29 | P1 | §8 W4 | Remove a source with confirm | **PASS** (6 Nov) | `ConfirmDialog` before every source removal (`knowledge-sources.tsx`); the menu kept its own | — |
+| Z-30 | P1 | §8 W4 | Starter/trial gate card with "Add FAQs" link | **PASS** (6 Nov) | "Add FAQs to the brief" on the plan gate → the agent’s Brief tab (W2 is closed once live, ADR 0024) | ADR 0040 §7 |
+| Z-31 | P1    | §8 W5            | Version selector                                                       | PASS            | `test-call-panel.tsx:206-232`; `test-versions.test.ts`                                                | —                                                   |
+| Z-32 | P1    | §8 W5, §12.3     | Start / timer / credits / end test call                                | PASS            | `use-test-call.ts`; `d9-test-call.e2e.test.ts` (passed); `e2e-wizard.mjs` real call                   | Browser script not run in this audit                |
+| Z-33 | P1    | §8 W5            | Live transcript                                                        | PASS            | Relay `live-transcript.relay.test.ts`; `transcript.test.ts`                                           | —                                                   |
+| Z-34 | P1 | §8 W5 | Scenario chips with "Try saying" | **PASS** (6 Nov) | Chips with "Try saying: …" on press (`test-call-panel.tsx`); `e2e-wizard` asserts | — |
+| Z-35 | P1 | §8 W5, §9.6 | Apply change shows diff card with Keep / Undo | **PASS** (6 Nov) | "What changed" + Keep / Undo, Undo = `POST /agents/:id/draft/select` (`use-feedback.ts`); e2e asserts the version goes back | — |
+| Z-36 | P1    | §8 W5            | After-call card via SSE or polling                                     | PASS            | `use-after-call.ts`; `use-after-call.test.ts`                                                         | —                                                   |
+| Z-37 | P1    | §8 W5            | Happiness checkbox soft gate with skip                                 | PASS            | `test/page.tsx:68-96`                                                                                 | —                                                   |
+| Z-38 | P1 | §8 W5 | Mic-denied per-browser help; trial-0 CTA to activate | **PASS** (6 Nov) | Per-browser steps (`detectBrowser`, `browser-help.test.ts`); trial-zero alert with a button to W6 (D3: the wallet) | ADR 0040 §5 |
+| Z-39 | P1    | §8 W6            | Options A / B / C                                                      | PASS            | `phone-option-cards.tsx:322-333`; `e2e-wizard.mjs`                                                    | C gated on `sip_import`                             |
+| Z-40 | P1 | §8 W6 A | Country, required area code, "Suggest", toll-free | **PASS** (6 Nov) | Area code required for a local number on W6; Suggest from the time zone (`area-code.test.ts`); e2e asserts both | ADR 0040 §4 (API keeps it optional for D4) |
+| Z-41 | P1 | §8 W6 B | Current number + forward mode radio | **PASS** (6 Nov) | Forward-mode radio, `phone_plans.forward_mode` → `forwarding.mode`; e2e asserts; `d6-numbers.e2e` | ADR 0040 §2 |
+| Z-42 | P1 | §8 W6 C | Provider select, transport, "I understand" checkbox | **PASS** (6 Nov) | Provider and transport selects, the "I understand" gate; `sip_json.provider/transport`, transport reaches the platform (`d6-numbers.e2e`) | ADR 0040 §2 |
+| Z-43 | P1 | §8 W6, §10 D4 | Answer calls: always / outside hours / when I don't answer | **PASS** (6 Nov) | `outside_hours` / `unanswered` beside `always` (`decide()`, `inbound.decide.test.ts` 6b); W6 offers the three, D4 five; e2e asserts and persists | ADR 0040 §1 |
+| Z-44 | P1 | §8 W6 | Transfer number pre-filled from the brief | **PASS** (6 Nov) | `prefillTransferTargets` from the brief’s transfer rules on a first visit (`transfer-prefill.test.ts`) | — |
+| Z-45 | P1 | §8 W6 | Allowed caller countries field | **PASS** (6 Nov) | `AllowedCountriesField`, default workspace country + US/CA (`allowed-countries.test.ts`); e2e asserts; enforced since ADR 0035 | — |
+| Z-46 | P1    | §8 W6            | Continue → `PUT /agents/:id/phone-plan`                                | PASS            | `phone/page.tsx:144-166`; `d6-numbers.e2e.test.ts`                                                    | —                                                   |
+| Z-47 | P1 | §8 W7 | Summary card with Change links | **PASS** (6 Nov) | `ActivationSummary` from the draft, the plan, the voice list and the test-call count, Change → W2/W3/W6 (`activation-summary.test.ts`); e2e asserts | — |
+| Z-48 | P1    | §8 W7            | Pack cards from config, Growth pre-selected                            | PASS            | `package-selector.tsx:283-301`; `e2e-wizard.mjs`                                                      | —                                                   |
+| Z-49 | P1 | §8 W7, §5.4 | Auto top-up checkbox with 10 % / 20 % select, default on at 10 % | **PASS** (6 Nov) | 10 % / 20 % select beside the switch (`pack-minutes.test.ts`); e2e asserts | — |
+| Z-50 | P1    | §8 W7, §13.7     | Pay → Stripe Checkout                                                  | PASS            | `billing.service.ts:63-144`; staging go-live 24 Sep                                                   | —                                                   |
+| Z-51 | P1    | §8 W7            | Provisioning progress via SSE + poll                                   | PASS            | `provisioning-progress.tsx`; `activation-follow.test.ts`                                              | —                                                   |
+| Z-52 | P1 | §8 W7 | Failure row with Retry and support link | **PASS** (6 Nov) | "Contact support" (`mailto:` with the activation id) beside Retry and on the slow-confirm state | ADR 0040 §6 |
+| Z-53 | P1 | §8 W7b | Number display with Copy and Call it now | **PASS** (6 Nov) | `CopyButton` (clipboard, else selection, honest failure) + "Call it now" (`tel:`) | — |
+| Z-54 | P1    | §8 W7b           | Forwarding guide per carrier + "I've set up forwarding"                | PASS            | `live/page.tsx:95-132`; `forwarding-guide.test.ts`                                                    | —                                                   |
+| Z-55 | P1 | §8 W7b | SIP origination instructions | **PASS** (6 Nov) | `SipSetupGuide`: origination address from `SIP_ORIGINATION_URI`, transport, host, masked username, per-provider steps (`sip-guide.test.ts`); also on D4 | ADR 0040 §3 |
+| Z-56 | P1 | §8 W7b | Next-steps checklist | **PASS** (6 Nov) | `NextStepsChecklist` ticked from members, notification settings, widget and forwarding (`live-checklist.test.ts`) | — |
+| Z-57 | P1    | §8 W7b           | Go to dashboard; `onboarding_completed_at` set                         | PASS            | Set by activation `mark_live`; `d6-activation.e2e.test.ts`                                            | —                                                   |
+| Z-58 | P1    | §12.1            | Stack: Next.js, TanStack, RHF + zod, shared schemas, SSE client        | PASS            | `frontend/web/package.json`; `sse.test.ts`                                                            | Zustand installed, unused                           |
+| Z-59 | P1 | §12.1 | Global error boundary | **PASS** (6 Nov) | `app/error.tsx` + `app/global-error.tsx` → `reportError`; `/dev/crash/` exercised by `e2e-wizard` | — |
+| Z-60 | P1    | §12.1            | PostHog funnel events                                                  | PASS            | All six events present; `posthog.test.ts`, `sanitize.test.ts`                                         | —                                                   |
+| Z-61 | P1 | §12.2 | Advance only on 2xx | **PASS** (6 Nov) | `useAdvanceOnboarding` throws; W2/W3/W5/W6 keep the page with the error and Continue = Retry | ADR 0040 §8 |
+| Z-62 | P1    | §12.2            | Resume at `onboarding_step`, jump back to completed steps              | PASS            | `stepPath`, guards; `routes.test.ts`                                                                  | —                                                   |
+| Z-63 | P1 | §12.3 | "End your test call?" prompt on route change | **PASS** (6 Nov) | `LeaveCallPrompt`: links, back button and router pushes held behind Stay / Leave (`leave-call.test.ts`); e2e asserts Back + Stay | ADR 0040 §8 |
+| Z-64 | P1    | §12.5            | Responsive; tables become cards < 640 px                               | PASS            | `DataTable`; `e2e-dashboard-d11.mjs` at 390 px                                                        | —                                                   |
+
+### 4.4 P1 — Prompt system and templates (§9, §13.3, §13.5, §13.6)
+
+| ID   | Phase | Spec        | Requirement                                                                                    | Status          | Evidence                                                                                                   | Gap / next action                                    |
+| ---- | ----- | ----------- | ---------------------------------------------------------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| G-01 | P1    | §9.1, §9.3  | Brief → prompt, greeting, analysis schema, scenarios                                           | PASS            | `generation.worker.ts:236-245`; `prompting.e2e.test.ts:107`                                                | —                                                    |
+| G-02 | P1    | §9.1, §9.4  | Guardrails appended in code after zod; not removable                                           | PASS            | `prompting/guardrails.ts:163-166`; `guardrails.test.ts`; `prompting.e2e.test.ts` tampering cases           | —                                                    |
+| G-03 | P1    | §9.1, §9.9  | Versions immutable                                                                             | PASS            | `agent_versions_immutable` trigger; `backend/db/test/agent-versions.e2e.test.ts`                           | —                                                    |
+| G-04 | P1    | §9.2        | Seven inbound templates with goal, steps, fields, rules, tier, sample audio, industry examples | PASS            | `templates/*.json`; `prompt-builder.test.ts:287-316`; `agents.e2e.test.ts:80-113`                          | Field names drift slightly (`caller_name` vs `name`) |
+| G-05 | P1    | §9.3        | Pipeline: system/user turn, JSON shape, zod, guardrails, lint, persist, draft push to platform | PASS            | `prompt-builder.ts`, `output-schema.ts`, `agent-retell.service.ts:62-117`; `prompting.e2e.test.ts:200,213` | —                                                    |
+| G-06 | P1    | §9.3        | Claude Sonnet-class generation model                                                           | PASS            | `claude-sonnet-5` (`anthropic.provider.ts:68`, ADR 0009)                                                   | —                                                    |
+| G-07 | P1    | §9.3, §13.3 | 20 s timeout, one retry; jobs > 15 s time out                                                  | PARTIAL         | 45 s budget, 3 attempts (`anthropic.provider.ts:69-73`)                                                    | Amended by ADR 0012                                  |
+| G-08 | P1    | §9.4        | Guardrails 1–6 present in the appended block                                                   | PASS            | `guardrails.ts:81-86`; `guardrails.test.ts:32`                                                             | —                                                    |
+| G-09 | P1    | §9.4        | Guardrail 7: respect `{{business_open}}`                                                       | PASS (4 Nov)    | Fixed `HOURS_RULE` names `{{business_open}}`, `{{next_open_time}}`, `{{current_time}}` on every prompt (`prompting/guardrails.ts`); `guardrails.test.ts` "the business-hours rule"; live: closed call handled 3/3 per model with no script line (`docs/evidence/2026-11-04-prompt-gaps/incall-bench-v2.json`) | ADR 0038 §1 |
+| G-10 | P1    | §9.5        | Lint: length, missing hand-off, no greeting, long greeting, always/guarantee                   | PASS            | `lint.ts`; `lint.test.ts`                                                                                  | —                                                    |
+| G-11 | P1    | §9.5        | Lint: transfer number set but no transfer tool                                                 | PASS (4 Nov)    | Fed the sync's tools (`transferRoutes`) and each answering number's D4 targets (`agentNumberTransferTargets`, all six lint callers); `lint.test.ts` "transfer_tool_missing" (10) | ADR 0038 §2; now a warning. Found: D4 targets are never dialled (open) |
+| G-12 | P1    | §9.5        | Lint: prompt language ≠ primary language                                                       | PASS (4 Nov)    | Arabic stopwords with vowel-mark, tatweel, alef/yeh and bidi folding (`lint.ts`); `lint.test.ts` "language_mismatch — Arabic" (8) | ADR 0038 §2 |
+| G-13 | P1    | §9.6, §13.5 | Feedback loop: 10–500 chars, new `feedback` version, guardrail conflict → `changes: []`        | PASS            | `generation.worker.ts:356-424`; `prompting.e2e.test.ts:490-543`                                            | —                                                    |
+| G-14 | P1    | §9.7        | `{{business_name}}`, `{{agent_name}}`, `{{next_open_time}}` set per inbound call               | PASS            | `inbound.decide.ts:199-203`; `inbound.decide.test.ts`                                                      | —                                                    |
+| G-15 | P1    | §9.7        | `{{business_open}}` true/false                                                                 | FAIL            | Literal `'true'` (`inbound.decide.ts:202`); an `always` number tells the agent it is open while closed     | Compute from `isOpen`                                |
+| G-16 | P1    | §9.7        | `{{current_time}}` in workspace time zone                                                      | PASS (4 Nov)    | `spokenClock()` / `callVariables()`: day, date and time in the workspace hours' zone on every channel, never a custom number's zone; `hours.test.ts`, `inbound.decide.test.ts`, `calls.e2e` (Toronto 10:00 / Vancouver 07:00) | ADR 0038 §1 |
+| G-17 | P1    | §9.7        | `{{caller_number}}`, `{{primary_language}}`                                                    | PASS (4 Nov)    | `callVariables()` on inbound (platform `from_number`, E.164), "Call my phone" and callback (person rung), web (`''`); language in `num:{e164}`; `inbound.decide.test.ts`, `calls.e2e`, `d17`, `d18` | ADR 0038 §1 |
+| G-18 | P1    | §9.7, §13.4 | Variables computed at web-test token creation                                                  | PASS (4 Nov)    | All seven at mint (`test-call.service.ts` `testCallVariables`); `callVariablesSection()` in generation and feedback turns; `d9-test-call.e2e`, `prompt-builder.test.ts`; live: 11/15 generated scripts use a variable, 0/15 without | ADR 0038 §1 |
+| G-19 | P1    | §9.8        | Analysis fields: types, ≤ 15, Growth+ user fields, mapped to platform                          | PASS            | `analysisField`; `agent-settings.e2e.test.ts:392-465`; `agent-retell.test.ts:122-160`                      | —                                                    |
+| G-20 | P1    | §9.9, §13.6 | Publish: lint gate, platform publish, audit, SSE; roll back; drafts tested by explicit version | PASS            | `agent-publish.service.ts:82-268`; `agents.e2e.test.ts:474-657`; ADR 0003 §7                               | —                                                    |
+
+### 4.5 P1 — Dashboard (§10 D1–D7, Appendix D)
+
+| ID   | Phase | Spec       | Requirement                                                                        | Status          | Evidence                                                                                        | Gap / next action                            |
+| ---- | ----- | ---------- | ---------------------------------------------------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| H-01 | P1    | D1         | Alert banner from `GET /alerts/active`                                             | PASS            | `alert-banner.tsx:90-133`; `d7-notifications.e2e.test.ts:142`                                   | —                                            |
+| H-02 | P1    | D1         | Paused-by-staff banner naming the ticket                                           | **PASS** (16 Nov) | `tenants.paused_ticket_id` written by the console's pause when the ticket is the workspace's, cleared on resume; `portal-shell.tsx` "Your account is paused — see ticket #N" + Help link; agents carry `paused_by` / `paused_ticket_id`; `d21-home.e2e.test.ts` "paused by staff names the ticket" | ADR 0041 §8 |
+| H-03 | P1    | D1, §16    | Staff announcements (`GET /announcements/active`)                                  | **PASS** (16 Nov) | `modules/config/announcements.{rules,service}.ts` (type banner, window, audience all / plans / countries / tenant_ids); `announcements-banner.tsx` (plain text, per-browser hide for dismissible rows); `announcements.rules.test.ts`, `announcements-view.test.ts`, `d21-home.e2e.test.ts`; `e2e-dashboard` "D1 shows an active staff announcement". Writing them is SA10 (D20) | ADR 0041 §4 |
+| H-04 | P1    | D1         | Credits card: balance, Top up, auto top-up state                                   | PASS            | `credits-card.tsx:48-65`; `billing.e2e.test.ts:588-596`                                         | —                                            |
+| H-05 | P1    | D1         | ≈ minutes and "days left" from 7-day burn                                          | **PASS** (16 Nov) | `credits-card.tsx` `Outlook` from `creditsOutlook()`: balance ÷ Standard rate, balance ÷ (`GET /stats?range=7d` credits ÷ 7), "No calls in the last 7 days" / "Out of credits", footed as an estimate; `home-view.test.ts` (NaN/Infinity, zero balance, zero usage); `e2e-dashboard` "D1 credits outlook" | ADR 0041 §5 |
+| H-06 | P1    | D1         | Today: calls, minutes, missed                                                      | PASS            | `today-card.tsx:38-43`; `calls-api.e2e.test.ts:527-580`                                         | —                                            |
+| H-07 | P1    | D1         | Today: messages taken, sentiment %                                                 | **PASS** (16 Nov) | `statsResponse.messages_taken` + `sentiment` (real analysed calls; `messageCaptured()` = `message_taken` or `callback_number`); `today-card.tsx` "Messages taken", "Positive callers N %" via `sentimentShare()`; `d21-home.e2e.test.ts` "messages_taken and sentiment", `message-captured.test.ts`, `home-view.test.ts` | ADR 0041 §5 |
+| H-08 | P1    | D1         | Agent card with number and Test / Publish / Edit                                   | **PASS** (16 Nov) | `agentSummary.number_e164` + `draft_has_prompt`; `agents-card.tsx` Test → D3 Test, Publish → confirm → `POST /agents/:id/publish` (busy, `LINT_FAILED` toast), Edit → D3 Brief, View for a viewer; `agentCardActions()` in `home-view.test.ts`; `e2e-dashboard` "D1 agent card …" | ADR 0041 §6 |
+| H-09 | P1    | D1         | Viewer sees no Top up / Publish                                                    | **PASS** (16 Nov) | `canTopUp()` gates the card's "Buy credits", the pill's copy and the low-balance CTA; `agentCardActions()` withholds Test / Publish; the API answers `403 FORBIDDEN_ROLE` on checkout, publish and the test mint (`d21-home.e2e.test.ts` "a viewer on the routes"); `e2e-dashboard` viewer pass (with `E2E_USER_FILE`) | ADR 0041 §6 |
+| H-10 | P1    | D1         | Setup checklist incl. forwarding tested, team invited                              | **PASS** (16 Nov) | `workspaceChecklist.forwarding_tested` (null without a forwarding number), `team_invited`, `all_done`; `checklist-card.tsx` hides on `all_done`; `checklistRows()` in `home-view.test.ts`; `d21-home.e2e.test.ts` "forwarding and team rows"; `e2e-dashboard` "D1 checklist rows mirror" | ADR 0041 §7 |
+| H-11 | P1    | D1         | Recent calls, 30-day chart, finish-setup hero                                      | PASS            | `recent-calls-card.tsx`, `activity-chart.tsx`; `activity-series.test.ts`                        | —                                            |
+| H-12 | P1    | D2         | Columns incl. number, country flag, outcome chip                                   | PARTIAL         | No number column, no flag, outcome not rendered (`calls-table.tsx:112-119`)                     | Add                                          |
+| H-13 | P1    | D2         | Range filter incl. custom                                                          | PARTIAL         | `all/today/7d/30d` only (`calls-url.ts:4-5`)                                                    | Add custom picker                            |
+| H-14 | P1    | D2         | Filters: agent, number, direction, outcome, sentiment, needs attention             | PARTIAL         | UI has status, agent, channel, test, handled; API takes direction/number but UI never sends     | Expose and add                               |
+| H-15 | P1    | D2         | Full-text transcript and caller search                                             | NOT IMPLEMENTED | No `q` or tsvector                                                                              | Build                                        |
+| H-16 | P1    | D2         | Sort, 25 / page, total                                                             | PASS            | `calls-url.ts`; `calls-api.e2e.test.ts:176-209`                                                 | —                                            |
+| H-17 | P1    | D2         | CSV export ≤ 10k; async email above 2k                                             | PARTIAL         | Streamed sync export only (ADR 0018 §3)                                                         | Record or build email branch                 |
+| H-18 | P1    | D2         | Bulk mark handled                                                                  | PASS            | `PATCH /calls`; `calls-api.e2e.test.ts:267-285`                                                 | —                                            |
+| H-19 | P1    | D2         | Detail header, handled toggle, note                                                | PASS            | `call-drawer.tsx`; `calls-api.e2e.test.ts:379-397`                                              | Note cap 2,000 vs spec 500                   |
+| H-20 | P1    | D2         | Copy caller / call back (`tel:`)                                                   | PASS            | `call-drawer.tsx:295-311`; `caller.test.ts`                                                     | —                                            |
+| H-21 | P1    | D2         | Summary, captured fields, follow-up required, Copy all                             | PARTIAL         | No follow-up fact, no Copy all                                                                  | Add                                          |
+| H-22 | P1    | D2         | Transcript timestamps, search highlight, tool-call markers                         | PARTIAL         | Turns only (`analysis.ts:58-75`)                                                                | Add                                          |
+| H-23 | P1    | D2         | Report a problem → ticket with call id                                             | PASS            | `report-call.tsx:82`; `d13-support.e2e.test.ts:188`                                             | —                                            |
+| H-24 | P1    | D2         | Recording via signed 1-h proxy; download owner/admin                               | PASS            | `calls.controller.ts:109-144`; `calls-api.e2e.test.ts:412-525`                                  | —                                            |
+| H-25 | P1    | D2         | Plain-English disconnection reason; platform cost staff-only                       | PASS            | `server-copy.ts:75`; `calls-api.e2e.test.ts:106`                                                | —                                            |
+| H-26 | P1    | D2         | New-call toast via SSE                                                             | PASS            | `dashboard-live.tsx`; `caller.test.ts`                                                          | —                                            |
+| H-27 | P1    | D2, App. D | Empty state naming the number                                                      | PARTIAL         | No `{number}` (`en.json:1338`)                                                                  | Interpolate                                  |
+| H-28 | P1    | D3         | List: calls 7 d, avg duration, last published                                      | PARTIAL         | Missing on `AgentSummary`                                                                       | Add                                          |
+| H-29 | P1    | D3         | ⋯ Duplicate / Pause-Resume / Delete                                                | PASS            | `agents.e2e.test.ts:698,794-913`                                                                | —                                            |
+| H-30 | P1    | D3         | + New agent in wizard "agent mode"; Starter 1 agent                                | PARTIAL         | Dialog → Brief tab; cap enforced (`agents.service.ts:261-282`)                                  | Amended in part by ADR 0032 §3               |
+| H-31 | P1    | D3         | Overview: 7-day stats, Test button                                                 | PARTIAL         | Neither (`overview-tab.tsx:71-136`)                                                             | Add                                          |
+| H-32 | P1    | D3         | Brief tab, Regenerate, Save as new version                                         | PASS            | `brief-tab.tsx`; `agent-settings.e2e.test.ts:481`                                               | —                                            |
+| H-33 | P1    | D3         | Advanced editor with lint, counter, "Reset to generated"                           | PARTIAL         | No reset (`prompt-tab.tsx`)                                                                     | Add                                          |
+| H-34 | P1    | D3         | Analysis fields editor (Growth+)                                                   | PASS            | `analysis-fields-editor.tsx`; `agent-settings.e2e.test.ts:392-465`                              | —                                            |
+| H-35 | P1    | D3         | Voice tab = W3 with autosave                                                       | PASS            | `voice-tab.tsx`; `agents.e2e.test.ts:197`                                                       | —                                            |
+| H-36 | P1    | D3         | Test-call history, excluded from analytics                                         | NOT IMPLEMENTED | Last call only; exclusion works                                                                 | Add list                                     |
+| H-37 | P1    | D3         | Versions: author, diff vs published, "Test this version"                           | PARTIAL         | No author, full prompt not diff, no test link (`versions-tab.tsx`)                              | Add                                          |
+| H-38 | P1    | D3, App. D | Publish confirm modal with lint warnings and "affects live calls"                  | NOT IMPLEMENTED | Publishes immediately (`publish-bar.tsx:105`, `versions-tab.tsx:58`)                            | Add modal                                    |
+| H-39 | P1    | D3         | Settings: tier with rate, recording, max duration 3–30 default 15, add-ons, delete | PARTIAL         | Default 600 s (`shared/schemas/src/agents.ts:637`)                                              | Set 900 s or ADR                             |
+| H-40 | P1    | D3         | Sticky unpublished bar with Test and Publish                                       | PARTIAL         | No Test button                                                                                  | Add                                          |
+| H-41 | P1    | D4         | List + Add number; buy only with ≥ 15 credits                                      | PARTIAL         | Server checks balance > 0 (`numbers.service.ts:244-249`)                                        | Check ≥ rental                               |
+| H-42 | P1    | D4         | Routing: published agents only; per-number hours override                          | PASS            | `number-sections.tsx`; `d6-numbers.e2e.test.ts:361,462-470`                                     | —                                            |
+| H-43 | P1    | D4         | Hand-off ≤ 3 targets with "when"; fail message                                     | PARTIAL         | Max 5, no "when" field; fail message done (ADR 0032 §4)                                         | Align                                        |
+| H-44 | P1    | D4         | Blocklist ≤ 100 declined inbound                                                   | PASS            | `inbound.decide.ts:144`; `calls.e2e.test.ts:143-160`                                            | Cap is 200                                   |
+| H-45 | P1    | D4         | Forwarding guide                                                                   | PASS            | `forwarding-guide.test.ts`                                                                      | —                                            |
+| H-46 | P1    | D4         | SIP section with transport and origination URI                                     | PARTIAL         | Neither shown                                                                                   | Add                                          |
+| H-47 | P1    | D4         | Release with typed confirm, platform first                                         | PASS            | `numbers.service.ts:206-218`; `d6-numbers.e2e.test.ts:478-486`                                  | —                                            |
+| H-48 | P1    | D5         | Balance, plan caps, expiring lots, Buy                                             | PASS            | `wallet-sections.tsx`; `billing.e2e.test.ts:593-599`; `wallet-view.test.ts`                     | —                                            |
+| H-49 | P1    | D5         | Usage chart (30 d)                                                                 | PASS            | `wallet-view.test.ts:29`                                                                        | —                                            |
+| H-50 | P1    | D5         | Ledger with filters, call links, export                                            | PARTIAL         | Generic descriptions; filter, links and export present (`d11-data-requests.e2e.test.ts:99-134`) | Enrich descriptions                          |
+| H-51 | P1    | D5         | Invoices; payment methods via Customer Portal                                      | PASS            | `d6-billing.e2e.test.ts:266-351`                                                                | `GET /wallet/invoices` has no role gate      |
+| H-52 | P1    | D5         | Editor/viewer see balance and ledger only                                          | PARTIAL         | Also see usage and expiring                                                                     | Gate sections                                |
+| H-53 | P1    | D5, App. D | Out-of-credits copy `wallet.paused.banner`                                         | FAIL            | Key reused for the purchases kill switch                                                        | Restore spec meaning                         |
+| H-54 | P1    | D6         | Workspace: name, time zone, website, default hours                                 | PASS            | `workspace-tab.tsx`; `workspaces.e2e.test.ts:208-231`                                           | —                                            |
+| H-55 | P1    | D6         | Address (consent rules, area-code suggest)                                         | NOT IMPLEMENTED | Not on PATCH or UI                                                                              | Add or retire                                |
+| H-56 | P1    | D6         | Team: last active, MFA ✓                                                           | PARTIAL         | Neither on `memberResponse`                                                                     | Add                                          |
+| H-57 | P1    | D6         | Invite / change role / remove                                                      | PASS            | `workspaces.e2e.test.ts:337-392`                                                                | —                                            |
+| H-58 | P1    | D6         | Transfer ownership with email confirmation                                         | PARTIAL         | Typed email, no email step                                                                      | ADR or add                                   |
+| H-59 | P1    | D6         | Notifications per user (email instant / daily)                                     | PASS            | `d7-notifications.e2e.test.ts:113,188`                                                          | —                                            |
+| H-60 | P1    | D6         | SMS, weekly summary, digest recipients                                             | NOT IMPLEMENTED | Columns stored, hidden                                                                          | SMS/weekly deferred by ADR 0019 §8           |
+| H-61 | P1    | D6         | Security: password, MFA enrol/disable, sessions, connected SSO                     | PARTIAL         | No MFA disable, no SSO list                                                                     | Add or ADR                                   |
+| H-62 | P1    | D6         | Data & privacy: recording/PII defaults, export, delete                             | PASS            | `d11-data-requests.e2e.test.ts:147-339`                                                         | Amended by ADR 0032 §6 (delete is a request) |
+| H-63 | P1    | D6         | Audit log with export                                                              | PARTIAL         | No export button (CSV only inside the workspace zip)                                            | Add                                          |
+| H-64 | P1    | D7         | Docs links, status, report a call                                                  | PASS            | `help/page.tsx`; `e2e-dashboard-d11.mjs:248-253`                                                | Status embed amended by ADR 0019 §8          |
+| H-65 | P1    | D7         | Contact form: 7 categories, attachments ≤ 3 × 10 MB, linked call                   | PARTIAL         | No "Feature request", no attachments, no call picker                                            | Add                                          |
+| H-66 | P1    | D7         | Replies arrive by email                                                            | NOT IMPLEMENTED | No ticket-reply notification                                                                    | Add outbox template                          |
+| H-67 | P1    | D7         | My tickets thread and reply                                                        | PASS            | `d13-support.e2e.test.ts:376-471`                                                               | —                                            |
+| H-68 | P1    | App. D     | Copy deck strings                                                                  | PARTIAL         | 3 of 12 exact; `publish.confirm` absent                                                         | Align                                        |
+
+### 4.6 P1 — Wallet, billing, numbers, flows, metering (§5, §11, §13, §14)
+
+| ID   | Phase | Spec          | Requirement                                                                                         | Status          | Evidence                                                                                                              | Gap / next action                               |
+| ---- | ----- | ------------- | --------------------------------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| B-01 | P1    | §5.1          | 1 credit/min Standard, 1.5 Premium, web calls same rate                                             | PASS            | `pricing-v1.ts:88-89`; `metering.test.ts`; `calls.e2e.test.ts:697`                                                    | `rates.web_call_per_min` is never read          |
+| B-02 | P1    | §5.1, §14.1   | Per-second, rounded to 0.01; connected calls only                                                   | PASS            | `calls/metering.ts:15-31,61-86`; `metering.test.ts:62-108`                                                            | —                                               |
+| B-03 | P1    | §5.2          | Pack prices, credits, caps, KB allowance as specified                                               | PASS            | `pricing-v1.ts:28-85`; `config.resolve.test.ts:13`                                                                    | —                                               |
+| B-04 | P1    | §5.2          | Volume pack (custom, 10,000+)                                                                       | PARTIAL         | No pack; deals via `PUT /admin/customers/:id/overrides`                                                               | Document sales path                             |
+| B-05 | P1    | §5.2          | Plan tier = largest pack in the last 12 months                                                      | PARTIAL         | Recomputed only on purchase (`billing.service.ts:366-399`); never lapses                                              | Recompute on a schedule or record               |
+| B-06 | P1    | §5.3, §11.1   | Number rental 15 credits/month on the anniversary; SIP free                                         | PASS            | `number-rental.service.ts:74-168`; `d7-recurring.e2e.test.ts:180-231`                                                 | —                                               |
+| B-07 | P1    | §5.3          | Extra knowledge base 30 credits/month                                                               | NOT IMPLEMENTED | `extra_kb_credits` never read; allowance is a hard `PLAN_LIMIT` (`knowledge.service.ts:79-84`)                        | Build `kb-rental` or amend spec                 |
+| B-08 | P1    | §5.3          | Concurrency above cap not purchasable                                                               | PASS            | No route; `calls.e2e.test.ts:163`                                                                                     | —                                               |
+| B-09 | P1    | §5.4          | 12-month expiry, FIFO                                                                               | PASS            | `wallet.service.ts:525-540`; `wallet.e2e.test.ts:72-108`; `fifo.test.ts`                                              | —                                               |
+| B-10 | P1    | §5.4          | Low-balance alerts at 20 / 5 / 0 % with email and banner                                            | PASS            | `low-balance.service.ts`; `d7-notifications.e2e.test.ts:59-142`                                                       | —                                               |
+| B-11 | P1    | §5.4          | Optional low-balance SMS                                                                            | NOT IMPLEMENTED | No sender                                                                                                             | Deferred by ADR 0019 §8                         |
+| B-12 | P1    | §5.4, §13.11  | Auto top-up: off-session charge, credited only on Stripe confirmation                               | UNVERIFIED      | Logic passes `d6-billing`, `d7-notifications`, `d13-billing` with Stripe stubbed; no live off-session charge recorded | One staging top-up                              |
+| B-13 | P1    | §5.4          | Grace overdraft 10 credits                                                                          | PASS            | `inbound.decide.ts` balance check; `calls.e2e.test.ts:102,292`                                                        | —                                               |
+| B-14 | P1    | §5.4          | Trial 20 credits, browser only, no card                                                             | PASS            | `workspaces.service.ts:95`; `d6-numbers.e2e.test.ts:102`; `d17-channels.e2e.test.ts`                                  | —                                               |
+| B-15 | P1    | §5.4          | Invoice per purchase                                                                                | PASS            | `invoices.service.ts`; `d6-billing.e2e.test.ts:286-328`                                                               | —                                               |
+| B-16 | P1    | §5.4          | Company details editable                                                                            | PASS            | Stripe Customer Portal                                                                                                | Amended by ADR 0019 §8                          |
+| B-17 | P1    | §5.4b         | Config via `GET /pricing` / `GET /flags`, versioned; rate stored on the call                        | PASS            | `platform-config.service.ts`; `billing.e2e.test.ts:527-560`; `calls.e2e.test.ts:475,627`                              | —                                               |
+| B-18 | P1    | §13.7         | Checkout creates pending purchase + Session (`client_reference_id`, metadata, `setup_future_usage`) | PASS            | `stripe.gateway.ts:118-170`; staging go-live 24 Sep                                                                   | Session fields individually unverified live     |
+| B-19 | P1    | §13.7         | `completed` (paid only) → lots, ledger, plan tier, activation; amount check                         | PASS            | `billing.service.ts:255-326`; `billing.e2e.test.ts:197-343`                                                           | —                                               |
+| B-20 | P1    | §13.7         | Save payment method from the paid session                                                           | UNVERIFIED      | `billing.service.ts:402-421`; not asserted with a real PaymentIntent                                                  | Staging check                                   |
+| B-21 | P1    | §13.7         | Email receipt                                                                                       | NOT IMPLEMENTED | No outbox row; Stripe's own receipt setting unverified                                                                | Add or rely on Stripe and record                |
+| B-22 | P1    | §13.7         | `expired` → abandoned; lost webhook covered                                                         | PASS            | `billing.e2e.test.ts:291,397-501`                                                                                     | Confirm route is an addition (ADR 0013 §9)      |
+| B-23 | P1    | W7, D5, §16   | Promo codes (`POST /wallet/promo/validate`)                                                         | NOT IMPLEMENTED | Checkout refuses any code (`billing.service.ts:70-75`)                                                                | Build                                           |
+| B-24 | P1    | §16           | Wallet routes: wallet, lots, ledger, checkout, auto-topup, invoices, portal session                 | PASS            | `wallet.controller.ts`, `billing.controller.ts`; e2e above                                                            | —                                               |
+| N-01 | P1    | §11.1         | Buy a number bound to `latest_published` with the per-number webhook                                | PASS            | `number-provisioning.service.ts:102-153`; `d6-numbers.e2e.test.ts`; live fixtures                                     | Area code widened on no stock (30 Sep)          |
+| N-02 | P1    | §11.1, §13.11 | Release after 30 days at ≤ 0 with 7/14/21-day warnings                                              | PASS            | `number-rental.service.ts:171-275`; `d7-recurring.e2e.test.ts`                                                        | —                                               |
+| N-03 | P1    | §11.2         | Option B: bought target, carrier guide, forwarding status                                           | PASS            | `forwarding-guide.ts`; `d6-numbers.e2e.test.ts`                                                                       | —                                               |
+| N-04 | P1    | §11.3         | Option C: SIP import, credentials envelope-encrypted                                                | UNVERIFIED      | `number-provisioning.service.ts:155-191`; `d6-numbers.e2e.test.ts` against the stand-in; no live import recorded      | One staging import                              |
+| N-05 | P1    | §11.4         | Porting refused                                                                                     | PASS            | `phone-plans.service.ts:34-38`; `d6-numbers.e2e.test.ts`                                                              | —                                               |
+| F-01 | P1    | §13.4         | Test call: role, verified email, balance, 10/h                                                      | PASS            | `test-call.service.ts`; `d9-test-call.e2e.test.ts` (11 cases)                                                         | —                                               |
+| F-02 | P1    | §13.4         | `calls` row written at mint                                                                         | PASS            | Row written by `call_started` instead                                                                                 | Documented in CLAUDE.md (D9), no ADR            |
+| F-03 | P1    | §13.8         | Activation step machine, resume, 3 retries, ops alert                                               | PASS            | `activation.worker.ts`; `d6-activation.e2e.test.ts` (13 cases)                                                        | —                                               |
+| F-04 | P1    | §13.8         | First month's rental charged at activation                                                          | FAIL            | No debit at bind; `next_rental_at` = +1 month (`number-provisioning.service.ts:230`); first month free                | Charge at bind or amend                         |
+| F-05 | P1    | §13.8         | Notify by email with number and forwarding guide                                                    | NOT IMPLEMENTED | SSE frames only (`activation.worker.ts:222-227`)                                                                      | Add email                                       |
+| F-06 | P1    | §13.9         | Inbound route, token, signature; unknown = fail open                                                | PASS            | `webhooks.controller.ts:101-135`; `calls.e2e.test.ts`                                                                 | Amended by ADR 0003 §12 / 0011 (no DB fallback) |
+| F-07 | P1    | §13.9         | Six ordered checks                                                                                  | PASS            | `inbound.decide.ts:135-182`; `inbound.decide.test.ts` (43)                                                            | —                                               |
+| F-08 | P1    | §13.9         | Allow payload and `max_call_duration_ms` formula                                                    | PASS            | `inbound.decide.ts:184-212`; ADR 0003 §2 live fixture                                                                 | —                                               |
+| F-09 | P1    | §13.9         | Decline writes a `declined` row shown as Missed                                                     | PASS            | `calls.service.ts` `recordInboundDecision`; `calls.e2e.test.ts`                                                       | —                                               |
+| F-10 | P1    | §13.9, §18    | Inbound p95 < 300 ms                                                                                | PASS            | 8.4 ms p95 at 6,319 req/s (ADR 0011, `test/load/inbound.k6.js` threshold)                                             | Not re-run in this audit                        |
+| F-11 | P1    | §13.10        | Signature, dedupe, 204 on duplicate, never 5xx after store                                          | PASS            | `webhook-events.service.ts`; `d7-webhooks.e2e.test.ts`; `calls.e2e.test.ts`                                           | 8 retries (ADR 0011 §3)                         |
+| F-12 | P1    | §13.10, §14.1 | `call_started` / `call_ended` / `call_analyzed` handling; rate captured once                        | PASS            | `calls.service.ts`; `calls.e2e.test.ts:475,608,697`                                                                   | —                                               |
+| F-13 | P1    | §13.11        | `number-rental` hourly                                                                              | PASS            | cron `5 * * * *`; `d7-recurring.e2e.test.ts`                                                                          | —                                               |
+| F-14 | P1    | §13.11        | `credit-expiry` daily with 30 / 7-day warning emails                                                | PARTIAL         | Expiry works; no warning email exists                                                                                 | Add emails                                      |
+| F-15 | P1    | §13.11        | `auto-topup`: 10-min window, retry daily 3×                                                         | PARTIAL         | 30-min in flight, 6-h cooldown, no cap                                                                                | Record or align                                 |
+| F-16 | P1    | §13.11, §14.2 | `reconcile-calls`: 48 h, create/settle missing, cost drift > 5 %                                    | PARTIAL         | Previous UTC day, records only, cost not thresholded (`reconcile.ts:231-258`)                                         | Align or record                                 |
+| F-17 | P1    | §13.11        | `voice-cache`, `concurrency-monitor`, `low-balance-alerts`, `kb-sync`                               | PASS            | `jobs.constants.ts:110-125`; `d7-recurring.e2e.test.ts`                                                               | `kb-sync` is a skeleton by design               |
+| F-18 | P1    | §13.11        | `daily-digest` at 07:00 local                                                                       | PARTIAL         | Default 08:00 (`DIGEST_LOCAL_HOUR`)                                                                                   | One env change                                  |
+| M-01 | P1    | §14.2         | Metadata tenant mismatch logged and rejected                                                        | PARTIAL         | Fallback chain, no cross-check (`calls.service.ts:683-712,816-870`)                                                   | Add cross-check                                 |
+| M-02 | P1    | §14.2         | Zero-balance UX: decline, Missed, notify, auto top-up                                               | PASS            | `calls.e2e.test.ts`; `d7-notifications.e2e.test.ts`                                                                   | —                                               |
+| M-03 | P1    | §14.3         | Per-plan caps from `caps:{ws}`; cap hit = Missed (busy)                                             | PASS            | `inbound.decide.ts:171-173`; `calls.e2e.test.ts`                                                                      | —                                               |
+| M-04 | P1    | §14.3         | Platform peak concurrency per hour recorded; slot rule                                              | PARTIAL         | Alert at threshold; no persisted series                                                                               | Persist tick totals                             |
+
+### 4.7 P1 — Data model, API, security, NFRs, environments, exit criteria (§13.12, §15–§19)
+
+| ID      | Phase | Spec        | Requirement                                                                                                                   | Status          | Evidence                                                                                                                                         | Gap / next action                                                   |
+| ------- | ----- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
+| D-01    | P1    | §15         | All portal tables with listed columns                                                                                         | PASS            | `backend/db/prisma/schema.prisma:354-1143`; renames: `caller_id_verified_at`, knowledge status enum                                              | Update spec names                                                   |
+| D-02    | P1    | §15         | Admin-required columns (`calls.rate`, `config_version`, `policy_version`, `stack_version`, `paused_reason`, `custom_deal_id`) | PASS            | `schema.prisma` 398, 405, 627, 834-835, 969                                                                                                      | —                                                                   |
+| D-03    | P1    | §15, §17    | RLS on every tenant table; two roles                                                                                          | PASS            | `migrations/20260914044100_rls_roles_append_only`; `rls.e2e.test.ts`, `assertions.e2e.test.ts` (passed)                                          | —                                                                   |
+| D-04    | P1    | §15, §17    | Ledger and audit append-only                                                                                                  | PASS            | REVOKE + triggers; `append-only.e2e.test.ts` (passed)                                                                                            | —                                                                   |
+| D-05    | P1    | §16         | Workspaces, team, agents, knowledge, numbers, calls, stats, wallet, events, webhooks routes                                   | PASS            | `docs/api/openapi.json`; `openapi:check` passed (227 operations)                                                                                 | Notification settings renamed to `/workspace/notification-settings` |
+| D-06    | P1    | §16         | `GET /support/tickets/:id`                                                                                                    | NOT IMPLEMENTED | List embeds messages; no detail route                                                                                                            | Add or amend                                                        |
+| D-07    | P1    | §16         | Error envelope, cursor pagination, `202 {job_id}`                                                                             | PASS            | `app-error.ts`, `common.ts`; e2e                                                                                                                 | —                                                                   |
+| SEC-01  | P1    | §17         | Web-call tokens minted server-side with ownership check                                                                       | PASS            | `d9-test-call.e2e.test.ts` isolation                                                                                                             | —                                                                   |
+| SEC-02  | P1    | §17         | Recording on by default                                                                                                       | PASS            | `tenants.recording_default`, `agents.recording_enabled` default true                                                                             | —                                                                   |
+| SEC-03  | P1    | §17         | Tenant can disable recording on the platform                                                                                  | FAIL            | `retell.gateway.ts:188` always sends `data_storage_setting: 'everything'`; `recording_enabled` only drives the spoken notice                     | Map the setting to the platform                                     |
+| SEC-04  | P1    | §17         | Consent line auto-inserted in two-party jurisdictions                                                                         | PARTIAL         | Notice for every recording agent, switchable by the customer (`recording-notice.ts`, ADR 0032 §6); no jurisdiction logic                         | Decide jurisdiction rule                                            |
+| SEC-05  | P1    | §17         | PII removal add-on on Scale+                                                                                                  | PASS            | Gate in `agent-runtime.ts:34`; `agent-settings.e2e.test.ts`                                                                                      | Medical/legal templates do not exist                                |
+| SEC-06  | P1    | §17         | No card/SSN collection (guardrail)                                                                                            | PASS            | `guardrails.ts:84`                                                                                                                               | —                                                                   |
+| SEC-07  | P1    | §17, D4     | Allowed inbound countries default to workspace country and are enforced                                                       | FAIL            | Not in `decide()`; empty list sent as `undefined` (`number-provisioning.service.ts:144`); never re-sent on PATCH; UI copy says calls are refused | Enforce in `decide()` and push on PATCH/import                      |
+| SEC-08  | P1    | §17         | No number before first purchase; trial browser-only; test-call velocity                                                       | PASS            | `numbers.service.ts:245`; `call-headroom.ts:34`; d6/d9 e2e                                                                                       | —                                                                   |
+| SEC-09  | P1    | §17         | Stripe Radar on                                                                                                               | UNVERIFIED      | Dashboard-side                                                                                                                                   | Confirm in Stripe                                                   |
+| SEC-10  | P1    | §17         | Manual review flag for first purchase > $1,000                                                                                | PASS | Pre-approval: purchase `in_review` + `fraud_reviews`, no Stripe session; staff approve/reject with reason (commercial roles); `fulfil()` backstop (`backend/api/test/d20-auth-money.e2e.test.ts`: below/at/above $1,000, retry joins, roles, 409 on second decision, pay after approval, replay, reject, backstop). ADR 0036 §3 | — |
+| SEC-11  | P1    | §17, D6     | Retention 30/90/365 enforced; deletion propagates via `delete-call`                                                           | FAIL            | Setting saved (`workspaces.service.ts:173`); no purge job; `RetellGateway.deleteCall` has no caller; copy promises deletion (`en.json:2541`)     | Build the purge job                                                 |
+| SEC-12  | P1    | §17, §13.12 | Secrets in SSM; SIP credentials envelope-encrypted; signatures mandatory                                                      | PASS            | `infra/scripts/ssm-put-env.sh`; `modules/crypto`; `d6-numbers.e2e.test.ts` (encrypted at rest)                                                   | —                                                                   |
+| SEC-13  | P1    | §17         | Postgres PITR 7 days                                                                                                          | PASS            | `infra/aws/backend-stack.yaml:295`; `docs/runbooks/pitr-drill.md`                                                                                | —                                                                   |
+| NFR-01  | P1    | §18         | Exactly-once webhook processing                                                                                               | PASS            | `d7-webhooks.e2e.test.ts:88-202`                                                                                                                 | —                                                                   |
+| NFR-02  | P1    | §18         | Balance drift vs platform cost < 5 %                                                                                          | PASS            | `reconcile.ts:88-91`; `d7-recurring.e2e.test.ts:350,374`                                                                                         | Daily, not monthly                                                  |
+| NFR-03  | P1    | §18         | Feedback patch p95 ≤ 8 s                                                                                                      | UNVERIFIED      | Never measured                                                                                                                                   | Add to the bench                                                    |
+| NFR-04  | P1    | §18         | Wizard step < 1 s; voice preview < 1 s                                                                                        | UNVERIFIED      | Not measured                                                                                                                                     | Measure                                                             |
+| NFR-05  | P1    | §18         | Portal uptime 99.5 %, status surfaced                                                                                         | UNVERIFIED      | `GET /health/ready`; no SLO monitor; status vendor open (§20 #10)                                                                                | Add monitoring                                                      |
+| NFR-06  | P1    | §18         | OpenTelemetry, Sentry, Slack; per-tenant success, decline, error, LLM cost, Stripe lag metrics                                | PARTIAL         | Tracing and alerts wired (ADR 0025); the named metrics do not exist                                                                              | Add metrics                                                         |
+| NFR-07  | P1    | §18         | Mobile web for dashboard and test call                                                                                        | PASS            | `e2e-dashboard-d11.mjs` at 390 px                                                                                                                | Browser script not run in this audit                                |
+| ENV-01  | P1    | §13.12      | dev / staging / prod separation; `dev-` prefix; one key per environment                                                       | PASS            | `app-env.ts`; `retell.config.ts:98`                                                                                                              | —                                                                   |
+| ENV-02  | P1    | §13.12      | Staging running                                                                                                               | PASS            | `https://api-staging.oraly.ai/health/ready` answered 200 on 29 Oct 03:54 UTC (Postgres, Redis, worker, 14 schedulers); app and admin staging 200 | —                                                                   |
+| ENV-03  | P1    | §13.12      | Production environment                                                                                                        | NOT IMPLEMENTED | `api.oraly.ai`, `app.oraly.ai`, `admin.oraly.ai` unreachable; no prod CI job                                                                     | Stand up prod                                                       |
+| EXIT-01 | P1    | §19 exit    | 10 design-partner tenants live                                                                                                | UNVERIFIED      | No record in repo; `docs/plan/tasks.csv:249` D15 "to do"                                                                                         | Record tenants                                                      |
+| EXIT-02 | P1    | §19 exit    | Median sign-up → live < 15 min                                                                                                | UNVERIFIED      | No measurement (PostHog funnel exists)                                                                                                           | Pull funnel data                                                    |
+| EXIT-03 | P1    | §19 exit    | Billing reconciles                                                                                                            | UNVERIFIED      | `reconciliation_runs` exist; no results recorded                                                                                                 | Report staging runs                                                 |
+| EXIT-04 | P1    | §19 exit    | Zero cross-tenant access in a pen test                                                                                        | PARTIAL         | RLS matrix passes (74/74 db e2e); no pen test                                                                                                    | Commission pen test                                                 |
+
+### 4.8 P1 — Admin console subset (§10 D8, companion `super-admin-spec.md`)
+
+| ID    | Phase    | Spec           | Requirement                                                | Status          | Evidence                                                                                                  | Gap / next action                                                                          |
+| ----- | -------- | -------------- | ---------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| AD-01 | P1-admin | admin §2       | Staff roles, MFA claim, per-role limits                    | PASS            | `STAFF_ROUTE_ROLES`; `staff-limits.service.ts`; `d12-admin.e2e.test.ts`, `d13-staff.e2e.test.ts` (passed) | IP allow-list absent                                                                       |
+| AD-02 | P1-admin | SA1            | KPIs                                                       | PARTIAL         | `adminKpisResponse`; no gross margin                                                                      | Add margin                                                                                 |
+| AD-03 | P1-admin | SA2            | Customer 360 tabs                                          | PARTIAL         | Built; Notes, Flags, anonymise absent (tables unused)                                                     | Add                                                                                        |
+| AD-04 | P1-admin | SA2            | Credit adjustment, idempotent, capped per staff per day    | PASS            | `d12-admin.e2e.test.ts:319-356`                                                                           | Lot extension absent                                                                       |
+| AD-05 | P1-admin | SA2            | Plan cap overrides; pause/resume tenant, agent, number     | PASS            | ADR 0033 §1; `d12-admin.e2e.test.ts:420-592,1464`                                                         | —                                                                                          |
+| AD-06 | P1-admin | SA2/SA9        | Refunds (claim → Stripe → settle)                          | UNVERIFIED      | `d13-billing.e2e.test.ts` with Stripe stubbed; no live refund recorded                                    | One staging refund                                                                         |
+| AD-07 | P1-admin | SA2            | Force unpublish                                            | PARTIAL         | Pause only                                                                                                | Add                                                                                        |
+| AD-08 | P1-admin | SA2/SA7        | Number release / resync / reprovision                      | PASS            | `d12-admin.e2e.test.ts:1533-1585`                                                                         | Change agent, waive rental absent                                                          |
+| AD-09 | P1-admin | SA4            | Support tickets, SLA, macros, canned responses             | PASS            | `d13-support.e2e.test.ts` (16)                                                                            | —                                                                                          |
+| AD-10 | P1-admin | admin §7.4     | View-as impersonation, read-only, audited                  | PASS            | `d12-admin.e2e.test.ts:1277-1399`                                                                         | —                                                                                          |
+| AD-11 | P1-admin | SA5            | Pricing draft / publish / rollback with Stripe price sync  | UNVERIFIED      | `d12-admin.e2e.test.ts:1050-1248` with Stripe stubbed                                                     | Live publish on staging                                                                    |
+| AD-12 | P1-admin | SA7            | Provisioning queue, concurrency view, KB list              | PASS            | `d13-staff.e2e.test.ts:411-517`                                                                           | —                                                                                          |
+| AD-13 | P1-admin | SA8            | Global calls, refund call, flag                            | PASS            | `d12-admin.e2e.test.ts:1638-1684`                                                                         | —                                                                                          |
+| AD-14 | P1-admin | SA8, admin §10 | Staff "Listen" with reason code                            | NOT IMPLEMENTED | No admin recording route                                                                                  | Build                                                                                      |
+| AD-15 | P1-admin | SA9            | Billing summary, revenue, COGS, deferred, breakage reports | PASS            | `d13-billing.e2e.test.ts`; `d12-admin.e2e.test.ts:1797-1820`                                              | `retell_cost_inputs` not seeded, so COGS and margin floor read null on a fresh environment |
+| AD-16 | P1-admin | SA12           | Jobs, webhook replay, reconciliation, kill switches, flags | PASS            | `d12-admin.e2e.test.ts:715-1005`                                                                          | —                                                                                          |
+| AD-17 | P1-admin | SA13/SA14      | Staff management; global audit log + export                | PASS            | `d13-staff.e2e.test.ts`; `d12-admin.e2e.test.ts:1854-1916`                                                | —                                                                                          |
+| AD-18 | P1-admin | SA3            | User actions (verify, reset MFA, lock, force logout)       | PASS            | Run against the real customer dev tenant on 28 Sep (ADR 0021 §7); `d12-admin.e2e.test.ts:614-656`         | Staging and prod tenants not checked                                                       |
+| AD-19 | P1-admin | admin §10      | PII masking for Support                                    | NOT IMPLEMENTED | None in `modules/admin`                                                                                   | Build                                                                                      |
+
+### 4.9 P1b — Leads module and outbound (§2, §3, §7.1, §10 D6/D9, §14.2, §15, §17, §19)
+
+| ID   | Phase | Spec       | Requirement                                                                               | Status          | Evidence                                                                                    | Gap / next action                     |
+| ---- | ----- | ---------- | ----------------------------------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------- | ------------------------------------- |
+| L-01 | P1b   | §2, §19    | Outbound only through CRM lists                                                           | NOT IMPLEMENTED | No lists; D18 click-to-call is a single callback (ADR 0031)                                 | New ADR reconciling 0031 with the CRM |
+| L-02 | P1b   | §3, §9.2   | Templates "Lead follow-up" and "Appointment outbound"                                     | NOT IMPLEMENTED | `templateId` enum has 7 inbound ids                                                         | Build                                 |
+| L-03 | P1b   | §7.1, D9   | `/app/leads` screens C1–C10                                                               | NOT IMPLEMENTED | No route                                                                                    | Build                                 |
+| L-04 | P1b   | CRM §12    | 17 CRM tables                                                                             | NOT IMPLEMENTED | Only `dnc_entries` exists                                                                   | Build                                 |
+| L-05 | P1b   | CRM §13    | CRM routes (funnels, leads, imports, lists, playbooks, dialer, review, tasks, reports)    | NOT IMPLEMENTED | None in the manifest                                                                        | Build                                 |
+| L-06 | P1b   | §19        | CSV import                                                                                | NOT IMPLEMENTED | No parser dependency                                                                        | Build                                 |
+| L-07 | P1b   | §19        | Funnels, builder, movement rules, stuck playbooks                                         | NOT IMPLEMENTED | —                                                                                           | Build                                 |
+| L-08 | P1b   | §19, §14.2 | Call rules and FIFO dialer                                                                | NOT IMPLEMENTED | —                                                                                           | Build                                 |
+| L-09 | P1b   | §19        | Post-call card updates, stage decisions, review queue                                     | NOT IMPLEMENTED | Conflicts with ADR 0009 (no LLM in the call path)                                           | ADR first                             |
+| L-10 | P1b   | §19, D1    | Tasks, reports, D1 tasks/review widgets                                                   | NOT IMPLEMENTED | —                                                                                           | Build                                 |
+| L-11 | P1b   | §15        | `calls.lead_id`, `dial_attempt_id`, `agents.funnel_id`, `agent_versions.playbook_version` | NOT IMPLEMENTED | Absent from schema                                                                          | CRM migration                         |
+| L-12 | P1b   | §15, §17   | `tenants.kyc_status`, verified caller ID, outbound enablement                             | PASS            | `schema.prisma:322-328,414,798`; `outbound_calls` flag; `d18-outbound.e2e.test.ts` (passed) | Names differ                          |
+| L-13 | P1b   | D6         | KYC form (legal name, address, website, nature of calls, sample script) with staff review | PARTIAL         | Website, nature and sample script missing (`shared/schemas/src/outbound.ts:107-114`)        | Add fields                            |
+| L-14 | P1b   | D6, §17    | Legal calling hours enforced and shown per country                                        | PARTIAL         | Enforced in every zone; view lists country names only                                       | Show hours                            |
+| L-15 | P1b   | D6         | DNC list add / remove / import                                                            | PARTIAL         | No import                                                                                   | Add import                            |
+| L-16 | P1b   | D6, §17    | Consent records and attestation history                                                   | NOT IMPLEMENTED | No table                                                                                    | Build                                 |
+| L-17 | P1b   | §14.2, §17 | Daily caps per plan                                                                       | PARTIAL         | 20/50/150/400 vs CRM 100/500/2,000/10,000                                                   | Align                                 |
+| L-18 | P1b   | §14.2      | Dialer gates and `max_call_duration_ms` from credits                                      | PARTIAL         | Done for callbacks (`outbound.decide.ts`); no inbound reserve, no consent                   | Extend for lists                      |
+| L-19 | P1b   | §14.2      | Unanswered dials not charged                                                              | UNVERIFIED      | `metering.ts:15-18`; `metering.test.ts:64-65`; never dialled live                           | One staging dial per outcome          |
+| L-20 | P1b   | CRM §15    | "Pause all outbound" kill switch                                                          | NOT IMPLEMENTED | Four switches, none outbound                                                                | Add                                   |
+| L-21 | P1b   | §19 exit   | 5 partners with ≥ 500 leads; no dial outside window or consent                            | NOT IMPLEMENTED | No leads exist                                                                              | —                                     |
+
+### 4.10 P2 (§19 P2 and items the spec marks "Phase 2")
+
+| ID    | Phase | Spec           | Requirement                                                                                                                   | Status          | Evidence                                                                                                                   | Gap / next action                  |
+| ----- | ----- | -------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| P2-01 | P2    | §19, D3        | Knowledge usage stats                                                                                                         | PASS            | `kb-usage.ts`; `GET /agents/:id/knowledge/stats`; `d16-transfer-knowledge.e2e.test.ts`, `d6-knowledge.e2e.test.ts:339-364` | —                                  |
+| P2-02 | P2    | §19, D4        | SIP re-verify                                                                                                                 | UNVERIFIED      | `SipVerificationService`; d6 e2e against a stub probe; no live trunk recorded                                              | Live trunk check                   |
+| P2-03 | P2    | §5.1, §14.1    | Transferred leg billed at 0.25 credit/min                                                                                     | PARTIAL         | Bridged minutes billed at tier rate **plus** 0.25 (ADR 0028); spec reads as 0.25 instead of the agent rate                 | Owner to confirm intended total    |
+| P2-04 | P2    | §19            | Business hours per number incl. date overrides                                                                                | PASS            | `isOpen` in `@portal/schemas`; `d16-transfer-knowledge.e2e.test.ts:266`                                                    | —                                  |
+| P2-05 | P2    | §19, W5, D3    | "Call my phone" test                                                                                                          | PASS            | `POST /agents/:id/test/phone`; `d17-channels.e2e.test.ts`                                                                  | Destination test is flaky (see §6) |
+| P2-06 | P2    | §11.5, §19     | Website widget channel                                                                                                        | PASS            | `widget.service.ts`; `d17-channels.e2e.test.ts` widget cases                                                               | —                                  |
+| P2-07 | P2    | §19, D4        | Forwarding test                                                                                                               | PASS            | `forwarding-test.ts`; `d17-channels.e2e.test.ts`                                                                           | —                                  |
+| P2-08 | P2    | §19            | Calendar tool call for live booking                                                                                           | NOT IMPLEMENTED | Only `end_call` and `transfer_call` tools                                                                                  | `tasks.csv` D19 "to do"            |
+| P2-09 | P2    | §19            | Multiple agents per number by hours                                                                                           | NOT IMPLEMENTED | One `agent_id` per number                                                                                                  | `tasks.csv` D19 "to do"            |
+| P2-10 | P2    | §19, admin §11 | Admin console hardening / admin P2 (SA6 stack & templates, SA10 comms, SA11 fraud & blocklists, act-as, promo & custom deals) | NOT IMPLEMENTED | Console pages are `PlaceholderPage` (`frontend/admin/app/agent-stack`, `comms`, `trust`); `tasks.csv:304` D20 "to do"      | Build                              |
+| P2-11 | P2    | D2             | Click-to-call call back                                                                                                       | PARTIAL         | Built and tested (`d18-outbound.e2e.test.ts`); flag at 0 % pending legal sign-off                                          | Blocked on legal                   |
+| P2-12 | P2    | D3, §14.3      | Voicemail detection; voicemail agent on cap hit                                                                               | NOT IMPLEMENTED | Per-call voicemail option on outbound only                                                                                 | Build                              |
+| P2-13 | P2    | D7             | Live chat widget                                                                                                              | NOT IMPLEMENTED | Deferred by ADR 0019 §8                                                                                                    | —                                  |
+| P2-14 | P2    | §19 exit       | Growth/Scale packs sold; transfer and KB billed correctly                                                                     | UNVERIFIED      | Unit/e2e only                                                                                                              | Report staging/real data           |
+
+### 4.11 P3 (§19 P3)
+
+| ID    | Phase | Spec       | Requirement                       | Status          | Evidence                           | Gap / next action |
+| ----- | ----- | ---------- | --------------------------------- | --------------- | ---------------------------------- | ----------------- |
+| P3-01 | P3    | §19        | Batch outbound campaigns          | NOT IMPLEMENTED | —                                  | Future phase      |
+| P3-02 | P3    | §19        | SMS follow-ups                    | NOT IMPLEMENTED | No sender                          | Future phase      |
+| P3-03 | P3    | §11.4, §19 | Number porting (ops process)      | NOT IMPLEMENTED | Refused by design                  | Future phase      |
+| P3-04 | P3    | §19        | Agency / white-label tier         | NOT IMPLEMENTED | —                                  | Future phase      |
+| P3-05 | P3    | §19        | Public API and API keys           | NOT IMPLEMENTED | —                                  | Future phase      |
+| P3-06 | P3    | §19        | Additional countries (UK, AU, IN) | NOT IMPLEMENTED | `purchasableCountry = ['US','CA']` | Future phase      |
+| P3-07 | P3    | §19        | Chat agent channel                | NOT IMPLEMENTED | —                                  | Future phase      |
+
+## 5. End-to-end workflow results
+
+"Automated" means an end-to-end suite that ran and passed in this audit. "Live" means a recorded run against the real external service.
+
+| Workflow                                            | Result                       | Automated evidence                                                              | Live evidence                                               | What is missing                                                            |
+| --------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------- | ----------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Sign-up, login, email verification                  | UNVERIFIED                   | `auth.e2e`, `auth-provisioning.e2e`, `auth-webhook.e2e` with a stand-in issuer  | None recorded; `verify:auth0` exists but no run is recorded | Run `verify:auth0`; magic link and Microsoft do not exist                  |
+| Workspace setup and trial credits                   | PASS                         | `workspaces.e2e` (atomic create, 20 credits, defaults, audit)                   | Staging in use                                              | —                                                                          |
+| Template → brief → generate                         | PASS                         | `agents.e2e`, `prompting.e2e` with the scripted provider                        | ADR 0012 measured real-model runs (p95 15.5 s)              | Misses the 10 s target                                                     |
+| Voice, languages, publish, versions, rollback       | PASS                         | `agents.e2e`, `agent-settings.e2e`, `agent-versions.e2e`                        | ADR 0003 fixtures; `verify:d5-retell` (17 Sep)              | —                                                                          |
+| Browser test call with live transcript and feedback | PASS (API) / not re-run (UI) | `d9-test-call.e2e`, relay tests                                                 | `e2e-wizard.mjs` makes a real call; not run here            | Re-run the wizard script                                                   |
+| Phone plan → payment → activation → live number     | PASS                         | `d6-activation.e2e`, `d6-numbers.e2e`, `billing.e2e`                            | Staging go-live 24 Sep (ADR 0013 §9)                        | First month not charged; no "you're live" email                            |
+| Inbound call authorisation and declines             | PASS                         | `calls.e2e`, `inbound.decide.test` (43)                                         | ADR 0003 decline fixtures; k6 p95 8.4 ms                    | Country filter not enforced                                                |
+| Call lifecycle, metering, ledger                    | PASS                         | `calls.e2e`, `wallet.e2e`, `d7-webhooks.e2e`, `call-recovery.e2e`               | Fixtures captured from the platform                         | —                                                                          |
+| Call records, D2 list, export, recordings           | PASS                         | `calls-api.e2e`                                                                 | —                                                           | Filters, search and outcome chips incomplete (H-12..H-17)                  |
+| Credit purchase via Stripe Checkout                 | PASS                         | `billing.e2e` with real signatures                                              | 24 Sep staging go-live                                      | Receipt email; promo codes                                                 |
+| Auto top-up                                         | UNVERIFIED                   | `d6-billing.e2e`, `d7-notifications.e2e`, `d13-billing.e2e` with Stripe stubbed | None recorded                                               | One live off-session charge                                                |
+| Recurring rental, expiry, low-balance, digest       | PASS                         | `d7-recurring.e2e`, `d7-notifications.e2e`                                      | —                                                           | Expiry warnings; digest hour                                               |
+| Knowledge sources and sync                          | PASS                         | `d6-knowledge.e2e`                                                              | KB fixtures                                                 | Extra-KB fee not built                                                     |
+| Transfers, per-number hours, KB usage (P2)          | PASS                         | `d16-transfer-knowledge.e2e`                                                    | Transfer events observed 26 Oct                             | Billing total needs owner confirmation                                     |
+| Call my phone, forwarding test, widget (P2)         | PASS                         | `d17-channels.e2e` (one flaky case, §6.2)                                       | —                                                           | —                                                                          |
+| Outbound click-to-call (D18)                        | BLOCKED                      | `d18-outbound.e2e`                                                              | Never dialled live; flag at 0 %                             | Legal sign-off                                                             |
+| Leads / CRM (P1b)                                   | NOT IMPLEMENTED              | —                                                                               | —                                                           | Whole module                                                               |
+| Team, invites, roles, ownership transfer            | PASS                         | `workspaces.e2e` (19 invite cases)                                              | —                                                           | Email-confirmed transfer                                                   |
+| Data export and delete request                      | PASS                         | `d11-data-requests.e2e`                                                         | —                                                           | Retention purge does not exist                                             |
+| Support tickets (customer and staff)                | PASS                         | `d13-support.e2e`                                                               | —                                                           | Attachments; reply emails                                                  |
+| Admin console (D12/D13)                             | PASS (logic)                 | `d12-admin.e2e`, `d13-*.e2e`                                                    | Stripe and Auth0 effects stubbed                            | Live refund and price sync (SA3 actions verified live 28 Sep, ADR 0021 §7) |
+
+## 6. Critical bugs and blockers
+
+### 6.1 Defects in shipped behaviour
+
+> **Status 3 Nov 2026 (ADR 0035):** #1–#5 fixed — recording off is now the platform's
+> `data_storage_setting` (`basic_attributes_only`); the hourly `data-retention` schedule purges
+> transcripts, recording links and stored webhook bodies and calls `delete-call`; `decide()`
+> declines callers outside `allowed_countries` as `country`; the first month of rental is
+> debited in `bind` in one wallet transaction and a wallet that cannot cover it never goes
+> active; `{{business_open}}` is computed from the workspace hours on every channel. #6–#12
+> remain open (timeline tasks 8–16).
+
+| #   | Severity          | Finding                                                             | Evidence                                                                                                                                                                           | Impact                                                                              |
+| --- | ----------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 1   | High (privacy)    | Recording cannot be disabled on the platform                        | `retell.gateway.ts:188` sends `data_storage_setting: 'everything'`; `recording_enabled` only controls the spoken notice                                                            | A customer who turns recording off is still recorded                                |
+| 2   | High (privacy)    | Retention never enforced                                            | `tenants.retention_days` saved (`workspaces.service.ts:173`); no purge schedule in `jobs.constants.ts`; `RetellGateway.deleteCall` has no caller; `en.json:2541` promises deletion | Data kept indefinitely against a stated policy                                      |
+| 3   | High (fraud)      | Allowed caller countries not enforced                               | `inbound.decide.ts` has no country check; empty list sent as `undefined` (`number-provisioning.service.ts:144`); never re-sent on PATCH or SIP import                              | Toll fraud exposure; D4 copy is false                                               |
+| 4   | High (revenue)    | First month of rental not charged                                   | `number-provisioning.service.ts:230` sets `next_rental_at` +1 month; no debit in `activation.worker.ts`                                                                            | 15 credits lost per new number                                                      |
+| 5   | Medium            | `{{business_open}}` is always `'true'`                              | `inbound.decide.ts:202`                                                                                                                                                            | An "always" number tells the agent it is open while closed; guardrail 7 cannot work |
+| 6   | Medium (security) | MFA rule and large-first-purchase review configured but never read  | `pricing-v1.ts:110-111`; no consumer                                                                                                                                               | Money-at-risk controls absent                                                       |
+| 7   | Medium (security) | Access token lives 2 h, spec says ≤ 15 min                          | `infra/auth0/tenant.customer.yaml:83`                                                                                                                                              | Longer window for a stolen token                                                    |
+| 8   | Medium            | Publish has no confirm step                                         | `publish-bar.tsx:105`, `versions-tab.tsx:58`                                                                                                                                       | One click changes live calls                                                        |
+| 9   | Medium            | Margin floor and COGS read null on a fresh environment              | `retell_cost_inputs` not seeded                                                                                                                                                    | Pricing publish guard is inert until staff enter costs                              |
+| 10  | Low               | Viewer sees "Top up" on D1                                          | `credits-card.tsx:32-34`                                                                                                                                                           | Leads to a 403                                                                      |
+| 11  | Low               | `wallet.paused.banner` key repurposed for the purchases kill switch | `wallet-sections.tsx:54,91`                                                                                                                                                        | Out-of-credits copy from Appendix D never shown                                     |
+| 12  | Low               | Agent max-duration default is 10 min, spec 15                       | `shared/schemas/src/agents.ts:637`                                                                                                                                                 | Calls cut earlier than documented                                                   |
+
+### 6.2 Test-suite problems
+
+> **Status 3 Nov 2026 (ADR 0035):** the destination fixture now mints valid NANP numbers
+> (`nanpNumber()` in `test/d5-fixtures.ts`, used across the suite; 12/12 isolated runs green);
+> `e2e-restaurant.mjs` follows W3 → W5 → pay → go-live → knowledge, with the unpaid and
+> paid-but-not-live refusals asserted. The missing-test item (unverified email on `test/web`
+> and checkout, the MFA branch) is still open.
+
+- **Flaky destination test (the one e2e failure).** `backend/api/test/d17-channels.e2e.test.ts:48` mints the "own number" as `+1450` plus seven random digits. When the exchange starts with 1, which happens about one run in nine, libphonenumber rejects the number as invalid and the route answers `VALIDATION_FAILED` before it reaches the `DESTINATION_IS_AGENT` check. Confirmed by parsing the failing number `+14501527053` (invalid) against `+14505550199` (valid). Fix the fixture to draw exchanges from 2–9.
+- **Restaurant browser script is out of date.** `frontend/web/scripts/e2e-restaurant.mjs:160,265` expects W3's Continue to land on `/onboarding/knowledge/`, but W3 now goes to W5 (`app/onboarding/voice/page.tsx:64-65`, ADR 0024). The script will fail at its first W4 assertion. ADR 0024's Consequences already note this.
+- **Missing tests on gates that exist.** No unverified-email test on `test/web` or `wallet/checkout`; no portal test of the Auth0 post-login Action's MFA branch.
+
+### 6.3 Blockers outside engineering
+
+- **Legal sign-off** for outbound (ADR 0031 §3–§4). Blocks D18 and all of P1b's dialing.
+- **Production environment** does not exist, and the customer Auth0 tenant still uses Auth0's development Google keys.
+- **Owner decision on generation latency** (ADR 0012 options 1–4).
+- **Open commercial decisions** in §8, notably currency and merchant of record.
+
+## 7. Missing or partially implemented features
+
+Grouped by theme; IDs point to §4.
+
+- **Authentication:** magic link, Microsoft, remember-this-device, MFA requirement, login/purchase audit rows, resend verification, invite email lock, ToS timestamp, password policy (A-07, A-09, A-12, A-22, A-24, A-25, A-29, A-34).
+- **Wizard detail:** Save & exit, Back buttons, industry list, never-do presets, Regenerate confirm, W3 filters and defaults, W6 option C fields, forward mode, answer modes, allowed countries, W7 summary card, promo code, W7b Copy, SIP instructions and checklist (S-09, S-10, Z-03..Z-56).
+- **Dynamic variables:** `business_open`, `current_time`, `caller_number`, `primary_language`, variables on web tests, and the generation turn not telling the model they exist (G-09, G-15..G-18).
+- **Dashboard:** announcements, days-left, messages and sentiment stats, D2 filters, custom range, full-text search, outcome chips, async export, transcript timestamps, test-call history, version author and diff, publish modal, settings defaults, team last-active and MFA, address, MFA disable, SSO list, audit export, ticket attachments and reply emails (H-02..H-68).
+- **Billing:** extra-KB fee, promo codes, receipt email, plan-tier lapse, SMS alerts, Volume pack path (B-04, B-05, B-07, B-11, B-21, B-23).
+- **Flows and jobs:** expiry warning emails, "you're live" email, auto top-up cadence, reconciliation scope, digest hour, tenant mismatch check, concurrency history (F-05, F-14..F-18, M-01, M-04).
+- **Security and NFRs:** consent by jurisdiction, Radar, fraud review, feedback latency, uptime monitoring, product metrics (SEC-04, SEC-09, SEC-10, NFR-03..NFR-06).
+- **Admin:** Notes, Flags, anonymise, force unpublish, staff recording access, Support PII masking, and all admin P2 screens (AD-02..AD-19, P2-10).
+- **Config fields stored but never read:** `rates.web_call_per_min`, `recurring.extra_kb_credits`, `toll_free_surcharge_per_min`, `gates.premium_voices`, `wallet_policy.mfa_required_above_balance`, `max_first_purchase_cents_without_review`. Editing them in the console changes nothing.
+
+## 8. Pending decisions and scope changes
+
+### 8.1 Spec §20 and §5.5 decisions
+
+| #      | Decision                                    | State                                                               | Evidence                        |
+| ------ | ------------------------------------------- | ------------------------------------------------------------------- | ------------------------------- |
+| 1      | Name and domain                             | Resolved: oraly.ai                                                  | ADR 0015                        |
+| 2      | Credit unit, USD vs CAD, merchant of record | Unit resolved (1.5× premium); **both currencies built on six proposed rules awaiting the spec owner (18 Nov, ADR 0049)**; MoR, GST/HST and a CAD payout account open | ADR 0049; addendum 18 Nov |
+| 3      | Standard-tier LLM                           | **Decided 4 Nov: GPT-4.1 mini**; seeded as `agent_stack_configs` v2 (Premium stays GPT-4.1 mini, ADR 0038) | ADR 0037; ADR 0038; P0-05 |
+| 4      | Launch countries                            | De facto US + CA; formally open                                     | `purchasableCountry`            |
+| 5      | Trial size, card at sign-up                 | Implemented as proposed (20, no card); formally open                | `pricing-v1.ts:102-113`         |
+| 6      | 12-month expiry vs consumer law             | Implemented; legal check open                                       | —                               |
+| 7      | Auth provider, framework                    | Resolved: Auth0, NestJS                                             | ADR 0001, 0002                  |
+| 8      | Starter = 1 agent, 1 number                 | Implemented as proposed; formally open                              | `pricing-v1.ts:37-38`           |
+| 9      | Viewer downloads recordings                 | Implemented as "no"                                                 | `calls-api.e2e.test.ts:502`     |
+| 10     | Support tooling, status page                | Built-in tickets instead of Intercom/Crisp; status vendor open      | ADR 0022; `config.ts:30`        |
+| 11     | Portfolio positioning                       | Open                                                                | —                               |
+| §5.5.3 | "Fast tier"                                 | Not offered, as recommended                                         | `agent-stack-v1.ts`             |
+
+### 8.2 Open questions the spec leaves ambiguous
+
+1. **Transferred-call billing.** The code bills the bridged minutes at the agent rate **plus** 0.25 credit/min (ADR 0028). The spec reads as 0.25 instead of the agent rate. Which total is intended?
+2. **Extra knowledge base.** Spec says pay 30 credits/month; code refuses beyond the allowance. Which is intended?
+3. **Premium tier stack.** Spec §4.3 names GPT-4.1 (or Claude 4.5 Haiku) and Retell/Cartesia TTS for Standard. The seed uses `gpt-4.1-mini` for Premium, ElevenLabs for Standard, and the expensive `gpt-5.6-terra` for post-call analysis that ADR 0003 §3 said to replace. No ADR records the swap.
+4. **Medical and legal templates.** §17 refers to a medical template with a HIPAA notice and medical/legal PII defaults, but the §9.2 catalogue has no such template.
+5. **Outbound in P1.** v0.4 says outbound ships only through CRM lists; D18 shipped a callback the spec does not describe, and ADR 0031 rejected list-free dialing. A new ADR is needed to reconcile them before P1b.
+6. **CRM post-call AI** conflicts with ADR 0009 (no LLM in the call path).
+7. **Plan tier lapse.** Should a tier drop when the qualifying pack is more than 12 months old with no new purchase?
+
+### 8.3 Scope changes already decided (ADR-amended)
+
+W4 after payment (ADR 0024); no DB fallback on the inbound path (ADR 0003 §12, 0011); explicit locale array instead of `multi` (ADR 0003 §6); no TTS greeting preview (ADR 0003 §9); flattened routes for static export (ADR 0008, 0018); no session cookie (ADR 0008); link-based email verification (ADR 0017); 45 s generation budget (ADR 0012); Numbers in the mobile tab bar (ADR 0019); delete workspace as a staff-handled request (ADR 0032 §6); SMS, weekly summary and live chat deferred (ADR 0019 §8); Stripe Customer Portal for billing details (ADR 0019 §8).
+
+### 8.4 Deviations with no decision record
+
+Editor+ on number configuration; answer modes always/business/custom; transfer targets 5 and blocklist 200; note cap 2,000; agent max duration default 10 min; New-agent dialog instead of wizard mode; typed-email ownership transfer; auto top-up cadence; reconciliation scope; digest hour; access-token lifetime; Auth0 session lifetimes; W2 script editable in the wizard; test-call row written at `call_started`. Each needs an ADR line or a fix.
+
+### 8.5 Built beyond the spec
+
+Arabic portal and Arabic agents for KSA (ADR 0026, 0027); business documents and photo transcription in the brief (ADR 0023); restaurant menu role (ADR 0020); call recovery for lost webhooks (ADR 0011 §7); checkout confirm route and sweep (ADR 0013 §9); captured phone-number checks; D18 click-to-call with KYC, DNC and calling windows (ADR 0031); staff view-as; console platform settings and reports (ADR 0033); migrations on deploy (ADR 0034, uncommitted).
+
+## 9. Recommended next steps
+
+These are priorities, not spec phases.
+
+**Priority P0 — fix before any more customers go live**
+
+1. Map `recording_enabled` to the platform's storage setting, with a test (SEC-03).
+2. Build the retention purge job, including `delete-call` (SEC-11).
+3. Enforce allowed caller countries in `decide()`, default them to the workspace country, and push them on PATCH and SIP import (SEC-07, Z-45).
+4. Charge the first month's rental at bind, or amend §13.8 by ADR (F-04).
+5. Compute `{{business_open}}` from the hours decision (G-15).
+6. Fix the flaky d17 fixture and the stale restaurant script so the suites are trustworthy (§6.2).
+
+**Priority P1 — close phase P1**
+
+1. Implement the MFA rule and the > $1,000 first-purchase review, or retire them by ADR (A-12, SEC-10).
+2. Shorten the access token or record the 2 h choice (A-14).
+3. Add the publish confirm modal (H-38) and the Viewer gating on D1 (H-09).
+4. Seed `retell_cost_inputs` and reconcile the tier stack with §4.3 or record the change (AD-15, §8.2 #3).
+5. Write one ADR addendum covering every row in §8.4.
+6. Gather P1 exit evidence: design-partner count, sign-up-to-live median from PostHog, reconciliation results, a pen test (EXIT-01..04).
+7. Run the live checks that move UNVERIFIED rows to PASS: `verify:auth0`, one auto top-up, one refund, one pricing publish, one SIP import, toll-free rate.
+8. Stand up production (ENV-03).
+9. ~~Run the in-call LLM benchmark and settle §20 #3 (P0-05).~~ Done 4 Nov, ADR 0037.
+
+**Priority P2 — finish the spec's P1 detail and P2 scope**
+
+1. Promo codes and announcements (B-23, H-03).
+2. Dashboard gaps: D2 filters and search, D1 stats, D3 history, version diff (H-05..H-40).
+3. Wizard gaps: Save & exit, Back, W6 fields, W7 summary, W7b items (S-09..Z-56).
+4. Calendar tool and multi-agent numbers (P2-08, P2-09).
+5. Admin P2 screens (P2-10).
+
+**Priority P3 — start P1b**
+
+1. Obtain legal sign-off and write the ADR reconciling ADR 0031 and ADR 0009 with the CRM spec.
+2. Build the Leads module per `docs/oraly-crm-implementation-estimate.md`.
+
+## 10. Conclusion
+
+**Are we meeting the specification?** Partly. 171 of 363 requirements (47 %) are implemented and verified, and code exists for 83 %. The core of the product, the parts that move money and handle calls, is built and well tested. The gaps are in privacy and fraud controls, a revenue rule, UI detail, and evidence that the MVP exit criteria were met.
+
+**What actually works?** Workspace setup, agent generation and publishing, browser test calls, activation through Stripe Checkout to a live number, inbound authorisation, metering and the ledger, recurring charges and alerts, knowledge sync, team management, data export and the admin console's core. These pass automated tests and most have live evidence. Sign-in via Auth0, auto top-up, refunds and SIP import work in tests but have no recorded live run.
+
+**Which phase is genuinely complete?**
+
+- **Last fully completed phase: none.** P0 comes closest: its three exit criteria are met with evidence, but its in-call LLM benchmark was never run, so it does not meet the bar of every required item done and verified.
+- **Current phase in progress: P1 (MVP).** 49 % verified, 88 % with code. P2 work has landed ahead of it, and outbound callbacks are built but switched off.
+- **Next phase to work on: finish P1.** Clear the Priority P0 and P1 items in §9, run the in-call benchmark to close P0, and record P1's exit evidence before starting P1b, which is blocked on legal sign-off in any case.
+
+---
+
+## Addendum — 3 Nov 2026: §6.2, §6.3 and §17 re-audit (ADR 0036)
+
+Rows A-07…A-36 and SEC-10 above were re-assessed after the ADR 0036 work. The phase counts
+in §3 are still the 29 Oct ones and were **not** recounted. Commands run on 3 Nov against the
+local stack (Postgres + Redis; Auth0, Stripe and the voice platform stubbed at their gateways):
+
+| Check | Result |
+| --- | --- |
+| `pnpm lint` | pass |
+| `pnpm typecheck` | pass |
+| `pnpm test` | 1,319 / 1,319 (api 924, web 297, schemas 67, admin 17, api-client 6, db 5, ui 3) |
+| `pnpm --filter @portal/db test:e2e` | 74 / 74 |
+| `pnpm --filter @portal/api test:e2e` | 740 / 740 in 37 files, incl. the new `test/d20-auth-money.e2e.test.ts` (31) |
+| `pnpm --filter @portal/api openapi:check` | current, 236 operations |
+| `frontend/web/scripts/e2e-auth-d20.mjs` (headless Chrome, local issuer, API with a 20 s token limit) | 22 / 22 |
+
+Not verified live (D15 configuration, ADR 0036 Consequences): the customer tenant deploy
+(15-minute API tokens, refresh lifetimes, password length and breach block, brute-force
+shields, the Post-Login and Post-Change-Password Actions, the log stream), the M2M
+`update:users` scope, and the email provider for a 15-minute reset link. Rows that depend on
+them say so. Retirements and deviations (A-07, A-09, A-18, A-30, parts of A-24, A-25, A-27,
+A-34) await the spec owner's sign-off.
+
+---
+
+## Addendum — 4 Nov 2026: prompt-system gaps (ADR 0038, Full Scope 05)
+
+Rows G-09, G-11, G-12, G-16, G-17, G-18 and Z-14 above were re-assessed after ADR 0038. The
+phase counts in §3 were **not** recounted.
+
+| Row | Requirement | Before | Status now | Evidence |
+| --- | --- | --- | --- | --- |
+| G-09 | §9.4 rule 7 with `{{business_open}}` | PARTIAL | **PASS** | `HOURS_RULE` (fixed, every prompt); unit `guardrails.test.ts`; live `bench:incall` closed call 3/3 per model without a script line |
+| G-11 | Transfer number set, no transfer tool | PARTIAL (could not fire) | **PASS** | real tools + each number's D4 targets; `lint.test.ts` 10 cases |
+| G-12 | Language mismatch incl. Arabic | PARTIAL | **PASS** | Arabic stopwords + folding; `lint.test.ts` 8 cases |
+| G-16 | `{{current_time}}` in workspace TZ | PARTIAL | **PASS** | `callVariables()`; unit + `calls.e2e` per-workspace clock |
+| G-17 | `{{caller_number}}`, `{{primary_language}}` | NOT IMPLEMENTED | **PASS** | every channel; `inbound.decide.test.ts`, `calls`, `d17`, `d18` e2e |
+| G-18 | Variables at web-test mint; generator told | NOT IMPLEMENTED | **PASS** | `d9-test-call.e2e` (all seven); `prompt-builder.test.ts`; 11/15 live scripts use them |
+| Z-14 | Generation p95 ≤ 10 s | FAIL | **ADR-AMENDED** | 45 live samples, p95 15.2–16.7 s; ADR 0038 §5 sets p95 ≤ 16 s with thinking off; decided in session on the recommendation, spec owner sign-off pending |
+
+Also changed by ADR 0038 and recorded here: `agent_stack_configs` v2 (Standard GPT-4.1 mini +
+`cartesia-Adrian`; Premium stays GPT-4.1 mini after GPT-4.1 hung up early in 14/30
+conversations against Standard's 9/30) answers §8.2 #3; `retell_cost_inputs` is itemised and
+seeded (AD-15's "not seeded" gap; super-admin audit AS-222..AS-224), with a margin per pack
+and tier. G-15 (`{{business_open}}` constant) was fixed by ADR 0035 on 3 Nov.
+
+Commands run on 4 Nov against the local stack (Postgres + Redis; the voice platform and
+Stripe stubbed at their gateways except where marked live):
+
+| Check | Result |
+| --- | --- |
+| `pnpm test` | all pass: api 974 for this tree's own files (1,252 with 13 test files another session was adding concurrently), web 297, schemas 67, admin 17, api-client 6, db 5, ui 3 |
+| `pnpm --filter @portal/db test:e2e` | 74 / 74 |
+| `pnpm --filter @portal/api test:e2e` | final full run 737 / 745; the three files rerun alone 86 / 87. Remaining failures are the shared local database, not this change: two in `billing.e2e` (138 stale pending checkouts against `reconcilePendingCheckouts()`'s oldest-100 batch) and the daily-digest test in `d7-notifications.e2e` (14,009 accumulated workspaces; the tick walks every unpaused one past the 30 s test limit; it passed in the first full run). The others in that run were a pricing draft this work's console click-through left behind (d12, 59 / 59 once cleared) and a SIP lease timing (d6, passes alone). The files this work touches: 167 / 167 |
+| `pnpm typecheck` / `pnpm lint` | lint pass; typecheck clean for this work, five errors only in the concurrent session's untracked test files |
+| `pnpm --filter @portal/api openapi:check` | current, 238 operations |
+| `pnpm db:seed` twice + a fresh database migrated and seeded twice | v1 + v2 stack and the cost list created once, untouched on the second run |
+| Live `bench:incall` (GPT-4.1 mini, GPT-4.1) | ADR 0038 §3 |
+| Live `bench:generation` ×3 runs of 15 | ADR 0038 §5 |
+| Console click-through, headless Chrome (`console/costs-check.mjs`) | 19 / 19 at desktop, 390 px and dark |
+
+Open from this work: D4 phone-number transfer targets are never dialled (the tools dial the
+brief's number), now surfaced by `transfer_tool_missing` and left for its own change; the spec
+owner's sign-off on the 16 s target and the Premium model.
+
+---
+
+## Addendum — 5 Nov 2026: the W1–W3 wizard (ADR 0039)
+
+Rows S-07, S-09, S-10 and Z-02 to Z-25 above were re-assessed after ADR 0039 and carry their
+new status in place (marked "(5 Nov)"). The phase counts in §3 were **not** recounted.
+Summary: S-07, S-09, S-10, Z-02, Z-03, Z-06, Z-07, Z-08, Z-09, Z-11, Z-13, Z-15, Z-17, Z-20, Z-21,
+Z-23 → **PASS**; Z-16 → PASS, the editable script recorded in ADR 0039; Z-24, Z-25 → **ADR-AMENDED**
+(ADR 0003 §9, ADR 0027, restated); Z-14 unchanged (ADR 0038). Three calls were made in session on
+the engineering recommendation and await the spec owner (ADR 0039 "Decisions taken"): Save and
+exit as the §6.4 dismissal, the industry list, and "Native accents only" + accent in place of
+"Only multilingual".
+
+Commands run on 5 Nov against the local stack (Postgres + Redis, the local issuer, the real
+voice platform and generation model; **no webhook tunnel** — ngrok is not installed on this box):
+
+| Check | Result |
+| --- | --- |
+| `pnpm --filter @portal/web e2e:wizard` (98 assertions, was 60) | **95 / 98** on the rebuilt export. The three: `W5 after-call shows the charge from call_ended` and `… summary from call_analyzed` (the platform's webhooks never reach a box without a tunnel, unchanged from before), and the switcher assertion, which expected W7 for a workspace the run had dismissed on W1; corrected to expect the dashboard with "Continue setup" (ADR 0039 §1) and re-run, see below |
+| Final `e2e:wizard` after that correction, clean browser | **96 / 98**; only the two webhook-dependent W5 rows remain, and they need the tunnel |
+| Three-language pass, headless Chrome (`shots-i18n.mjs`): W1 (combobox open), W2, W3 in en / ar / fr-CA at 1440 and 390 px, W2 + W3 dark | `dir` right per language, no horizontal overflow on any of the 18 pages, no console errors |
+| `pnpm --filter @portal/api test` / `@portal/web test` / `@portal/schemas test` / `@portal/ui test` / `@portal/db test` | 1271 / 335 / 124 / 10 / 8, all pass. New unit files: `ui/lib/search.test.ts`, `schemas/industries.test.ts`, `web/wizard/{voice-pick,generation-stages,faq-text}.test.ts`, `web/guards/onboarding-gate.test.ts`; extended: `schemas/agents.test.ts`, `db/templates.test.ts`, `api/agents/brief.test.ts`, `api/prompting/prompt-builder.test.ts`, `web/wizard/{brief-patch,languages}.test.ts`, `web/i18n/messages.test.ts`. QA cards in ClickUp "Unit Testing", tag `adr-0039` |
+| `backend/api/test/workspaces.e2e.test.ts` (+ the dismiss case) | 60 / 60 |
+| `pnpm --filter @portal/api openapi:check` | current, 239 operations |
+| `tsc --noEmit` api, web, admin, api-client, ui; `eslint .` web, ui | clean |
+| `pnpm db:deploy` + `pnpm db:seed` | one additive column; 7 templates re-seeded with their presets |
+
+Also found and fixed on the way: `e2e-wizard` never accepted the Terms screen ADR 0036 put first
+(it had been stuck there since 4 Nov), and the stand-in issuer signed a fresh browser in silently
+(`prompt=none` answered with a code), so the suite's anonymous-visitor assertions could not hold;
+it now answers `login_required` like the real tenant.
+
+
+---
+
+## Addendum — 6 Nov 2026: W5–W7, the knowledge and live pages, §12 (ADR 0040)
+
+Rows Z-29, Z-30, Z-34, Z-35, Z-38, Z-40 to Z-45, Z-47, Z-49, Z-52, Z-53, Z-55, Z-56, Z-59,
+Z-61 and Z-63 above were re-assessed after ADR 0040 and carry their new status in place
+(marked "(6 Nov)"). The rows already at PASS in that range (Z-31 to Z-33, Z-36, Z-37, Z-39,
+Z-46, Z-48, Z-50, Z-51, Z-54, Z-57, Z-58, Z-60, Z-62) were re-run by the same suites and
+stay PASS. The phase counts in §3 were **not** recounted. Calls made in session on the
+engineering recommendation and awaiting the spec owner are in ADR 0040 "Decisions taken":
+the three answer modes as new `hours_mode` values beside D4's two, the area code required
+on W6 only, Suggest from the time zone, the trial-zero button to W6, the SIP consent as a
+gate rather than a column, and "Add FAQs" opening the D3 Brief tab. Promo codes stay out of
+scope (Full Scope 12).
+
+Commands run on 6 Nov against the local stack (Postgres + Redis, the dev worker, a second
+API on 4001 bound to the stand-in issuer, a static export on 3005, the real voice platform
+and generation model; **no webhook tunnel**, as on 5 Nov):
+
+| Check | Result |
+| --- | --- |
+| `pnpm --filter @portal/web e2e:wizard` (119 assertions, was 100) | **116 / 119**. The three: `W5 after-call shows the charge from call_ended`, `… summary from call_analyzed` (the platform's webhooks never reach a box without the tunnel, unchanged from 5 Nov) and the new `W7 summary counts the test call`, the same cause (no `call_started`, no call row). Every new row passes: chips, the leave-call prompt, Keep / Undo, the three answer modes, the countries, the area code and Suggest, the forward modes, persistence, the W7 summary, minutes and the top-up select, the error boundary |
+| `pnpm --filter @portal/web e2e:restaurant` | **75 / 76** (the D3 block skipped: it needs a known live workspace owner, `DASHBOARD_SUB`). The one failure is `W5 after-call shows the charge`, the tunnel again. Before the script fixes below it stopped at 2 / 60 on the Terms screen |
+| `backend/api/test/d6-numbers.e2e.test.ts` | 19 / 19 (forward and answer modes saved and reset, SIP provider / transport returned, transport reaching the platform double) |
+| `backend/api/test/{calls,d16-transfer-knowledge,d6-activation}.e2e.test.ts` | 64 / 64 |
+| `pnpm --filter @portal/api test` / `@portal/web test` / `@portal/schemas test` / `@portal/ui test` / `@portal/db test` | 1276 / 368 / 131 / 10 / 8, all pass. New unit files: `api/common/env/sip-origination.test.ts`, `schemas/numbers.test.ts`, `web/wizard/{answer-modes,area-code,transfer-prefill,allowed-countries,pack-minutes,browser-help,live-checklist,sip-guide,leave-call,activation-summary}.test.ts`; extended: `api/calls/inbound.decide.test.ts`, `api/numbers/number-response.test.ts`, `api/crypto/envelope.test.ts`, `web/dashboard/numbers-view.test.ts`, `web/i18n/messages.test.ts` (183 keys in three locales). QA cards in ClickUp "Unit Testing", tag `adr-0040` |
+| `pnpm --filter @portal/api openapi:generate` + `openapi:check` | current, 239 operations |
+| `tsc --noEmit` api, web, admin, api-client, ui; `eslint .` web | clean |
+| `pnpm db:deploy` | `20261106090000_w6_answer_and_forward_modes`: two enum values, two nullable columns |
+| Screens read at 1440 px from the run's screenshots: W5 after a patch, W6 Option B, W7 | the chips, Keep / Undo, the three mode groups, the summary beside the packs, the 10 % select |
+
+Also found and fixed in `e2e-restaurant`, none of it caused by this work: it never accepted
+the Terms screen ADR 0036 put first (the wizard script was fixed on 5 Nov, this one was not);
+it seeded Growth twice, which put the live workspace past the §6.2 money-at-risk balance so
+every write from the stand-in identity answered `MFA_REQUIRED` (now Starter, then Growth: the
+seed applies the last pack's caps); it regenerated on W2, which a finished wizard refuses
+since ADR 0024 (now D3's Brief tab); its generation helper waited for progress words D3 does
+not use (now the stored version is the fact); and its business-name checks predate ADR 0038,
+under which the generator may name the business through `{{business_name}}`. One generation
+in five runs produced a greeting naming neither the business nor the variable ("Hi, this is
+Marie at the restaurant"); the identity rule is the model's to follow and was not changed here. The CDP helper's Chrome path is macOS-only; `CHROME_PATH=/usr/bin/google-chrome`
+on this box.
+
+## Addendum — 16 Nov 2026: the §7.2 shell and D1 Home (ADR 0041)
+
+Rows S-02, S-03, S-04 and H-02, H-03, H-05, H-07, H-08, H-09, H-10 above were re-assessed
+after ADR 0041 and carry their new status in place (marked "(16 Nov)"); H-01, H-04, H-06
+and H-11 stay PASS and were re-run by the same suite. The phase counts in §3 were **not**
+recounted. Calls made in session on the engineering recommendation and awaiting the spec
+owner are in ADR 0041 "Decisions taken": the bell as a read over the D7 outbox with
+`in_app` rows and a per-membership unread marker, messages and sentiment over real
+callers only, per-browser announcement dismissal until SA10 (D20), the chip opening one
+agent's Test tab (the publish bar is on it now) and the list for several, "days left"
+from the 7-day burn with "No calls in the last 7 days" instead of a division by zero,
+the checklist hiding on `all_done` rather than the wizard's `complete`, and a staff
+pause recording a ticket only when it belongs to the workspace. The task's premise that
+`GET /announcements/active` already existed was wrong — only the table did — so the
+route was built (read-only; writing stays SA10's).
+
+Commands run on 16 Nov against the local stack (Postgres `voice-agent-portal-postgres-1`
++ Redis, the built API and worker on 4001 bound to the stand-in issuer on 9999, a static
+export on 3005, the real voice platform for the seed's publish and the D3 publish; **no
+webhook tunnel**; the fixture from `pnpm --filter @portal/api e2e:d10-seed` — the local
+database had no hand-made D10 workspace):
+
+| Check | Result |
+| --- | --- |
+| `pnpm --filter @portal/web e2e:dashboard` (108 rows, was 60) | **108 / 108**, three runs: the first found two script defects of the new rows (the bell is a Radix menu and opens on pointer down; the agents list link had to be scoped to `main` because the header chip is now the first agent-detail link) and the viewer pass needed the Terms screen and a direct hop to Home after "Open workspace"; the third run is clean, viewer pass included |
+| `backend/api/test/d21-home.e2e.test.ts` | 8 / 8 (announcements by audience and window, messages and sentiment on `/stats`, the checklist rows, the pause ticket on workspace and agent, the bell feed, seen marker, dedupe and isolation, `member_joined` on accept, the viewer's `403 FORBIDDEN_ROLE` on checkout, publish and the test mint) |
+| `backend/api/test/{workspaces,agents,agent-lifecycle,d7-notifications,calls-api,d12-admin,d13-support,d6-numbers,d6-activation}.e2e.test.ts` | 293 / 293 |
+| `pnpm --filter @portal/api test` / `@portal/web test` / `@portal/schemas test` | 1288 / 391 / 131, all pass. New unit files: `api/config/announcements.rules.test.ts`, `api/notifications/notifications-feed.rules.test.ts`, `api/calls/message-captured.test.ts`, `web/dashboard/{home-view,notifications-view,announcements-view}.test.ts`; `web/i18n/messages.test.ts` passes on the new keys in three locales. QA cards in ClickUp "Unit Testing", tag `adr-0041` |
+| `pnpm --filter @portal/api openapi:generate` + `openapi:check` | current, 242 operations (was 239) |
+| `tsc --noEmit` api, web, admin, api-client, db; `eslint .` web | clean |
+| `pnpm db:deploy` | `20261116090000_d1_home_shell`: four nullable columns, additive |
+| Screens read at 1440 px from the run's screenshots: D1 as owner, D1 as viewer, D3 Test tab | the chip in the header, the bell, the pill with "≈ 500 min", the outlook line footed as an estimate, "Messages taken" and "Positive callers" on Today, Test / Publish / Edit on the agent card (View only for the viewer, no "Buy credits"), seven checklist rows, the publish bar on the Test tab |
+
+Known, not caused by this work: the D2 recording row is a clip the export serves (the seed's
+website call), so the proxy is exercised but the platform's own recording URL is not; the
+fixture's "today" calls fall on the previous Toronto day when the suite runs after midnight
+local time, which the rows read from the API so nothing fails.
+
+Later the same day: row S-04b was added. The §7.2 wireframe's "● Agent live" had no audit
+row and was not built; it is now (ADR 0041 addendum), and `e2e:dashboard` is 109 of 109.
+Two differences from the spec text remain and are not defects of this batch: the D1
+"Tasks due today / Needs review" widget belongs to the Leads module (P1b, hidden without
+leads), and the phone tab bar is Home, Calls, Agents, Numbers, More (ADR 0019) where §7.2
+says Wallet in the fourth place — S-05 is PASS on the bar existing, not on its order.
+
+## Addendum — 18 Nov 2026: USD and CAD (ADR 0049, spec §5, §5.5 #2)
+
+Scope: the payment and pricing corrections against §5. Audited first, then built. Not committed,
+pushed or deployed: every status below is from a developer box with the Stripe test account.
+
+### What was already there, and kept
+
+| Item | Where | State before | Change |
+| --- | --- | --- | --- |
+| Four packs, credits, rates, rental, trial, expiry, grace, thresholds (§5.1–§5.4) | `pricing-v1.ts`, `metering.ts`, `wallet.service.ts` | Correct | None. Pinned by `section5-rules.test.ts` |
+| Alexandre, Adam, Mathieu, Jeanne are Premium | `curated-voices.ts`, tier rule | Correct | None |
+| Amount and currency checked before credits are granted | `amountMismatch`, `fulfilPaymentIntent` | Correct, currency-aware | None; now reached by CAD |
+| One credit grant per purchase under webhook replay | wallet lock + purchase status | Correct | None |
+| `currency` on `purchases`, `packs`, `invoices`; reports per currency | schema, ADR 0048 | Present, always `USD` | Now written with the workspace currency |
+| Refund against the original PaymentIntent | `refundPaymentIntent` | Correct: Stripe refunds in the charge currency | None |
+| Stripe price sync | `stripe-price-sync.service.ts` | USD Prices | Unchanged; CAD charges are inline |
+
+### What was missing, and is now built
+
+| ID | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| CUR-01 | `tenants.currency`, CA → CAD, else USD | PASS (local) | `d23-currency.e2e` "a new Canadian workspace…"; browser pass |
+| CUR-02 | Owner/admin change it until the first purchase; locked after | PASS (local) | `d23-currency.e2e` workspace currency (6 cases); trigger `guard_tenant_currency` |
+| CUR-03 | Staff change with a reason code, audited | PASS (local) | `d23-currency.e2e` "after the lock only staff change it" |
+| CUR-04 | Bank of Canada `FXUSDCAD`, daily, history kept, last valid rate on failure, ops alert | PASS (local) | `exchange-rates.service.test.ts` (35), `bank-of-canada.client.test.ts` (23); the dev worker stored the live rate on boot |
+| CUR-05 | CAD = round(USD × rate), configurable rounding, no floats | PASS (local) | `currency.test.ts` (46); rounding changed from the console in `d23-currency.e2e` |
+| CUR-06 | `GET /pricing` in the workspace currency | PASS (local) | `d23-currency.e2e` GET /pricing (5 cases) |
+| CUR-07 | Real CAD charge; amount sent to Stripe equals the displayed price | PASS (local, Stripe test) | Money run: 8 sessions read back from Stripe; one CA$213 payment in a browser |
+| CUR-08 | Currency, amount and rate on the purchase row at checkout start | PASS (local) | `d23-currency.e2e` checkout cases; `checkout-price.test.ts` |
+| CUR-09 | `PRICE_CHANGED`: no charge, no credits, latest price returned | PASS (API, local); the on-screen alert not clicked through | `d23-currency.e2e` PRICE_CHANGED (5 cases) |
+| CUR-10 | Auto top-up in the workspace currency, opt-in, credited once | PASS (local, Stripe test) | `d23-currency.e2e` auto top-up (7 cases); money run USD and CAD |
+| CUR-11 | Refund in the original currency; USD cap converted at the purchase's rate | PASS (local, Stripe test) | `d23-currency.e2e` refunds (5 cases); money run USD and CAD |
+| CUR-12 | Console: USD base, derived CAD, rate in force, last refresh, configuration | PARTIAL | API `GET /admin/pricing/fx` tested; the tab is built, typechecked and linted, not clicked through in a browser |
+| CUR-13 | en, ar, fr-CA strings; RTL kept | PASS (local) | `messages.test.ts`; browser pass in ar and fr-CA |
+| CUR-14 | Staging money run in USD and CAD | **NOT DONE** | Needs a deploy. Steps in `docs/evidence/2026-11-18-usd-cad/README.md` §4 |
+
+### Open, by decision and not by omission
+
+- Six rules are proposals awaiting the spec owner (ADR 0049, "Pending the spec owner"): the Bank of
+  Canada rate, the daily refresh, whole-dollar rounding, the amount fixed at checkout, the workspace
+  default and lock, and USD limits converted at the purchase's rate.
+- Not built, pending an answer: GST/HST on CAD purchases, the 30-credit extra knowledge base in
+  Phase 1, the live merchant entity and Stripe access, a CAD payout bank account.
+- Shipped as they are (Full Scope 12): the plan tier does not lapse after 12 months, promo codes and
+  the Volume pack are not sold, the `premium_voices` gate is not enforced. B-row statuses in §4.6 for
+  these are unchanged.
+
+### Gaps found and left
+
+- Customer 360 "Lifetime sales" is one sum shown in the workspace currency; wrong for a workspace
+  whose currency staff changed after purchases in the other one.
+- No USD pack was paid through Stripe's hosted page in this pass (a CAD one was; USD sessions were
+  read back from Stripe unpaid, and the USD top-up and refund were real).
+- The money run's call, transfer and rental rows are wallet debits at the published rates, not real
+  calls or a real number.
+- The console's Currencies tab, currency dialog and the new settings fields were not clicked through.
+
+**Release:** live release stays blocked on the merchant-account items and the six confirmations.
+

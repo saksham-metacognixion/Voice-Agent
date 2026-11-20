@@ -1,0 +1,138 @@
+import { type RedisLike, redisKeys } from '../redis';
+import { encodeActive } from './inbound.decide';
+
+/**
+ * Check-and-reserve for `active:{ws}`, as one atomic Redis script.
+ *
+ * `decide()` reads the cache and then answers; between the read and the write, another
+ * call for the same workspace can be doing exactly the same thing. Two authorisations
+ * racing would each see the other's slot free and both be allowed — past the concurrency
+ * cap, and each sized against credits the other is about to spend. Redis runs a script to
+ * completion before anything else, so re-checking *inside* the write closes that window
+ * without a lock and without a second round trip (ADR 0011 §1).
+ *
+ * The predicates are deliberately the same two `decide()` already evaluated:
+ *   cap:      live calls (excluding this one) < concurrency_cap
+ *   balance:  credits reserved by those calls < balance + grace
+ * so a race loses on the same rule it would have lost on had it arrived a millisecond
+ * later, and the caller can turn the refusal straight into the matching decline reason.
+ *
+ * It also sweeps expired fields while it is there, which is the only place they are
+ * removed under contention.
+ */
+export const RESERVE_SCRIPT = `
+local key        = KEYS[1]
+local callId     = ARGV[1]
+local credits    = ARGV[2]
+local expiresAt  = tonumber(ARGV[3])
+local now        = tonumber(ARGV[4])
+local cap        = tonumber(ARGV[5])
+local ceiling    = ARGV[6]
+local ttl        = tonumber(ARGV[7])
+
+local entries  = redis.call('HGETALL', key)
+local live     = 0
+local reserved = 0
+
+for i = 1, #entries, 2 do
+  local field = entries[i]
+  local value = entries[i + 1]
+  local sep   = string.find(value, '|', 1, true)
+  local c     = sep and tonumber(string.sub(value, 1, sep - 1)) or nil
+  local e     = sep and tonumber(string.sub(value, sep + 1)) or nil
+  if c == nil or e == nil or e <= now then
+    redis.call('HDEL', key, field)
+  elseif field ~= callId then
+    live     = live + 1
+    reserved = reserved + c
+  end
+end
+
+if cap >= 0 and live >= cap then return 'cap' end
+if ceiling ~= '' and reserved >= tonumber(ceiling) then return 'balance' end
+
+redis.call('HSET', key, callId, credits .. '|' .. ARGV[3])
+redis.call('EXPIRE', key, ttl)
+return 'ok'
+`;
+
+/** What the script answers. `skipped` is the caller's own value when it could not run it. */
+export type ReserveResult = 'ok' | 'cap' | 'balance' | 'skipped';
+
+export function isReserveResult(value: unknown): value is Exclude<ReserveResult, 'skipped'> {
+  return value === 'ok' || value === 'cap' || value === 'balance';
+}
+
+/** One reservation: the call's field in `active:{ws}`, and the two predicates it is re-checked against. */
+export interface ActiveReservation {
+  callId: string;
+  credits: number;
+  expiresAt: number;
+  now: number;
+  /** Live calls (excluding this one) must stay below it. Null = no limit. */
+  cap: number | null;
+  /**
+   * What the other live calls' reservations must stay below. Null = the balance is not
+   * known, and the predicate is skipped (`decide()`'s `balance_unknown`). The inbound path
+   * passes balance + grace; a call we mint ourselves passes the balance alone, as
+   * `headroom()` does — the grace keeps a call from being cut mid-sentence, it never
+   * starts one.
+   */
+  ceiling: number | null;
+  ttlSeconds: number;
+}
+
+/**
+ * The one writer of a reservation into `active:{ws}` ahead of `call_started`: the §13.9
+ * path and every call we mint (call-headroom.ts). Throws when Redis does not answer; each
+ * caller decides what that means for its call. Without Lua (`InMemoryRedis`) it is a plain
+ * HSET, exact for one process.
+ */
+export async function reserveActive(redis: RedisLike, workspaceId: string, r: ActiveReservation): Promise<Exclude<ReserveResult, 'skipped'>> {
+  const key = redisKeys.activeCalls(workspaceId);
+  const value = encodeActive(r.credits, r.expiresAt);
+  if (typeof redis.eval !== 'function') {
+    await redis.hset(key, r.callId, value);
+    await redis.expire(key, r.ttlSeconds);
+    return 'ok';
+  }
+  const [credits, expiresAt] = value.split('|') as [string, string];
+  const result = await redis.eval(
+    RESERVE_SCRIPT,
+    1,
+    key,
+    r.callId,
+    credits,
+    expiresAt,
+    String(r.now),
+    String(r.cap ?? -1),
+    r.ceiling === null ? '' : String(r.ceiling),
+    String(r.ttlSeconds),
+  );
+  return isReserveResult(result) ? result : 'ok';
+}
+
+/**
+ * Moves a placeholder's line to the call the platform minted, as one script. Done as two
+ * commands — HSETNX then HDEL — the hash holds both fields for a round trip, and a
+ * reservation landing in that gap counts one call twice: on a two-line plan the second
+ * press of a callback race was refused `cap` instead of reaching the claim that answers
+ * `OUTBOUND_IN_PROGRESS` (CI, 6 Nov). HSETNX because `call_started` may have reserved the
+ * call already; a field already there is never overwritten.
+ */
+export const BIND_SCRIPT = `
+redis.call('HSETNX', KEYS[1], ARGV[1], ARGV[2])
+redis.call('HDEL', KEYS[1], ARGV[3])
+return 'ok'
+`;
+
+export async function bindActive(redis: RedisLike, workspaceId: string, input: { placeholder: string; callId: string; credits: number; expiresAt: number }): Promise<void> {
+  const key = redisKeys.activeCalls(workspaceId);
+  const value = encodeActive(input.credits, input.expiresAt);
+  if (typeof redis.eval !== 'function') {
+    await redis.hsetnx(key, input.callId, value);
+    await redis.hdel(key, input.placeholder);
+    return;
+  }
+  await redis.eval(BIND_SCRIPT, 1, key, input.callId, value, input.placeholder);
+}

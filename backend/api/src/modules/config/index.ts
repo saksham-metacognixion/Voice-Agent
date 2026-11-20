@@ -1,0 +1,11 @@
+export { PlatformConfigModule } from './config.module';
+export { PlatformConfigService, CONFIG_TTL_S, CAPS_TTL_S } from './platform-config.service';
+export type { CurrentPricing } from './platform-config.service';
+export { AnnouncementsService } from './announcements.service';
+export { activeAnnouncements, audienceIncludes } from './announcements.rules';
+export { resolveCaps, resolveFlags, packForTier, purchasablePackIn, rolloutBucket, killSwitchActive } from './config.resolve';
+export { ExchangeRatesService, QUOTE_CURRENCY, decimalText, implausibleMove, rateAgeDays, refreshDue } from './exchange-rates.service';
+export type { PriceQuote, RefreshOutcome, StoredRate } from './exchange-rates.service';
+export { BankOfCanadaClient, BOC_SERIES, BOC_SOURCE, parseValetObservations } from './bank-of-canada.client';
+export type { FxObservation } from './bank-of-canada.client';
+export { FX_SETTING_DEFAULTS, cadRounding, fxSettingsFromEnv } from './fx-settings';

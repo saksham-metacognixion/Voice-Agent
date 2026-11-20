@@ -1,0 +1,2475 @@
+{
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Har request se pehle (collection level): workspace_id / agent_id / to_number / number_id khali",
+          "// hon to API se khud bhar do — taaki koi bhi request akeli chal sake, folder A ke bina bhi.",
+          "// API mana kare (401, 403, koi workspace nahi) to wajah `autofill_error` me rakhte hain, aur",
+          "// request ka apna check wahi wajah error me dikhata hai.",
+          "const base = pm.environment.get('api_base');",
+          "const token = pm.environment.get('token');",
+          "const need = !pm.environment.get('workspace_id') || !pm.environment.get('agent_id') || !pm.environment.get('to_number');",
+          "if (base && token && need) {",
+          "  pm.environment.unset('autofill_error');",
+          "  const fail = (what, res) => {",
+          "    const msg = what + ' → ' + res.code + ' ' + (res.code === 401 ? '(token galat ya expire — portal se dobara copy karo)' : res.code === 403 ? '(is workspace ka member nahi)' : '') + ' ' + res.text().slice(0, 150);",
+          "    pm.environment.set('autofill_error', msg);",
+          "    console.error('[auto-fill] ' + msg);",
+          "  };",
+          "  const numbers = () => pm.sendRequest({ url: base + '/numbers', method: 'GET', header: { Authorization: 'Bearer ' + token, 'X-Workspace-Id': pm.environment.get('workspace_id') } }, (err, res) => {",
+          "    if (err) return pm.environment.set('autofill_error', 'GET /numbers: ' + err.message);",
+          "    if (res.code !== 200) return fail('GET /numbers', res);",
+          "    const list = res.json();",
+          "    const mine = list.find((n) => n.e164 && n.e164 === pm.environment.get('to_number')) || list.find((n) => n.kind === 'bought' && n.status === 'active') || list.find((n) => n.status === 'active');",
+          "    if (mine) {",
+          "      if (!pm.environment.get('number_id')) pm.environment.set('number_id', mine.id);",
+          "      if (!pm.environment.get('to_number') && mine.e164) pm.environment.set('to_number', mine.e164);",
+          "      if (!pm.environment.get('agent_id') && mine.agent_id) pm.environment.set('agent_id', mine.agent_id);",
+          "    }",
+          "    const sip = list.find((n) => n.kind === 'sip' && (n.status === 'active' || n.status === 'paused'));",
+          "    if (sip && !pm.environment.get('sip_number_id')) pm.environment.set('sip_number_id', sip.id);",
+          "    if (!mine) console.warn('[auto-fill] is workspace me koi active number nahi — folder D ko ek chahiye');",
+          "  });",
+          "  if (!pm.environment.get('workspace_id')) {",
+          "    pm.sendRequest({ url: base + '/workspaces', method: 'GET', header: { Authorization: 'Bearer ' + token } }, (err, res) => {",
+          "      if (err) return pm.environment.set('autofill_error', 'GET /workspaces: ' + err.message + ' (API chal rahi hai? api_base sahi hai?)');",
+          "      if (res.code !== 200) return fail('GET /workspaces', res);",
+          "      const list = res.json();",
+          "      const pick = list.find((w) => w.role === 'owner' || w.role === 'admin') || list[0];",
+          "      if (!pick) return pm.environment.set('autofill_error', 'is token wale user ka koi workspace nahi — portal me workspace ke owner/admin se login karke token lo');",
+          "      pm.environment.set('workspace_id', pick.id);",
+          "      console.log('[auto-fill] workspace_id = ' + pick.id + ' (' + pick.name + ', ' + pick.role + ')');",
+          "      numbers();",
+          "    });",
+          "  } else {",
+          "    numbers();",
+          "  }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "info": {
+    "_postman_id": "be4ef8b8-005c-446c-a1e9-39919c008752",
+    "name": "Voice Agent - D16 P2 (transfer, hours, knowledge, SIP)",
+    "description": "D16 (P2): transfer billing, per-number business hours, knowledge use per call, SIP re-verify. ADR 0028.\n\n## Ek line me\nTransfer = do legs, do ledger rows (B) · har call me agent ne kya dhoonda (C) · number ke apne ghante + chhutiyan (D) · imported SIP trunk ka dobara check (E).\n\n## Setup — 4 steps\n**1. Dono files import karo** — collection **aur** `d16-p2.postman_environment.json`. Phir upar right me **\"Voice Agent D16\"** environment select karo (warna `{{api_base}}` resolve nahi hoga → `EAI_AGAIN`).\n\n**2. Local stack chalao** (API + worker dono — worker ke bina webhook 200 dega par kuch bill nahi hoga):\n```sh\npnpm infra:up && pnpm db:deploy && pnpm db:seed\npnpm dev            # api http://localhost:4000 + worker + portal http://localhost:3000\n```\n\n**3. Environment me 3–4 values bharo** (baaki folder A khud bharta hai):\n\n| Variable | Kahan se |\n| --- | --- |\n| `api_base` | Default `http://localhost:4000` (staging par `https://api-staging.oraly.ai`) |\n| `token` | Neeche \"Token kaise laayein\" |\n| `retell_api_key` | `.env` ka `RETELL_API_KEY` — webhook signature isi se banta hai |\n| `number_token` | Sirf folder D.6 ke liye (optional) — neeche SQL |\n| `workspace_id`, `agent_id`, `to_number`, `number_id`, `sip_number_id` | **Khud bharte hain** (folder A.2, A.4) |\n\n**4. Folder A → F order me chalao** (Runner bhi chalega). Koi bhi request akeli bhi chal jaati hai: collection ka pre-request script khali `workspace_id` / `agent_id` / `to_number` har request se pehle API se khud bhar deta hai. Koi value na bhar paaye to error me **wajah** likhi aati hai (jaise `GET /workspaces → 401` = token expire). Postman Console (neeche left) me `[auto-fill]` lines bhi dikhti hain.\n\n## Token kaise laayein\nPortal (`http://localhost:3000`) me owner/admin se login karo → browser DevTools (F12) → Console me ye chalao aur jo print ho use `token` me daalo:\n```js\nconst k = Object.keys(localStorage).find((k) => k.startsWith('@@auth0spajs@@') && !k.includes('@@user@@'));\ncopy(JSON.parse(localStorage.getItem(k)).body.access_token); 'token copied'\n```\nToken kuch ghanton me expire hota hai — 401 aaye to dobara copy karo.\n\n## number_token (sirf D.6)\nAPI ye kabhi nahi deta (inbound webhook ka secret path hai). Local DB se:\n```sh\nPGPASSWORD=portal psql -h localhost -U portal -d portal -c \"select e164, inbound_token from phone_numbers where tenant_id = '<workspace_id>' and status = 'active'\"\n```\n`to_number` se match karta `inbound_token` hi daalna.\n\n**Paisa:** folder B us workspace ke asli credits kaatta hai. Folder E platform par number ke SIP details dobara likhta hai — dev workspace par hi chalao. SIP ke liye `.env` me `SIP_CREDENTIALS_LOCAL_KEY` (64 hex, `openssl rand -hex 32`) chahiye, warna `503`.\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "A. Shuru karne se pehle",
+      "description": "Health, aur environment ki values khud bharna. **Pehle ye folder chalao** — token ke alawa zyada tar values yahin se bhar jaati hain.",
+      "item": [
+        {
+          "name": "1. GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/health",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "API zinda hai ya nahi. `Could not send request` / `EAI_AGAIN` aaye to: upar right me **Voice Agent D16** environment chuna hai? Aur API chal rahi hai (`pnpm dev`)?",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('api_base')) throw new Error('Environment nahi chuna — upar right me \"Voice Agent D16\" select karo');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /workspaces — workspace_id khud bharo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/workspaces",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "workspaces"
+              ]
+            },
+            "description": "Token wale user ke saare workspaces. `workspace_id` khali hai to pehla **owner/admin** wala workspace bhar deta hai (folder E aur PATCH /workspace ko owner/admin chahiye)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('token')) throw new Error('token khali hai — collection ki description me \"Token kaise laayein\" dekho');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 (401 = token galat ya expire)', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "if (!pm.environment.get('workspace_id')) {",
+                  "  const pick = list.find((w) => w.role === 'owner' || w.role === 'admin') || list[0];",
+                  "  if (pick) pm.environment.set('workspace_id', pick.id);",
+                  "}",
+                  "console.log('workspaces:', list.map((w) => w.name + ' (' + w.role + ') ' + w.id).join(' | '));",
+                  "pm.test('workspace_id bhara', () => pm.expect(pm.environment.get('workspace_id')).to.be.ok);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /workspace — sahi workspace?",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/workspace",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "workspace"
+              ]
+            },
+            "description": "403 = is workspace ke member nahi."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('token + workspace sahi', () => pm.response.to.have.status(200));",
+                  "const ws = pm.response.json();",
+                  "pm.environment.set('workspace_timezone', ws.timezone);",
+                  "console.log('Workspace:', ws.name, '| timezone:', ws.timezone);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. GET /numbers — number_id, agent_id, to_number khud bharo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers"
+              ]
+            },
+            "description": "Workspace ke numbers padh ke khali values bharta hai: `number_id` (bought, active), `agent_id` (us number ka agent), `to_number` (uska E.164), `sip_number_id` (imported SIP number, ho to).\n\n`number_token` API kabhi nahi deta (wo inbound webhook ka secret path hai) — sirf folder D.6 ko chahiye; description me SQL hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "const mine = list.find((n) => n.e164 && n.e164 === pm.environment.get('to_number')) || list.find((n) => n.kind === 'bought' && n.status === 'active') || list.find((n) => n.status === 'active');",
+                  "if (mine) {",
+                  "  pm.environment.set('number_id', mine.id);",
+                  "  if (!pm.environment.get('to_number') && mine.e164) pm.environment.set('to_number', mine.e164);",
+                  "  if (!pm.environment.get('agent_id') && mine.agent_id) pm.environment.set('agent_id', mine.agent_id);",
+                  "}",
+                  "const sip = list.find((n) => n.kind === 'sip' && (n.status === 'active' || n.status === 'paused'));",
+                  "if (sip) pm.environment.set('sip_number_id', sip.id);",
+                  "console.log('number_id', mine && mine.id, '| agent_id', pm.environment.get('agent_id'), '| to_number', pm.environment.get('to_number'), '| sip_number_id', sip ? sip.id : '(nahi)');",
+                  "pm.test('ek active number mila (folder D ke liye)', () => pm.expect(mine, 'workspace me active number chahiye').to.be.ok);",
+                  "pm.test('agent_id bhara (folder C ke liye)', () => pm.expect(pm.environment.get('agent_id')).to.be.ok);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. Environment check — webhook ke liye",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/health",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Signed webhooks (folder B, C, D.6) ke liye `retell_api_key` chahiye — `.env` ka `RETELL_API_KEY`.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "['token', 'workspace_id', 'retell_api_key'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('sab bhara hai', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "B. Transfer billing — do legs, do ledger rows",
+      "description": "Transferred call = **do alag legs**. Agent leg `call_ended` bill karta hai (tier rate), transferred leg `transfer_bridged → transfer_ended` ke beech 0.25 credit/min (admin §5 `rates.transferred_leg_per_min`).\n\nZaroori: **worker chalna chahiye**, warna webhook 200 dega par kuch bill nahi hoga.",
+      "item": [
+        {
+          "name": "1. call_started — nayi call",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Ek nayi call shuru karte hain (`metadata.tenant_id` ke saath, taaki inbound wala step zaroori na ho). Yahin `calls.rate` aur `config_version` lock hote hain.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Har run me nayi call — taaki purane run ka data test na bigaade.",
+                  "pm.environment.set('call_id', 'call_postman_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));",
+                  "// Call 10 minute pehle shuru hui maan lete hain, taaki saare timestamps \"past\" me hon.",
+                  "pm.environment.set('started_at', String(Date.now() - 600000));",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['workspace_id', 'call_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "const start = Number(pm.environment.get('started_at'));",
+                  "const call = Object.assign({",
+                  "  call_id: pm.environment.get('call_id'),",
+                  "  call_type: 'phone_call',",
+                  "  direction: 'inbound',",
+                  "  from_number: pm.environment.get('from_number') || '+966501234567',",
+                  "  to_number: pm.environment.get('to_number') || null,",
+                  "  metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "}, { start_timestamp: start });",
+                  "sign({ event: 'call_started', call: call, event_timestamp: Date.now() });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. transfer_started — agent ne transfer shuru kiya",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Agent ne caller ko insaan ke paas bhejna shuru kiya. Abhi koi charge nahi — sirf `transfer_status = started` record hota hai.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id') }, {}), event: 'transfer_started', event_timestamp: start + 55000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. transfer_bridged — saamne wale ne phone uthaya",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Destination ne call utha li. **Transferred leg ka meter yahin se chalta hai** (`event_timestamp` = start + 60 s). Rate isi waqt capture hota hai — us pricing version se jisme call shuru hui thi (`calls.config_version`), taaki beech me price badle to bhi purani call ka rate na badle.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id') }, {}), event: 'transfer_bridged', event_timestamp: start + 60000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. call_ended — agent leg khatam (60 s)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Agent wala hissa bridge par khatam hota hai: 60 s × 1 credit/min (standard) = **1.00 credit**, `reason = call` ledger row. Ye pehle jaisa hi hai — D16 ne isko chhua nahi.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['workspace_id', 'call_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "const start = Number(pm.environment.get('started_at'));",
+                  "const call = Object.assign({",
+                  "  call_id: pm.environment.get('call_id'),",
+                  "  call_type: 'phone_call',",
+                  "  direction: 'inbound',",
+                  "  from_number: pm.environment.get('from_number') || '+966501234567',",
+                  "  to_number: pm.environment.get('to_number') || null,",
+                  "  metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "}, { start_timestamp: start, end_timestamp: start + 60000, duration_ms: 60000, call_status: 'ended', disconnection_reason: 'transfer_bridged' });",
+                  "sign({ event: 'call_ended', call: call, event_timestamp: Date.now() });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. transfer_ended — transferred leg khatam (150 s)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Insaan ne phone rakha. `call.transfer_end_timestamp` = bridge + 150 s.\n\n150 s × 0.25 credit/min = 0.625 → **0.63 credit**, alag `reason = transfer` ledger row (`ref_id = call_id`).\n\nKyun alag row? Taaki dono legs ka hisaab alag dikhe aur `credit_ledger_transfer_debit_once_idx` (partial unique index) replay par double-bill hone hi na de.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id') }, { transfer_end_timestamp: start + 210000 }), event: 'transfer_ended', event_timestamp: start + 215000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. transfer_ended dobara — duplicate, charge nahi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Wahi event Retell ne dobara bheja. `webhook_events (provider, external_id, event_type)` unique hai → **204**, kuch nahi chalta. Aur agar kabhi replay ho bhi jaaye to ledger ka unique index collide karta hai — billing do baar ho hi nahi sakti.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Worker async kaam karta hai (webhook → queue → worker). Thoda ruk ke padhte hain.",
+                  "setTimeout(() => {}, 2500);",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id') }, { transfer_end_timestamp: start + 210000 }), event: 'transfer_ended', event_timestamp: start + 215000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 — pehle hi process ho chuka', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. GET /calls/:id — dono legs dikhne chahiye",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id}}"
+              ]
+            },
+            "description": "D2 detail. Naye fields:\n- `credits_charged` = agent leg (1.00)\n- `transfer_credits_charged` = transferred leg (0.63)\n- `transfer` = `{status, bridged_at, ended_at, duration_s, rate, credits_charged}`"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Worker async kaam karta hai (webhook → queue → worker). Thoda ruk ke padhte hain.",
+                  "setTimeout(() => {}, 1500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json();",
+                  "pm.test('agent leg = 1.00', () => pm.expect(c.credits_charged).to.eql(1));",
+                  "pm.test('transfer leg = 0.63', () => pm.expect(c.transfer_credits_charged).to.eql(0.63));",
+                  "pm.test('transfer object sahi', () => pm.expect(c.transfer).to.include({ status: 'ended', duration_s: 150, rate: 0.25, credits_charged: 0.63 }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8. GET /wallet/ledger?reason=transfer — sirf ek row",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/wallet/ledger?reason=transfer&limit=50",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "wallet",
+                "ledger"
+              ],
+              "query": [
+                {
+                  "key": "reason",
+                  "value": "transfer"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "D5 ledger me naya reason `transfer`. Is call ki exactly ek row honi chahiye, chahe events kitni baar aaye."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json().items.filter((r) => r.ref_id === pm.environment.get('call_id'));",
+                  "pm.test('exactly ek transfer row', () => pm.expect(rows.length).to.eql(1));",
+                  "pm.test('−0.63, ref_type call_transfer', () => pm.expect(rows[0]).to.include({ delta: -0.63, ref_type: 'call_transfer' }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9. Ulta order: transfer_ended PEHLE, call row bhi nahi",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Out-of-order case. Call ki row abhi bani hi nahi (call_started kho gaya). Event store hota hai aur **`transfer_deferred`** settle hota hai — retry nahi karte, warna sweeper usse hamesha queue me daalta rehta (aur shayad wo call humari hai hi nahi).",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Har run me nayi call — taaki purane run ka data test na bigaade.",
+                  "pm.environment.set('call_id_ooo', 'call_postman_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));",
+                  "// Call 10 minute pehle shuru hui maan lete hain, taaki saare timestamps \"past\" me hon.",
+                  "pm.environment.set('started_at_ooo', String(Date.now() - 600000));",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id_ooo'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at_ooo'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id_ooo') }, {}), event: 'transfer_ended', event_timestamp: start + 220000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "10. Ulta order: phir transfer_bridged",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Bridge baad me aaya. Abhi bhi row nahi hai → deferred.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id_ooo'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at_ooo'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id_ooo') }, {}), event: 'transfer_bridged', event_timestamp: start + 40000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "11. Ulta order: call_ended — ab row bani, leg settle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Ab `call_ended` row banata hai aur uske baad **saare stored events fold** hote hain (`foldTransfer`): earliest bridge (start + 40 s), end (start + 220 s) → 180 s × 0.25 = **0.75 credit**. Order kuch bhi ho, answer same.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['workspace_id', 'call_id_ooo'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "const start = Number(pm.environment.get('started_at_ooo'));",
+                  "const call = Object.assign({",
+                  "  call_id: pm.environment.get('call_id_ooo'),",
+                  "  call_type: 'phone_call',",
+                  "  direction: 'inbound',",
+                  "  from_number: pm.environment.get('from_number') || '+966501234567',",
+                  "  to_number: pm.environment.get('to_number') || null,",
+                  "  metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "}, { start_timestamp: start, end_timestamp: start + 40000, duration_ms: 40000, call_status: 'ended', disconnection_reason: 'call_transfer' });",
+                  "sign({ event: 'call_ended', call: call, event_timestamp: Date.now() });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "12. GET /calls/:id — ulta order bhi sahi bill hua",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id_ooo}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id_ooo}}"
+              ]
+            },
+            "description": "Deferred events fold ho gaye: 180 s transferred leg = 0.75."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Worker async kaam karta hai (webhook → queue → worker). Thoda ruk ke padhte hain.",
+                  "setTimeout(() => {}, 2500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json();",
+                  "pm.test('transfer ended, 180 s, 0.75', () => pm.expect(c.transfer).to.include({ status: 'ended', duration_s: 180, credits_charged: 0.75 }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "13. Cancelled transfer: transfer_started",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Naya scenario — transfer kiya par kisi ne uthaya nahi. Row abhi nahi hai, isliye ye deferred settle hoga; step 15 ka `call_ended` row banayega aur sab fold karega.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Har run me nayi call — taaki purane run ka data test na bigaade.",
+                  "pm.environment.set('call_id_cancel', 'call_postman_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));",
+                  "// Call 10 minute pehle shuru hui maan lete hain, taaki saare timestamps \"past\" me hon.",
+                  "pm.environment.set('started_at_cancel', String(Date.now() - 600000));",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id_cancel'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at_cancel'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id_cancel') }, {}), event: 'transfer_started', event_timestamp: start + 20000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "14. Cancelled transfer: transfer_cancelled",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Destination ne nahi uthaya. Bridge kabhi hua hi nahi → **kabhi bill nahi hoga**.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['call_id_cancel'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "// Asli shape (26 Oct ko store hua): {event, event_timestamp, call: {call_id}} — bas itna hi.",
+                  "// Bridge ka time sirf event_timestamp se pata chalta hai.",
+                  "const start = Number(pm.environment.get('started_at_cancel'));",
+                  "sign({ call: Object.assign({ call_id: pm.environment.get('call_id_cancel') }, {}), event: 'transfer_cancelled', event_timestamp: start + 45000 });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "15. Cancelled transfer: call_ended (60 s)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Agent leg normal bill: 60 s = 1.00. Transferred leg: 0.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['workspace_id', 'call_id_cancel'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "const start = Number(pm.environment.get('started_at_cancel'));",
+                  "const call = Object.assign({",
+                  "  call_id: pm.environment.get('call_id_cancel'),",
+                  "  call_type: 'phone_call',",
+                  "  direction: 'inbound',",
+                  "  from_number: pm.environment.get('from_number') || '+966501234567',",
+                  "  to_number: pm.environment.get('to_number') || null,",
+                  "  metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "}, { start_timestamp: start, end_timestamp: start + 60000, duration_ms: 60000, call_status: 'ended', disconnection_reason: 'user_hangup' });",
+                  "sign({ event: 'call_ended', call: call, event_timestamp: Date.now() });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "16. GET /calls/:id — cancelled, 0 credit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id_cancel}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id_cancel}}"
+              ]
+            },
+            "description": "`transfer.status = cancelled`, `transfer_credits_charged = 0`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Worker async kaam karta hai (webhook → queue → worker). Thoda ruk ke padhte hain.",
+                  "setTimeout(() => {}, 2500);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const c = pm.response.json();",
+                  "pm.test('cancelled', () => pm.expect(c.transfer.status).to.eql('cancelled'));",
+                  "pm.test('transfer leg free', () => pm.expect(c.transfer_credits_charged).to.eql(0));",
+                  "pm.test('agent leg 1.00', () => pm.expect(c.credits_charged).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "C. Knowledge use — har call me kya dhoonda",
+      "description": "Har call par: kitne look-ups, kitne hits (kuch mila), aur kaunsa source kitni baar kaam aaya. Ye **kabhi credits nahi chhoota**.",
+      "item": [
+        {
+          "name": "1. call_ended — knowledge use ke saath",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Retell `call` object me do cheezein bhejta hai:\n- `latency.knowledge_base.num` = kitni baar agent ne kuch dhoonda\n- `knowledge_base_retrieved_contents_url` = signed file, har look-up me kya mila\n\nYahan URL jaan-boojh kar `.invalid` domain ka hai — file nahi milegi, isliye result **`count_only`** aayega (count bacha rahega, sources nahi). Asli Retell call par `complete` aata hai with per-source hits.\n\n`call-knowledge` job (calls queue) ye kaam karta hai — 5 s delay ke saath, taaki `call_ended` aur `call_analyzed` ek hi run me padhe jaayen. Signed URL job payload me nahi jaata (Redis me customer ke documents ka link nahi chahiye) — job use stored webhook se padhta hai.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Har run me nayi call — taaki purane run ka data test na bigaade.",
+                  "pm.environment.set('call_id_kb', 'call_postman_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));",
+                  "// Call 10 minute pehle shuru hui maan lete hain, taaki saare timestamps \"past\" me hon.",
+                  "pm.environment.set('started_at_kb', String(Date.now() - 600000));",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['workspace_id', 'call_id_kb'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "const start = Number(pm.environment.get('started_at_kb'));",
+                  "const call = Object.assign({",
+                  "  call_id: pm.environment.get('call_id_kb'),",
+                  "  call_type: 'phone_call',",
+                  "  direction: 'inbound',",
+                  "  from_number: pm.environment.get('from_number') || '+966501234567',",
+                  "  to_number: pm.environment.get('to_number') || null,",
+                  "  metadata: { tenant_id: pm.environment.get('workspace_id') },",
+                  "}, { start_timestamp: start, end_timestamp: start + 90000, duration_ms: 90000, call_status: 'ended', disconnection_reason: 'user_hangup', latency: { knowledge_base: { num: 3 } }, knowledge_base_retrieved_contents_url: 'https://cdn.postman.invalid/knowledge_base_retrieved_contents.json' });",
+                  "sign({ event: 'call_ended', call: call, event_timestamp: Date.now() });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 — store hua, queue me gaya', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. GET /calls/:id — knowledge (count_only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id_kb}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id_kb}}"
+              ]
+            },
+            "description": "Job 5 s delay + retries ke baad: `knowledge = {lookups: 3, hits: null, detail: 'count_only', sources: []}`. `hits: null` = pata nahi (file nahi mili), `0` = dhoonda par kuch nahi mila — dono alag hain."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Worker async kaam karta hai (webhook → queue → worker). Thoda ruk ke padhte hain.",
+                  "setTimeout(() => {}, 9000);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const k = pm.response.json().knowledge;",
+                  "pm.test('3 look-ups, count only', () => pm.expect(k).to.include({ lookups: 3, hits: null, detail: 'count_only' }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. GET /calls/:id — bina knowledge wali call → null",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/calls/{{call_id_cancel}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "calls",
+                "{{call_id_cancel}}"
+              ]
+            },
+            "description": "Jis call me agent ne kuch dhoonda hi nahi, uska `knowledge` **null** hai (0 nahi)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('knowledge null', () => pm.expect(pm.response.json().knowledge).to.eql(null));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. GET /agents/:id/knowledge/stats?days=30",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/agents/{{agent_id}}/knowledge/stats?days=30",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "D3 Knowledge tab ka card. Sirf **asli callers** (test calls nahi). Fields: `calls`, `calls_with_lookups`, `calls_with_hits`, `lookups`, `hits`, `sources[]` (har current source, unused = 0), `other_hits` (website page jo pehchana nahi ja saka, ya delete ho chuka source)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "['agent_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const s = pm.response.json();",
+                  "pm.test('shape sahi', () => { pm.expect(s.days).to.eql(30); pm.expect(s).to.have.keys('days', 'from', 'calls', 'calls_with_lookups', 'calls_with_hits', 'lookups', 'hits', 'sources', 'other_hits'); });",
+                  "console.log('stats', JSON.stringify(s));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. stats?days=12 → 422",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/agents/{{agent_id}}/knowledge/stats?days=12",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "12"
+                }
+              ]
+            },
+            "description": "Sirf 7, 30, 90 allowed."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "D. Per-number business hours",
+      "description": "Mode: `always` (24×7), `business` (workspace ke ghante; agar workspace ke ghante set hi nahi to **24×7** — fail-open by design), `custom` (number ka apna schedule + zone). D16 ne special dates, number ka timezone, strict validation, aur 'closed date pichhli raat ka overnight bhi band karta hai' fix jode.",
+      "item": [
+        {
+          "name": "1. GET /numbers — number_id aur sip_number_id dhoondo",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers"
+              ]
+            },
+            "description": "Test script `to_number` wala number `number_id` me aur pehla SIP number `sip_number_id` me daal deta hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const list = pm.response.json();",
+                  "const mine = list.find((n) => n.e164 === pm.environment.get('to_number')) || list.find((n) => n.kind === 'bought' && n.status === 'active');",
+                  "if (mine) pm.environment.set('number_id', mine.id);",
+                  "const sip = list.find((n) => n.kind === 'sip' && (n.status === 'active' || n.status === 'paused'));",
+                  "if (sip) pm.environment.set('sip_number_id', sip.id);",
+                  "pm.test('ek bought number mila', () => pm.expect(mine, 'workspace me active number chahiye').to.be.ok);",
+                  "console.log('number_id', mine && mine.id, '| sip_number_id', sip ? sip.id : '(koi SIP number nahi — folder E skip karo)');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. PATCH /numbers/:id — apna schedule + special dates",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{number_id}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "`hours_mode: custom` = is number ka apna schedule, workspace wala nahi.\n\nNaya D16:\n- `timezone` — number ka apna zone (Riyadh)\n- `date_overrides` — kisi date ke alag ghante; `intervals: []` = pura din band\n- `closed_dates` — chhutti\n- Thursday ka `16:00–23:00` aur ek overnight example\n\nPrecedence ek date par: **closed date → override → weekday**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hours_mode\": \"custom\",\n  \"hours_override\": {\n    \"timezone\": \"Asia/Riyadh\",\n    \"days\": {\n      \"sun\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"17:00\"\n        }\n      ],\n      \"mon\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"17:00\"\n        }\n      ],\n      \"tue\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"17:00\"\n        }\n      ],\n      \"wed\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"17:00\"\n        }\n      ],\n      \"thu\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"13:00\"\n        },\n        {\n          \"open\": \"16:00\",\n          \"close\": \"23:00\"\n        }\n      ],\n      \"fri\": [\n        {\n          \"open\": \"20:00\",\n          \"close\": \"02:00\"\n        }\n      ]\n    },\n    \"closed_dates\": [\n      \"2026-12-02\"\n    ],\n    \"date_overrides\": [\n      {\n        \"date\": \"2026-11-30\",\n        \"intervals\": [\n          {\n            \"open\": \"10:00\",\n            \"close\": \"14:00\"\n          }\n        ]\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "['number_id'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const n = pm.response.json();",
+                  "pm.test('custom + override save hua', () => { pm.expect(n.hours_mode).to.eql('custom'); pm.expect(n.hours_override.date_overrides[0].date).to.eql('2026-11-30'); pm.expect(n.hours_override.timezone).to.eql('Asia/Riyadh'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. PATCH galat schedule → 422 (fields ke saath)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{number_id}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "Teen galtiyan ek saath: anjaan timezone, overlapping ghante, 30 February. **Galat timezone pehle chup-chaap 24×7 open kar deta tha** (inbound check fail-open hai) — isliye ab save par hi rok dete hain.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hours_mode\": \"custom\",\n  \"hours_override\": {\n    \"timezone\": \"Riyadh\",\n    \"days\": {\n      \"mon\": [\n        {\n          \"open\": \"09:00\",\n          \"close\": \"13:00\"\n        },\n        {\n          \"open\": \"12:00\",\n          \"close\": \"17:00\"\n        }\n      ]\n    },\n    \"date_overrides\": [\n      {\n        \"date\": \"2026-02-30\",\n        \"intervals\": []\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));",
+                  "const fields = (pm.response.json().fields || []).map((f) => f.field).sort();",
+                  "pm.test('teenon field bataye', () => pm.expect(fields).to.eql(['hours_override.date_overrides.0.date', 'hours_override.days.mon', 'hours_override.timezone']));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. PATCH /workspace — galat timezone → 422",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/workspace",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "workspace"
+              ]
+            },
+            "description": "Workspace ka timezone har schedule ka fallback hai, isliye wo bhi validate hota hai (owner/admin).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"timezone\": \"Mars/Olympus\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5. PATCH — aaj ka din band (Riyadh me)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{number_id}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "Har din 24 ghante khula (`00:00–00:00` = pura din), par **aaj** ki date override `[]` = band. Agla step inbound call bhejega → busy tone aana chahiye.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hours_mode\": \"custom\",\n  \"hours_override\": {\n    \"timezone\": \"Asia/Riyadh\",\n    \"days\": {\n      \"mon\": [\n        {\n          \"open\": \"00:00\",\n          \"close\": \"00:00\"\n        }\n      ],\n      \"tue\": [\n        {\n          \"open\": \"00:00\",\n          \"close\": \"00:00\"\n        }\n      ],\n      \"wed\": [\n        {\n          \"open\": \"00:00\",\n          \"close\": \"00:00\"\n        }\n      ],\n      \"thu\": [\n        {\n          \"open\": \"00:00\",\n          \"close\": \"00:00\"\n        }\n      ],\n      \"fri\": [\n        {\n          \"open\": \"00:00\",\n          \"close\": \"00:00\"\n        }\n      ],\n      \"sat\": [\n        {\n          \"open\": \"00:00\",\n          \"close\": \"00:00\"\n        }\n      ],\n      \"sun\": [\n        {\n          \"open\": \"00:00\",\n          \"close\": \"00:00\"\n        }\n      ]\n    },\n    \"closed_dates\": [],\n    \"date_overrides\": [\n      {\n        \"date\": \"{{today_riyadh}}\",\n        \"intervals\": []\n      }\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const tz = 'Asia/Riyadh';",
+                  "const today = new Date().toLocaleDateString('en-CA', { timeZone: tz }); // YYYY-MM-DD us zone me",
+                  "pm.environment.set('today_riyadh', today);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6. Inbound call → decline 'hours' (busy tone)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-retell-signature",
+                "value": "{{retell_signature}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell/inbound/{{number_token}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell",
+                "inbound",
+                "{{number_token}}"
+              ]
+            },
+            "description": "§13.9 ka asli rasta. Number ka apna schedule (custom) workspace ke schedule se jeetta hai. Aaj band hai → `{call_inbound: {reject: true}}`. Call D2 me **Missed** dikhegi, `decline_reason = hours`.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{{signed_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('number_token')) { console.warn('number_token khali — D.6 skip. Description me SQL dekho.'); pm.execution.skipRequest(); }",
+                  "// Worker async kaam karta hai (webhook → queue → worker). Thoda ruk ke padhte hain.",
+                  "setTimeout(() => {}, 800);",
+                  "",
+                  "// Retell ka signature = HMAC-SHA256(apiKey, rawBody + timestamp), format v=<ms>,d=<hex>.",
+                  "// Body yahin string banti hai aur request me sirf {{signed_body}} jaata hai — Postman",
+                  "// dobara format kare to ek extra space bhi signature tod dega.",
+                  "function sign(payload) {",
+                  "  const key = pm.environment.get('retell_api_key');",
+                  "  if (!key) throw new Error('retell_api_key khali hai — .env ka RETELL_API_KEY daalo (signature isi se banta hai)');",
+                  "  const raw = JSON.stringify(payload);",
+                  "  const ts = Date.now();",
+                  "  pm.environment.set('signed_body', raw);",
+                  "  pm.environment.set('retell_signature', 'v=' + ts + ',d=' + CryptoJS.HmacSHA256(raw + ts, key).toString(CryptoJS.enc.Hex));",
+                  "}",
+                  "",
+                  "['to_number'].forEach((k) => { if (!pm.environment.get(k)) { const why = pm.environment.get('autofill_error'); throw new Error(k + ' environment me khali hai' + (why ? ' — wajah: ' + why : ' — collection ki description ka Setup dekho')); } });",
+                  "sign({ event: 'call_inbound', event_timestamp: Date.now(), call_inbound: { call_id: 'call_postman_hours_' + Date.now().toString(36), agent_id: 'agent_postman', agent_version: 1, from_number: '+966501234567', to_number: pm.environment.get('to_number') } });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 (decline bhi 200 hai — 4xx par Retell retry karke call utha leta)', () => pm.response.to.have.status(200));",
+                  "pm.test('reject: true', () => pm.expect(pm.response.json()).to.eql({ call_inbound: { reject: true } }));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. PATCH — wapas 'always' (cleanup)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{number_id}}",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}"
+              ]
+            },
+            "description": "Number ko wapas 24×7 kar do, taaki baaki testing na ruke.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hours_mode\": \"always\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "E. SIP re-verify",
+      "description": "Imported SIP number (Option C) ke credentials dobara check karna — optional naye credentials ke saath. **Synchronous** hai jaan-boojh kar: naya password sirf request ke stack par rehta hai, kisi job payload (Redis) me nahi.\n\nLocal par `.env` me `SIP_CREDENTIALS_LOCAL_KEY` (64 hex) chahiye, warna `503 NOT_CONFIGURED`. Ek ghante me 10 checks per workspace (`429 RATE_LIMITED`).",
+      "item": [
+        {
+          "name": "1. POST /numbers/:id/sip/verify — stored details dobara check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{sip_number_id}}/sip/verify",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{sip_number_id}}",
+                "sip",
+                "verify"
+              ]
+            },
+            "description": "Owner/admin, email verified. Khali body = jo save hai wahi check karo.\n\nKya hota hai:\n1. **Lease** (`sip_verify_started_at`) — ek number par ek waqt me ek hi check, doosra = `409 SIP_VERIFY_IN_PROGRESS`\n2. **Trunk check** — ek SIP OPTIONS, digest auth ke saath stored username/password; sirf **public address** par (VPC/metadata/localhost kabhi nahi), port < 1024 refuse\n3. **Platform** — trunk fail nahi hua to `get-phone-number` + `update-phone-number` (termination_uri + credentials) dobara bhejte hain\n4. Result `sip.verification` me: `verified` / `warning` / `failed` + reason\n\nPassword kabhi response, log ya audit me nahi aata.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sip_number_id')) { console.warn('sip_number_id khali — workspace me imported SIP number nahi. Ye request skip.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const v = pm.response.json().sip.verification;",
+                  "pm.test('verification aaya', () => pm.expect(['verified', 'warning', 'failed']).to.include(v.status));",
+                  "pm.test('password kahin nahi', () => pm.expect(pm.response.text()).to.not.match(/\"password\"\\s*:/));",
+                  "console.log('verification', JSON.stringify(v));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. POST verify — naye credentials (pehle check, phir save)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{sip_number_id}}/sip/verify",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{sip_number_id}}",
+                "sip",
+                "verify"
+              ]
+            },
+            "description": "Naya host/username/password **pehle check** hota hai. Fail hua to purane credentials jaise ke taise rehte hain (`credentials_updated: false`) — typo working setup ko tod nahi sakta. Pass/warning par naya password envelope-encrypt hoke save hota hai.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"host\": \"sip.postman.invalid\",\n  \"username\": \"postman-trunk\",\n  \"password\": \"Postman-Test-1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sip_number_id')) { console.warn('sip_number_id khali — workspace me imported SIP number nahi. Ye request skip.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.response.to.have.status(200));",
+                  "const v = pm.response.json().sip.verification;",
+                  "pm.test('.invalid host → dns_failed, kuch save nahi', () => { pm.expect(v.status).to.eql('failed'); pm.expect(v.reason).to.eql('dns_failed'); pm.expect(v.credentials_updated).to.eql(false); });",
+                  "pm.test('password response me nahi', () => pm.expect(pm.response.text()).to.not.include('Postman-Test-1'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. POST verify — anjaan field → 422",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{sip_number_id}}/sip/verify",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{sip_number_id}}",
+                "sip",
+                "verify"
+              ]
+            },
+            "description": "Request schema `.strict()` hai — sirf `host`, `username`, `password`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"surprise\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('sip_number_id')) { console.warn('sip_number_id khali — workspace me imported SIP number nahi. Ye request skip.'); pm.execution.skipRequest(); }"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('422', () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4. POST verify — bought number → 400 NOT_SIP_NUMBER",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/numbers/{{number_id}}/sip/verify",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "numbers",
+                "{{number_id}}",
+                "sip",
+                "verify"
+              ]
+            },
+            "description": "Re-verify sirf apne phone system se import kiye number ke liye hai.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 NOT_SIP_NUMBER', () => { pm.response.to.have.status(400); pm.expect(pm.response.json().code).to.eql('NOT_SIP_NUMBER'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "F. Guards — kya block hona chahiye",
+      "description": "Auth, tenancy aur signature.",
+      "item": [
+        {
+          "name": "1. Bina token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{api_base}}/agents/{{agent_id}}/knowledge/stats",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "agents",
+                "{{agent_id}}",
+                "knowledge",
+                "stats"
+              ]
+            },
+            "description": "Har route authenticated hai.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Doosre workspace ka agent → 404",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Workspace-Id",
+                "value": "{{workspace_id}}"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/agents/00000000-0000-4000-8000-000000000000/knowledge/stats",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "agents",
+                "00000000-0000-4000-8000-000000000000",
+                "knowledge",
+                "stats"
+              ]
+            },
+            "description": "Kisi aur ka agent 'empty' nahi, **not found** hai."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. Unsigned transfer webhook → 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{api_base}}/webhooks/retell",
+              "host": [
+                "{{api_base}}"
+              ],
+              "path": [
+                "webhooks",
+                "retell"
+              ]
+            },
+            "description": "Signature nahi to store bhi nahi hota.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"transfer_bridged\",\n  \"call\": {\n    \"call_id\": \"call_forged\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

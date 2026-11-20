@@ -1,0 +1,197 @@
+{
+  "Version": "2012-10-17",
+  "Comment": [
+    "Voice Agent \u2014 the STRICT variant of operator-bootstrap-policy.json. ADR 0015.",
+    "",
+    "Use this one together with voice-agent-boundary-policy.json when the account should not trust",
+    "the deployer with an escalation path. It differs in one idea: this user may only create or",
+    "modify an identity that carries the permissions boundary",
+    "  arn:aws:iam::667723749107:policy/voice-agent-boundary",
+    "and may not remove it. The boundary forbids iam:*, so a role minted with this policy cannot be",
+    "given permissions the boundary does not already allow \u2014 CreateRole + PutRolePolicy stops being",
+    "a way to become admin.",
+    "",
+    "Order: create voice-agent-boundary first, then this policy, then attach this policy to",
+    "voice-agent-devs. Deploy the stack with PermissionsBoundaryArn set to the boundary's ARN, or",
+    "every identity it creates is refused.",
+    "",
+    "Remove the Comment key before pasting: IAM rejects unknown top-level keys."
+  ],
+  "Statement": [
+    {
+      "Sid": "VoiceAgentRolesOnlyWithTheBoundary",
+      "Effect": "Allow",
+      "Action": ["iam:CreateRole", "iam:PutRolePolicy", "iam:DeleteRolePolicy"],
+      "Resource": "arn:aws:iam::667723749107:role/voice-agent-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::667723749107:policy/voice-agent-boundary"
+        }
+      }
+    },
+    {
+      "Sid": "VoiceAgentRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:UpdateRole",
+        "iam:UpdateRoleDescription",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:ListRoleTags",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies"
+      ],
+      "Resource": "arn:aws:iam::667723749107:role/voice-agent-*"
+    },
+    {
+      "Sid": "VoiceAgentInstanceProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateInstanceProfile",
+        "iam:DeleteInstanceProfile",
+        "iam:GetInstanceProfile",
+        "iam:AddRoleToInstanceProfile",
+        "iam:RemoveRoleFromInstanceProfile",
+        "iam:TagInstanceProfile",
+        "iam:UntagInstanceProfile"
+      ],
+      "Resource": "arn:aws:iam::667723749107:instance-profile/voice-agent-*"
+    },
+    {
+      "Sid": "PassOnlyTheInstanceRoleAndOnlyToEc2",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::667723749107:role/voice-agent-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": "ec2.amazonaws.com"
+        }
+      }
+    },
+    {
+      "Sid": "VoiceAgentCiUserOnlyWithTheBoundary",
+      "Effect": "Allow",
+      "Action": ["iam:CreateUser"],
+      "Resource": "arn:aws:iam::667723749107:user/voice-agent-*",
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::667723749107:policy/voice-agent-boundary"
+        }
+      }
+    },
+    {
+      "Sid": "VoiceAgentCiUser",
+      "Effect": "Allow",
+      "Action": [
+        "iam:DeleteUser",
+        "iam:GetUser",
+        "iam:TagUser",
+        "iam:UntagUser",
+        "iam:ListUserTags",
+        "iam:ListAttachedUserPolicies",
+        "iam:ListUserPolicies",
+        "iam:CreateAccessKey",
+        "iam:DeleteAccessKey",
+        "iam:ListAccessKeys",
+        "iam:UpdateAccessKey"
+      ],
+      "Resource": "arn:aws:iam::667723749107:user/voice-agent-*"
+    },
+    {
+      "Sid": "VoiceAgentManagedPolicies",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion",
+        "iam:ListPolicyVersions",
+        "iam:ListEntitiesForPolicy",
+        "iam:TagPolicy",
+        "iam:UntagPolicy"
+      ],
+      "Resource": "arn:aws:iam::667723749107:policy/voice-agent-*"
+    },
+    {
+      "Sid": "AttachOnlyOurOwnPoliciesToBoundariedIdentities",
+      "Effect": "Allow",
+      "Action": [
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:AttachUserPolicy",
+        "iam:DetachUserPolicy"
+      ],
+      "Resource": ["arn:aws:iam::667723749107:role/voice-agent-*"],
+      "Condition": {
+        "ArnLike": {
+          "iam:PolicyARN": [
+            "arn:aws:iam::667723749107:policy/voice-agent-*",
+            "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+          ]
+        },
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::667723749107:policy/voice-agent-boundary"
+        }
+      }
+    },
+    {
+      "Sid": "ReadOnlySoTheConsoleAndCloudFormationCanResolveNames",
+      "Effect": "Allow",
+      "Action": [
+        "iam:ListRoles",
+        "iam:ListUsers",
+        "iam:ListPolicies",
+        "iam:ListInstanceProfiles",
+        "iam:GetAccountSummary"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "RdsCreatesItsServiceLinkedRoleOnFirstUse",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "iam:AWSServiceName": ["rds.amazonaws.com", "ssm.amazonaws.com"]
+        }
+      }
+    },
+    {
+      "Sid": "AttachOurOwnPoliciesToTheDeployerItself",
+      "Effect": "Allow",
+      "Action": ["iam:AttachUserPolicy", "iam:DetachUserPolicy"],
+      "Resource": "arn:aws:iam::667723749107:user/voice-agent-*",
+      "Condition": {
+        "ArnLike": {
+          "iam:PolicyARN": "arn:aws:iam::667723749107:policy/voice-agent-*"
+        }
+      }
+    },
+    {
+      "Sid": "TheBoundaryItselfIsNotRemovable",
+      "Effect": "Deny",
+      "Action": ["iam:DeleteRolePermissionsBoundary", "iam:DeleteUserPermissionsBoundary"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "AndMayOnlyEverBeSetToOurs",
+      "Effect": "Allow",
+      "Action": ["iam:PutRolePermissionsBoundary", "iam:PutUserPermissionsBoundary"],
+      "Resource": [
+        "arn:aws:iam::667723749107:role/voice-agent-*",
+        "arn:aws:iam::667723749107:user/voice-agent-*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PermissionsBoundary": "arn:aws:iam::667723749107:policy/voice-agent-boundary"
+        }
+      }
+    }
+  ]
+}

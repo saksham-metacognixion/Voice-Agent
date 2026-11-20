@@ -1,0 +1,126 @@
+'use client';
+
+import type { AdminCustomerDetail } from '@portal/schemas';
+import { Badge, Card, CardContent, CardHeader, CardTitle } from '@portal/ui';
+import * as React from 'react';
+import { Copyable } from '@/src/components/common/copyable';
+import { PermissionButton } from '@/src/components/common/permission-button';
+import { Fact, FactGrid } from '@/src/components/common/query-states';
+import { YesNo } from '@/src/components/common/status-badges';
+import { KycCard } from '@/src/components/customers/kyc-card';
+import { CurrencyDialog } from '@/src/components/customers/currency-dialog';
+import { OverridesDialog } from '@/src/components/customers/overrides-dialog';
+import { formatCents, formatCredits, formatDateTime, formatNumber } from '@/src/lib/format';
+import { useStaff } from '@/src/staff/staff-provider';
+
+export function OverviewTab({ c }: { c: AdminCustomerDetail }) {
+  const { can } = useStaff();
+  const [editingOverrides, setEditingOverrides] = React.useState(false);
+  const [changingCurrency, setChangingCurrency] = React.useState(false);
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">Workspace</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FactGrid columns={2}>
+              <Fact label="Timezone">{c.timezone}</Fact>
+              <Fact label="Website" wrap>
+                {c.website ?? '–'}
+              </Fact>
+              <Fact label="Onboarding">{c.onboarding_completed_at ? `Complete ${formatDateTime(c.onboarding_completed_at)}` : `Step ${c.onboarding_step} of 7`}</Fact>
+              <Fact label="Members">{formatNumber(c.members, 0)}</Fact>
+              <Fact label="Agents">
+                {c.agents_live} live / {c.agents_total}
+              </Fact>
+              <Fact label="Numbers active">{formatNumber(c.numbers_active, 0)}</Fact>
+              <Fact label="Calls 30d">{formatNumber(c.calls_30d, 0)}</Fact>
+              <Fact label="Usage 30d">{formatCredits(c.usage_30d)} credits</Fact>
+              <Fact label="Last activity">{formatDateTime(c.last_activity_at)}</Fact>
+              <Fact label="Paused at">{formatDateTime(c.paused_at)}</Fact>
+              <Fact label="Paused reason" wrap>
+                {c.paused_reason ?? '–'}
+              </Fact>
+              <Fact label="Open alerts">{c.open_alerts ? <Badge variant="warning">{c.open_alerts}</Badge> : '0'}</Fact>
+              <Fact label="View-as sessions open">{c.impersonations_open}</Fact>
+              <Fact label="Flags" wrap>
+                {c.flags.length ? c.flags.join(', ') : '–'}
+              </Fact>
+            </FactGrid>
+          </CardContent>
+        </Card>
+        <KycCard customerId={c.id} />
+      </div>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+            <CardTitle className="text-sm">Plan and caps</CardTitle>
+            <PermissionButton variant="outline" size="sm" denied={can.setOverrides()} onClick={() => setEditingOverrides(true)}>
+              Edit overrides
+            </PermissionButton>
+          </CardHeader>
+          <CardContent>
+            <FactGrid columns={2}>
+              <Fact label="Plan tier">{c.plan_tier}</Fact>
+              <Fact label="Concurrency cap">{c.concurrency_cap}</Fact>
+              <Fact label="KB allowance">{c.kb_allowance}</Fact>
+              <Fact label="Custom deal">
+                <YesNo value={c.custom_deal} />
+              </Fact>
+            </FactGrid>
+            {c.overrides ? (
+              <div className="mt-4 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm">
+                <p className="mb-2 font-medium">Tenant overrides</p>
+                <FactGrid columns={2}>
+                  <Fact label="Concurrency cap">{c.overrides.concurrency_cap ?? '–'}</Fact>
+                  <Fact label="KB allowance">{c.overrides.kb_allowance ?? '–'}</Fact>
+                  <Fact label="Max agents">{c.overrides.max_agents ?? '–'}</Fact>
+                  <Fact label="Max numbers">{c.overrides.max_numbers ?? '–'}</Fact>
+                  <Fact label="Reason" wrap>
+                    {c.overrides.reason ?? '–'}
+                  </Fact>
+                  <Fact label="Updated">{formatDateTime(c.overrides.updated_at)}</Fact>
+                </FactGrid>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">No tenant overrides.</p>
+            )}
+            {editingOverrides ? <OverridesDialog c={c} onClose={() => setEditingOverrides(false)} /> : null}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+            <CardTitle className="text-sm">Billing</CardTitle>
+            <PermissionButton variant="outline" size="sm" denied={can.setCurrency()} onClick={() => setChangingCurrency(true)}>
+              Change currency
+            </PermissionButton>
+          </CardHeader>
+          <CardContent>
+            <FactGrid columns={2}>
+              <Fact label="Balance">{formatCredits(c.balance)} credits</Fact>
+              <Fact label="Last pack">{c.last_pack_credits === null ? '–' : `${formatCredits(c.last_pack_credits)} credits`}</Fact>
+              <Fact label="Paid purchases">{c.purchases_paid}</Fact>
+              <Fact label="Lifetime sales" wrap>
+                {/* Each currency on its own: a purchase keeps the currency it was charged in. */}
+                {c.lifetime_sales.length ? c.lifetime_sales.map((s) => formatCents(s.amount_cents, s.currency)).join(' · ') : formatCents(0, c.currency)}
+              </Fact>
+              <Fact label="Currency" wrap>
+                {c.currency}
+                <span className="font-normal text-muted-foreground">{c.currency_locked ? ' · locked by a purchase' : ' · customer can change'}</span>
+              </Fact>
+              <Fact label="Auto top-up">
+                <YesNo value={c.auto_topup_enabled} yes="On" no="Off" />
+              </Fact>
+              <Fact label="Stripe customer" wrap>
+                {c.stripe_customer_id ? <Copyable value={c.stripe_customer_id} full /> : '–'}
+              </Fact>
+            </FactGrid>
+            {changingCurrency ? <CurrencyDialog c={c} onClose={() => setChangingCurrency(false)} /> : null}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,26 @@
+{
+  "captured_at": "2026-09-15T05:24:44.215Z",
+  "data": {
+    "knowledge_base_id": "knowledge_base_ccfeabaaf06d6dfb",
+    "knowledge_base_name": "dev-spike-kb",
+    "knowledge_base_sources": [
+      {
+        "content_url": "https://dxc03zgurdly9.cloudfront.net/knowledge_base_ccfeabaaf06d6dfb/423ac799.txt",
+        "type": "text",
+        "source_id": "kb_source_7382ceb581f89f19",
+        "title": "Hours"
+      },
+      {
+        "type": "url",
+        "url": "https://www.example.com/",
+        "source_id": "kb_source_3ca14ad843edda53"
+      }
+    ],
+    "auto_crawling_paths": [],
+    "enable_auto_refresh": true,
+    "status": "complete",
+    "error_messages": [],
+    "last_refreshed_timestamp": 0,
+    "user_modified_timestamp": 1789449872465
+  }
+}

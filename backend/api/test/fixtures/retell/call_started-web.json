@@ -1,0 +1,71 @@
+{
+  "captured_at": "2026-09-15T05:44:29.440Z",
+  "provider": "retell",
+  "event_type": "call_started",
+  "path": "/webhooks/retell",
+  "headers": {
+    "host": "chest-escapist-slip.ngrok-free.dev",
+    "user-agent": "axios/1.15.2",
+    "content-length": "1368",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, compress, deflate, br",
+    "baggage": "sentry-environment=production,sentry-public_key=f9776ac2f798b66bdadc990a2ed64f17,sentry-trace_id=5050583232dc4c1da0e1369c5015d634,sentry-org_id=4511141371183104",
+    "content-type": "application/json",
+    "sentry-trace": "5050583232dc4c1da0e1369c5015d634-9c49d212715a4dfc",
+    "x-forwarded-for": "100.20.5.228",
+    "x-forwarded-host": "chest-escapist-slip.ngrok-free.dev",
+    "x-forwarded-proto": "https",
+    "x-retell-signature": "v=1789451069006,d=f332181e34af49384d1008ae161170395cbf8c901bbd696b1ead4aab1b6cab67"
+  },
+  "raw": "{\"event\":\"call_started\",\"call\":{\"call_id\":\"call_1cb31dd3e5300aafeded570879c\",\"call_type\":\"web_call\",\"agent_id\":\"agent_c72a20039d1559e8c6e345c03c\",\"agent_version\":0,\"agent_name\":\"dev-spike-receptionist\",\"call_status\":\"ongoing\",\"start_timestamp\":1789451069005,\"latency\":{},\"metadata\":{\"test\":true,\"source\":\"dev-test-call-page\"},\"call_cost\":{\"product_costs\":[],\"total_duration_unit_price\":0,\"total_duration_seconds\":0,\"combined_cost\":0},\"data_storage_setting\":\"everything\",\"opt_in_signed_url\":true,\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbGllbnQiLCJleHAiOjE3ODk0NTg4NjYsIm5iZiI6MTc4OTQ1MTA2NiwiaWF0IjoxNzg5NDUxMDY2LCJpZGVudGl0eSI6ImNsaWVudCIsInZpZGVvIjp7InJvb21Kb2luIjp0cnVlLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWV9LCJjYWxsX2lkIjoiY2FsbF8xY2IzMWRkM2U1MzAwYWFmZWRlZDU3MDg3OWMiLCJpbnN0IjoiaS0wNmM1MmJkMzRhM2FjMTE3NiJ9.JS9bifKhJe9qwKfn0g4GH-Qj-6SHU3ciRJwkzdKxteA\",\"transport\":\"gateway\",\"gateway_ip\":\"3.42.144.150\",\"ice_servers\":[{\"urls\":\"turn:turn.retellai.com:3478?transport=udp\",\"username\":\"1789458869:call_1cb31dd3e5300aafeded570879c\",\"credential\":\"6PJsHX0J1x/oZeM5kGIjZR3ENvA=\"},{\"urls\":\"turns:turn.retellai.com:443\",\"username\":\"1789458869:call_1cb31dd3e5300aafeded570879c\",\"credential\":\"6PJsHX0J1x/oZeM5kGIjZR3ENvA=\"},{\"urls\":\"stun:stun.l.google.com:19302\"},{\"urls\":\"stun:stun.cloudflare.com:3478\"}]},\"event_timestamp\":1789451069005}",
+  "body": {
+    "event": "call_started",
+    "call": {
+      "call_id": "call_1cb31dd3e5300aafeded570879c",
+      "call_type": "web_call",
+      "agent_id": "agent_c72a20039d1559e8c6e345c03c",
+      "agent_version": 0,
+      "agent_name": "dev-spike-receptionist",
+      "call_status": "ongoing",
+      "start_timestamp": 1789451069005,
+      "latency": {},
+      "metadata": {
+        "test": true,
+        "source": "dev-test-call-page"
+      },
+      "call_cost": {
+        "product_costs": [],
+        "total_duration_unit_price": 0,
+        "total_duration_seconds": 0,
+        "combined_cost": 0
+      },
+      "data_storage_setting": "everything",
+      "opt_in_signed_url": true,
+      "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJjbGllbnQiLCJleHAiOjE3ODk0NTg4NjYsIm5iZiI6MTc4OTQ1MTA2NiwiaWF0IjoxNzg5NDUxMDY2LCJpZGVudGl0eSI6ImNsaWVudCIsInZpZGVvIjp7InJvb21Kb2luIjp0cnVlLCJjYW5QdWJsaXNoIjp0cnVlLCJjYW5TdWJzY3JpYmUiOnRydWV9LCJjYWxsX2lkIjoiY2FsbF8xY2IzMWRkM2U1MzAwYWFmZWRlZDU3MDg3OWMiLCJpbnN0IjoiaS0wNmM1MmJkMzRhM2FjMTE3NiJ9.JS9bifKhJe9qwKfn0g4GH-Qj-6SHU3ciRJwkzdKxteA",
+      "transport": "gateway",
+      "gateway_ip": "3.42.144.150",
+      "ice_servers": [
+        {
+          "urls": "turn:turn.retellai.com:3478?transport=udp",
+          "username": "1789458869:call_1cb31dd3e5300aafeded570879c",
+          "credential": "6PJsHX0J1x/oZeM5kGIjZR3ENvA="
+        },
+        {
+          "urls": "turns:turn.retellai.com:443",
+          "username": "1789458869:call_1cb31dd3e5300aafeded570879c",
+          "credential": "6PJsHX0J1x/oZeM5kGIjZR3ENvA="
+        },
+        {
+          "urls": "stun:stun.l.google.com:19302"
+        },
+        {
+          "urls": "stun:stun.cloudflare.com:3478"
+        }
+      ]
+    },
+    "event_timestamp": 1789451069005
+  },
+  "signature_valid": true,
+  "fixture_note": "Captured on D2 (2026-09-15). Twilio SIDs and signed media URLs are redacted in body AND raw, so x-retell-signature no longer verifies against raw; re-sign with RetellGateway.signWebhookBody() in tests.",
+  "source_file": "call_started-2026-09-15T05-44-29.440Z.json"
+}

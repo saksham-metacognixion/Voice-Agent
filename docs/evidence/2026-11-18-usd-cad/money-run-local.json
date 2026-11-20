@@ -1,0 +1,279 @@
+{
+  "run": "d1abc8aa",
+  "at": "2026-11-19T06:25:43.806Z",
+  "stripe_mode": "test",
+  "rate": {
+    "pair": "USD/CAD",
+    "rate": "1.4326",
+    "observed_on": "2026-11-18",
+    "source": "Bank of Canada FXUSDCAD (live fetch)"
+  },
+  "rows": [
+    {
+      "scenario": "Initial workspace currency",
+      "currency": "USD",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": null,
+      "result": "pass",
+      "note": "GET /workspace → USD, not locked"
+    },
+    {
+      "scenario": "Starter purchase (Checkout Session)",
+      "currency": "USD",
+      "displayed": 4900,
+      "stripe": 4900,
+      "stripe_currency": "usd",
+      "credits": 150,
+      "stripe_object": "cs_test_a0k1FwKWAEjoXuBfzsGB3kQdiRll7GAsx1O7gJKA3hLxNf71BQxnRR7hR8",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Growth purchase (Checkout Session)",
+      "currency": "USD",
+      "displayed": 14900,
+      "stripe": 14900,
+      "stripe_currency": "usd",
+      "credits": 500,
+      "stripe_object": "cs_test_a0mmHWIyiMuZF8C70f9X23QGA6z4H6YxS16O8i4aR2vxT6hD7bfZZohYBb",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Scale purchase (Checkout Session)",
+      "currency": "USD",
+      "displayed": 39900,
+      "stripe": 39900,
+      "stripe_currency": "usd",
+      "credits": 1500,
+      "stripe_object": "cs_test_a0JncdGuXpEhRPKJWvMeCYB8q2faiZaXaxjBGf6j0tyUxTyowYFVmWtQtV",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Pro purchase (Checkout Session)",
+      "currency": "USD",
+      "displayed": 99900,
+      "stripe": 99900,
+      "stripe_currency": "usd",
+      "credits": 4500,
+      "stripe_object": "cs_test_a0ZTu0ZGnN46bh6OYQezYQiUXXeUlYpfmkaowWBfF0R5S1xzfiDdtRgTMo",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Saved card (pm_card_visa attached)",
+      "currency": "USD",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": null,
+      "stripe_object": "pm_…(test)",
+      "result": "pass",
+      "note": "Visa •••• 4242 on cus_VeiDR8a9K6sq0w"
+    },
+    {
+      "scenario": "Auto top-up (Starter, off-session)",
+      "currency": "USD",
+      "displayed": 4900,
+      "stripe": 4900,
+      "stripe_currency": "usd",
+      "credits": 150,
+      "balance_after": 150,
+      "stripe_object": "pi_3UdOmmC8uQC6VEv511yPEOW6",
+      "result": "pass",
+      "note": "PaymentIntent succeeded on Stripe; credited once, a second confirmation credited nothing."
+    },
+    {
+      "scenario": "Standard call (2 min 30 s)",
+      "currency": "credits (USD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -2.5,
+      "balance_after": 147.5,
+      "result": "pass",
+      "note": "150 s × 1/min"
+    },
+    {
+      "scenario": "Premium call (2 min 30 s)",
+      "currency": "credits (USD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -3.75,
+      "balance_after": 143.75,
+      "result": "pass",
+      "note": "150 s × 1.5/min"
+    },
+    {
+      "scenario": "Transfer (4 min bridged)",
+      "currency": "credits (USD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -1,
+      "balance_after": 142.75,
+      "result": "pass",
+      "note": "240 s × 0.25/min"
+    },
+    {
+      "scenario": "Number rental (1 month)",
+      "currency": "credits (USD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -15,
+      "balance_after": 127.75,
+      "result": "pass",
+      "note": "pricing.recurring.number_rental_credits"
+    },
+    {
+      "scenario": "Refund (full, of the top-up)",
+      "currency": "USD",
+      "displayed": 4900,
+      "stripe": 4900,
+      "stripe_currency": "usd",
+      "credits": -150,
+      "balance_after": -22.25,
+      "stripe_object": "re_3UdOmmC8uQC6VEv510XoimB8",
+      "result": "pass",
+      "note": "Stripe refund succeeded; purchase row unchanged at 4900 USD."
+    },
+    {
+      "scenario": "Initial workspace currency",
+      "currency": "CAD",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": null,
+      "result": "pass",
+      "note": "GET /workspace → CAD, not locked"
+    },
+    {
+      "scenario": "Starter purchase (Checkout Session)",
+      "currency": "CAD",
+      "displayed": 7000,
+      "stripe": 7000,
+      "stripe_currency": "cad",
+      "credits": 150,
+      "stripe_object": "cs_test_a0zrQ2GWxcJRklUkSuEaRDPNFJAYVQr75YujansNChB9SQDvup9PE0BH4Y",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Growth purchase (Checkout Session)",
+      "currency": "CAD",
+      "displayed": 21300,
+      "stripe": 21300,
+      "stripe_currency": "cad",
+      "credits": 500,
+      "stripe_object": "cs_test_a0J14jhsh4kIPjnZl8LhVbTifvi56WPCYUnCbHGg2QCXo98Jhi28JHsCdA",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Scale purchase (Checkout Session)",
+      "currency": "CAD",
+      "displayed": 57200,
+      "stripe": 57200,
+      "stripe_currency": "cad",
+      "credits": 1500,
+      "stripe_object": "cs_test_a0pdhcgPGJzUaUXIaihFCEinn7Mufiv5oByzRGaLnYyjy5GWV9BuHiL8mI",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Pro purchase (Checkout Session)",
+      "currency": "CAD",
+      "displayed": 143100,
+      "stripe": 143100,
+      "stripe_currency": "cad",
+      "credits": 4500,
+      "stripe_object": "cs_test_a0XhS2CREPyTLUaK7j1S9ZlfPZ5L6Q0qwS1Am2K1vbOVfNJoImX6QdlWhm",
+      "result": "partial",
+      "note": "Session created on Stripe at the displayed amount and currency; purchase row matches. Not paid: the hosted card page needs a browser."
+    },
+    {
+      "scenario": "Saved card (pm_card_visa attached)",
+      "currency": "CAD",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": null,
+      "stripe_object": "pm_…(test)",
+      "result": "pass",
+      "note": "Visa •••• 4242 on cus_VeiDjbWj2VbKHd"
+    },
+    {
+      "scenario": "Auto top-up (Starter, off-session)",
+      "currency": "CAD",
+      "displayed": 7000,
+      "stripe": 7000,
+      "stripe_currency": "cad",
+      "credits": 150,
+      "balance_after": 150,
+      "stripe_object": "pi_3UdOmuC8uQC6VEv52ZicqFf1",
+      "result": "pass",
+      "note": "PaymentIntent succeeded on Stripe; credited once, a second confirmation credited nothing."
+    },
+    {
+      "scenario": "Standard call (2 min 30 s)",
+      "currency": "credits (CAD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -2.5,
+      "balance_after": 147.5,
+      "result": "pass",
+      "note": "150 s × 1/min"
+    },
+    {
+      "scenario": "Premium call (2 min 30 s)",
+      "currency": "credits (CAD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -3.75,
+      "balance_after": 143.75,
+      "result": "pass",
+      "note": "150 s × 1.5/min"
+    },
+    {
+      "scenario": "Transfer (4 min bridged)",
+      "currency": "credits (CAD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -1,
+      "balance_after": 142.75,
+      "result": "pass",
+      "note": "240 s × 0.25/min"
+    },
+    {
+      "scenario": "Number rental (1 month)",
+      "currency": "credits (CAD workspace)",
+      "displayed": null,
+      "stripe": null,
+      "stripe_currency": null,
+      "credits": -15,
+      "balance_after": 127.75,
+      "result": "pass",
+      "note": "pricing.recurring.number_rental_credits"
+    },
+    {
+      "scenario": "Refund (full, of the top-up)",
+      "currency": "CAD",
+      "displayed": 7000,
+      "stripe": 7000,
+      "stripe_currency": "cad",
+      "credits": -150,
+      "balance_after": -22.25,
+      "stripe_object": "re_3UdOmuC8uQC6VEv522kJmW04",
+      "result": "pass",
+      "note": "Stripe refund succeeded; purchase row unchanged at 7000 CAD."
+    }
+  ]
+}
