@@ -297,3 +297,156 @@ jobs:
           host="${{ vars.STAGING_ADMIN_HOST }}"
           [ -n "$host" ] || { echo "::error::STAGING_ADMIN_HOST is not set (e.g. admin-staging.oraly.ai)"; exit 1; }
           curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://$host/"
+
+  # ------------------------------------------------------------------ 6. production (main → EC2 over SSM, D15)
+  #
+  # The same three deploys as staging, from `main`, in the `production` environment. Give that
+  # environment a required reviewer (Settings → Environments → production): each job then
+  # waits for an approval, which is the only gate between a merge to main and customers.
+  #   repository vars (read in the job-level `if`, where environment-scoped ones read as empty):
+  #            PROD_INSTANCE_ID, PROD_PORTAL_BUCKET, PROD_ADMIN_BUCKET
+  #   production vars: AWS_REGION, PROD_API_DOMAIN (api.oraly.ai)
+  #   production secrets: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY of `voice-agent-ci-prod`,
+  #            never the staging user's
+  deploy-prod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.PROD_INSTANCE_ID != ''
+    environment:
+      name: production
+      url: https://${{ vars.PROD_API_DOMAIN }}/health
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Deploy over SSM Run Command
+        env:
+          INSTANCE_ID: ${{ vars.PROD_INSTANCE_ID }}
+          TAG: ${{ needs.image.outputs.tag }}
+          IMAGE: ${{ needs.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "voice-agent prod $TAG" \
+            --parameters "commands=[\"set -e\",\"cd /opt/voice-agent/infra && git fetch --quiet origin $GITHUB_SHA && git checkout --quiet $GITHUB_SHA\",\"sudo BACKEND_IMAGE=$IMAGE /opt/voice-agent/infra/infra/scripts/deploy.sh prod $TAG\"]" \
+            --query 'Command.CommandId' --output text)
+          echo "command $COMMAND_ID"
+          for _ in $(seq 1 60); do
+            STATUS=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Success) break ;;
+              Failed|Cancelled|TimedOut) aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" --query '[StandardOutputContent,StandardErrorContent]' --output text; exit 1 ;;
+            esac
+            sleep 10
+          done
+          aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" --query StandardOutputContent --output text
+      - name: Production answers over TLS
+        run: |
+          set -euo pipefail
+          curl -fsS --max-time 10 "https://${{ vars.PROD_API_DOMAIN }}/health"
+          curl -fsS --max-time 10 "https://${{ vars.PROD_API_DOMAIN }}/health/ready"
+
+  # ------------------------------------------------------------------ 7. portal, production (main → S3 + CloudFront)
+  #
+  #   production vars: PROD_PORTAL_DISTRIBUTION_ID, PROD_PORTAL_HOST (app.oraly.ai),
+  #            PROD_AUTH0_DOMAIN, PROD_AUTH0_CLIENT_ID, PROD_AUTH0_AUDIENCE (the production
+  #            customer tenant), PROD_POSTHOG_KEY / _HOST, PROD_PORTAL_SENTRY_DSN,
+  #            PROD_STATUS_PAGE_URL (all four optional)
+  deploy-portal-prod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.PROD_PORTAL_BUCKET != ''
+    environment:
+      name: production
+      url: https://${{ vars.PROD_PORTAL_HOST }}/
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and publish the portal
+        env:
+          FRONTEND_BUCKET: ${{ vars.PROD_PORTAL_BUCKET }}
+          FRONTEND_DISTRIBUTION_ID: ${{ vars.PROD_PORTAL_DISTRIBUTION_ID }}
+          NEXT_PUBLIC_API_URL: https://${{ vars.PROD_API_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_DOMAIN: ${{ vars.PROD_AUTH0_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_CLIENT_ID: ${{ vars.PROD_AUTH0_CLIENT_ID }}
+          NEXT_PUBLIC_AUTH0_AUDIENCE: ${{ vars.PROD_AUTH0_AUDIENCE }}
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ vars.PROD_POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: ${{ vars.PROD_POSTHOG_HOST }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.PROD_PORTAL_SENTRY_DSN }}
+          NEXT_PUBLIC_STATUS_PAGE_URL: ${{ vars.PROD_STATUS_PAGE_URL }}
+          NEXT_PUBLIC_RELEASE: sha-${{ github.sha }}
+        run: infra/scripts/deploy-frontend.sh web prod
+      - name: Portal answers over TLS
+        run: |
+          set -euo pipefail
+          host="${{ vars.PROD_PORTAL_HOST }}"
+          [ -n "$host" ] || { echo "::error::PROD_PORTAL_HOST is not set on the production environment (e.g. app.oraly.ai)"; exit 1; }
+          curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://$host/login/"
+
+  # ------------------------------------------------------------------ 8. console, production (main → S3 + CloudFront)
+  #
+  #   production vars: PROD_ADMIN_DISTRIBUTION_ID, PROD_ADMIN_HOST (admin.oraly.ai),
+  #            PROD_STAFF_AUTH0_DOMAIN, PROD_STAFF_AUTH0_CLIENT_ID, PROD_STAFF_AUTH0_AUDIENCE
+  #            (the production staff tenant), PROD_ADMIN_SENTRY_DSN (optional)
+  deploy-admin-prod:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [check]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.PROD_ADMIN_BUCKET != ''
+    environment:
+      name: production
+      url: https://${{ vars.PROD_ADMIN_HOST }}/
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Build and publish the console
+        env:
+          FRONTEND_BUCKET: ${{ vars.PROD_ADMIN_BUCKET }}
+          FRONTEND_DISTRIBUTION_ID: ${{ vars.PROD_ADMIN_DISTRIBUTION_ID }}
+          NEXT_PUBLIC_API_URL: https://${{ vars.PROD_API_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_DOMAIN: ${{ vars.PROD_STAFF_AUTH0_DOMAIN }}
+          NEXT_PUBLIC_AUTH0_CLIENT_ID: ${{ vars.PROD_STAFF_AUTH0_CLIENT_ID }}
+          NEXT_PUBLIC_AUTH0_AUDIENCE: ${{ vars.PROD_STAFF_AUTH0_AUDIENCE }}
+          NEXT_PUBLIC_PORTAL_URL: https://${{ vars.PROD_PORTAL_HOST }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ vars.PROD_ADMIN_SENTRY_DSN }}
+          NEXT_PUBLIC_RELEASE: sha-${{ github.sha }}
+        run: infra/scripts/deploy-frontend.sh admin prod
+      - name: Console answers over TLS
+        run: |
+          set -euo pipefail
+          host="${{ vars.PROD_ADMIN_HOST }}"
+          [ -n "$host" ] || { echo "::error::PROD_ADMIN_HOST is not set (e.g. admin.oraly.ai)"; exit 1; }
+          curl -fsS --max-time 10 -o /dev/null -w '%{http_code}\n' "https://$host/"
