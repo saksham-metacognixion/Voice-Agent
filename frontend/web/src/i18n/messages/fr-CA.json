@@ -1653,7 +1653,7 @@
         "redirecting": "Ouverture du paiement sécurisé…",
         "secure": "Paiement sécurisé par Stripe",
         "reviewTitle": "Votre achat est en cours d’examen",
-        "reviewBody": "Nous examinons un premier achat de plus de 1 000 $ avant de prélever le paiement. Rien n’a été facturé. Nous vous écrirons par courriel, habituellement en moins d’un jour ouvrable.",
+        "reviewBody": "Nous examinons certains premiers achats avant de prélever le paiement. Rien n’a été facturé. Nous vous écrirons par courriel, habituellement en moins d’un jour ouvrable.",
         "mfaTitle": "Confirmez d’abord avec deux facteurs",
         "mfaBody": "Cet achat met de l’argent en jeu : les propriétaires et les administrateurs confirment d’abord avec une application d’authentification.",
         "mfaAction": "Confirmer maintenant",

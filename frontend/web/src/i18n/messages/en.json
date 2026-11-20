@@ -1653,7 +1653,7 @@
         "redirecting": "Opening secure checkout…",
         "secure": "Secure checkout by Stripe",
         "reviewTitle": "Your purchase is being reviewed",
-        "reviewBody": "We review a first purchase over $1,000 before taking payment. Nothing has been charged. We will email you, usually within one business day.",
+        "reviewBody": "We review some first purchases before taking payment. Nothing has been charged. We will email you, usually within one business day.",
         "mfaTitle": "Verify with two-factor first",
         "mfaBody": "This purchase puts money at risk, so owners and admins verify with an authenticator app first.",
         "mfaAction": "Verify now",

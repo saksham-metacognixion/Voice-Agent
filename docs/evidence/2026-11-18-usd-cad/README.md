@@ -236,3 +236,27 @@ moved the business to CAD. It is now one figure per currency charged (`lifetime_
 Not reachable from the screens with the accounts available, automated tests only: the USD refund cap
 and the first-purchase review limit converted for a CAD purchase (the only staff sign-in is a super
 admin, who has no cap, and no pack crosses the limit in either currency).
+
+## Refund cap and first-purchase review limit, on screen (19 Nov, local, Stripe test account)
+
+Both limits are USD figures. Each was lowered for the check and put back after.
+
+**Refund cap.** Super admin cap set to US$40 per purchase in Staff → Role limits.
+
+| Purchase | Dialog | Over the cap | Under the cap | Past the screen |
+| --- | --- | --- | --- | --- |
+| CA$70.00, rate 1.4326 | "your cap CA$57.30 per purchase", amount starts at 57.30 | 57.31: "Over your cap of CA$57.30 per purchase", button disabled | CA$20.00 refunded at Stripe; CA$37.30 of the cap left | `403 STAFF_LIMIT_EXCEEDED`, "57.30 CAD (40.00 USD at this purchase's rate)" |
+| US$49.00 | "your cap US$40.00 per purchase", amount starts at 40.00 | 40.01: button disabled | US$10.00 refunded at Stripe; US$30.00 left | `403 STAFF_LIMIT_EXCEEDED` |
+
+A purchase already refunded up to the cap shows "Your cap … is used up on this one" and no amount field.
+
+**Review limit.** Published at US$60 (pricing v2), then back to US$1,000 (v3). CAD limit at 1.4326 = CA$85.95.
+
+| Business | Starter | Growth |
+| --- | --- | --- |
+| Canada, CAD | CA$70 (over 60 as a bare number, under CA$85.95): Stripe Checkout at CA$70.00 | CA$213: held, "Your purchase is being reviewed", no Stripe session |
+| United States, USD | $49: Stripe Checkout at US$49.00 | $149: held, no Stripe session |
+
+Console → Billing → Reviews listed both with their own currency. Approve (CAD): the next Pay opened Stripe at CA$213.00. Reject (USD): the next Pay opened a new review. Both buttons stay disabled until a reason is chosen.
+
+Found: the review notice named "$1,000" whatever the limit or the currency. It now names no figure (en, ar, fr-CA).
